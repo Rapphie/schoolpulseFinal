@@ -59,13 +59,17 @@ return new class extends Migration
 
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('code');
+            $table->unsignedBigInteger('grade_level_id');
+            $table->string('name')->unique();
+            $table->string('code')->unique();
             $table->string('description');
             $table->integer('units')->default(1);
             $table->integer('hours_per_week')->default(1);
             $table->boolean('is_active')->default(true);
             $table->softDeletes();
+
+            // Foreign Key(s)
+            $table->foreign('grade_level_id')->references('id')->on('grade_levels');
         });
 
         Schema::create('llc', function (Blueprint $table) {
