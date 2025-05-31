@@ -16,20 +16,17 @@ class GradeFactory extends Factory
      */
     public function definition(): array
     {
-        static $usedCombinations = [];
-
-        do {
-            $studentId = $this->faker->numberBetween(1, 10);
-            $subjectId = $this->faker->numberBetween(1, 10);
-        } while (in_array([$studentId, $subjectId], $usedCombinations));
-
-        $usedCombinations[] = [$studentId, $subjectId];
-
         return [
-            'student_id' => $studentId,
-            'subject_id' => $subjectId,
-            'grade' => $this->faker->randomFloat(2, 0, 100),
-            'user_id' => $this->faker->numberBetween(1, 10),
+            'student_id' => \App\Models\Student::factory(),
+            'subject_id' => \App\Models\Subject::factory(),
+            'grade' => $this->faker->numberBetween(75, 100),
+            'max_score' => 100,
+            'assessment_type' => $this->faker->randomElement(['quiz', 'exam', 'project', 'assignment']),
+            'assessment_name' => $this->faker->words(3, true),
+            'quarter' => $this->faker->numberBetween(1, 4),
+            'school_year' => '2024-2025',
+            'assessment_date' => $this->faker->dateTimeBetween('-3 months', 'now'),
+            'teacher_id' => \App\Models\Teacher::factory(),,
         ];
     }
 }

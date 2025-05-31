@@ -20,8 +20,18 @@ class StudentFactory extends Factory
         return [
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
-            'section_id' => $this->faker->numberBetween(1, 10),
-            'user_id' => $this->faker->numberBetween(1, 10),
+            'section_id' => \App\Models\Section::factory(),
+            'qr_code' => bin2hex(random_bytes(16)),
+            'lrn' => $this->faker->numerify('##########'),
+            'birthdate' => $this->faker->dateTimeBetween('-18 years', '-12 years'),
+            'gender' => $this->faker->randomElement(['male', 'female']),
+            'address' => $this->faker->address(),
+            'contact_number' => '09' . $this->faker->numerify('#########'),
+            'guardian_name' => $this->faker->name(),
+            'guardian_contact' => '09' . $this->faker->numerify('#########'),
+            'status' => 'active',
+            'enrollment_date' => $this->faker->dateTimeBetween('-1 year', 'now'),
+            'teacher_id' => \App\Models\Teacher::factory(),
         ];
     }
 }

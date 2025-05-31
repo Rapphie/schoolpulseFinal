@@ -17,11 +17,16 @@ class AttendanceFactory extends Factory
     public function definition(): array
     {
         return [
-            'student_id' => $this->faker->numberBetween(1, 10),
-            'subject_id' => $this->faker->numberBetween(1, 10),
-            'remarks' => $this->faker->word(),
-            'user_id' => $this->faker->numberBetween(1, 10),
-
+            'student_id' => \App\Models\Student::factory(),
+            'subject_id' => \App\Models\Subject::factory(),
+            'status' => $this->faker->randomElement(['present', 'absent', 'late', 'excused']),
+            'date' => $this->faker->dateTimeBetween('-2 months', 'now'),
+            'quarter' => $this->faker->numberBetween(1, 4),
+            'school_year' => '2024-2025',
+            'time_in' => $this->faker->dateTimeBetween('08:00:00', '08:30:00'),
+            'time_out' => $this->faker->dateTimeBetween('15:00:00', '17:00:00'),
+            'remarks' => $this->faker->optional(0.3)->sentence(),
+            'teacher_id' => \App\Models\Teacher::factory(),, // Teacher role
         ];
     }
 }

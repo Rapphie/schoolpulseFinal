@@ -15,7 +15,7 @@ class SectionFactory extends Factory
             'name' => strtoupper($this->faker->randomLetter() . $this->faker->randomLetter()),
             'grade_level' => $this->faker->numberBetween(7, 12),
             'description' => $this->faker->sentence(),
-            'adviser_id' => User::factory(),
+            'teacher_id' => Teacher::factory(),
             'capacity' => $this->faker->numberBetween(30, 50),
         ];
     }

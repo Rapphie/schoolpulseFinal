@@ -17,11 +17,11 @@ class ScheduleFactory extends Factory
         $startHour = $this->faker->numberBetween(7, 15);
         $startTime = sprintf('%02d:00:00', $startHour);
         $endTime = sprintf('%02d:00:00', $startHour + 1);
-        
+
         return [
             'section_id' => Section::factory(),
             'subject_id' => Subject::factory(),
-            'teacher_id' => User::factory(),
+            'teacher_id' => Teacher::factory(),
             'day_of_week' => $this->faker->randomElement($days),
             'start_time' => $startTime,
             'end_time' => $endTime,

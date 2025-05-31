@@ -17,8 +17,11 @@ class LLCItemFactory extends Factory
     public function definition(): array
     {
         return [
-            "llc_id" => $this->faker->numberBetween(1, 10),
-            "user_id" => $this->faker->numberBetween(1, 10),
+            "llc_id" => \App\Models\LLC::factory(),
+            "teacher_id" => \App\Models\Teacher::factory(),
+            "content" => $this->faker->paragraph(),
+            "type" => $this->faker->randomElement(['text', 'image', 'file', 'link']),
+            "order" => $this->faker->numberBetween(1, 20),
         ];
     }
 }

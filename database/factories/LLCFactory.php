@@ -17,10 +17,10 @@ class LLCFactory extends Factory
     public function definition(): array
     {
         return [
-            'subject_id' => $this->faker->numberBetween(1, 10),
-            'title' => $this->faker->word,
+            'subject_id' => \App\Models\Subject::factory(),
+            'title' => $this->faker->words(3, true),
             'description' => $this->faker->sentence(),
-            'user_id' => $this->faker->numberBetween(1, 10),
+            'teacher_id' => \App\Models\Teacher::factory(),
         ];
     }
 }

@@ -4,7 +4,7 @@
     </button>
     <h1 class="h3 mb-0 school-title">Tagurot Elementary School</h1>
     <div class="ms-auto d-flex align-items-center" style="gap: 1.5rem;">
-        <div class="text-white time-container">
+    <div class="text-white time-container">
             <div id="ph-time" class="text-end"></div>
         </div>
 
