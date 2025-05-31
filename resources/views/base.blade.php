@@ -7,9 +7,14 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'SchoolPulse')</title>
     @yield('head')
-    @include('components.header')
+    @include('components.head')
 
     <style>
+        @font-face {
+            font-family: 'Inter';
+            src: url('{{ Vite::asset('resources/fonts/inter/Inter-Regular.woff2') }}') format('woff2'),
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
@@ -404,57 +409,6 @@
                     sidebar.classList.toggle('collapsed');
                     sidebar.classList.toggle('show');
                     content.classList.toggle('content-shifted');
-
-                    // Adjust top-bar padding when sidebar is collapsed
-                    const topBar = document.querySelector('.top-bar');
-                    if (topBar) {
-                        if (window.innerWidth <= 767.98) {
-                            // On mobile
-                            if (sidebar.classList.contains('show')) {
-                                topBar.style.paddingLeft = '270px';
-                            } else {
-                                topBar.style.paddingLeft = '1rem';
-                            }
-                        } else {
-                            // On desktop
-                            if (sidebar.classList.contains('collapsed')) {
-                                topBar.style.paddingLeft = '90px'; // Mini sidebar width + padding
-                            } else {
-                                topBar.style.paddingLeft = '270px';
-                            }
-                        }
-                    }
-
-                    // Adjust main content margin
-                    if (mainContent) {
-                        if (window.innerWidth <= 767.98) {
-                            // On mobile
-                            mainContent.style.marginLeft = '0';
-                        } else {
-                            // On desktop
-                            if (sidebar.classList.contains('collapsed')) {
-                                mainContent.style.marginLeft = '70px'; // Mini sidebar width
-                            } else {
-                                mainContent.style.marginLeft = '250px';
-                            }
-                        }
-                    }
-
-                    // Update hamburger position on small screens
-                    if (window.innerWidth <= 767.98) {
-                        if (sidebar.classList.contains('show')) {
-                            toggleBtn.style.left = 'calc(100% - 50px)';
-                        } else {
-                            toggleBtn.style.left = '10px';
-                        }
-
-                        // Add body overflow hidden to prevent scrolling when sidebar is open
-                        if (sidebar.classList.contains('show')) {
-                            document.body.style.overflow = 'hidden';
-                        } else {
-                            document.body.style.overflow = '';
-                        }
-                    }
                 });
             }
 
@@ -472,19 +426,6 @@
                 }
             });
 
-            // Add active class to current nav item
-
-
-            // Initialize hamburger position on page load
-            if (window.innerWidth <= 767.98 && toggleBtn) {
-                if (sidebar && sidebar.classList.contains('show')) {
-                    toggleBtn.style.left = 'calc(100% - 50px)';
-                    document.body.style.overflow = 'hidden';
-                } else {
-                    toggleBtn.style.left = '10px';
-                    document.body.style.overflow = '';
-                }
-            }
 
             // Re-initialize Feather icons when dropdowns are shown
             const dropdowns = document.querySelectorAll('.dropdown');
@@ -508,49 +449,6 @@
                     toggler.setAttribute('aria-expanded', 'true');
                 }
             });
-        });
-
-        // Handle window resize
-        window.addEventListener('resize', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.querySelector('main');
-            const topBar = document.querySelector('.top-bar');
-            const toggleBtn = document.getElementById('toggleBtn');
-
-            if (sidebar) {
-                if (window.innerWidth >= 992) {
-                    // For larger screens, reset to default view if sidebar was hidden on mobile
-                    if (sidebar.classList.contains('show')) {
-                        sidebar.classList.remove('show');
-                    }
-
-                    // Keep collapsed state persistent across screen sizes
-                    if (!sidebar.classList.contains('collapsed')) {
-                        if (mainContent) mainContent.style.marginLeft = '250px';
-                        if (topBar) topBar.style.paddingLeft = '270px';
-                    } else {
-                        // Mini sidebar mode
-                        if (mainContent) mainContent.style.marginLeft = '70px';
-                        if (topBar) topBar.style.paddingLeft = '90px';
-                    }
-
-                    if (toggleBtn) toggleBtn.style.left = 'auto';
-                } else {
-                    if (mainContent) mainContent.style.marginLeft = '0';
-                    if (topBar) topBar.style.paddingLeft = '1rem';
-
-                    // Update hamburger position
-                    if (toggleBtn) {
-                        if (sidebar.classList.contains('show')) {
-                            toggleBtn.style.left = 'calc(100% - 50px)';
-                            document.body.style.overflow = 'hidden';
-                        } else {
-                            toggleBtn.style.left = '10px';
-                            document.body.style.overflow = '';
-                        }
-                    }
-                }
-            }
         });
     </script>
 

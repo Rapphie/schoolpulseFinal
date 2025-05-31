@@ -12,7 +12,8 @@
         <div class="dropdown user-dropdown">
             <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
                 id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <span class="me-2 admin-text">{{ Auth::user()->first_name }}</span>
+                {{-- <span class="me-2 admin-text">{{ Auth::user()->first_name }}</span> --}}
+                <span class="me-2 admin-text"> Username </span>
                 <span data-feather="user"></span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end text-small shadow" aria-labelledby="userDropdown">

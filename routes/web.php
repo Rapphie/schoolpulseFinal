@@ -9,6 +9,24 @@ use App\Http\Controllers\Teacher\DashboardController as TeacherDashboardControll
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
+
+
+// testing routes
+Route::get('/student/qr-code', function () {
+    return view('student.qr-code');
+})->name('student.qr-code');
+Route::get('/least-learn-competency', function () {
+    return view('llc');
+})->name('llc');
+Route::get('/test', function () {
+    return view('test');
+})->name('test');
+Route::get('/base', function () {
+    return view('base');
+})->name('base');
+
+
+
 // Authentication Routes
 Route::get('/login', [LoginController::class, 'login'])->name('login');
 Route::post('login', [LoginController::class, 'authenticate'])->name('authenticate');
@@ -112,16 +130,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/sections-by-grade-level', [TeacherDashboardController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');
     });
 
-    // Student QR Code (for testing)
-    Route::get('/student/qr-code', function () {
-        return view('student.qr-code');
-    })->name('student.qr-code');
-    Route::get('/least-learn-competency', function () {
-        return view('llc');
-    })->name('llc');
-    Route::get('/test', function () {
-        return view('test');
-    })->name('test');
 
     // Gradebook
     Route::prefix('gradebook')->name('teacher.gradebook.')->group(function () {
@@ -143,7 +151,6 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/save', [TeacherDashboardController::class, 'saveAttendance'])->name('save');
     });
 
-    // Get sections by grade level
 
 
 

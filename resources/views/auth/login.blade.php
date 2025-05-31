@@ -196,7 +196,7 @@
 <body>
     <div class="login-card row g-0">
         <div class="col-md-5 login-image">
-            <img src="css/images1.png" alt="SchoolPulse Logo">
+            <img src="images/school-logo.png" alt="SchoolPulse Logo">
         </div>
         <div class="col-md-7">
             <div class="login-content">
