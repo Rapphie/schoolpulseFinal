@@ -25,7 +25,7 @@ class EnrolleesExport
      */
     public function collection()
     {
-        $query = Section::with(['students', 'adviser'])
+        $query = Section::with(['students', 'teacher_id'])
             ->withCount('students');
 
         if ($this->grade) {

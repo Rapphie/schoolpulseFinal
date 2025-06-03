@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Section;
 use App\Models\Subject;
+use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 

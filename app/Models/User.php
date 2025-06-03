@@ -85,14 +85,7 @@ class User extends Authenticatable
         return $this->hasMany(Schedule::class, 'teacher_id');
     }
 
-    /**
-     * Check if user is a teacher
-     */
-    public function isTeacher(): bool
-    {
-        return $this->role_id === 2;
-    }
-
+   
     /**
      * Get the student record for this user
      */
@@ -121,26 +114,11 @@ class User extends Authenticatable
     {
         return $this->role->name == $role;
     }
-
-
-    //
     public function grades(): HasMany
     {
         return $this->hasMany(Grade::class);
     }
 
-    /**
-     * Get the sections where the user is an adviser
-     */
-    /**
-     * Get all sections associated with the user through section_subject pivot
-     */
-    public function sections()
-    {
-        return $this->belongsToMany(Section::class, 'section_subject', 'teacher_id', 'section_id')
-            ->withPivot('subject_id')
-            ->withTimestamps();
-    }
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);
