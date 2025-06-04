@@ -203,7 +203,6 @@ return new class extends Migration
             $table->unsignedBigInteger('subject_id');
             $table->unsignedBigInteger('teacher_id');
             $table->time('time_in')->nullable();
-            $table->time('time_out')->nullable();
             $table->enum('status', ['present', 'absent', 'late', 'excused']);
             $table->date('date');
             $table->tinyInteger('quarter');

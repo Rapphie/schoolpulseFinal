@@ -234,7 +234,7 @@ class AdminController extends Controller
             $query->orderBy('score', 'asc')->take(5);
         }])->get();
 
-        return view('admin.reports.least-learned', compact('subjects'));
+        return view('admin.least-learned', compact('subjects'));
     }
 
     /**
