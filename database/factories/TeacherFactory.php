@@ -18,8 +18,11 @@ class TeacherFactory extends Factory
      */
     public function definition(): array
     {
+        // Get a random teacher user or create one if needed
+        $userId = User::where('role_id', 2)->inRandomOrder()->first()?->id
+            ?? User::factory()->teacher()->create()->id;
         return [
-            'user_id' => User::factory()->teacher(), // Create a user with teacher role
+            'user_id' => $userId,
             'phone' => '09' . $this->faker->numerify('#########'),
             'gender' => $this->faker->randomElement(['male', 'female', 'other']),
             'date_of_birth' => $this->faker->dateTimeBetween('-60 years', '-25 years'),

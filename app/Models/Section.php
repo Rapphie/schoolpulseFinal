@@ -11,23 +11,22 @@ class Section extends Model
 
     protected $fillable = [
         'name',
-        'grade_level',
         'grade_level_id',
         'description',
-        'adviser_id',
+        'teacher_id',
         'capacity'
     ];
 
-    protected $appends = ['grade_level_name'];
+    protected $appends = ['grade_level_id_name'];
 
     protected $casts = [
-        'grade_level' => 'integer',
+        'grade_level_id' => 'integer',
         'capacity' => 'integer',
     ];
 
     public function adviser()
     {
-        return $this->belongsTo(Teacher::class, 'adviser_id');
+        return $this->belongsTo(Teacher::class, 'teacher_id');
     }
 
     public function students()
@@ -48,18 +47,18 @@ class Section extends Model
     }
 
 
-    // Accessor for backward compatibility with grade_level column
+    // Accessor for backward compatibility with grade_level_id column
     public function getGradeLevelNameAttribute()
     {
         if ($this->gradeLevel) {
             return $this->gradeLevel->name;
         }
-        // Fallback to the integer grade_level if grade_level relationship is not set
-        return 'Grade ' . $this->grade_level;
+        // Fallback to the integer grade_level_id if grade_level_id relationship is not set
+        return 'Grade ' . $this->grade_level_id;
     }
     public function getFullNameAttribute()
     {
-        return "Grade {$this->grade_level} - {$this->name}";
+        return "Grade {$this->grade_level_id} - {$this->name}";
     }
 
     /**

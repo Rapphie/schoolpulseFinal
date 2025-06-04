@@ -16,7 +16,10 @@ class SubjectFactory extends Factory
      */
     public function definition(): array
     {
+        $gradeLevel = \App\Models\GradeLevel::inRandomOrder()->first();
+
         return [
+            'grade_level_id' => $gradeLevel,
             'name' => $this->faker->unique()->word(),
             'code' => strtoupper($this->faker->unique()->lexify('???')),
             'description' => $this->faker->sentence(),

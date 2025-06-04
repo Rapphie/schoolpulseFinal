@@ -17,20 +17,14 @@ class Grade extends Model
         'student_id',
         'subject_id',
         'grade',
-        'max_score',
-        'assessment_type',
-        'assessment_name',
         'quarter',
         'school_year',
-        'assessment_date',
-        'user_id'
+        'teacher_id'
     ];
 
     protected $casts = [
         'grade' => 'float',
-        'max_score' => 'float',
         'quarter' => 'integer',
-        'assessment_date' => 'date',
     ];
 
     public function student(): BelongsTo

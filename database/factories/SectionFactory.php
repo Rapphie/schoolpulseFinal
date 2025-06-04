@@ -12,9 +12,11 @@ class SectionFactory extends Factory
 
     public function definition(): array
     {
+        $gradeLevel = \App\Models\GradeLevel::inRandomOrder()->first();
+
         return [
             'name' => strtoupper($this->faker->randomLetter() . $this->faker->randomLetter()),
-            'grade_level' => $this->faker->numberBetween(7, 12),
+            'grade_level_id' => $gradeLevel,
             'description' => $this->faker->sentence(),
             'teacher_id' => Teacher::factory(),
             'capacity' => $this->faker->numberBetween(30, 50),
@@ -25,7 +27,7 @@ class SectionFactory extends Factory
     {
         return $this->state(function (array $attributes) use ($userId) {
             return [
-                'adviser_id' => $userId,
+                'teacher_id' => $userId,
             ];
         });
     }

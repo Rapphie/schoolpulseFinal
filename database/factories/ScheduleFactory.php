@@ -14,15 +14,18 @@ class ScheduleFactory extends Factory
 
     public function definition(): array
     {
+        $section = \App\Models\Section::inRandomOrder()->first() ?? \App\Models\Section::factory()->create();
+        $subject = \App\Models\Subject::inRandomOrder()->first();
+        $teacher = \App\Models\Teacher::inRandomOrder()->first();
         $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
         $startHour = $this->faker->numberBetween(7, 15);
         $startTime = sprintf('%02d:00:00', $startHour);
         $endTime = sprintf('%02d:00:00', $startHour + 1);
 
         return [
-            'section_id' => Section::factory(),
-            'subject_id' => Subject::factory(),
-            'teacher_id' => Teacher::factory(),
+            'section_id' => $section,
+            'subject_id' => $subject,
+            'teacher_id' => $teacher,
             'day_of_week' => $this->faker->randomElement($days),
             'start_time' => $startTime,
             'end_time' => $endTime,

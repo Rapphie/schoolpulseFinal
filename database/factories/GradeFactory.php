@@ -16,17 +16,17 @@ class GradeFactory extends Factory
      */
     public function definition(): array
     {
+        $student = \App\Models\Student::inRandomOrder()->first();
+        $subject = \App\Models\Subject::inRandomOrder()->first();
+        $teacher = \App\Models\Teacher::inRandomOrder()->first();
+
         return [
-            'student_id' => \App\Models\Student::factory(),
-            'subject_id' => \App\Models\Subject::factory(),
+            'student_id' =>  $student,
+            'subject_id' => $subject,
             'grade' => $this->faker->numberBetween(75, 100),
-            'max_score' => 100,
-            'assessment_type' => $this->faker->randomElement(['quiz', 'exam', 'project', 'assignment']),
-            'assessment_name' => $this->faker->words(3, true),
             'quarter' => $this->faker->numberBetween(1, 4),
             'school_year' => '2024-2025',
-            'assessment_date' => $this->faker->dateTimeBetween('-3 months', 'now'),
-            'teacher_id' => \App\Models\Teacher::factory(),,
+            'teacher_id' => $teacher,
         ];
     }
 }

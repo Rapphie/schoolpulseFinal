@@ -11,10 +11,11 @@ class LLCItem extends Model
     /** @use HasFactory<\Database\Factories\LLCItemFactory> */
     use HasFactory;
 
-    protected $table = "llc_item";
+    protected $table = "llc_items";
 
     protected $fillable = [
-        "description"
+        "llc_id",
+        "teacher_id"
     ];
 
     public function student(): HasMany
@@ -25,8 +26,8 @@ class LLCItem extends Model
     {
         return $this->hasMany(Subject::class);
     }
-    public function user(): HasMany
+    public function teacher(): HasMany
     {
-        return $this->hasMany(User::class);
+        return $this->hasMany(Teacher::class);
     }
 }

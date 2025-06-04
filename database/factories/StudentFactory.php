@@ -17,21 +17,22 @@ class StudentFactory extends Factory
      */
     public function definition(): array
     {
+        // Get existing sections, guardians and teachers
+        $section = \App\Models\Section::inRandomOrder()->first() ?? \App\Models\Section::factory()->create();
+        $guardian = \App\Models\Guardian::inRandomOrder()->first();
+        $teacher = \App\Models\Teacher::inRandomOrder()->first();
+
         return [
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
-            'section_id' => \App\Models\Section::factory(),
+            'section_id' => $section->id,
             'qr_code' => bin2hex(random_bytes(16)),
-            'lrn' => $this->faker->numerify('##########'),
             'birthdate' => $this->faker->dateTimeBetween('-18 years', '-12 years'),
             'gender' => $this->faker->randomElement(['male', 'female']),
-            'address' => $this->faker->address(),
-            'contact_number' => '09' . $this->faker->numerify('#########'),
-            'guardian_name' => $this->faker->name(),
-            'guardian_contact' => '09' . $this->faker->numerify('#########'),
+            'guardian_id' => $guardian ? $guardian->id : null,
             'status' => 'active',
             'enrollment_date' => $this->faker->dateTimeBetween('-1 year', 'now'),
-            'teacher_id' => \App\Models\Teacher::factory(),
+            'teacher_id' => $teacher ? $teacher->id : null,
         ];
     }
 }

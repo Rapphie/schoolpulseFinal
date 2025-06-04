@@ -13,12 +13,10 @@ class GradeLevel extends Model
         'name',
         'level',
         'description',
-        'is_active'
     ];
 
     protected $casts = [
         'level' => 'integer',
-        'is_active' => 'boolean',
     ];
 
     /**

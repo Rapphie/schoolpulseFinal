@@ -16,11 +16,15 @@ class LLCFactory extends Factory
      */
     public function definition(): array
     {
+        $section = \App\Models\Section::inRandomOrder()->first() ?? \App\Models\Section::factory()->create();
+        $subject = \App\Models\Subject::inRandomOrder()->first();
+        $teacher = \App\Models\Teacher::inRandomOrder()->first();
         return [
-            'subject_id' => \App\Models\Subject::factory(),
-            'title' => $this->faker->words(3, true),
+            'subject_id' => $subject,
+            'section_id' => $section,
+            'category_name' => $this->faker->words(3, true),
             'description' => $this->faker->sentence(),
-            'teacher_id' => \App\Models\Teacher::factory(),
+            'teacher_id' => $teacher,
         ];
     }
 }

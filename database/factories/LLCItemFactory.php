@@ -16,12 +16,11 @@ class LLCItemFactory extends Factory
      */
     public function definition(): array
     {
+        $llc = \App\Models\LLC::inRandomOrder()->first() ?? \App\Models\LLC::factory()->create();
+        $teacher = \App\Models\Teacher::inRandomOrder()->first();
         return [
-            "llc_id" => \App\Models\LLC::factory(),
-            "teacher_id" => \App\Models\Teacher::factory(),
-            "content" => $this->faker->paragraph(),
-            "type" => $this->faker->randomElement(['text', 'image', 'file', 'link']),
-            "order" => $this->faker->numberBetween(1, 20),
+            "llc_id" => $llc,
+            "teacher_id" => $teacher,
         ];
     }
 }

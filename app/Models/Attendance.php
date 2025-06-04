@@ -16,13 +16,11 @@ class Attendance extends Model
     protected $fillable = [
         "student_id",
         "subject_id",
-        "status",
+        "time_in",
+        "time_out",
         "date",
         "quarter",
         "school_year",
-        "time_in",
-        "time_out",
-        "remarks",
         "teacher_id",
     ];
 

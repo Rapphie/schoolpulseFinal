@@ -64,7 +64,7 @@ class User extends Authenticatable
      */
     public function sectionsAdvised(): HasMany
     {
-        return $this->hasMany(Section::class, 'adviser_id');
+        return $this->hasMany(Section::class, 'teacher_id');
     }
 
     /**
@@ -85,7 +85,7 @@ class User extends Authenticatable
         return $this->hasMany(Schedule::class, 'teacher_id');
     }
 
-   
+
     /**
      * Get the student record for this user
      */

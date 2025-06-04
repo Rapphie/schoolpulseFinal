@@ -34,7 +34,20 @@ return new class extends Migration
             $table->foreign('role_id')->references('id')->on('roles');
         });
 
+        Schema::create('teachers', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('phone')->nullable();
+            $table->enum('gender', ['male', 'female', 'other'])->nullable();
+            $table->date('date_of_birth')->nullable();
+            $table->text('address')->nullable();
+            $table->string('qualification')->nullable();
+            $table->enum('status', ['active', 'on-leave', 'inactive'])->nullable();
+            $table->timestamps();
 
+            // Foreign Key(s)
+            $table->foreign('user_id')->references('id')->on('users');
+        });
 
         Schema::create('grade_levels', function (Blueprint $table) {
             $table->id();
@@ -49,9 +62,12 @@ return new class extends Migration
             $table->string('name');
             $table->unsignedBigInteger('grade_level_id');
             $table->string('description')->nullable();
+            $table->unsignedBigInteger('teacher_id');
+            $table->integer('capacity');
             $table->timestamps();
 
             // Foreign Key(s)
+            $table->foreign('teacher_id')->references('id')->on('teachers');
             $table->foreign('grade_level_id')->references('id')->on('grade_levels');
         });
 
@@ -66,6 +82,7 @@ return new class extends Migration
             $table->integer('units')->default(1);
             $table->integer('hours_per_week')->default(1);
             $table->boolean('is_active')->default(true);
+            $table->timestamps();
             $table->softDeletes();
 
             // Foreign Key(s)
@@ -78,48 +95,57 @@ return new class extends Migration
             $table->unsignedBigInteger('section_id');
             $table->string('category_name');
             $table->string('description');
+            $table->unsignedBigInteger('teacher_id');
             $table->timestamps();
 
             // Foreign Key(s)
             $table->foreign('subject_id')->references('id')->on('subjects');
             $table->foreign('section_id')->references('id')->on('sections');
+            $table->foreign('teacher_id')->references('id')->on('teachers');
         });
 
         Schema::create('llc_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('llc_id');
+            $table->unsignedBigInteger('teacher_id');
             $table->timestamps();
 
             // Foreign Key(s)
             $table->foreign('llc_id')->references('id')->on('llc');
+            $table->foreign('teacher_id')->references('id')->on('teachers');
         });
 
-        Schema::create('teachers', function (Blueprint $table) {
+        Schema::create('guardians', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->string('phone')->nullable();
-            $table->enum('gender', ['male', 'female', 'other'])->nullable();
-            $table->date('date_of_birth')->nullable();
-            $table->text('address')->nullable();
-            $table->string('qualification')->nullable();
-            $table->enum('status', ['active', 'on-leave', 'inactive'])->nullable();
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->unsignedBigInteger('contact_number');
+            $table->enum('relationship', ['parent', 'sibling', 'relative', 'guardian']);
+            $table->timestamps();
 
-            // Foreign Key(s)
             $table->foreign('user_id')->references('id')->on('users');
         });
 
+        // Foreign Key(s)
         Schema::create('students', function (Blueprint $table) {
             $table->id();
             $table->string('first_name');
             $table->string('last_name');
             $table->unsignedBigInteger('section_id');
             $table->string('qr_code');
-            $table->unsignedBigInteger('user_id');
+            $table->date('birthdate');
+            $table->enum('gender', ['male', 'female']);
+            $table->unsignedBigInteger('guardian_id');
+            $table->enum('status', ['active', 'inactive', 'alumni', 'transferee']);
+            $table->date('enrollment_date');
+            $table->unsignedBigInteger('teacher_id');
             $table->timestamps();
 
             // Foreign Key(s)
             $table->foreign('section_id')->references('id')->on('sections');
-            $table->foreign('user_id')->references('id')->on('users');
+            $table->foreign('guardian_id')->references('id')->on('guardians');
+            $table->foreign('teacher_id')->references('id')->on('teachers');
         });
 
         Schema::create('section_subject', function (Blueprint $table) {
@@ -154,28 +180,21 @@ return new class extends Migration
             $table->foreign('teacher_id')->references('id')->on('teachers')->onDelete('cascade');
         });
 
-        Schema::create('parent_student', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('parent_id')->constrained('users');
-            $table->foreignId('student_id')->constrained('students');
-            $table->string('relationship');
-            $table->timestamps();
 
-            $table->unique(['parent_id', 'student_id']);
-        });
 
         Schema::create('grades', function (Blueprint $table) {
             $table->unsignedBigInteger('student_id');
             $table->unsignedBigInteger('subject_id');
             $table->unsignedBigInteger('teacher_id');
             $table->float('grade');
+            $table->string('quarter');
+            $table->string('school_year');
             $table->timestamps();
 
             // Foreign Key(s)
             $table->foreign('student_id')->references('id')->on('students');
             $table->foreign('subject_id')->references('id')->on('subjects');
             $table->foreign('teacher_id')->references('id')->on('teachers');
-            $table->primary(['student_id', 'subject_id', 'teacher_id']);
         });
 
         Schema::create('attendances', function (Blueprint $table) {
@@ -185,7 +204,8 @@ return new class extends Migration
             $table->unsignedBigInteger('teacher_id');
             $table->time('time_in')->nullable();
             $table->time('time_out')->nullable();
-            $table->string('remarks');
+            $table->enum('status', ['present', 'absent', 'late', 'excused']);
+            $table->date('date');
             $table->tinyInteger('quarter');
             $table->string('school_year')->default(date('Y') . '-' . (date('Y') + 1));
             $table->timestamps();
