@@ -1,4 +1,4 @@
-@extends('teacher.layout')
+@extends('base')
 
 @section('title', 'Least Learned Competencies')
 
@@ -8,7 +8,7 @@
             <div class="card-header py-3 d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Least Learned Competencies by Subject</h6>
                 <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLLCModal">
-                    <i data-feather="plus"></i> Add New LLC
+                    <i data-feather="plus"></i> Add LLC
                 </button>
             </div>
             <div class="card-body">
@@ -102,8 +102,8 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <a href="/least-learned">Add New Least Learned Competency</a>
-                    <h5 class="modal-title" id="addLLCModalLabel">Add New Least Learned Competency</h5>
+                    <a href="/least-learned">Add Least Learned Competency</a>
+                    <h5 class="modal-title" id="addLLCModalLabel">Add Least Learned Competency</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="addLLCForm" action="#" method="POST">

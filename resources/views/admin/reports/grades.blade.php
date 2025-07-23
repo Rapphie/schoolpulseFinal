@@ -1,4 +1,4 @@
-@extends('admin.layout')
+@extends('base')
 
 @section('title', 'Grades Report')
 
@@ -239,206 +239,206 @@
     </div>
 @endsection
 
-    <!-- Grade Details Modal -->
-    <div class="modal fade" id="gradeDetailsModal" tabindex="-1" aria-labelledby="gradeDetailsModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="gradeDetailsModalLabel">Grade Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="gradeDetailsContent">
-                    <!-- Content will be loaded via AJAX -->
-                    <div class="text-center my-5">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
+<!-- Grade Details Modal -->
+<div class="modal fade" id="gradeDetailsModal" tabindex="-1" aria-labelledby="gradeDetailsModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gradeDetailsModalLabel">Grade Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="gradeDetailsContent">
+                <!-- Content will be loaded via AJAX -->
+                <div class="text-center my-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="printGradeBtn">
-                        <i data-feather="printer" class="feather-sm me-1"></i> Print
-                    </button>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="printGradeBtn">
+                    <i data-feather="printer" class="feather-sm me-1"></i> Print
+                </button>
             </div>
         </div>
     </div>
+</div>
 
-    @push('styles')
-        <!-- Custom styles for this page -->
-        <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-        <link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
-    @endpush
+@push('styles')
+    <!-- Custom styles for this page -->
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
+@endpush
 
-    @push('scripts')
-        <!-- Page level plugins -->
-        <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-        <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
-        <script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
-        <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-        <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
-        <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+@push('scripts')
+    <!-- Page level plugins -->
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                // Initialize DataTable with export buttons
-                var table = $('#gradesTable').DataTable({
-                    responsive: true,
-                    order: [
-                        [0, 'asc']
-                    ],
-                    dom: 'Bfrtip',
-                    buttons: [
-                        'copy', 'csv', 'excel', 'pdf', 'print'
-                    ]
-                });
-
-                // Initialize tooltips
-                var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-                var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
-                    return new bootstrap.Tooltip(tooltipTriggerEl);
-                });
-
-                var gradeDistributionData = @json($gradeDistribution);
-                var performanceSummaryData = @json($performanceSummary);
-
-                var gradeCtx = document.getElementById('gradeDistributionChart').getContext('2d');
-                var gradeChart = new Chart(gradeCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: Object.keys(gradeDistributionData),
-                        datasets: [{
-                            label: 'Number of Students',
-                            data: Object.values(gradeDistributionData),
-                            backgroundColor: [
-                                'rgba(28, 200, 138, 0.7)',
-                                'rgba(54, 185, 204, 0.7)',
-                                'rgba(78, 115, 223, 0.7)',
-                                'rgba(246, 194, 62, 0.7)',
-                                'rgba(231, 74, 59, 0.7)'
-                            ],
-                            borderColor: [
-                                'rgba(28, 200, 138, 1)',
-                                'rgba(54, 185, 204, 1)',
-                                'rgba(78, 115, 223, 1)',
-                                'rgba(246, 194, 62, 1)',
-                                'rgba(231, 74, 59, 1)'
-                            ],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        maintainAspectRatio: false,
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    precision: 0
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
-                        }
-                    }
-                });
-
-                var pieCtx = document.getElementById('performancePieChart').getContext('2d');
-                var pieChart = new Chart(pieCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Excellent (90-100)', 'Good (80-89)', 'Average (70-79)',
-                            'Needs Improvement (60-69)', 'Failing (Below 60)'
-                        ],
-                        datasets: [{
-                            data: Object.values(performanceSummaryData),
-                            backgroundColor: ['#1cc88a', '#36b9cc', '#4e73df', '#f6c23e', '#e74a3b'],
-                            hoverBackgroundColor: ['#17a673', '#2c9faf', '#2e59d9', '#dda20a',
-                                '#be2617'
-                            ]
-                        }],
-                    },
-                    options: {
-                        maintainAspectRatio: false,
-                        tooltips: {
-                            backgroundColor: "rgb(255,255,255)",
-                            bodyFontColor: "#858796",
-                            borderColor: '#dddfeb',
-                            borderWidth: 1,
-                            xPadding: 15,
-                            yPadding: 15,
-                            displayColors: false,
-                            caretPadding: 10,
-                            callbacks: {
-                                label: function(tooltipItem, data) {
-                                    var dataset = data.datasets[tooltipItem.datasetIndex];
-                                    var total = dataset.data.reduce(function(sum, value) {
-                                        return sum + value;
-                                    }, 0);
-                                    var currentValue = dataset.data[tooltipItem.index];
-                                    var percentage = Math.floor((currentValue / total) * 100 + 0.5);
-                                    return data.labels[tooltipItem.index] + ': ' + currentValue + ' (' +
-                                        percentage + '%)';
-                                }
-                            }
-                        },
-                        legend: {
-                            display: false
-                        },
-                        cutout: '80%',
-                    },
-                });
-
-                document.getElementById('applyFilter').addEventListener('click', function() {
-                    var sectionId = document.getElementById('sectionFilter').value;
-                    var subjectId = document.getElementById('subjectFilter').value;
-
-                    var url = new URL(window.location.href);
-
-                    if (sectionId) {
-                        url.searchParams.set('section_id', sectionId);
-                    } else {
-                        url.searchParams.delete('section_id');
-                    }
-
-                    if (subjectId) {
-                        url.searchParams.set('subject_id', subjectId);
-                    } else {
-                        url.searchParams.delete('subject_id');
-                    }
-
-                    window.location.href = url.toString();
-                });
-
-                document.getElementById('printGradeBtn').addEventListener('click', function() {
-                    window.print();
-                });
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize DataTable with export buttons
+            var table = $('#gradesTable').DataTable({
+                responsive: true,
+                order: [
+                    [0, 'asc']
+                ],
+                dom: 'Bfrtip',
+                buttons: [
+                    'copy', 'csv', 'excel', 'pdf', 'print'
+                ]
             });
 
-            function viewGradeDetails(gradeId) {
-                var modal = new bootstrap.Modal(document.getElementById('gradeDetailsModal'));
-                var contentDiv = document.getElementById('gradeDetailsContent');
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
 
-                contentDiv.innerHTML = `
+            var gradeDistributionData = @json($gradeDistribution);
+            var performanceSummaryData = @json($performanceSummary);
+
+            var gradeCtx = document.getElementById('gradeDistributionChart').getContext('2d');
+            var gradeChart = new Chart(gradeCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(gradeDistributionData),
+                    datasets: [{
+                        label: 'Number of Students',
+                        data: Object.values(gradeDistributionData),
+                        backgroundColor: [
+                            'rgba(28, 200, 138, 0.7)',
+                            'rgba(54, 185, 204, 0.7)',
+                            'rgba(78, 115, 223, 0.7)',
+                            'rgba(246, 194, 62, 0.7)',
+                            'rgba(231, 74, 59, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(28, 200, 138, 1)',
+                            'rgba(54, 185, 204, 1)',
+                            'rgba(78, 115, 223, 1)',
+                            'rgba(246, 194, 62, 1)',
+                            'rgba(231, 74, 59, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            var pieCtx = document.getElementById('performancePieChart').getContext('2d');
+            var pieChart = new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Excellent (90-100)', 'Good (80-89)', 'Average (70-79)',
+                        'Needs Improvement (60-69)', 'Failing (Below 60)'
+                    ],
+                    datasets: [{
+                        data: Object.values(performanceSummaryData),
+                        backgroundColor: ['#1cc88a', '#36b9cc', '#4e73df', '#f6c23e', '#e74a3b'],
+                        hoverBackgroundColor: ['#17a673', '#2c9faf', '#2e59d9', '#dda20a',
+                            '#be2617'
+                        ]
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    tooltips: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyFontColor: "#858796",
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        xPadding: 15,
+                        yPadding: 15,
+                        displayColors: false,
+                        caretPadding: 10,
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                var dataset = data.datasets[tooltipItem.datasetIndex];
+                                var total = dataset.data.reduce(function(sum, value) {
+                                    return sum + value;
+                                }, 0);
+                                var currentValue = dataset.data[tooltipItem.index];
+                                var percentage = Math.floor((currentValue / total) * 100 + 0.5);
+                                return data.labels[tooltipItem.index] + ': ' + currentValue + ' (' +
+                                    percentage + '%)';
+                            }
+                        }
+                    },
+                    legend: {
+                        display: false
+                    },
+                    cutout: '80%',
+                },
+            });
+
+            document.getElementById('applyFilter').addEventListener('click', function() {
+                var sectionId = document.getElementById('sectionFilter').value;
+                var subjectId = document.getElementById('subjectFilter').value;
+
+                var url = new URL(window.location.href);
+
+                if (sectionId) {
+                    url.searchParams.set('section_id', sectionId);
+                } else {
+                    url.searchParams.delete('section_id');
+                }
+
+                if (subjectId) {
+                    url.searchParams.set('subject_id', subjectId);
+                } else {
+                    url.searchParams.delete('subject_id');
+                }
+
+                window.location.href = url.toString();
+            });
+
+            document.getElementById('printGradeBtn').addEventListener('click', function() {
+                window.print();
+            });
+        });
+
+        function viewGradeDetails(gradeId) {
+            var modal = new bootstrap.Modal(document.getElementById('gradeDetailsModal'));
+            var contentDiv = document.getElementById('gradeDetailsContent');
+
+            contentDiv.innerHTML = `
         <div class="text-center my-5">
             <div class="spinner-border" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </div>`;
 
-                modal.show();
+            modal.show();
 
-                setTimeout(() => {
-                    contentDiv.innerHTML = `
+            setTimeout(() => {
+                contentDiv.innerHTML = `
             <div class="row">
                 <div class="col-md-6">
                     <h6>Student Information</h6>
@@ -510,11 +510,11 @@
                     and actively participates in class discussions.
                 </div>
             </div>`;
-                }, 1000);
-            }
+            }, 1000);
+        }
 
-            function editGrade(gradeId) {
-                alert('Edit grade with ID: ' + gradeId);
-            }
-        </script>
-    @endpush
+        function editGrade(gradeId) {
+            alert('Edit grade with ID: ' + gradeId);
+        }
+    </script>
+@endpush

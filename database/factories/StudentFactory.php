@@ -23,10 +23,10 @@ class StudentFactory extends Factory
         $teacher = \App\Models\Teacher::inRandomOrder()->first();
 
         return [
+            'student_id' => date('Y') . '-' . $section->id . '-' . $this->faker->unique()->numberBetween(0, 100),
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
             'section_id' => $section->id,
-            'qr_code' => bin2hex(random_bytes(16)),
             'birthdate' => $this->faker->dateTimeBetween('-18 years', '-12 years'),
             'gender' => $this->faker->randomElement(['male', 'female']),
             'guardian_id' => $guardian ? $guardian->id : null,

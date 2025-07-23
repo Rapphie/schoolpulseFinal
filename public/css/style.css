@@ -25,13 +25,6 @@
 *{
     font-family: 'Poppins', sans-serif;
 }
-:root {
-    --primary-color: #4361ee;
-    --primary-hover: #3a56d4;
-    --text-color: #2b2d42;
-    --light-gray: #f8f9fa;
-    --border-color: #e9ecef;
-}
 
 html {
   position: relative;
@@ -46,8 +39,7 @@ body {
 
 nav{
   height: 50px;
-  background-color: var(--primary-color) !important;
-  color: #fff;
+  background-color: #161A30;
 }
 
 .breadcrumb{
@@ -136,7 +128,7 @@ body.fixed-nav.sidebar-toggled #content-wrapper {
 
 .sidebar {
   width: 92px !important;
-  background-color: var(--primary-color);
+  background-color: #31304D;
   min-height: calc(100vh - 56px);
 }
 
@@ -148,16 +140,6 @@ body.fixed-nav.sidebar-toggled #content-wrapper {
   text-align: center;
   padding: 0.75rem 1rem;
   width: 92px;
-  color: rgba(255, 255, 255, 0.7);
-  background: none;
-}
-
-.sidebar .nav-item .nav-link.active,
-.sidebar .nav-item .nav-link:active,
-.sidebar .nav-item .nav-link:focus,
-.sidebar .nav-item .nav-link:hover {
-  color: #fff;
-  background-color: var(--primary-hover);
 }
 
 .sidebar .nav-item .nav-link span {
@@ -275,14 +257,6 @@ body.fixed-nav.sidebar-toggled #content-wrapper {
   background-color: #20243E !important;
   color: white !important;
 }
-
-#userTable tbody tr td:last-child, #supplierTable tbody tr td:last-child, #categoryTable tbody tr td:last-child, #productTable tbody tr td:last-child, #inventoryTable tbody tr td:last-child, #billingTable tbody tr td:last-child, #bestsellerTable tbody tr td:last-child
-
-{
-  display: flex;
-  gap: 5px;
-}
-
 
 .container-fluid{
   overflow-x: auto;

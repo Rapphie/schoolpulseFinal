@@ -16,13 +16,15 @@ class Schedule extends Model
         'day_of_week',
         'start_time',
         'end_time',
-        'room'
+        'room',
     ];
 
     protected $casts = [
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
+        'start_time' => 'datetime:H:i:s',
+        'end_time' => 'datetime:H:i:s',
+        'day_of_week' => 'array',
     ];
+
 
     public function section()
     {
@@ -36,6 +38,6 @@ class Schedule extends Model
 
     public function teacher()
     {
-        return $this->belongsTo(User::class, 'teacher_id');
+        return $this->belongsTo(Teacher::class);
     }
 }

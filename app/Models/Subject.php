@@ -14,27 +14,18 @@ class Subject extends Model
         'name',
         'code',
         'description',
-        'units',
-        'hours_per_week',
-        'is_active'
+        'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-        'units' => 'integer',
-        'hours_per_week' => 'integer'
-    ];
 
     public function sections()
     {
-        return $this->belongsToMany(Section::class, 'section_subject')
-            ->withPivot('teacher_id')
-            ->withTimestamps();
+        return $this->belongsToMany(Section::class, 'subject_teacher_section')->withPivot('teacher_id');
     }
 
     public function teachers()
     {
-        return $this->belongsToMany(Teacher::class, 'section_subject', 'subject_id', 'teacher_id')
+        return $this->belongsToMany(Teacher::class, 'subject_teacher_section', 'subject_id', 'teacher_id')
             ->withPivot('section_id')
             ->withTimestamps()
             ->distinct();
@@ -48,6 +39,11 @@ class Subject extends Model
     public function grades()
     {
         return $this->hasMany(Grade::class);
+    }
+
+    public function gradeLevel()
+    {
+        return $this->belongsTo(GradeLevel::class);
     }
 
     public function attendances()

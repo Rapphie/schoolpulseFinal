@@ -1,4 +1,4 @@
-@extends('admin.layout')
+@extends('base')
 
 @section('title', 'Section: ' . $section->name)
 
@@ -33,13 +33,13 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-4 font-weight-bold">Grade Level:</div>
-                        <div class="col-md-8">Grade {{ $section->grade_level }}</div>
+                        <div class="col-md-8">Grade {{ $section->grade_level_id }}</div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-4 font-weight-bold">Adviser:</div>
                         <div class="col-md-8">
-                            @if ($section->adviser)
-                                {{ $section->adviser->name }}
+                            @if ($section->teacher->user)
+                                {{ $section->teacher->user->full_name }}
                             @else
                                 <span class="text-muted">No adviser assigned</span>
                             @endif
@@ -61,9 +61,15 @@
             <div class="card shadow mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Students</h5>
-                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#addStudentModal">
-                        <i class="fas fa-plus"></i> Add Student
-                    </button>
+                    <div class="d-flex">
+                        <button type="button" class="btn btn-secondary btn-sm me-2" data-bs-toggle="modal"
+                            data-bs-target="#importClassRecordModal">
+                            Import Students
+                        </button>
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+                            <i class="fas fa-plus"></i> Add Student
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     @if ($section->students->count() > 0)
@@ -87,10 +93,14 @@
                                                 <button class="btn btn-sm btn-info" title="View">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
-                                                <button class="btn btn-sm btn-danger" title="Remove from Section"
-                                                    onclick="return confirm('Are you sure you want to remove this student from the section?')">
-                                                    <i class="fas fa-user-minus"></i>
-                                                </button>
+                                                <form action="{{ route('admin.sections.students.destroy', [$section, $student]) }}" method="POST" style="display:inline;">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="btn btn-sm btn-danger" title="Remove from Section"
+                                                        onclick="return confirm('Are you sure you want to remove this student from the section?')">
+                                                        <i class="fas fa-user-minus"></i>
+                                                    </button>
+                                                </form>
                                             </td>
                                         </tr>
                                     @endforeach
@@ -176,32 +186,143 @@
     <!-- Add Student Modal -->
     <div class="modal fade" id="addStudentModal" tabindex="-1" role="dialog" aria-labelledby="addStudentModalLabel"
         aria-hidden="true">
-        <div class="modal-dialog" role="document">
+        <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="addStudentModalLabel">Add Student to Section</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
                 </div>
                 <form action="{{ route('admin.sections.students.store', $section) }}" method="POST">
                     @csrf
                     <div class="modal-body">
-                        <div class="form-group">
-                            <label for="student_id">Select Student</label>
-                            <select class="form-control select2" id="student_id" name="student_id" required>
-                                <option value="">Select a student</option>
-                                @foreach ($availableStudents as $student)
-                                    <option value="{{ $student->id }}">
-                                        {{ $student->name }} ({{ $student->email }})
-                                    </option>
-                                @endforeach
+                        @if (session('success'))
+                            <div class="alert alert-success">{{ session('success') }}</div>
+                        @endif
+                        @if (session('error'))
+                            <div class="alert alert-danger">{{ session('error') }}</div>
+                        @endif
+                        @if ($errors->any())
+                            <div class="alert alert-danger">
+                                <ul class="mb-0">
+                                    @foreach ($errors->all() as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+                        <h6>Student Information</h6>
+                        <div class="form-group mb-2">
+                            <label for="student_id">Student ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="student_id" name="student_id" required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="first_name">First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="last_name">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="birthdate">Birthdate <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="birthdate" name="birthdate" required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="gender">Gender <span class="text-danger">*</span></label>
+                            <select class="form-control" id="gender" name="gender" required>
+                                <option value="">Select Gender</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="status">Status <span class="text-danger">*</span></label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="alumni">Alumni</option>
+                                <option value="transferee">Transferee</option>
+                            </select>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="enrollment_date">Enrollment Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="enrollment_date" name="enrollment_date"
+                                required>
+                        </div>
+                        <hr>
+                        <h6>Guardian Information</h6>
+                        <div class="form-group mb-2">
+                            <label for="guardian_first_name">First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="guardian_first_name"
+                                name="guardian_first_name" required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="guardian_last_name">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="guardian_last_name" name="guardian_last_name"
+                                required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="guardian_email">Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="guardian_email" name="guardian_email"
+                                required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="guardian_phone">Contact Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="guardian_phone" name="guardian_phone"
+                                required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="guardian_relationship">Relationship <span class="text-danger">*</span></label>
+                            <select class="form-control" id="guardian_relationship" name="guardian_relationship"
+                                required>
+                                <option value="">Select Relationship</option>
+                                <option value="parent">Parent</option>
+                                <option value="sibling">Sibling</option>
+                                <option value="relative">Relative</option>
+                                <option value="guardian">Guardian</option>
                             </select>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Add Student</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="importClassRecordModal" tabindex="-1" role="dialog"
+        aria-labelledby="importClassRecordModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importClassRecordModalLabel">Import Class Record</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="importClassRecordForm" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="class_record_file">Upload Excel File</label>
+                            <input type="file" class="form-control" id="class_record_file" name="class_record_file"
+                                accept=".xlsx,.xls" required>
+                        </div>
+                        <div id="importResults" style="display: none;">
+                            <h6>Extracted Header Data:</h6>
+                            <div id="headerDataTable" class="table-responsive d-none"></div>
+                            <h3>Male Students:</h3>
+                            <div id="maleStudentsTable" class="table-responsive"></div>
+                            <h3>Female Students:</h3>
+                            <div id="femaleStudentsTable" class="table-responsive"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                            aria-label="Close">Close</button>
+                        <button type="submit" class="btn btn-primary" id="uploadFileButton">Review Data</button>
+                        <button type="button" class="btn btn-success" id="saveClassRecordButton"
+                            style="display: none;">Save Class Record</button>
                     </div>
                 </form>
             </div>
@@ -222,6 +343,98 @@
                 allowClear: true,
                 width: '100%'
             });
+        });
+    </script>
+    <script>
+        let extractedClassRecordData = {}; // To store data after initial upload
+
+        document.getElementById('importClassRecordForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            let formData = new FormData(this);
+
+            fetch('{{ route('teacher.class-record.upload') }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    extractedClassRecordData = data; // Store the data
+
+                    // Display Header Data
+                    let headerHtml = '<table class="table table-bordered table-sm"><tbody>';
+                    for (const key in data.headerData) {
+                        headerHtml +=
+                            `<tr><th>${key.replace(/_/g, ' ').toUpperCase()}</th><td>${data.headerData[key]}</td></tr>`;
+                    }
+                    headerHtml += '</tbody></table>';
+                    document.getElementById('headerDataTable').innerHTML = headerHtml;
+
+                    // Display Male Students
+                    let maleStudentsHtml =
+                        '<table class="table table-bordered table-sm"><thead><tr><th>LRN</th><th>Last Name</th><th>First Name</th></tr></thead><tbody>';
+                    data.maleStudents.forEach(student => {
+                        maleStudentsHtml +=
+                            `<tr><td>${student.lrn}</td><td>${student.last_name}</td><td>${student.first_name}</td></tr>`;
+                    });
+                    maleStudentsHtml += '</tbody></table>';
+                    document.getElementById('maleStudentsTable').innerHTML = maleStudentsHtml;
+
+                    // Display Female Students
+                    let femaleStudentsHtml =
+                        '<table class="table table-bordered table-sm"><thead><tr><th>LRN</th><th>Last Name</th><th>First Name</th></tr></thead><tbody>';
+                    data.femaleStudents.forEach(student => {
+                        femaleStudentsHtml +=
+                            `<tr><tr><td>${student.lrn}</td><td>${student.last_name}</td><td>${student.first_name}</td></tr>`;
+                    });
+                    femaleStudentsHtml += '</tbody></table>';
+                    document.getElementById('femaleStudentsTable').innerHTML = femaleStudentsHtml;
+
+
+                    document.getElementById('importResults').style.display = 'block';
+                    document.getElementById('saveClassRecordButton').style.display =
+                        'block'; // Show save button
+                    document.getElementById('uploadFileButton').style.display = 'none'; // Hide review button
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred during import. Error: ' + error.message);
+                });
+        });
+
+        // Event listener for the new "Save Class Record" button
+        document.getElementById('saveClassRecordButton').addEventListener('click', function() {
+            if (Object.keys(extractedClassRecordData).length === 0) {
+                alert('No data to save. Please upload a file first.');
+                return;
+            }
+
+            fetch('{{ route('teacher.class-record.save') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify(extractedClassRecordData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Class record saved successfully!');
+                        // Optionally close modal or refresh page
+                        $('#importClassRecordModal').modal('hide');
+                        location.reload(); // Reload the page to show updated student list
+                    } else {
+                        alert('Failed to save class record: ' + (data.message || 'Unknown error.'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving class record:', error);
+                    alert('An error occurred while saving the class record. Error: ' + error.message);
+                });
         });
     </script>
 @endpush

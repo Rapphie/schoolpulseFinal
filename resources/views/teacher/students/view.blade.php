@@ -1,4 +1,4 @@
-@extends('teacher.layout')
+@extends('base')
 
 @section('title', 'Student Details')
 
@@ -45,7 +45,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="fw-bold">Contact Number:</label>
-                        <p>{{ $student->contact_number ?? 'N/A' }}</p>
+                        <p>{{ $student->phone ?? 'N/A' }}</p>
                     </div>
                     <div class="mb-3">
                         <label class="fw-bold">Address:</label>

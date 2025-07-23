@@ -16,18 +16,18 @@ class Student extends Model
         'section_id',
         'first_name',
         'last_name',
-        'bar_code',
-        'qr_code',
+        'student_id',
         'lrn',
         'birthdate',
         'gender',
         'address',
-        'contact_number',
+        'phone',
         'guardian_name',
         'guardian_contact',
         'status',
         'enrollment_date',
         'remarks',
+        'teacher_id'
     ];
 
     protected $casts = [

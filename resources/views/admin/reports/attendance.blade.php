@@ -1,4 +1,4 @@
-@extends('admin.layout')
+@extends('base')
 
 @section('title', 'Attendance Report')
 @section('head')
@@ -17,235 +17,233 @@
     </noscript>
 @endsection
 @section('content')
-    <main class="p-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Attendance Overview</h6>
-                <div>
-                    <div class="input-group">
-                        <input type="month" class="form-control" id="monthFilter" value="{{ date('Y-m') }}">
-                        <button class="btn btn-outline-primary" type="button" id="applyFilter">
-                            <i data-feather="filter"></i> Apply
-                        </button>
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Attendance Overview</h6>
+            <div>
+                <div class="input-group">
+                    <input type="month" class="form-control" id="monthFilter" value="{{ date('Y-m') }}">
+                    <button class="btn btn-outline-primary" type="button" id="applyFilter">
+                        <i data-feather="filter"></i> Apply
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card border-left-primary h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                        Present Today</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $todayPresentCount ?? 0 }}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-left-success h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                        This Month's Attendance</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                        {{ $monthlyAttendanceRate ?? 0 }}%
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-percent fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-left-info h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                        Total Absences</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $totalAbsences ?? 0 }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-user-times fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-left-warning h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                        Late Arrivals</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $lateArrivalsCount ?? 0 }}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="card border-left-primary h-100 py-2">
-                            <div class="card-body">
-                                <div class="row no-gutters align-items-center">
-                                    <div class="col mr-2">
-                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                            Present Today</div>
-                                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $todayPresentCount ?? 0 }}
-                                        </div>
-                                    </div>
-                                    <div class="col-auto">
-                                        <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
-                                    </div>
-                                </div>
-                            </div>
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="card shadow h-100">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Monthly Attendance Trend</h6>
                         </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card border-left-success h-100 py-2">
-                            <div class="card-body">
-                                <div class="row no-gutters align-items-center">
-                                    <div class="col mr-2">
-                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                            This Month's Attendance</div>
-                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                            {{ $monthlyAttendanceRate ?? 0 }}%
-                                        </div>
-                                    </div>
-                                    <div class="col-auto">
-                                        <i class="fas fa-percent fa-2x text-gray-300"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card border-left-info h-100 py-2">
-                            <div class="card-body">
-                                <div class="row no-gutters align-items-center">
-                                    <div class="col mr-2">
-                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                            Total Absences</div>
-                                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $totalAbsences ?? 0 }}</div>
-                                    </div>
-                                    <div class="col-auto">
-                                        <i class="fas fa-user-times fa-2x text-gray-300"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card border-left-warning h-100 py-2">
-                            <div class="card-body">
-                                <div class="row no-gutters align-items-center">
-                                    <div class="col mr-2">
-                                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                            Late Arrivals</div>
-                                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $lateArrivalsCount ?? 0 }}
-                                        </div>
-                                    </div>
-                                    <div class="col-auto">
-                                        <i class="fas fa-clock fa-2x text-gray-300"></i>
-                                    </div>
-                                </div>
+                        <div class="card-body">
+                            <div class="chart-area">
+                                <canvas id="attendanceTrendChart"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="row mb-4">
-                    <div class="col-md-8">
-                        <div class="card shadow h-100">
-                            <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Monthly Attendance Trend</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="chart-area">
-                                    <canvas id="attendanceTrendChart"></canvas>
-                                </div>
-                            </div>
+                <div class="col-md-4">
+                    <div class="card shadow h-100">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Attendance Distribution</h6>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card shadow h-100">
-                            <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Attendance Distribution</h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="attendancePieChart" style="height: 300px;">
-                                    <div class="text-center py-5">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
+                        <div class="card-body">
+                            <div id="attendancePieChart" style="height: 300px;">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </div>
-                                <div class="mt-4 text-center small">
-                                    <span class="me-3">
-                                        <i class="fas fa-circle text-success"></i> Present
-                                    </span>
-                                    <span class="me-3">
-                                        <i class="fas fa-circle text-danger"></i> Absent
-                                    </span>
-                                    <span class="me-3">
-                                        <i class="fas fa-circle text-warning"></i> Late
-                                    </span>
-                                </div>
+                            </div>
+                            <div class="mt-4 text-center small">
+                                <span class="me-3">
+                                    <i class="fas fa-circle text-success"></i> Present
+                                </span>
+                                <span class="me-3">
+                                    <i class="fas fa-circle text-danger"></i> Absent
+                                </span>
+                                <span class="me-3">
+                                    <i class="fas fa-circle text-warning"></i> Late
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                        <h6 class="m-0 font-weight-bold text-primary">Detailed Attendance Records</h6>
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
-                                id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i data-feather="download"></i> Export
-                            </button>
-                            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                                <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
-                                <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
-                                <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
-                            </ul>
-                        </div>
+            </div>
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Detailed Attendance Records</h6>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
+                            id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i data-feather="download"></i> Export
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                            <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
+                            <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
+                            <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
+                        </ul>
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-bordered" id="attendanceTable" width="100%" cellspacing="0">
-                                <thead>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="attendanceTable" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Student Name</th>
+                                    <th>Section</th>
+                                    <th>Status</th>
+                                    <th>Time In</th>
+                                    <th>Time Out</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($attendanceRecords as $attendance)
                                     <tr>
-                                        <th>Date</th>
-                                        <th>Student Name</th>
-                                        <th>Section</th>
-                                        <th>Status</th>
-                                        <th>Time In</th>
-                                        <th>Time Out</th>
-                                        <th>Actions</th>
+                                        <td>{{ \Carbon\Carbon::parse($attendance->date)->format('M d, Y') }}</td>
+                                        <td>{{ $attendance->student ? $attendance->student->full_name : 'N/A' }}</td>
+                                        <td>{{ $attendance->student && $attendance->student->section ? $attendance->student->section->name : 'N/A' }}
+                                        </td>
+                                        <td>
+                                            @if ($attendance->status == 'present')
+                                                <span class="badge bg-success">Present</span>
+                                            @elseif($attendance->status == 'late')
+                                                <span class="badge bg-warning text-dark">Late</span>
+                                            @else
+                                                <span class="badge bg-danger">Absent</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $attendance->time_in ?? 'N/A' }}</td>
+                                        {{-- <td>{{ $attendance->time_out ?? 'N/A' }}</td> --}}
+                                        <td>
+                                            <button class="btn btn-sm btn-info"
+                                                onclick="viewAttendanceDetails({{ $attendance->id }})"
+                                                data-bs-toggle="tooltip" title="View Details">
+                                                <i data-feather="eye" class="feather-sm"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-warning text-white"
+                                                onclick="editAttendance({{ $attendance->id }})"
+                                                data-bs-toggle="tooltip" title="Edit">
+                                                <i data-feather="edit-2" class="feather-sm"></i>
+                                            </button>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    @forelse($attendanceRecords as $attendance)
-                                        <tr>
-                                            <td>{{ \Carbon\Carbon::parse($attendance->date)->format('M d, Y') }}</td>
-                                            <td>{{ $attendance->student ? $attendance->student->full_name : 'N/A' }}</td>
-                                            <td>{{ $attendance->student && $attendance->student->section ? $attendance->student->section->name : 'N/A' }}
-                                            </td>
-                                            <td>
-                                                @if ($attendance->status == 'present')
-                                                    <span class="badge bg-success">Present</span>
-                                                @elseif($attendance->status == 'late')
-                                                    <span class="badge bg-warning text-dark">Late</span>
-                                                @else
-                                                    <span class="badge bg-danger">Absent</span>
-                                                @endif
-                                            </td>
-                                            <td>{{ $attendance->time_in ?? 'N/A' }}</td>
-                                            <td>{{ $attendance->time_out ?? 'N/A' }}</td>
-                                            <td>
-                                                <button class="btn btn-sm btn-info"
-                                                    onclick="viewAttendanceDetails({{ $attendance->id }})"
-                                                    data-bs-toggle="tooltip" title="View Details">
-                                                    <i data-feather="eye" class="feather-sm"></i>
-                                                </button>
-                                                <button class="btn btn-sm btn-warning text-white"
-                                                    onclick="editAttendance({{ $attendance->id }})"
-                                                    data-bs-toggle="tooltip" title="Edit">
-                                                    <i data-feather="edit-2" class="feather-sm"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="7" class="text-center">No attendance records found.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="text-center">No attendance records found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
 
-                            <!-- Add Laravel's pagination links -->
-                            <div class="d-flex justify-content-center mt-4">
-                                {{ $attendanceRecords->links('pagination::bootstrap-5') }}
-                            </div>
+                        <!-- Add Laravel's pagination links -->
+                        <div class="d-flex justify-content-center mt-4">
+                            {{ $attendanceRecords->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- Attendance Details Modal -->
-        <div class="modal fade" id="attendanceDetailsModal" tabindex="-1" aria-labelledby="attendanceDetailsModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="attendanceDetailsModalLabel">Attendance Details</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body" id="attendanceDetailsContent">
-                        <!-- Content will be loaded via AJAX -->
-                        <div class="text-center my-5">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
+    </div>
+    <!-- Attendance Details Modal -->
+    <div class="modal fade" id="attendanceDetailsModal" tabindex="-1" aria-labelledby="attendanceDetailsModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="attendanceDetailsModalLabel">Attendance Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="attendanceDetailsContent">
+                    <!-- Content will be loaded via AJAX -->
+                    <div class="text-center my-5">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" id="printAttendanceBtn">
-                            <i data-feather="printer" class="feather-sm me-1"></i> Print
-                        </button>
-                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="printAttendanceBtn">
+                        <i data-feather="printer" class="feather-sm me-1"></i> Print
+                    </button>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
 
 

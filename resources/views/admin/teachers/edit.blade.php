@@ -1,303 +1,190 @@
-@extends('admin.layout')
+@extends('base')
 
-@section('title', 'Edit Teacher: ' . $teacher->name)
-
-@section('header')
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('admin.teachers.index') }}">Teachers</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Edit: {{ $teacher->name }}</li>
-        </ol>
-    </nav>
-    <h1>Edit Teacher: {{ $teacher->name }}</h1>
-@endsection
+@section('title', 'Edit Teacher')
 
 @section('content')
-    <main class="p-4">
-        <div class="card shadow">
-            <div class="card-body">
-                <form action="{{ route('admin.teachers.update', $teacher) }}" method="POST" enctype="multipart/form-data">
-                    @csrf
-                    @method('PUT')
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ route('admin.teachers.index') }}">Teachers</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit Teacher</li>
+                </ol>
+            </nav>
+            <a class="btn btn-primary d-flex align-items-center" href="{{ route('admin.teachers.index') }}">
+                <i data-feather="arrow-left" class="me-1"></i> Back to Teachers
+            </a>
+        </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="first_name">First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control @error('first_name') is-invalid @enderror"
-                                    id="first_name" name="first_name" value="{{ old('first_name', $teacher->first_name) }}"
-                                    required>
-                                @error('first_name')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="last_name">Last Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control @error('last_name') is-invalid @enderror"
-                                    id="last_name" name="last_name" value="{{ old('last_name', $teacher->last_name) }}"
-                                    required>
-                                @error('last_name')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Teacher Details</h6>
                     </div>
+                    <div class="card-body">
+                        <form action="{{ route('admin.teachers.update', $teacher) }}" method="POST"
+                            enctype="multipart/form-data">
+                            @csrf
+                            @method('PUT')
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="email">Email Address <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control @error('email') is-invalid @enderror"
-                                    id="email" name="email" value="{{ old('email', $teacher->email) }}" required>
-                                @error('email')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
+                            <div class="mb-3">
+                                <label for="firstName" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="firstName" name="first_name"
+                                    value="{{ $teacher->user->first_name }}" required>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="phone">Phone Number</label>
-                                <input type="tel" class="form-control @error('phone') is-invalid @enderror"
-                                    id="phone" name="phone" value="{{ old('phone', $teacher->phone) }}">
-                                @error('phone')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="password">Password</label>
-                                <input type="password" class="form-control @error('password') is-invalid @enderror"
-                                    id="password" name="password">
-                                @error('password')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                                <small class="form-text text-muted">Leave blank to keep current password</small>
+                            <div class="mb-3">
+                                <label for="lastName" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="lastName" name="last_name"
+                                    value="{{ $teacher->user->last_name }}" required>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="password_confirmation">Confirm Password</label>
-                                <input type="password" class="form-control" id="password_confirmation"
-                                    name="password_confirmation">
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="gender">Gender</label>
-                                <select class="form-control @error('gender') is-invalid @enderror" id="gender"
-                                    name="gender">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email"
+                                    value="{{ $teacher->user->email }}" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="phone" name="phone"
+                                    value="{{ $teacher->phone }}">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="gender" class="form-label">Gender</label>
+                                <select id="gender" name="gender" class="form-select">
                                     <option value="">Select Gender</option>
-                                    <option value="male"
-                                        {{ old('gender', $teacher->gender) == 'male' ? 'selected' : '' }}>Male</option>
-                                    <option value="female"
-                                        {{ old('gender', $teacher->gender) == 'female' ? 'selected' : '' }}>Female</option>
-                                    <option value="other"
-                                        {{ old('gender', $teacher->gender) == 'other' ? 'selected' : '' }}>Other</option>
+                                    <option value="male" {{ $teacher->gender == 'male' ? 'selected' : '' }}>Male</option>
+                                    <option value="female" {{ $teacher->gender == 'female' ? 'selected' : '' }}>Female
+                                    </option>
+                                    <option value="other" {{ $teacher->gender == 'other' ? 'selected' : '' }}>Other
+                                    </option>
                                 </select>
-                                @error('gender')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="date_of_birth">Date of Birth</label>
-                                <input type="date" class="form-control @error('date_of_birth') is-invalid @enderror"
-                                    id="date_of_birth" name="date_of_birth"
-                                    value="{{ old('date_of_birth', $teacher->date_of_birth ? $teacher->date_of_birth->format('Y-m-d') : '') }}">
-                                @error('date_of_birth')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
+
+                            <div class="mb-3">
+                                <label for="date_of_birth" class="form-label">Date of Birth</label>
+                                <input type="date" class="form-control" id="date_of_birth" name="date_of_birth"
+                                    value="{{ $teacher->date_of_birth }}">
                             </div>
-                        </div>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="address">Address</label>
-                        <textarea class="form-control @error('address') is-invalid @enderror" id="address" name="address" rows="2">{{ old('address', $teacher->address) }}</textarea>
-                        @error('address')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                            <div class="mb-3">
+                                <label for="address" class="form-label">Address</label>
+                                <input type="text" class="form-control" id="address" name="address"
+                                    value="{{ $teacher->address }}">
+                            </div>
 
-                    <div class="form-group">
-                        <label for="qualification">Qualification</label>
-                        <input type="text" class="form-control @error('qualification') is-invalid @enderror"
-                            id="qualification" name="qualification"
-                            value="{{ old('qualification', $teacher->qualification) }}">
-                        @error('qualification')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
+                            <div class="mb-3">
+                                <label for="qualification" class="form-label">Qualification</label>
+                                <input type="text" class="form-control" id="qualification" name="qualification"
+                                    value="{{ $teacher->qualification }}">
+                            </div>
 
-                    <div class="form-group">
-                        <label>Subjects</label>
-                        <div id="subjects-container">
-                            @php
-                                $teacherSubjects = $teacher->subjects->keyBy('id');
-                            @endphp
-                            
-                            @foreach($subjects as $subject)
-                                <div class="subject-row mb-3 p-3 border rounded">
-                                    <div class="form-check">
-                                        <input type="checkbox" 
-                                               class="form-check-input subject-checkbox" 
-                                               name="subjects[{{ $subject->id }}][id]" 
-                                               value="{{ $subject->id }}"
-                                               id="subject-{{ $subject->id }}"
-                                               {{ $teacherSubjects->has($subject->id) ? 'checked' : '' }}>
-                                        <label class="form-check-label font-weight-bold" for="subject-{{ $subject->id }}">
-                                            {{ $subject->name }} ({{ $subject->code }})
-                                        </label>
-                                    </div>
-                                    <div class="form-group mt-2 ml-4">
-                                        <label for="section-{{ $subject->id }}">Section</label>
-                                        <select class="form-control section-select" 
-                                                name="subjects[{{ $subject->id }}][section_id]"
-                                                id="section-{{ $subject->id }}"
-                                                {{ $teacherSubjects->has($subject->id) ? '' : 'disabled' }}>
-                                            <option value="">Select Section</option>
-                                            @foreach($sections as $section)
-                                                <option value="{{ $section->id }}"
-                                                    {{ ($teacherSubjects->has($subject->id) && 
-                                                        $teacherSubjects[$subject->id]->pivot->section_id == $section->id) ? 'selected' : '' }}>
-                                                    {{ $section->name }}
-                                                </option>
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select id="status" name="status" class="form-select" required>
+                                    <option value="active" {{ $teacher->status == 'active' ? 'selected' : '' }}>Active
+                                    </option>
+                                    <option value="on-leave" {{ $teacher->status == 'on-leave' ? 'selected' : '' }}>On
+                                        Leave</option>
+                                    <option value="inactive" {{ $teacher->status == 'inactive' ? 'selected' : '' }}>
+                                        Inactive</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="profile_picture" class="form-label">Profile Picture</label>
+                                <input type="file" class="form-control" id="profile_picture" name="profile_picture">
+                                @if ($teacher->profile_picture)
+                                    <img src="{{ asset('storage/' . $teacher->profile_picture) }}"
+                                        class="img-thumbnail mt-2" width="150">
+                                @endif
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Update Teacher</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Assign Subjects</h6>
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ route('admin.teachers.assign_subject', $teacher) }}" method="POST">
+                            @csrf
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <div class="mb-3">
+                                        <label for="subject_id" class="form-label">Subject</label>
+                                        <select name="subject_id" id="subject_id" class="form-select" required>
+                                            <option value="" selected>Select Subject</option>
+                                            @foreach ($subjects as $subject)
+                                                <option value="{{ $subject->id }}">{{ $subject->name }}</option>
                                             @endforeach
                                         </select>
                                     </div>
                                 </div>
-                            @endforeach
-                        </div>
-                        @error('subjects')
-                            <div class="invalid-feedback d-block">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="form-group">
-                        <label for="profile_picture">Profile Picture</label>
-                        @if ($teacher->profile_picture)
-                            <div class="mb-2">
-                                <img src="{{ asset('storage/' . $teacher->profile_picture) }}"
-                                    alt="{{ $teacher->name }}" class="img-thumbnail" style="max-height: 100px;">
+                                <div class="col-md-5">
+                                    <div class="mb-3">
+                                        <label for="section_id" class="form-label">Section</label>
+                                        <select name="section_id" id="section_id" class="form-select">
+                                            <option value="" selected>Select Section</option>
+                                            @foreach ($sections as $section)
+                                                <option value="{{ $section->id }}">{{ $section->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary mb-3">Assign</button>
+                                </div>
                             </div>
-                        @endif
-                        <div class="custom-file">
-                            <input type="file"
-                                class="custom-file-input @error('profile_picture') is-invalid @enderror"
-                                id="profile_picture" name="profile_picture">
-                            <label class="custom-file-label" for="profile_picture">
-                                {{ $teacher->profile_picture ? 'Change file' : 'Choose file' }}
-                            </label>
-                            @error('profile_picture')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <small class="form-text text-muted">Max file size: 2MB. Allowed formats: jpg, jpeg, png,
-                            gif</small>
-                    </div>
+                        </form>
 
-                    <div class="form-group form-check">
-                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" value="1"
-                            {{ old('is_active', $teacher->is_active) ? 'checked' : '' }}>
-                        <label class="form-check-label" for="is_active">Active</label>
-                    </div>
+                        <hr>
 
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="{{ route('admin.teachers.index') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Cancel
-                        </a>
-                        <div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Update Teacher
-                            </button>
-                        </div>
+                        <h6 class="mt-5">Assigned Subjects</h6>
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Section</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($assignedSubjects as $assignedSubject)
+                                    <tr>
+                                        <td>{{ $assignedSubject->subject_name }}</td>
+                                        <td>{{ $assignedSubject->section_name ?? 'No section assigned' }}</td>
+                                        <td>
+                                            <form action="{{ route('admin.teachers.unassign_subject', $teacher) }}"
+                                                method="POST">
+                                                @csrf
+                                                @method('DELETE')
+                                                <input type="hidden" name="subject_id"
+                                                    value="{{ $assignedSubject->subject_id }}">
+                                                <input type="hidden" name="section_id"
+                                                    value="{{ $assignedSubject->section_id }}">
+                                                <button type="submit" class="btn btn-danger btn-sm">Unassign</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-center">No subjects assigned yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
-    </main>
+    </div>
 @endsection
-
-@push('styles')
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .subject-row {
-            transition: all 0.3s ease;
-        }
-        .subject-row:hover {
-            background-color: #f8f9fa;
-        }
-        .section-select:disabled {
-            background-color: #e9ecef;
-            cursor: not-allowed;
-        }
-    </style>
-@endpush
-
-@push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            // Show file name when file is selected
-            $('.custom-file-input').on('change', function() {
-                let fileName = $(this).val().split('\\').pop();
-                $(this).next('.custom-file-label').addClass("selected").html(fileName || 'Choose file');
-            });
-
-            // Enable/disable section select based on subject checkbox
-            $('.subject-checkbox').change(function() {
-                const sectionSelect = $(this).closest('.subject-row').find('.section-select');
-                if ($(this).is(':checked')) {
-                    sectionSelect.prop('disabled', false);
-                    // Make section required when subject is checked
-                    sectionSelect.prop('required', true);
-                } else {
-                    sectionSelect.prop('disabled', true);
-                    sectionSelect.prop('required', false);
-                    sectionSelect.val('');
-                }
-            });
-
-            // Initialize any existing checked checkboxes
-            $('.subject-checkbox:checked').trigger('change');
-
-            // Validate form before submission
-            $('form').on('submit', function(e) {
-                let isValid = true;
-                
-                // Check each subject row
-                $('.subject-row').each(function() {
-                    const checkbox = $(this).find('.subject-checkbox');
-                    const sectionSelect = $(this).find('.section-select');
-                    
-                    if (checkbox.is(':checked') && !sectionSelect.val()) {
-                        isValid = false;
-                        sectionSelect.addClass('is-invalid');
-                        sectionSelect.after('<div class="invalid-feedback d-block">Please select a section for this subject.</div>');
-                    } else {
-                        sectionSelect.removeClass('is-invalid');
-                        sectionSelect.nextAll('.invalid-feedback').remove();
-                    }
-                });
-                
-                if (!isValid) {
-                    e.preventDefault();
-                    // Scroll to the first error
-                    $('html, body').animate({
-                        scrollTop: $('.is-invalid').first().offset().top - 100
-                    }, 500);
-                }
-            });
-        });
-    </script>
-@endpush

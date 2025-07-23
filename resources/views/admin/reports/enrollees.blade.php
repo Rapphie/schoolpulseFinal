@@ -1,226 +1,231 @@
-@extends('admin.layout')
+@extends('base')
 
 @section('title', 'Enrollees Report')
 
 
 @section('content')
-    <main class="p-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Enrollment Statistics</h6>
-            <div class="dropdown">
-                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
-                    data-bs-toggle="dropdown" aria-expanded="false">
-                    <i data-feather="download"></i> Export
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                    <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
-                    <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
-                    <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
-                </ul>
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Enrollment Statistics</h6>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
+                data-bs-toggle="dropdown" aria-expanded="false">
+                <i data-feather="download"></i> Export
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
+                <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
+                <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card border-left-primary h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                    Total Students</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                    {{ $sections->sum('students_count') }}</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-users fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-left-success h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    Total Sections</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $sections->count() }}</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-layer-group fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-left-info h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    Average per Section</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                    {{ $sections->count() > 0 ? round($sections->avg('students_count'), 1) : 0 }}
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-calculator fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-left-warning h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Largest Section</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                    {{ $sections->max('students_count') ?? 0 }} students
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-arrow-up fa-2x text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="card-body">
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card border-left-primary h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                        Total Students</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        {{ $sections->sum('students_count') }}</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-users fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Enrollment by Section</h6>
                     </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-success h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                        Total Sections</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $sections->count() }}</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-layer-group fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-info h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                        Average per Section</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        {{ $sections->count() > 0 ? round($sections->avg('students_count'), 1) : 0 }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-calculator fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-warning h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                        Largest Section</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        {{ $sections->max('students_count') ?? 0 }} students
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-arrow-up fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
+                    <div class="card-body">
+                        <div class="chart-bar">
+                            <canvas id="enrollmentChart"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Enrollment by Section</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-bar">
-                                <canvas id="enrollmentChart"></canvas>
-                            </div>
-                        </div>
+            <div class="col-md-4">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Student Distribution by Grade Level</h6>
                     </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Student Distribution by Grade Level</h6>
+                    <div class="card-body">
+                        <div class="chart-pie pt-4">
+                            <canvas id="sectionPieChart"></canvas>
                         </div>
-                        <div class="card-body">
-                            <div class="chart-pie pt-4">
-                                <canvas id="sectionPieChart"></canvas>
-                            </div>
-                            <div class="mt-4 text-center small" id="section-legend">
-                                <!-- Legend will be inserted here by JavaScript -->
-                            </div>
+                        <div class="mt-4 text-center small" id="section-legend">
+                            <!-- Legend will be inserted here by JavaScript -->
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Detailed Enrollment by Grade Level</h6>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered" id="enrollmentTable" width="100%" cellspacing="0">
-                            <thead>
-                                <tr>
-                                    <th>Grade Level</th>
-                                    <th>Number of Sections</th>
-                                    <th>Total Students</th>
-                                    <th>Average per Section</th>
-                                    <th>Percentage</th>
-                                    <th>Details</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @php
-                                    $totalStudents = $sections->sum('students_count');
-                                    $gradeLevels = $sections->pluck('grade_level')->unique()->sort()->values();
-                                @endphp
+        </div>
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Detailed Enrollment by Grade Level</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="enrollmentTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Grade Level</th>
+                                <th>Number of Sections</th>
+                                <th>Total Students</th>
+                                <th>Average per Section</th>
+                                <th>Percentage</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $totalStudents = $sections->sum('students_count');
+                                $gradeLevels = $sections->pluck('grade_level')->unique()->sort()->values();
+                            @endphp
 
-                                @foreach ($gradeLevels as $grade)
-                                    @php
-                                        $gradeSections = $sections->where('grade_level', $grade);
-                                        $gradeStudentCount = $gradeSections->sum('students_count');
-                                        $sectionCount = $gradeSections->count();
-                                        $averagePerSection = $sectionCount > 0 ? round($gradeStudentCount / $sectionCount, 1) : 0;
-                                        $percentage = $totalStudents > 0 ? ($gradeStudentCount / $totalStudents) * 100 : 0;
-                                    @endphp
-                                    <tr>
-                                        <td><strong>Grade {{ $grade }}</strong></td>
-                                        <td>{{ $sectionCount }}</td>
-                                        <td>{{ $gradeStudentCount }}</td>
-                                        <td>{{ $averagePerSection }}</td>
-                                        <td>
-                                            <div class="progress">
-                                                <div class="progress-bar" role="progressbar"
-                                                    style="width: {{ $percentage }}%; background-color: {{ $sectionsByGrade[$grade]['color'] ?? '#0d6efd' }}"
-                                                    aria-valuenow="{{ $percentage }}" aria-valuemin="0" aria-valuemax="100">
-                                                    {{ number_format($percentage, 1) }}%
-                                                </div>
+                            @foreach ($gradeLevels as $grade)
+                                @php
+                                    $gradeSections = $sections->where('grade_level', $grade);
+                                    $gradeStudentCount = $gradeSections->sum('students_count');
+                                    $sectionCount = $gradeSections->count();
+                                    $averagePerSection =
+                                        $sectionCount > 0 ? round($gradeStudentCount / $sectionCount, 1) : 0;
+                                    $percentage = $totalStudents > 0 ? ($gradeStudentCount / $totalStudents) * 100 : 0;
+                                @endphp
+                                <tr>
+                                    <td><strong>Grade {{ $grade }}</strong></td>
+                                    <td>{{ $sectionCount }}</td>
+                                    <td>{{ $gradeStudentCount }}</td>
+                                    <td>{{ $averagePerSection }}</td>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar" role="progressbar"
+                                                style="width: {{ $percentage }}%; background-color: {{ $sectionsByGrade[$grade]['color'] ?? '#0d6efd' }}"
+                                                aria-valuenow="{{ $percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                                {{ number_format($percentage, 1) }}%
                                             </div>
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary toggle-sections" data-grade="{{ $grade }}">
-                                                <i data-feather="chevron-down" class="feather-sm"></i> Show Sections
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <!-- Section details for this grade level (initially hidden) -->
-                                    <tr class="grade-sections grade-{{ $grade }}-sections" style="display: none;">
-                                        <td colspan="6" class="p-0">
-                                            <table class="table mb-0">
-                                                <thead class="bg-light">
-                                                    <tr>
-                                                        <th>Section Name</th>
-                                                        <th>Students</th>
-                                                        <th>% of Grade</th>
-                                                        <th>Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach ($gradeSections->sortBy('name') as $section)
-                                                        @php
-                                                            $sectionPercentage = $gradeStudentCount > 0 ? ($section->students_count / $gradeStudentCount) * 100 : 0;
-                                                        @endphp
-                                                        <tr>
-                                                            <td class="ps-4">{{ $section->name }}</td>
-                                                            <td>{{ $section->students_count }}</td>
-                                                            <td>{{ number_format($sectionPercentage, 1) }}%</td>
-                                                            <td>
-                                                                <a href="{{ route('admin.sections.show', $section->id) }}" class="btn btn-sm btn-info">
-                                                                    <i data-feather="eye" class="feather-sm"></i> View
-                                                                </a>
-                                                            </td>
-                                                        </tr>
-                                                    @endforeach
-                                                </tbody>
-                                            </table>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot>
-                                <tr class="font-weight-bold">
-                                    <td>Total</td>
-                                    <td>{{ $sections->count() }}</td>
-                                    <td>{{ $totalStudents }}</td>
-                                    <td>{{ $sections->count() > 0 ? round($totalStudents / $sections->count(), 1) : 0 }}</td>
-                                    <td>100%</td>
-                                    <td></td>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary toggle-sections"
+                                            data-grade="{{ $grade }}">
+                                            <i data-feather="chevron-down" class="feather-sm"></i> Show Sections
+                                        </button>
+                                    </td>
                                 </tr>
-                            </tfoot>
-                        </table>
-                    </div>
+                                <!-- Section details for this grade level (initially hidden) -->
+                                <tr class="grade-sections grade-{{ $grade }}-sections" style="display: none;">
+                                    <td colspan="6" class="p-0">
+                                        <table class="table mb-0">
+                                            <thead class="bg-light">
+                                                <tr>
+                                                    <th>Section Name</th>
+                                                    <th>Students</th>
+                                                    <th>% of Grade</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($gradeSections->sortBy('name') as $section)
+                                                    @php
+                                                        $sectionPercentage =
+                                                            $gradeStudentCount > 0
+                                                                ? ($section->students_count / $gradeStudentCount) * 100
+                                                                : 0;
+                                                    @endphp
+                                                    <tr>
+                                                        <td class="ps-4">{{ $section->name }}</td>
+                                                        <td>{{ $section->students_count }}</td>
+                                                        <td>{{ number_format($sectionPercentage, 1) }}%</td>
+                                                        <td>
+                                                            <a href="{{ route('admin.sections.show', $section->id) }}"
+                                                                class="btn btn-sm btn-info">
+                                                                <i data-feather="eye" class="feather-sm"></i> View
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total</td>
+                                <td>{{ $sections->count() }}</td>
+                                <td>{{ $totalStudents }}</td>
+                                <td>{{ $sections->count() > 0 ? round($totalStudents / $sections->count(), 1) : 0 }}
+                                </td>
+                                <td>100%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 @endsection
 @push('styles')
     <!-- Custom styles for this page -->
@@ -326,7 +331,7 @@
                 sectionsByGrade[{{ $section->grade_level }}].counts.push({{ $section->students_count }});
             @endforeach
 
-            // Enrollment Bar Chart - grouped by grade level
+            
             var ctx = document.getElementById('enrollmentChart').getContext('2d');
 
             // Prepare datasets for the chart
@@ -521,11 +526,13 @@
                     if (sectionsRow.style.display === 'none') {
                         // Show sections
                         sectionsRow.style.display = '';
-                        this.innerHTML = '<i data-feather="chevron-up" class="feather-sm"></i> Hide Sections';
+                        this.innerHTML =
+                            '<i data-feather="chevron-up" class="feather-sm"></i> Hide Sections';
                     } else {
                         // Hide sections
                         sectionsRow.style.display = 'none';
-                        this.innerHTML = '<i data-feather="chevron-down" class="feather-sm"></i> Show Sections';
+                        this.innerHTML =
+                            '<i data-feather="chevron-down" class="feather-sm"></i> Show Sections';
                     }
 
                     // Re-initialize feather icons after changing the content

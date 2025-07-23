@@ -1,4 +1,4 @@
-@extends('teacher.layout')
+@extends('base')
 
 @section('title', 'Grades Management')
 

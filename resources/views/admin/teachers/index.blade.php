@@ -1,9 +1,27 @@
-@extends('admin.layout')
+@extends('base')
 
 @section('title', 'Manage Teachers')
 
 @section('internal-css')
     <style>
+        .advisory-orb {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.35em 0.65em;
+            font-size: .85em;
+            font-weight: 500;
+            line-height: 1;
+            color: #fff;
+            background-color: #4e73df;
+            border-radius: 10rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
         /* Table Styling */
         #teachersTable {
             border-collapse: separate;
@@ -254,7 +272,7 @@
             color: #fff;
         }
 
-        /* Add New Teacher Card */
+        /* Add Teacher Card */
         .border-dashed {
             border: 2px dashed #d1d3e2 !important;
             background-color: #f8f9fc;
@@ -359,152 +377,145 @@
     </style>
 @endsection
 @section('content')
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
 
-    <main>
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="mb-0">Teachers</h2>
-            <button class="btn btn-primary d-flex align-items-center" data-bs-toggle="modal"
-                data-bs-target="#addTeacherModal">
-                <i data-feather="plus" class="me-1"></i> Add Teacher
-            </button>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('admin.teachers.index') }}">Teachers</a></li>
+                <li class="breadcrumb-item active" aria-current="page">List</li>
+            </ol>
+        </nav>
+        <a href="{{ route('admin.teachers.create') }}" class="btn btn-primary d-flex align-items-center">
+            <i data-feather="plus" class="me-1"></i> Add Teacher
+        </a>
+    </div>
 
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="input-group">
-                    <span class="input-group-text bg-white border-end-0"><i data-feather="search"></i></span>
-                    <input type="text" class="form-control border-start-0" id="searchTeacher"
-                        placeholder="Search teachers...">
-                </div>
-            </div>
-            <div class="col-md-3">
-                <select class="form-select" id="gradeLevelFilter">
-                    <option value="">All Grade Levels</option>
-                    <option>Grade 1</option>
-                    <option>Grade 2</option>
-                    <option>Grade 3</option>
-                    <option>Grade 4</option>
-                    <option>Grade 5</option>
-                    <option>Grade 6</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <select class="form-select" id="statusFilter">
-                    <option value="">All Status</option>
-                    <option>Active</option>
-                    <option>On Leave</option>
-                    <option>Inactive</option>
-                </select>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0"><i data-feather="search"></i></span>
+                <input type="text" class="form-control border-start-0" id="searchTeacher"
+                    placeholder="Search teachers...">
             </div>
         </div>
+        <div class="col-md-3">
+            <select class="form-select" id="gradeLevelFilter">
+                <option value="">All Grade Levels</option>
+                <option>Grade 1</option>
+                <option>Grade 2</option>
+                <option>Grade 3</option>
+                <option>Grade 4</option>
+                <option>Grade 5</option>
+                <option>Grade 6</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" id="statusFilter">
+                <option value="">All Status</option>
+                <option>Active</option>
+                <option>On Leave</option>
+                <option>Inactive</option>
+            </select>
+        </div>
+    </div>
 
-        <div class="card shadow mb-4">
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="teachersTable" width="100%" cellspacing="0">
-                        <thead>
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="teachersTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Profile</th>
+                            <th>Name</th>
+                            <th>Advisory</th>
+                            <th>Contact</th>
+                            <th>Subjects</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($teachers as $teacher)
                             <tr>
-                                <th>Profile</th>
-                                <th>Name</th>
-                                <th>Position</th>
-                                <th>Contact</th>
-                                <th>Subjects</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($teachers as $teacher)
-                                <tr>
-                                    <td class="align-middle">
-                                        <img src="{{ asset('css/user-placeholder.png') }}" class="rounded-circle"
+                                <td class="align-middle">
+                                    @if ($teacher->profile_picture)
+                                        <img src="{{ asset('storage/' . $teacher->profile_picture) }}"
+                                            class="rounded-circle" style="width: 40px; height: 40px;" alt="Teacher">
+                                    @else
+                                        <img src="{{ asset('images/user-placeholder.png') }}" class="rounded-circle"
                                             style="width: 40px; height: 40px;" alt="Teacher">
-                                    </td>
-                                    <td class="align-middle">
-                                        <span class="fw-bold">{{ $teacher->full_name }}</span>
-                                    </td>
-                                    <td class="align-middle">
-                                        <span class="text-muted">
-                                            @if ($teacher->sectionsAdvised()->exists())
-                                                @php
-                                                    $sections = $teacher->sectionsAdvised()->get();
-                                                    $grades = $sections
-                                                        ->pluck('grade_level')
-                                                        ->unique()
-                                                        ->sort()
-                                                        ->implode(', ');
-                                                @endphp
-                                                Grade {{ $grades }} Adviser
-                                            @else
-                                                No Advisory Class
-                                            @endif
-                                        </span><br>
-                                        @if ($teacher->sectionsAdvised()->exists())
-                                            <span class="badge bg-primary mb-1">Advisory: Grade
-                                                {{ $grades }}</span>
-                                        @else
-                                            <span class="badge bg-primary">No Advisory</span>
-                                        @endif
-                                    </td>
-                                    <td class="align-middle">
-                                        <div><i data-feather="mail" class="feather-sm me-1"></i> {{ $teacher->email }}
+                                    @endif
+                                </td>
+                                <td class="align-middle">
+                                    <span class="fw-bold">{{ $teacher->full_name }}</span>
+                                </td>
+                                <td class="align-middle">
+                                    @if ($teacher->sectionsAdvised()->exists())
+                                        @php
+                                            $advisories = $teacher->sectionsAdvised->map(function ($section) {
+                                                return $section->grade_level_id . ' - ' . $section->name;
+                                            });
+                                            $advisoryText = $advisories->implode(', ');
+                                            $advisoryList =
+                                                '<ul>' .
+                                                $advisories->map(fn($val) => '<li>' . $val . '</li>')->implode('') .
+                                                '</ul>';
+                                        @endphp
+                                        <div class="advisory-orb" data-bs-toggle="popover" data-bs-trigger="hover"
+                                            data-bs-html="true" data-bs-content="{{ $advisoryList }}"
+                                            title="Advisory Classes">
+                                            {{ $advisoryText }}
                                         </div>
-                                        <div><i data-feather="phone" class="feather-sm me-1"></i> (555) 111-2233</div>
-                                    </td>
-                                    <td class="align-middle">
-                                        @if ($teacher->subjects()->exists())
-                                            @foreach ($teacher->subjects->unique() as $subject)
-                                                <span class="badge bg-info text-dark">{{ $subject->name }}</span>
-                                            @endforeach
-                                        @else
-                                            <span class="badge bg-secondary">No Subjects Assigned</span>
-                                        @endif
-                                    </td>
-                                    <td class="align-middle">
-                                        <span class="badge bg-success">Active</span>
-                                    </td>
-                                    <td class="align-middle">
-                                        <div class="d-flex gap-2">
-                                            <button class="btn btn-sm btn-outline-primary btn-message"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="Send Message"
-                                                data-email="maria.clara@school.edu">
-                                                <i data-feather="mail"></i>
-                                            </button>
-                                            <a href="{{ route('admin.teachers.edit', $teacher) }}"
-                                                class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip"
-                                                data-bs-placement="top" title="Edit Teacher">
-                                                <i data-feather="edit-2"></i>
-                                            </a>
-                                            <button class="btn btn-sm btn-outline-danger deleteTeacherBtn"
-                                                data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
-                                                data-teacher-id="{{ $teacher->id }}" data-bs-placement="top"
-                                                title="Delete Teacher">
-                                                <i data-feather="trash-2"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                            @endforelse
+                                    @else
+                                        <span class="badge bg-secondary">No Advisory</span>
+                                    @endif
+                                </td>
+                                <td class="align-middle">
+                                    <div><i data-feather="mail" class="feather-sm me-1"></i> {{ $teacher->email }}
+                                    </div>
+                                    <div><i data-feather="phone" class="feather-sm me-1"></i> (555) 111-2233</div>
+                                </td>
+                                <td class="align-middle">
+                                    @if ($teacher->subjects()->exists())
+                                        @foreach ($teacher->subjects->unique() as $subject)
+                                            <span class="badge bg-info text-dark">{{ $subject->name }}</span>
+                                        @endforeach
+                                    @else
+                                        <span class="badge bg-secondary">No Subjects Assigned</span>
+                                    @endif
+                                </td>
+                                <td class="align-middle">
+                                    <span class="badge bg-success">Active</span>
+                                </td>
+                                <td class="align-middle">
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-primary btn-message" data-bs-toggle="tooltip"
+                                            data-bs-placement="top" title="Send Message"
+                                            data-email="maria.clara@school.edu">
+                                            <i data-feather="mail"></i>
+                                        </button>
+                                        <a href="{{ route('admin.teachers.edit', $teacher) }}"
+                                            class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip"
+                                            data-bs-placement="top" title="Edit Teacher">
+                                            <i data-feather="edit-2"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger deleteTeacherBtn"
+                                            data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
+                                            data-teacher-id="{{ $teacher->id }}" data-bs-placement="top"
+                                            title="Delete Teacher">
+                                            <i data-feather="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                        @endforelse
 
-                        </tbody>
-                    </table>
-                </div>
+                    </tbody>
+                </table>
             </div>
         </div>
-    </main>
+    </div>
 
     <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel"
@@ -512,7 +523,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="deleteConfirmationModalLabel">
+                    <h5 class="modal-title d-flex align-items-center" id="deleteConfirmationModalLabel">
                         <i data-feather="alert-triangle" class="feather-lg me-2"></i> Confirm Delete
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -583,71 +594,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="addTeacherModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add New Teacher</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="addTeacherForm" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="firstName" class="form-label">First Name</label>
-                            <input type="text" class="form-control" id="firstName" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="lastName" class="form-label">Last Name</label>
-                            <input type="text" class="form-control" id="lastName" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="email" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="phone" class="form-label">Phone</label>
-                            <input type="tel" class="form-control" id="phone" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="gradeLevel" class="form-label">Grade Level</label>
-                            <select id="gradeLevel" class="form-select" required>
-                                <option value="">Select Grade Level</option>
-                                <option>Grade 1</option>
-                                <option>Grade 2</option>
-                                <option>Grade 3</option>
-                                <option>Grade 4</option>
-                                <option>Grade 5</option>
-                                <option>Grade 6</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="status" class="form-label">Status</label>
-                            <select id="status" class="form-select" required>
-                                <option value="">Select Status</option>
-                                <option>Active</option>
-                                <option>On Leave</option>
-                                <option>Inactive</option>
-                            </select>
-                        </div>
-                        <div class="col-md-12">
-                            <label for="advisory" class="form-label">Advisory Class</label>
-                            <input type="text" class="form-control" id="advisory"
-                                placeholder="e.g., Grade 1 - Section A" required>
-                        </div>
-                        <div class="col-md-12">
-                            <label for="subjects" class="form-label">Subjects Taught</label>
-                            <input type="text" class="form-control" id="subjects"
-                                placeholder="e.g., Mathematics, Science, English" required>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveTeacherBtn">Save Teacher</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
 @endsection
 
@@ -697,12 +643,12 @@
                     } // Actions column width
                 ],
                 language: {
-                    search: "Search teachers:",
                     lengthMenu: "Show _MENU_ teachers per page",
                     info: "Showing _START_ to _END_ of _TOTAL_ teachers",
                     infoEmpty: "Showing 0 to 0 of 0 teachers",
                     infoFiltered: "(filtered from _MAX_ total teachers)"
-                }
+                },
+                dom: 'lrtip' // This removes the search box from the DataTable
             });
 
             // Connect the custom search box to DataTable
@@ -727,6 +673,12 @@
             var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
+
+            // Initialize popovers
+            var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
+            var popoverList = popoverTriggerList.map(function(popoverTriggerEl) {
+                return new bootstrap.Popover(popoverTriggerEl)
+            })
 
             // Initialize message modal functionality
             $('.btn-message').on('click', function() {

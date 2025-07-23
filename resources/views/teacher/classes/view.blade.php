@@ -1,4 +1,4 @@
-@extends('teacher.layout')
+@extends('base')
 
 @section('title', 'Class Details')
 
@@ -60,25 +60,11 @@
                                 <span>Take Attendance</span>
                             </a>
                         </div>
-                        {{-- <div class="col-md-4 mb-3">
-                            <a href="{{ route('teacher.grades.manage', ['class_id' => $class->id ?? 0]) }}"
+                        <div class="col-md-4 mb-3">
+                            <a href="{{ route('teacher.attendance.take', ['class_id' => $class->id ?? 0]) }}"
                                 class="btn btn-success btn-block d-flex flex-column align-items-center p-3 h-100">
                                 <i data-feather="award" style="width: 36px; height: 36px; margin-bottom: 10px;"></i>
                                 <span>Manage Grades</span>
-                            </a>
-                        </div> --}}
-                        <div class="col-md-4 mb-3">
-                            <a href="{{ route('teacher.gradebook.quiz', ['class_id' => $class->id ?? 0]) }}"
-                                class="btn btn-info btn-block d-flex flex-column align-items-center p-3 h-100">
-                                <i data-feather="edit-3" style="width: 36px; height: 36px; margin-bottom: 10px;"></i>
-                                <span>Create Quiz</span>
-                            </a>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <a href="{{ route('teacher.gradebook.exam', ['class_id' => $class->id ?? 0]) }}"
-                                class="btn btn-warning btn-block d-flex flex-column align-items-center p-3 h-100">
-                                <i data-feather="file-text" style="width: 36px; height: 36px; margin-bottom: 10px;"></i>
-                                <span>Create Exam</span>
                             </a>
                         </div>
                         <div class="col-md-4 mb-3">

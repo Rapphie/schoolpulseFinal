@@ -29,7 +29,7 @@ class AttendanceFactory extends Factory
             'quarter' => $this->faker->numberBetween(1, 4),
             'school_year' => '2024-2025',
             'time_in' => $this->faker->dateTimeBetween('08:00:00', '08:30:00'),
-            'time_out' => $this->faker->dateTimeBetween('15:00:00', '17:00:00'),
+            // 'time_out' => $this->faker->dateTimeBetween('15:00:00', '17:00:00'),
             'teacher_id' =>  $teacher, // Teacher role
         ];
     }

@@ -17,18 +17,21 @@ class Section extends Model
         'capacity'
     ];
 
-    protected $appends = ['grade_level_id_name'];
+    protected $appends = ['grade_level_name'];
 
     protected $casts = [
         'grade_level_id' => 'integer',
         'capacity' => 'integer',
     ];
 
+    public function teacher()
+    {
+        return $this->belongsTo(Teacher::class, 'teacher_id');
+    }
     public function adviser()
     {
         return $this->belongsTo(Teacher::class, 'teacher_id');
     }
-
     public function students()
     {
         return $this->hasMany(Student::class);
@@ -36,7 +39,7 @@ class Section extends Model
 
     public function subjects()
     {
-        return $this->belongsToMany(Subject::class, 'section_subject')
+        return $this->belongsToMany(Subject::class, 'subject_teacher_section', 'section_id', 'subject_id')
             ->withPivot('teacher_id')
             ->withTimestamps();
     }

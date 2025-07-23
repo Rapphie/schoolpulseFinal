@@ -18,9 +18,18 @@ class TeacherFactory extends Factory
      */
     public function definition(): array
     {
-        // Get a random teacher user or create one if needed
-        $userId = User::where('role_id', 2)->inRandomOrder()->first()?->id
-            ?? User::factory()->teacher()->create()->id;
+        // Get a user with role_id=2 that doesn't already have a teacher record
+        $existingTeacherUserIds = Teacher::pluck('user_id')->toArray();
+        $user = User::where('role_id', 2)
+            ->whereNotIn('id', $existingTeacherUserIds)
+            ->inRandomOrder()
+            ->first();
+
+        if (!$user) {
+            $user = User::factory()->teacher()->create();
+        }
+        $userId = $user->id;
+
         return [
             'user_id' => $userId,
             'phone' => '09' . $this->faker->numerify('#########'),

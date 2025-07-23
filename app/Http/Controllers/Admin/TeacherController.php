@@ -7,8 +7,10 @@ use App\Models\Student;
 use App\Models\User;
 use App\Models\Subject;
 use App\Models\Section;
+use App\Mail\WelcomeEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +26,7 @@ class TeacherController extends Controller
 
         return view('teacher.classes.view', compact('classes', 'students'));
     }
+
     public function index()
     {
         $teachers = User::whereHas('role', function ($query) {
@@ -31,11 +34,11 @@ class TeacherController extends Controller
         })
             ->withCount('subjects')
             ->latest()
-            ->paginate(10);
+            ->get();
+        $sections = Section::all();
+        $subjects = Subject::all();
 
-        $subjects = Subject::all(); // Add this line to fetch all subjects
-
-        return view('admin.teachers.index', compact('teachers', 'subjects')); // Add 'subjects' to compact
+        return view('admin.teachers.index', compact('teachers', 'subjects', 'sections'));
     }
 
     /**
@@ -44,7 +47,8 @@ class TeacherController extends Controller
     public function create()
     {
         $subjects = Subject::all();
-        return view('admin.teachers.create', compact('subjects'));
+        $sections = Section::all();
+        return view('admin.teachers.create', compact('subjects', 'sections'));
     }
 
     /**
@@ -57,35 +61,49 @@ class TeacherController extends Controller
             'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'nullable|string|max:20',
-            'password' => 'required|string|min:8|confirmed',
-            'gender' => 'nullable|in:male,female,other',
-            'date_of_birth' => 'nullable|date',
-            'address' => 'nullable|string',
-            'qualification' => 'nullable|string',
-            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'subjects' => 'nullable|array',
-            'subjects.*' => 'exists:subjects,id',
+            'gender' => 'required|in:male,female,other',
+            'date_of_birth' => 'required|date',
+            'address' => 'required|string',
+            'qualification' => 'required|string',
+            'status' => 'required|string',
+            'section_id' => 'nullable|exists:sections,id',
         ]);
 
-        // Handle file upload
-        if ($request->hasFile('profile_picture')) {
-            $path = $request->file('profile_picture')->store('teachers/profile-pictures', 'public');
-            $validated['profile_picture'] = $path;
+        $password = strtolower($validated['first_name']) . strtolower(substr($validated['last_name'], 0, 1)) . date('Y');
+
+        // Create user first
+        $user = User::create([
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($password),
+            'profile_picture' => $request->file('profile_picture') ? $request->file('profile_picture')->store('teachers/profile-pictures', 'public') : null,
+            'role_id' => 2,
+        ]);
+
+        // Create teacher record associated with the user
+        $teacher = $user->teacher()->create([
+            'phone' => $validated['phone'],
+            'gender' => $validated['gender'],
+            'date_of_birth' => $validated['date_of_birth'],
+            'address' => $validated['address'],
+            'qualification' => $validated['qualification'],
+            'status' => $validated['status'],
+        ]);
+
+        // Handle advisory class assignment
+        if ($request->filled('section_id')) {
+            $section = Section::find($validated['section_id']);
+            if ($section) {
+                $section->teacher_id = $teacher->id;
+                $section->save();
+            }
         }
 
-        // Create user
-        $validated['role'] = 'teacher';
-        $validated['is_active'] = $request->has('is_active');
-        $validated['password'] = Hash::make($validated['password']);
+        // Send welcome email
+        Mail::to($user->email)->send(new WelcomeEmail($user, $password));
 
-        $teacher = User::create($validated);
-
-        // Attach subjects if any
-        if (isset($validated['subjects'])) {
-            $teacher->subjects()->attach($validated['subjects']);
-        }
-
-        return redirect()->route('teachers.show', $teacher)
+        return redirect()->route('admin.teachers.index')
             ->with('success', 'Teacher created successfully.');
     }
 
@@ -192,19 +210,14 @@ class TeacherController extends Controller
             }
 
             $teacher->delete();
-
-            return redirect()->route('admin.teachers.index')
+            return back()
                 ->with('success', 'Teacher deleted successfully.');
         } catch (\Illuminate\Database\QueryException $e) {
-            if ($e->getCode() == '23000') { // Integrity constraint violation
-                return redirect()->route('admin.teachers.index')
-                    ->with('error', 'Cannot delete teacher because they are referenced in other records.');
-            }
-            return redirect()->route('admin.teachers.index')
-                ->with('error', 'An error occurred while deleting the teacher.');
-        } catch (\Throwable $th) {
-            return redirect()->route('admin.teachers.index')
+            return back()
                 ->with('error', 'An unexpected error occurred.');
+        } catch (\Throwable $th) {
+            return back()
+                ->with('error', $th);
         }
     }
 
@@ -276,5 +289,18 @@ class TeacherController extends Controller
         //     'success' => true,
         //     'message' => "Teacher account has been {$status} successfully."
         // ]);
+    }
+
+    public function getSubjectsBySection(Request $request, Section $section)
+    {
+        // Validate the section
+        if (!$section) {
+            return response()->json(['error' => 'Section not found'], 404);
+        }
+
+        // Get subjects associated with the section
+        $subjects = $section->subjects;
+
+        return response()->json($subjects);
     }
 }

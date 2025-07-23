@@ -17,7 +17,7 @@ class Attendance extends Model
         "student_id",
         "subject_id",
         "time_in",
-        "time_out",
+        "status",
         "date",
         "quarter",
         "school_year",
@@ -28,7 +28,7 @@ class Attendance extends Model
         'date' => 'date',
         'quarter' => 'integer',
         'time_in' => 'datetime',
-        'time_out' => 'datetime',
+        'status' => 'string',
     ];
 
     public function subject(): BelongsTo

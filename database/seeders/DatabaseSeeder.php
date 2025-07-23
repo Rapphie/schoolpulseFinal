@@ -53,63 +53,75 @@ class DatabaseSeeder extends Seeder
             'role_id' => 2,
         ]);
 
-        // Create teachers
-        $teacherUsers = User::factory(10)->create([
-            'role_id' => 2,
-            'password' => Hash::make('123'),
+        Teacher::create([
+            'user_id' => 2,
+            'phone' => '09123456789',
+            'gender' => 'male',
+            'date_of_birth' => '1990-01-01',
+            'address' => '123 Teacher St, City, Country',
+            'qualification' => 'Bachelor of Education',
+            'status' => 'active',
         ]);
-
-        // Create parent users
-        $parentUsers = User::factory(30)->create([
-            'role_id' => 3,
-            'password' => Hash::make('123'),
-        ]);
-
-        // Create teacher records linked to existing users
-        foreach ($teacherUsers as $user) {
-            Teacher::factory()->create([
-                'user_id' => $user->id
-            ]);
-        }
-
-        $teachers = Teacher::all();
-
         GradeLevel::factory(6)->create();
-        Section::factory(9)->create();
-        Subject::factory(10)->create();
-        LLC::factory(10)->create();
-        LLCItem::factory(70)->create();
+        // // Create teachers
+        // $teacherUsers = User::factory(10)->create([
+        //     'role_id' => 2,
+        //     'password' => Hash::make('123'),
+        // ]);
 
-        // Create guardians linked to existing parent users
-        $guardians = [];
-        foreach ($parentUsers as $user) {
-            $guardians[] = Guardian::create([
-                'user_id' => $user->id,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'contact_number' => '09' . fake()->numerify('#########'),
-                'relationship' => fake()->randomElement(['parent', 'sibling', 'relative', 'guardian']),
-            ]);
-        }
+        // // Create parent users
+        // $parentUsers = User::factory(30)->create([
+        //     'role_id' => 3,
+        //     'password' => Hash::make('123'),
+        // ]);
 
-        // Create students without creating new users/teachers/guardians
-        foreach (range(1, 355) as $index) {
-            Student::create([
-                'first_name' => fake()->firstName(),
-                'last_name' => fake()->lastName(),
-                'section_id' => rand(1, 9),
-                'qr_code' => bin2hex(random_bytes(16)),
-                'birthdate' => fake()->dateTimeBetween('-18 years', '-12 years'),
-                'gender' => fake()->randomElement(['male', 'female']),
-                'guardian_id' => $guardians[array_rand($guardians)]->id,
-                'status' => 'active',
-                'enrollment_date' => fake()->dateTimeBetween('-1 year', 'now'),
-                'teacher_id' => $teachers->random()->id,
-            ]);
-        }
+        // // Create teacher records linked to existing users
+        // foreach ($teacherUsers as $user) {
+        //     Teacher::factory()->create([
+        //         'user_id' => $user->id
+        //     ]);
+        // }
 
-        Schedule::factory(30)->create();
-        Grade::factory(355)->create();
-        Attendance::factory(200)->create();
+        // $teachers = Teacher::all();
+
+        // GradeLevel::factory(6)->create();
+        // Section::factory(9)->create();
+        // Subject::factory(10)->create();
+        // LLC::factory(10)->create();
+        // LLCItem::factory(70)->create();
+
+        // // Create guardians linked to existing parent users
+        // $guardians = [];
+        // foreach ($parentUsers as $user) {
+        //     $guardians[] = Guardian::create([
+        //         'user_id' => $user->id,
+        //         'first_name' => $user->first_name,
+        //         'last_name' => $user->last_name,
+        //         'phone' => '09' . fake()->numerify('#########'),
+        //         'relationship' => fake()->randomElement(['parent', 'sibling', 'relative', 'guardian']),
+        //     ]);
+        // }
+        // $faker = \Faker\Factory::create();
+        // // Create students without creating new users/teachers/guardians
+        // foreach (range(1, 355) as $index) {
+        //     $sectionId = rand(1, 9);
+        //     Student::create([
+        //         'first_name' => fake()->firstName(),
+        //         'last_name' => fake()->lastName(),
+        //         'section_id' => $sectionId,
+        //         // Use index for uniqueness
+        //         'student_id' => date('Y') . '-' . $sectionId . '-' . $index,
+        //         'birthdate' => fake()->dateTimeBetween('-18 years', '-12 years'),
+        //         'gender' => fake()->randomElement(['male', 'female']),
+        //         'guardian_id' => $guardians[array_rand($guardians)]->id,
+        //         'status' => 'active',
+        //         'enrollment_date' => fake()->dateTimeBetween('-1 year', 'now'),
+        //         'teacher_id' => $teachers->random()->id,
+        //     ]);
+        // }
+
+        // Schedule::factory(30)->create();
+        // Grade::factory(355)->create();
+        // Attendance::factory(200)->create();
     }
 }

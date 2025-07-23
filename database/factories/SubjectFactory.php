@@ -23,9 +23,6 @@ class SubjectFactory extends Factory
             'name' => $this->faker->unique()->word(),
             'code' => strtoupper($this->faker->unique()->lexify('???')),
             'description' => $this->faker->sentence(),
-            'units' => $this->faker->numberBetween(1, 4),
-            'hours_per_week' => $this->faker->numberBetween(1, 6),
-            'is_active' => true,
         ];
     }
 }

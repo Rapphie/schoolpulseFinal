@@ -48,6 +48,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'temporary_password_expires_at' => 'datetime',
         ];
     }
 
@@ -72,8 +73,8 @@ class User extends Authenticatable
      */
     public function subjects()
     {
-        return $this->belongsToMany(Subject::class, 'section_subject', 'teacher_id', 'subject_id')
-            ->withPivot('section_id')
+        return $this->belongsToMany(Subject::class, 'subject_teacher_section', 'teacher_id', 'subject_id')
+            ->withPivot('subject_id')
             ->withTimestamps();
     }
 
@@ -83,6 +84,11 @@ class User extends Authenticatable
     public function schedules()
     {
         return $this->hasMany(Schedule::class, 'teacher_id');
+    }
+
+    public function teacher()
+    {
+        return $this->hasMany(Teacher::class);
     }
 
 

@@ -18,9 +18,20 @@ class LoginController extends Controller
 
         $remember = $request->has('remember');
 
-        if (Auth::attempt($credentials)) {
+        // Normal login
+        if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
             return redirect()->intended('/');
+        }
+
+        // Check for temporary password
+        $user = \App\Models\User::where('email', $request['email'])->first();
+        if ($user && $user->temporary_password && $user->temporary_password_expires_at && now()->lessThanOrEqualTo($user->temporary_password_expires_at)) {
+            if ($request['password'] === $user->temporary_password && $user->role_id == $request['role']) {
+                Auth::login($user, $remember);
+                $request->session()->regenerate();
+                return redirect()->route('password.change');
+            }
         }
 
         return back()->withErrors([

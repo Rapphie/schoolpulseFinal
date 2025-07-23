@@ -1,4 +1,4 @@
-@extends('admin.layout')
+@extends('base')
 
 @section('title', 'Least Learned Competencies Report')
 
@@ -39,145 +39,143 @@
 @endsection
 
 @section('content')
-    <main>
-        <h2 class="mb-4">Least Learned Competencies Report</h2>
+    <h2 class="mb-4">Least Learned Competencies Report</h2>
 
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card report-card">
-                    <div class="card-body">
-                        <select class="form-select" id="gradeLevel">
-                            <option value="">All Grade Levels</option>
-                            <option>Grade 1</option>
-                            <option>Grade 2</option>
-                            <option>Grade 3</option>
-                            <option>Grade 4</option>
-                            <option>Grade 5</option>
-                            <option>Grade 6</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card report-card">
-                    <div class="card-body">
-                        <select class="form-select" id="subject">
-                            <option value="">All Subjects</option>
-                            <option>Mathematics</option>
-                            <option>English</option>
-                            <option>Science</option>
-                            <option>Filipino</option>
-                            <option>Araling Panlipunan</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card report-card">
-                    <div class="card-body">
-                        <select class="form-select" id="gradingPeriod">
-                            <option value="first">First Grading</option>
-                            <option value="second">Second Grading</option>
-                            <option value="third">Third Grading</option>
-                            <option value="fourth">Fourth Grading</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card report-card">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <button class="btn btn-primary" id="generateReport">
-                            <i data-feather="bar-chart-2" class="me-1"></i> Generate Report
-                        </button>
-                        <button class="btn btn-success ms-2" id="exportReport">
-                            <i data-feather="download" class="me-1"></i> Export
-                        </button>
-                    </div>
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card report-card">
+                <div class="card-body">
+                    <select class="form-select" id="gradeLevel">
+                        <option value="">All Grade Levels</option>
+                        <option>Grade 1</option>
+                        <option>Grade 2</option>
+                        <option>Grade 3</option>
+                        <option>Grade 4</option>
+                        <option>Grade 5</option>
+                        <option>Grade 6</option>
+                    </select>
                 </div>
             </div>
         </div>
-
-        <div class="card report-card mb-4">
-            <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="llcChart"></canvas>
+        <div class="col-md-3">
+            <div class="card report-card">
+                <div class="card-body">
+                    <select class="form-select" id="subject">
+                        <option value="">All Subjects</option>
+                        <option>Mathematics</option>
+                        <option>English</option>
+                        <option>Science</option>
+                        <option>Filipino</option>
+                        <option>Araling Panlipunan</option>
+                    </select>
                 </div>
             </div>
         </div>
-
-        <div class="card report-card">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0">Least Learned Competencies</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Competency Code</th>
-                                <th>Description</th>
-                                <th>Subject</th>
-                                <th>Grade Level</th>
-                                <th>Mastery Rate</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>MATH1Q1-a</td>
-                                <td>Visualize and represent numbers from 0 to 100 using a variety of materials</td>
-                                <td>Mathematics</td>
-                                <td>Grade 1</td>
-                                <td>
-                                    <div class="progress">
-                                        <div class="progress-bar progress-bar-danger" role="progressbar" style="width: 35%"
-                                            aria-valuenow="35" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                    <span class="small">35% mastery</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">View Details</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>ENG2Q1-c</td>
-                                <td>Use common expressions and appropriate gestures in conversations</td>
-                                <td>English</td>
-                                <td>Grade 2</td>
-                                <td>
-                                    <div class="progress">
-                                        <div class="progress-bar progress-bar-warning" role="progressbar" style="width: 45%"
-                                            aria-valuenow="45" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                    <span class="small">45% mastery</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">View Details</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>SCI3Q2-b</td>
-                                <td>Describe the characteristics of solids, liquids, and gases</td>
-                                <td>Science</td>
-                                <td>Grade 3</td>
-                                <td>
-                                    <div class="progress">
-                                        <div class="progress-bar progress-bar-danger" role="progressbar" style="width: 38%"
-                                            aria-valuenow="38" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                    <span class="small">38% mastery</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">View Details</button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+        <div class="col-md-3">
+            <div class="card report-card">
+                <div class="card-body">
+                    <select class="form-select" id="gradingPeriod">
+                        <option value="first">First Grading</option>
+                        <option value="second">Second Grading</option>
+                        <option value="third">Third Grading</option>
+                        <option value="fourth">Fourth Grading</option>
+                    </select>
                 </div>
             </div>
         </div>
-    </main>
+        <div class="col-md-3">
+            <div class="card report-card">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <button class="btn btn-primary" id="generateReport">
+                        <i data-feather="bar-chart-2" class="me-1"></i> Generate Report
+                    </button>
+                    <button class="btn btn-success ms-2" id="exportReport">
+                        <i data-feather="download" class="me-1"></i> Export
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card report-card mb-4">
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="llcChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card report-card">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0">Least Learned Competencies</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Competency Code</th>
+                            <th>Description</th>
+                            <th>Subject</th>
+                            <th>Grade Level</th>
+                            <th>Mastery Rate</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>MATH1Q1-a</td>
+                            <td>Visualize and represent numbers from 0 to 100 using a variety of materials</td>
+                            <td>Mathematics</td>
+                            <td>Grade 1</td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-danger" role="progressbar" style="width: 35%"
+                                        aria-valuenow="35" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <span class="small">35% mastery</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary">View Details</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>ENG2Q1-c</td>
+                            <td>Use common expressions and appropriate gestures in conversations</td>
+                            <td>English</td>
+                            <td>Grade 2</td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-warning" role="progressbar" style="width: 45%"
+                                        aria-valuenow="45" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <span class="small">45% mastery</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary">View Details</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>SCI3Q2-b</td>
+                            <td>Describe the characteristics of solids, liquids, and gases</td>
+                            <td>Science</td>
+                            <td>Grade 3</td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-danger" role="progressbar" style="width: 38%"
+                                        aria-valuenow="38" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <span class="small">38% mastery</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary">View Details</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')

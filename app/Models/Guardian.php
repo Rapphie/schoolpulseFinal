@@ -10,6 +10,15 @@ class Guardian extends Model
     use HasFactory;
 
     protected $table = 'guardians';
+    protected $fillable = [
+        'first_name',
+        'last_name',
+        'email',
+        'phone',
+        'user_id',
+        'relationship',
+        'address',
+    ];
 
     public function students()
     {

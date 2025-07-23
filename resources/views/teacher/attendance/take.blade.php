@@ -1,238 +1,495 @@
-@extends('teacher.layout')
+@extends('base')
 
 @section('title', 'Take Attendance')
 
 @section('content')
-    <main class="p-4">
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card shadow">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">Class Selection</h6>
-                    </div>
-                    <div class="card-body">
-                        <form id="classSelectionForm">
-                            <div class="mb-3">
-                                <label for="grade_level_id" class="form-label">Grade Level <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-select" id="grade_level_id" name="grade_level_id" required>
-                                    <option value="">Select Grade Level</option>
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Class Selection</h6>
+                </div>
+                <div class="card-body">
+                    <form id="classSelectionForm">
+                        <div class="mb-3">
+                            <label for="quarter" class="form-label">Quarter <span class="text-danger">*</span></label>
+                            <select class="form-select" id="quarter" name="quarter" required>
+                                <option value="">Select Quarter</option>
+                                <option value="1st Quarter">1st Quarter</option>
+                                <option value="2nd Quarter">2nd Quarter</option>
+                                <option value="3rd Quarter">3rd Quarter</option>
+                                <option value="4th Quarter">4th Quarter</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <!-- Grade level selection removed: only section and quarter are selectable -->
+                        </div>
+                        <div class="mb-3">
+                            <label for="section_id" class="form-label">Section <span class="text-danger">*</span></label>
+                            <div class="dropdown" id="sectionDropdownWrapper">
+                                <button class="form-select text-start" type="button" id="sectionDropdownBtn"
+                                    data-bs-toggle="dropdown" aria-expanded="false" style="text-align:left;">
+                                    <span id="sectionDropdownSelected" class="text-start">Select Section</span>
+                                </button>
+                                <ul class="dropdown-menu w-100" id="sectionDropdownMenu"
+                                    aria-labelledby="sectionDropdownBtn" style="max-height:200px;overflow-y:auto;">
+                                    <li class="px-3 py-2">
+                                        <input type="text" class="form-control" id="sectionDropdownSearch"
+                                            placeholder="Search section...">
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
                                     @php
-                                        $gradeLevels = $sections->pluck('grade_level')->unique();
+                                        $renderedSections = [];
+                                        // Sort schedules by section grade_level_id ascending
+                                        $sortedSchedules = $schedules->sortBy(function ($schedule) {
+                                            return $schedule->section->grade_level_id;
+                                        });
                                     @endphp
-                                    @foreach ($gradeLevels as $gradeLevel)
-                                        <option value="{{ $gradeLevel }}"
-                                            {{ old('grade_level_id') == $gradeLevel ? 'selected' : '' }}>
-                                            {{ $gradeLevel }}</option>
+                                    @foreach ($sortedSchedules as $schedule)
+                                        @if (!in_array($schedule->section->id, $renderedSections))
+                                            <li>
+                                                <span class="dropdown-item section-option" style="cursor:pointer;"
+                                                    data-id="{{ $schedule->section->id }}">
+                                                    {{ 'Grade ' . ($schedule->section->grade_level_id ?? 'Error') }} -
+                                                    {{ $schedule->section->name . $schedule->section->id }}
+                                                </span>
+                                            </li>
+                                            @php
+                                                $renderedSections[] = $schedule->section->id;
+                                            @endphp
+                                        @endif
                                     @endforeach
-                                </select>
+                                </ul>
+                                <input type="hidden" id="section_id" name="section_id" required>
                             </div>
-                            <div class="mb-3">
-                                <label for="section_id" class="form-label">Section <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-select" id="section_id" name="section_id" required disabled>
-                                    <option value="">Select Grade Level First</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="subject_id" class="form-label">Subject <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-select" id="subject_id" name="subject_id" required>
-                                    <option value="">Select Subject</option>
-                                    @foreach ($subjects as $subject)
-                                        <option value="{{ $subject->id }}">{{ $subject->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="date" class="form-label">Date <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="date" name="date"
-                                    value="{{ date('Y-m-d') }}" required>
-                            </div>
-                            <button type="button" id="loadStudentsBtn" class="btn btn-primary">Load Students</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card shadow">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">Class Information</h6>
-                    </div>
-                    <div class="card-body">
-                        <div id="classInfo" style="display: none;">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <p><strong>Section:</strong> <span id="info-section"></span></p>
-                                    <p><strong>Subject:</strong> <span id="info-subject"></span></p>
-                                </div>
-                                <div class="col-md-6">
-                                    <p><strong>Schedule:</strong> <span id="info-schedule"></span></p>
-                                    <p><strong>Room:</strong> <span id="info-room"></span></p>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-12">
-                                    <p><strong>Total Students:</strong> <span id="info-students"></span></p>
-                                </div>
-                            </div>
+                            <small class="form-text text-muted">Only your assigned sections are shown. Click to search and
+                                select.</small>
                         </div>
-                        <div id="noClassInfo" class="text-center py-4">
-                            <p class="text-muted">Select a class to view information</p>
+                        <div class="mb-3">
+                            <label for="subject_id" class="form-label">Subject <span class="text-danger">*</span></label>
+                            <div class="dropdown" id="subjectDropdownWrapper">
+                                <button class="form-select text-start" type="button" id="subjectDropdownBtn"
+                                    data-bs-toggle="dropdown" aria-expanded="false" style="text-align:left;">
+                                    <span id="subjectDropdownSelected" class="text-start">Select Subject</span>
+                                </button>
+                                <ul class="dropdown-menu w-100" id="subjectDropdownMenu"
+                                    aria-labelledby="subjectDropdownBtn" style="max-height:200px;overflow-y:auto;">
+                                    <li class="px-3 py-2">
+                                        <input type="text" class="form-control" id="subjectDropdownSearch"
+                                            placeholder="Search subject...">
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li id="subjectDropdownLoading" class="px-3 py-2 text-muted">
+                                        Please select a section first
+                                    </li>
+                                    <!-- Subjects will be loaded dynamically when section is selected -->
+                                </ul>
+                                <input type="hidden" id="subject_id" name="subject_id" required>
+                            </div>
+                            <small class="form-text text-muted">Select a section first to load available subjects.</small>
                         </div>
-                    </div>
+                        <div class="mb-3">
+                            <label for="date" class="form-label">Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="date" name="date"
+                                value="{{ date('Y-m-d') }}" required>
+                        </div>
+                        <button type="button" id="loadStudentsBtn" class="btn btn-primary">Load Students</button>
+                    </form>
                 </div>
             </div>
         </div>
-        <div class="card shadow mb-4" id="attendanceCard" style="display: none;">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Attendance Sheet</h6>
-                <div>
-                    <div class="dropdown d-inline-block me-2">
-                        <button type="button" class="btn btn-success btn-sm dropdown-toggle" id="markAllDropdown"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i data-feather="check-square"></i> Mark All
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="markAllDropdown">
-                            <li><a class="dropdown-item mark-all-status" href="#" data-status="present">Mark All
-                                    Present</a></li>
-                            <li><a class="dropdown-item mark-all-status" href="#" data-status="absent">Mark All
-                                    Absent</a></li>
-                            <li><a class="dropdown-item mark-all-status" href="#" data-status="late">Mark All Late</a>
-                            </li>
-                            <li><a class="dropdown-item mark-all-status" href="#" data-status="excused">Mark All
-                                    Excused</a></li>
-                        </ul>
-                    </div>
-                    <button type="button" class="btn btn-info btn-sm" id="scanQRBtn">
-                        <i data-feather="camera"></i> Scan QR Code
-                    </button>
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Class Information</h6>
                 </div>
-            </div>
-            <div class="card-body">
-                <form id="attendanceForm" action="#" method="POST">
-                    @csrf
-                    <input type="hidden" name="section_id" id="form_section_id">
-                    <input type="hidden" name="subject_id" id="form_subject_id">
-                    <input type="hidden" name="date" id="form_date">
-                    <div class="table-responsive">
-                        <table class="table table-bordered" id="studentsTable" width="100%" cellspacing="0">
-                            <thead>
-                                <tr>
-                                    <th width="5%">#</th>
-                                    <th width="10%">Student ID</th>
-                                    <th width="30%">Name</th>
-                                    <th width="15%">Status</th>
-                                    <th width="40%">Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody id="studentsTableBody">
-                                <!-- Students will be loaded here dynamically -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="d-flex justify-content-end mt-3">
-                        <button type="button" class="btn btn-secondary me-2" id="cancelBtn">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="saveAttendanceBtn">Save Attendance</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- QR Code Scanner Modal -->
-        <div class="modal fade" id="qrScannerModal" tabindex="-1" aria-labelledby="qrScannerModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="qrScannerModalLabel">Scan Student QR Code</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
+                <div class="card-body">
+                    <div id="classInfo" style="display: none;">
                         <div class="row">
-                            <div class="col-12 mb-3">
-                                <div id="qrScanner" style="width: 100%;"></div>
+                            <div class="col-md-6">
+                                <p><strong>Section:</strong> <span id="info-section"></span></p>
+                                <p><strong>Subject:</strong> <span id="info-subject"></span></p>
+                                <p><strong>Code:</strong> <span id="info-subject-code"></span></p>
                             </div>
+                            <div class="col-md-6">
+                                <p><strong>Schedule:</strong> <span id="info-schedule"></span></p>
+                                <p><strong>Room:</strong> <span id="info-room"></span></p>
+                            </div>
+                        </div>
+                        <div class="row">
                             <div class="col-12">
-                                <div class="alert alert-info">
-                                    Point the camera at a student's QR code to mark them as present.
-                                </div>
-                                <div id="scanResult" class="alert alert-success" style="display: none;">
-                                    Student marked as present: <span id="scannedStudentInfo"></span>
-                                </div>
+                                <p><strong>Total Students:</strong> <span id="info-students"></span></p>
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <div id="noClassInfo" class="text-center py-4">
+                        <p class="text-muted">Select a class to view information</p>
                     </div>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+    <div class="card shadow mb-4" id="attendanceCard" style="display: none;">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Attendance Sheet</h6>
+            <div>
+                <div class="dropdown d-inline-block me-2">
+                    <button type="button" class="btn btn-success btn-sm dropdown-toggle" id="markAllDropdown"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i data-feather="check-square"></i> Mark All
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="markAllDropdown">
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="present">Mark All
+                                Present</a></li>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="absent">Mark All
+                                Absent</a></li>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="late">Mark All
+                                Late</a>
+                        </li>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="excused">Mark All
+                                Excused</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Search input for attendance sheet -->
+            <div class="mb-3">
+                <input type="text" id="attendanceSearchInput" class="form-control"
+                    placeholder="Search student by name or ID...">
+            </div>
+            <form id="attendanceForm" action="#" method="POST">
+                @csrf
+                <input type="hidden" name="section_id" id="form_section_id">
+                <input type="hidden" name="subject_id" id="form_subject_id">
+                <input type="hidden" name="date" id="form_date">
+                <input type="hidden" name="quarter" id="form_quarter">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="studentsTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th width="5%">#</th>
+                                <th width="10%">Student ID</th>
+                                <th width="30%">Name</th>
+                                <th width="15%">Status</th>
+                                <th width="40%">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentsTableBody">
+                            <!-- Students will be loaded here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="button" class="btn btn-secondary me-2" id="cancelBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveAttendanceBtn">Save Attendance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Attendance Summary Modal -->
+    <div class="modal fade" id="attendanceSummaryModal" tabindex="-1" aria-labelledby="attendanceSummaryModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="attendanceSummaryModalLabel">Attendance Summary</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success mb-3" id="successAlert">
+                        <i class="fa fa-check-circle"></i> Attendance has been successfully recorded.
+                    </div>
+                    <p><strong>Total Students:</strong> <span id="summary-total-students"></span></p>
+                    <hr>
+                    <h6>Absentees</h6>
+                    <p><strong>Total Absents:</strong> <span id="summary-total-absent"></span></p>
+                    <p><strong>Male Absents:</strong> <span id="summary-male-absent"></span></p>
+                    <p><strong>Female Absents:</strong> <span id="summary-female-absent"></span></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="errorModalTitle">Error</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="errorModalBody"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
-    <!-- HTML5 QR Code Scanner Script -->
-    <script src="{{ asset('js/html5-qrcode.min.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Attendance sheet search functionality
+            $('#attendanceSearchInput').on('keyup', function() {
+                const search = $(this).val().toLowerCase();
+                $('#studentsTableBody tr').each(function() {
+                    const studentId = $(this).find('td').eq(1).text().toLowerCase();
+                    const studentName = $(this).find('td').eq(2).text().toLowerCase();
+                    if (studentId.indexOf(search) !== -1 || studentName.indexOf(search) !== -1) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            });
+            // Section dropdown search and select
+            const $dropdownBtn = $('#sectionDropdownBtn');
+            const $dropdownMenu = $('#sectionDropdownMenu');
+            const $dropdownSearch = $('#sectionDropdownSearch');
+            const $dropdownSelected = $('#sectionDropdownSelected');
+            const $sectionIdInput = $('#section_id');
+            // Filter items as user types
+            $dropdownSearch.on('keyup', function() {
+                const search = $(this).val().toLowerCase();
+                $dropdownMenu.find('.section-option').each(function() {
+                    const text = $(this).text().toLowerCase();
+                    $(this).parent().toggle(text.indexOf(search) !== -1);
+                });
+            });
+            // Select item
+            $dropdownMenu.on('click', '.section-option', function(e) {
+                const sectionName = $(this).text();
+                const sectionId = $(this).data('id');
+                $dropdownSelected.text(sectionName);
+                $sectionIdInput.val(sectionId).trigger('change');
+                // Hide dropdown after selection
+                $dropdownBtn.dropdown('toggle');
+
+                // Load subjects for the selected section
+                loadSubjectsForSection(sectionId);
+            });
+            // Reset search on open
+            $dropdownBtn.on('click', function() {
+                $dropdownSearch.val('');
+                $dropdownMenu.find('.section-option').parent().show();
+                setTimeout(() => $dropdownSearch.focus(), 100);
+            });
+            // Subject dropdown search and select
+            const $subjectDropdownBtn = $('#subjectDropdownBtn');
+            const $subjectDropdownMenu = $('#subjectDropdownMenu');
+            const $subjectDropdownSearch = $('#subjectDropdownSearch');
+            const $subjectDropdownSelected = $('#subjectDropdownSelected');
+            const $subjectIdInput = $('#subject_id');
+
+            // Filter subject items as user types
+            $subjectDropdownSearch.on('keyup', function() {
+                const search = $(this).val().toLowerCase();
+                $subjectDropdownMenu.find('.subject-option').each(function() {
+                    const text = $(this).text().toLowerCase();
+                    $(this).parent().toggle(text.indexOf(search) !== -1);
+                });
+            });
+
+            // Select subject item
+            $subjectDropdownMenu.on('click', '.subject-option', function(e) {
+                const subjectName = $(this).text();
+                const subjectId = $(this).data('id');
+                $subjectDropdownSelected.text(subjectName);
+                $subjectIdInput.val(subjectId).trigger('change');
+                // Hide dropdown after selection
+                $subjectDropdownBtn.dropdown('toggle');
+            });
+
+            // Reset subject search on open
+            $subjectDropdownBtn.on('click', function() {
+                $subjectDropdownSearch.val('');
+                $subjectDropdownMenu.find('.subject-option').parent().show();
+                setTimeout(() => $subjectDropdownSearch.focus(), 100);
+            });
+
+            // Function to load subjects for a selected section
+            function loadSubjectsForSection(sectionId) {
+                // Reset subject dropdown
+                $subjectDropdownSelected.text('Loading subjects...');
+                $subjectIdInput.val('');
+
+                // Show loading message
+                $('#subjectDropdownMenu li:not(:first-child):not(:nth-child(2))').remove();
+                $('#subjectDropdownLoading').text('Loading subjects...').show();
+
+                // Make AJAX call to get subjects for this section
+                console.log('Loading subjects for section ID:', sectionId);
+
+                $.ajax({
+                    url: "{{ route('teacher.subjects.by-section', ['section' => ':sectionId']) }}".replace(
+                        ':sectionId', sectionId),
+                    type: 'GET',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        console.log('Subject response:', response); // Debug log
+
+                        // Remove loading message
+                        $('#subjectDropdownLoading').hide();
+
+                        // Reset dropdown
+                        $subjectDropdownSelected.text('Select Subject');
+
+                        // Check what kind of data structure we have in the response
+                        if (Array.isArray(response)) {
+                            // Response is an array of subjects directly
+                            if (response.length > 0) {
+                                response.forEach(subject => {
+                                    const $li = $('<li></li>');
+                                    const $span = $('<span></span>')
+                                        .addClass('dropdown-item subject-option')
+                                        .attr('data-id', subject.id)
+                                        .text(subject.name)
+                                        .css('cursor', 'pointer');
+
+                                    $li.append($span);
+                                    $('#subjectDropdownMenu').append($li);
+                                });
+                            } else {
+                                $('#subjectDropdownLoading').text(
+                                    'No subjects available for this section').show();
+                            }
+                        } else if (response.subjects && Array.isArray(response.subjects)) {
+                            // Response has a subjects property that is an array
+                            if (response.subjects.length > 0) {
+                                response.subjects.forEach(subject => {
+                                    const $li = $('<li></li>');
+                                    const $span = $('<span></span>')
+                                        .addClass('dropdown-item subject-option')
+                                        .attr('data-id', subject.id)
+                                        .text(subject.name)
+                                        .css('cursor', 'pointer');
+
+                                    $li.append($span);
+                                    $('#subjectDropdownMenu').append($li);
+                                });
+                            } else {
+                                $('#subjectDropdownLoading').text(
+                                    'No subjects available for this section').show();
+                            }
+                        } else if (response.data && Array.isArray(response.data)) {
+                            // Response has a data property that is an array (common in Laravel API resources)
+                            if (response.data.length > 0) {
+                                response.data.forEach(subject => {
+                                    const $li = $('<li></li>');
+                                    const $span = $('<span></span>')
+                                        .addClass('dropdown-item subject-option')
+                                        .attr('data-id', subject.id)
+                                        .text(subject.name)
+                                        .css('cursor', 'pointer');
+
+                                    $li.append($span);
+                                    $('#subjectDropdownMenu').append($li);
+                                });
+                            } else {
+                                $('#subjectDropdownLoading').text(
+                                    'No subjects available for this section').show();
+                            }
+                        } else {
+                            // We don't know the format, let's show what we received
+                            console.error('Unexpected response format:', response);
+                            $('#subjectDropdownLoading').text('Unexpected data format from server')
+                                .show();
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error loading subjects:', xhr, status, error);
+
+                        let errorMsg = 'Error loading subjects';
+
+                        // Try to get more detailed error information
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            try {
+                                const errorData = JSON.parse(xhr.responseText);
+                                if (errorData.message) {
+                                    errorMsg = errorData.message;
+                                }
+                            } catch (e) {
+                                // If we can't parse the response, use the status text
+                                if (xhr.statusText) {
+                                    errorMsg += ': ' + xhr.statusText;
+                                }
+                            }
+                        }
+
+                        // Show the error with status code if available
+                        if (xhr.status) {
+                            errorMsg += ' (Status: ' + xhr.status + ')';
+                        }
+
+                        $('#subjectDropdownLoading').text(errorMsg).show();
+                        $subjectDropdownSelected.text('Error loading subjects');
+                    }
+                });
+            }
+
             // Initialize feather icons
             feather.replace();
 
-            let html5QrCode;
             let studentsData = {}; // To store loaded students data
 
             // Grade Level Change Event
-            $('#grade_level_id').on('change', function() {
+            $('#grade_level_id').on('change', async function() {
                 const gradeLevelId = $(this).val();
+                const sectionDropdown = $('#section_id');
 
-                // Reset and disable section dropdown
-                $('#section_id').empty().prop('disabled', true);
-                $('#section_id').append('<option value="">Loading sections...</option>');
+                // Reset section dropdown
+                sectionDropdown.empty().prop('disabled', true);
 
-                if (gradeLevelId) {
-                    // Make AJAX call to get sections for this grade level
-                    $.ajax({
+                if (!gradeLevelId) {
+                    sectionDropdown.append('<option value="">Select Grade Level First</option>');
+                    return;
+                }
+
+                sectionDropdown.append('<option value="">Loading sections...</option>');
+
+                try {
+                    const response = await $.ajax({
                         url: '{{ route('teacher.sections.by-grade-level') }}',
                         type: 'GET',
                         data: {
-                            grade_level: gradeLevelId, // This is the grade_level value we're filtering by
-                            _token: '{{ csrf_token() }}'
-                        },
-                        success: function(response) {
-                            // Clear and enable section dropdown
-                            $('#section_id').empty().prop('disabled', false);
-                            $('#section_id').append('<option value="">Select Section</option>');
-
-                            // Add sections to dropdown
-                            if (response.sections && response.sections.length > 0) {
-                                $.each(response.sections, function(index, section) {
-                                    $('#section_id').append('<option value="' + section
-                                        .id +
-                                        '">' + section.name + '</option>');
-                                });
-                            } else {
-                                $('#section_id').append(
-                                    '<option value="">No sections available for this grade level</option>'
-                                );
-                            }
-                        },
-                        error: function(xhr) {
-                            let errorMessage = 'Error loading sections';
-                            if (xhr.responseJSON && xhr.responseJSON.message) {
-                                errorMessage = xhr.responseJSON.message;
-                            }
-                            $('#section_id').empty().prop('disabled', true);
-                            $('#section_id').append(
-                                `<option value="">Error: ${errorMessage}</option>`);
-                            console.error('Error loading sections:', xhr);
+                            grade_level: gradeLevelId
                         }
                     });
-                } else {
-                    // Reset dropdown if no grade level is selected
-                    $('#section_id').empty().prop('disabled', true);
-                    $('#section_id').append('<option value="">Select Grade Level First</option>');
+
+                    sectionDropdown.empty().prop('disabled', false);
+                    sectionDropdown.append('<option value="">Select Section</option>');
+
+                    if (response.sections && response.sections.length > 0) {
+                        const options = response.sections.map(section =>
+                            `<option value="${section.id}">${section.name}</option>`
+                        ).join('');
+                        sectionDropdown.append(options);
+                    } else {
+                        sectionDropdown.append(
+                            '<option value="">No sections available</option>');
+                    }
+                } catch (error) {
+                    console.error('Error loading sections:', error);
+                    const errorMessage = error.responseJSON?.message || 'Error loading sections';
+                    sectionDropdown.empty().prop('disabled', true);
+                    sectionDropdown.append(`<option value="">Error: ${errorMessage}</option>`);
                 }
             });
 
@@ -241,9 +498,25 @@
                 const sectionId = $('#section_id').val();
                 const subjectId = $('#subject_id').val();
                 const date = $('#date').val();
+                const quarter = $('#quarter').val();
 
-                if (!sectionId || !subjectId || !date) {
-                    alert('Please select section, subject, and date');
+                if (!quarter) {
+                    alert('Please select a quarter');
+                    return;
+                }
+
+                if (!sectionId) {
+                    alert('Please select a section');
+                    return;
+                }
+
+                if (!subjectId) {
+                    alert('Please select a subject');
+                    return;
+                }
+
+                if (!date) {
+                    alert('Please select a date');
                     return;
                 }
 
@@ -264,115 +537,6 @@
                 $('#attendanceCard').hide();
                 $('#studentsTableBody').empty();
             });
-
-            // Scan QR Code Button Click Event
-            $('#scanQRBtn').on('click', function() {
-                // Open the QR scanner modal
-                $('#qrScannerModal').modal('show');
-
-                // Initialize QR scanner when modal is opened
-                initializeQRScanner();
-            });
-
-            // Initialize QR Scanner
-            function initializeQRScanner() {
-                const qrScannerDiv = document.getElementById('qrScanner');
-
-                // Clear previous instances
-                if (html5QrCode && html5QrCode.isScanning) {
-                    html5QrCode.stop().then(() => {
-                        qrScannerDiv.innerHTML = '';
-                        startQRScanner();
-                    });
-                } else {
-                    qrScannerDiv.innerHTML = '';
-                    startQRScanner();
-                }
-            } // Removed duplicate QR code initialization
-            // Start QR Scanner
-            function startQRScanner() {
-                html5QrCode = new Html5Qrcode("qrScanner");
-
-                const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-                    // Stop scanning after a successful scan
-                    html5QrCode.stop().then(() => {
-                        console.log('QR Code scanning stopped');
-                        processQRCode(decodedText);
-                    }).catch(err => {
-                        console.error('Error stopping QR Code scanner:', err);
-                    });
-                };
-
-                const config = {
-                    fps: 10,
-                    qrbox: {
-                        width: 250,
-                        height: 250
-                    }
-                };
-
-                // Start scanning
-                setTimeout(function() {
-                    html5QrCode.start({
-                            facingMode: "environment"
-                        },
-                        config,
-                        qrCodeSuccessCallback
-                    ).catch(err => {
-                        console.error('Error starting QR Code scanner:', err);
-                        alert(
-                            'Could not access the camera. Please make sure you have given camera permission. '
-                        );
-                    }, 1000);
-                });
-
-                // Stop scanning when modal is closed
-                $('#qrScannerModal').on('hidden.bs.modal', function() {
-                    if (html5QrCode && html5QrCode.isScanning) {
-                        html5QrCode.stop().then(() => {
-                            console.log('QR Code scanning stopped due to modal close');
-                        }).catch(err => {
-                            console.error('Error stopping QR Code scanner:', err);
-                        });
-                    }
-                });
-            }
-
-            // Process QR Code
-            function processQRCode(decodedText) {
-                const studentId = decodedText.trim();
-
-                // Find the student in the table
-                let found = false;
-                $('#studentsTableBody tr').each(function() {
-                    const rowStudentId = $(this).find('td').eq(1).text().trim();
-
-                    if (rowStudentId === studentId) {
-                        found = true;
-                        // Mark the student as present
-                        $(this).find('select.status-select').val('present');
-
-                        // Show success message
-                        const studentName = $(this).find('td').eq(2).text().trim();
-                        $('#scannedStudentInfo').text(`${studentId} - ${studentName}`);
-                        $('#scanResult').show();
-
-                        // Hide success message after 3 seconds
-                        setTimeout(() => {
-                            $('#scanResult').hide();
-                            $('#qrScannerModal').modal('hide');
-                        }, 3000);
-
-                        return false; // Break the loop
-                    }
-                });
-
-                if (!found) {
-                    alert(`Student with ID ${studentId} not found in this class!`);
-                    // Restart the scanner
-                    startQRScanner();
-                }
-            }
 
             // Function to load students
             function loadStudents(sectionId, subjectId, date) {
@@ -395,18 +559,67 @@
                         // Update class info
                         $('#info-section').text(response.section.name);
                         $('#info-subject').text(response.subject.name);
+                        $('#info-subject-code').text(response.subject.code);
 
-                        // Set schedule and room info if available
                         let scheduleText = 'N/A';
                         let roomText = 'N/A';
 
                         if (response.schedule) {
-                            scheduleText = response.schedule.day + ' ' + response.schedule.start_time +
-                                ' - ' + response.schedule.end_time;
+
+                            let dayOfWeek = response.schedule.day_of_week;
+                            let displayDays = '';
+                            console.log('type is:', typeof dayOfWeek, dayOfWeek);
+
+                            try {
+                                // Check if dayOfWeek have more than one day
+                                if (typeof dayOfWeek === 'object') {
+                                    // It's already an object/array, use it directly
+                                    const daysArray = Array.isArray(dayOfWeek) ? dayOfWeek : Object
+                                        .values(dayOfWeek);
+
+                                    if (Array.isArray(daysArray) && daysArray.length > 0) {
+                                        // If multiple days, abbreviate each and join
+                                        displayDays = daysArray.map(day => {
+                                            const dayLower = day.toLowerCase();
+                                            switch (dayLower) {
+                                                case 'monday':
+                                                    return 'M';
+                                                case 'tuesday':
+                                                    return 'T';
+                                                case 'wednesday':
+                                                    return 'W';
+                                                case 'thursday':
+                                                    return 'Th';
+                                                case 'friday':
+                                                    return 'F';
+                                                case 'saturday':
+                                                    return 'Sa';
+                                                case 'sunday':
+                                                    return 'Su';
+                                                default:
+                                                    return day;
+                                            }
+                                        }).join(', ');
+                                    } else {
+                                        displayDays = dayOfWeek; // Keep original if parsing failed
+                                    }
+                                } else {
+                                    // Single day as string
+                                    displayDays = dayOfWeek;
+                                }
+                            } catch (e) {
+                                // If any error occurs, use the original value
+                                console.log('Error processing day of week:', e);
+                                displayDays = dayOfWeek;
+                            }
+
+                            scheduleText = displayDays + '<br>' +
+                                response.schedule.start_time.substring(0, 5) + '-' +
+                                response.schedule.end_time.substring(0, 5);
                             roomText = response.schedule.room || 'N/A';
                         }
 
-                        $('#info-schedule').text(scheduleText);
+                        $('#info-schedule').html(scheduleText);
                         $('#info-room').text(roomText);
                         $('#info-students').text(response.students.length);
 
@@ -417,6 +630,7 @@
                         $('#form_section_id').val(sectionId);
                         $('#form_subject_id').val(subjectId);
                         $('#form_date').val(date);
+                        $('#form_quarter').val($('#quarter').val());
 
                         // Clear previous students
                         $('#studentsTableBody').empty();
@@ -429,11 +643,12 @@
                             $.each(response.students, function(index, student) {
                                 const i = index + 1;
 
-                                // Store student data for QR code processing
+                                // Store student data for QR code processing and summary
                                 studentsData[student.student_id] = {
                                     id: student.id,
-                                    qr: student.qr_code,
-                                    name: student.name
+                                    student_id: student.student_id,
+                                    name: student.name,
+                                    gender: student.gender // Store gender for summary
                                 };
 
                                 // Set status values based on existing attendance data
@@ -448,7 +663,7 @@
                                 const row = `
                                 <tr>
                                     <td>${i}</td>
-                                    <td>${student.qr_code}</td>
+                                    <td>${student.student_id}</td>
                                     <td>${student.name}</td>
                                     <td>
                                         <select class="form-select status-select" name="status[${student.id}]" required>
@@ -506,28 +721,86 @@
                     type: 'POST',
                     data: formData,
                     success: function(response) {
-                        // Show success message
-                        alert('Attendance saved successfully!');
+                        // Show success message at the top of the modal
+                        $('#attendanceSummaryModalLabel').html(
+                            '<i class="text-success fa fa-check-circle me-2"></i> Attendance Saved Successfully'
+                        );
 
-                        // Reset form
-                        $('#attendanceCard').hide();
-                        $('#studentsTableBody').empty();
-                        $('#classSelectionForm').trigger('reset');
-                        $('#classInfo').hide();
-                        $('#noClassInfo').show();
+                        // Calculate summary
+                        const totalStudents = $('#studentsTableBody tr')
+                            .length;
+                        let absentCount = 0;
+                        let maleAbsentCount = 0;
+                        let femaleAbsentCount = 0;
+                        let maleStudentsCount = 0;
+                        let femaleStudentsCount = 0;
+
+                        $('#studentsTableBody tr').each(function() {
+                            const status = $(this).find('.status-select').val();
+                            const studentId = $(this).find('td').eq(1).text().trim();
+                            const student = studentsData[studentId];
+                            if (student && student.gender) {
+                                if (student.gender.toLowerCase() === 'male')
+                                    maleStudentsCount++;
+                                if (student.gender.toLowerCase() === 'female')
+                                    femaleStudentsCount++;
+                            }
+                            if (status === 'absent') {
+                                absentCount++;
+                                if (student && student.gender) {
+                                    if (student.gender.toLowerCase() === 'male')
+                                        maleAbsentCount++;
+                                    if (student.gender.toLowerCase() === 'female')
+                                        femaleAbsentCount++;
+                                }
+                            }
+                        });
+
+                        const absentPercentage = totalStudents > 0 ? ((absentCount /
+                            totalStudents) * 100).toFixed(2) : 0;
+                        const maleAbsentPercentage = maleStudentsCount > 0 ? ((maleAbsentCount /
+                            maleStudentsCount) * 100).toFixed(2) : 0;
+                        const femaleAbsentPercentage = femaleStudentsCount > 0 ? ((
+                            femaleAbsentCount / femaleStudentsCount) * 100).toFixed(2) : 0;
+
+                        // Populate and show summary modal
+                        $('#summary-total-students').text(totalStudents);
+                        $('#summary-total-absent').text(
+                            `${absentCount} (${absentPercentage}%)`);
+                        $('#summary-male-absent').text(
+                            `${maleAbsentCount} (${maleAbsentPercentage}%)`);
+                        $('#summary-female-absent').text(
+                            `${femaleAbsentCount} (${femaleAbsentPercentage}%)`);
+
+                        $('#attendanceSummaryModal').modal('show');
+
+                        // Reset form and UI after modal is closed
+                        $('#attendanceSummaryModal').on('hidden.bs.modal', function() {
+                            $('#attendanceCard').hide();
+                            $('#classInfo').hide();
+                            $('#noClassInfo').show().find('p').text(
+                                'Select a class to view information');
+                            $('#classSelectionForm')[0].reset();
+                            $('#section_id').empty().prop('disabled', true).append(
+                                '<option value="">Select Grade Level First</option>'
+                            );
+                            $(this).off('hidden.bs.modal'); // Unbind event
+                        });
                     },
                     error: function(xhr) {
-                        // Show error message
-                        let errorMessage = 'An error occurred while saving attendance';
+                        let errorMessage = 'An error occurred while saving attendance.';
                         if (xhr.responseJSON && xhr.responseJSON.message) {
                             errorMessage = xhr.responseJSON.message;
                         }
-                        alert('Error: ' + errorMessage);
+
+                        // Show error in modal instead of alert
+                        $('#errorModalTitle').text('Error Saving Attendance');
+                        $('#errorModalBody').text(errorMessage);
+                        $('#errorModal').modal('show');
                     },
                     complete: function() {
                         // Re-enable the submit button
-                        $('#saveAttendanceBtn').prop('disabled', false).html(
-                            'Save Attendance');
+                        $('#saveAttendanceBtn').prop('disabled', false).html('Save Attendance');
                     }
                 });
             });

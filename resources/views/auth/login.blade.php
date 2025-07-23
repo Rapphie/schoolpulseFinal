@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>SchoolPulse login</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ asset('css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('fontawesome/css/all.min.css') }}">
-
+    @include('components.head')
     <style>
         :root {
             --primary-color: #4361ee;
@@ -196,7 +196,7 @@
 <body>
     <div class="login-card row g-0">
         <div class="col-md-5 login-image">
-            <img src="images/school-logo.png" alt="SchoolPulse Logo">
+            <img src="{{ asset('images/school-logo.png') }}" alt="SchoolPulse Logo">
         </div>
         <div class="col-md-7">
             <div class="login-content">
@@ -246,11 +246,15 @@
                                 Remember me
                             </label>
                         </div>
-                        <a href="#" class="text-decoration-none small text-muted">Forgot password?</a>
+                        <a href="#" id="forgot-password-link" class="text-primary small">Forgot
+                            password?</a>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 py-2">
+                    <button type="submit" class="btn btn-primary w-100 py-2" id="login-button">
                         Sign In
+                    </button>
+                    <button type="button" class="btn btn-primary w-100 py-2 mt-2 d-none" id="recover-button">
+                        Recover Account
                     </button>
                     <div class="mt-3">
                         @if ($errors->any())
@@ -270,6 +274,14 @@
         document.addEventListener('DOMContentLoaded', function() {
             const togglePassword = document.getElementById('togglePassword');
             const passwordInput = document.getElementById('password');
+            const forgotPasswordLink = document.getElementById('forgot-password-link');
+            const loginButton = document.getElementById('login-button');
+            const recoverButton = document.getElementById('recover-button');
+            const passwordField = document.querySelector('label[for="password"]').parentElement;
+            const roleField = document.querySelector('label[for="role"]').parentElement;
+            const rememberMeField = document.querySelector('.form-check');
+            const form = document.getElementById('form');
+            const h3 = document.querySelector('.login-content h3');
 
             if (togglePassword && passwordInput) {
                 togglePassword.addEventListener('click', function() {
@@ -279,6 +291,22 @@
                     this.querySelector('i').classList.toggle('fa-eye-slash');
                 });
             }
+
+            forgotPasswordLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                passwordField.classList.add('d-none');
+                roleField.classList.add('d-none');
+                rememberMeField.classList.add('d-none');
+                loginButton.classList.add('d-none');
+                recoverButton.classList.remove('d-none');
+                h3.textContent = 'Recover Account';
+                form.action = "{{ route('password.email') }}";
+                forgotPasswordLink.textContent = 'Back to Login';
+            });
+
+            recoverButton.addEventListener('click', function() {
+                form.submit();
+            });
         });
     </script>
 

@@ -189,7 +189,7 @@
                         </div>
 
                         <div class="card mb-3">
-                            <div class="card-header">Add New Category</div>
+                            <div class="card-header">Add Category</div>
                             <div class="card-body">
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-5">
@@ -436,7 +436,7 @@
                 if (overlap) {
                     showCategoryInputError(
                         'This item range overlaps with an existing category. Please use a different range.'
-                        );
+                    );
                     return;
                 }
 
@@ -454,7 +454,7 @@
                 // Show success message
                 showSuccessAlert(
                     `Category <strong>${categoryName}</strong> (Items ${itemStart}-${itemEnd}) added successfully!`
-                    );
+                );
 
                 renderCategoriesList();
                 checkAllItemsMapped(); // Add this call
@@ -542,7 +542,7 @@
                         if (allItemsCovered.has(j)) {
                             showValidationError(
                                 `Item ${j} is defined in multiple categories. Please ensure no overlapping ranges.`
-                                );
+                            );
                             return false;
                         }
                         allItemsCovered.add(j);
@@ -550,7 +550,7 @@
                         if (j > details.totalItems) {
                             showValidationError(
                                 `The category "${cat.name}" includes item ${j}, which exceeds the total number of items (${details.totalItems}).`
-                                );
+                            );
                             return false;
                         }
                     }
@@ -568,11 +568,11 @@
                     if (missingItems.length > 0) {
                         showValidationError(
                             `The following items are not assigned to any category: ${missingItems.join(', ')}. All items from 1 to ${details.totalItems} must be assigned to a category.`
-                            );
+                        );
                     } else {
                         showValidationError(
                             `The total number of items defined in categories (${allItemsCovered.size}) does not match the 'Total Number of Items in Exam' (${details.totalItems}). Ensure all items from 1 to ${details.totalItems} are covered exactly once.`
-                            );
+                        );
                     }
                     return false;
                 }
@@ -683,7 +683,7 @@
                     let totalItemsInCat = (cat.end - cat.start + 1);
                     for (let i = cat.start; i <= cat.end; i++) {
                         totalWrongInCat += (itemWrongCounts[i] ||
-                        0); // Sum up how many students got items wrong
+                            0); // Sum up how many students got items wrong
                     }
                     // Calculate average percentage of students who got items wrong in this category
                     const avgWrongPercentage = (totalWrongInCat / (totalItemsInCat *
@@ -692,7 +692,7 @@
                         avgWrongPercentage: avgWrongPercentage,
                         totalWrongMarks: totalWrongInCat, // Sum of wrong marks for all items in category
                         totalPossibleWrongMarks: totalItemsInCat *
-                        studentCount, // Max possible wrong marks
+                            studentCount, // Max possible wrong marks
                         items: {} // To store individual item wrong counts if needed for deeper dive
                     };
                     // Also store individual item wrong counts for this category
@@ -720,7 +720,7 @@
                             backgroundColor: Object.values(resultsByCategory).map(res => res
                                 .avgWrongPercentage > 50 ? 'rgba(255, 99, 132, 0.6)' :
                                 'rgba(75, 192, 192, 0.6)'
-                                ), // Red if > 50% wrong, Green otherwise
+                            ), // Red if > 50% wrong, Green otherwise
                             borderColor: Object.values(resultsByCategory).map(res => res
                                 .avgWrongPercentage > 50 ? 'rgba(255, 99, 132, 1)' :
                                 'rgba(75, 192, 192, 1)'),
@@ -776,7 +776,7 @@
                         ...data
                     }))
                     .sort((a, b) => b.avgWrongPercentage - a
-                    .avgWrongPercentage); // Sort descending by wrong percentage
+                        .avgWrongPercentage); // Sort descending by wrong percentage
 
                 let foundLeastLearned = false;
                 sortedCategories.forEach(cat => {

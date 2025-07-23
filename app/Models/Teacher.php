@@ -27,6 +27,10 @@ class Teacher extends Model
         return $this->hasMany(Student::class);
     }
 
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
     public function sections()
     {
         return $this->hasMany(Section::class);
@@ -49,8 +53,18 @@ class Teacher extends Model
 
     public function advisories()
     {
-        return $this->belongsToMany(Section::class, 'section_subject', 'teacher_id', 'section_id')
+        return $this->belongsToMany(Section::class, 'subject_section_teacher', 'teacher_id', 'section_id')
             ->withPivot('subject_id')
             ->withTimestamps();
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'subject_teacher_section')->withPivot('section_id');
     }
 }

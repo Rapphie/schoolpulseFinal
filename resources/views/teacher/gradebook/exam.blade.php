@@ -1,4 +1,4 @@
-@extends('teacher.layout')
+@extends('base')
 
 @section('title', 'Gradebook - Exams')
 
@@ -7,7 +7,7 @@
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">Exams Management</h6>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addExamModal">
-                <i data-feather="plus"></i> Add New Exam
+                <i data-feather="plus"></i> Add Exam
             </button>
         </div>
         <div class="card-body">
@@ -108,7 +108,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="addExamModalLabel">Add New Exam</h5>
+                    <h5 class="modal-title" id="addExamModalLabel">Add Exam</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="addExamForm" action="#" method="POST">

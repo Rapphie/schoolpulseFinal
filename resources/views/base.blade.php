@@ -20,6 +20,30 @@
             margin: 0;
         }
 
+        /* Overlay for mobile sidebar */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1050;
+        }
+
+        @media (max-width: 767.98px) {
+            .sidebar.show~#content .sidebar-overlay {
+                display: block;
+                overflow-y: auto;
+            }
+
+            .sidebar.show {
+                overflow-y: auto;
+                max-height: 100vh;
+            }
+        }
+
         .sidebar {
             width: 250px;
             height: 100vh;
@@ -34,10 +58,35 @@
             flex-direction: column;
         }
 
+        /* Mobile sidebar close button */
+        .sidebar-close {
+            display: none;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(13, 110, 253, 0.7);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 1070;
+        }
+
+        @media (max-width: 767.98px) {
+            .sidebar-close {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+
         .sidebar.collapsed {
             width: 70px;
             padding: 1rem 0.5rem;
-            overflow: hidden;
+            overflow-y: auto;
+            max-height: 100vh;
         }
 
         /* Hide text in mini sidebar */
@@ -62,6 +111,20 @@
             width: 100%;
         }
 
+        .sidebar.collapsed .nav-link {
+            overflow: visible !important;
+        }
+
+        .sidebar.collapsed .dropdown.show {
+            overflow: visible !important;
+        }
+
+        .sidebar.collapsed .dropdown .dropdown-menu.show {
+            position: fixed !important;
+            left: 70px !important;
+            display: block;
+        }
+
         /* Special styling for logo in mini sidebar */
         .sidebar.collapsed .brand img {
             margin: 0 auto !important;
@@ -70,65 +133,15 @@
         }
 
         /* Content adjustment when sidebar is collapsed */
-        .content-shifted {
-            margin-left: 70px !important;
-            width: calc(100% - 70px) !important;
+        .top-bar.content-shifted {
+            padding-left: 80px !important;
         }
 
-        /* Mobile-specific styles */
-        @media (max-width: 767.98px) {
-            .sidebar.collapsed {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.show {
-                transform: translateX(0);
-            }
-
-            /* Show all text elements even in collapsed+show state on mobile */
-            .sidebar.collapsed.show .nav-link span,
-            .sidebar.collapsed.show .brand span,
-            .sidebar.collapsed.show hr {
-                display: block;
-            }
-
-            /* Reset nav links on mobile */
-            .sidebar.collapsed.show .nav-link {
-                display: flex;
-                justify-content: flex-start;
-                padding: 0.5rem 1rem;
-            }
-
-            /* Reset brand alignment on mobile */
-            .sidebar.collapsed.show .brand {
-                justify-content: flex-start !important;
-            }
-
-            .top-bar {
-                padding-left: 1rem !important;
-            }
-
-            main {
-                margin-left: 0 !important;
-            }
-
-            /* Ensure hamburger is properly positioned on mobile */
-            .hamburger {
-                position: fixed;
-                left: 10px;
-                z-index: 1070;
-            }
-
-            /* Move hamburger when sidebar is open */
-            .sidebar.show~#content .hamburger {
-                left: calc(100% - 50px);
-            }
-
-            /* Always fully collapse on mobile */
-            .content-shifted {
-                margin-left: 0 !important;
-            }
+        .content-shifted main {
+            margin-left: 80px !important;
         }
+
+
 
         .top-bar {
             height: 60px;
@@ -177,14 +190,14 @@
             }
         }
 
-        /* Small screens */
-        @media (max-width: 820px) {
+        /* Mobile-specific styles */
+        @media (max-width: 767.98px) {
 
-            /*fully hide sidebar when collapsed */
+            /* Sidebar styles for mobile */
             .sidebar {
-                transform: translateX(-100%);
                 width: 100% !important;
                 /* Full width on mobile */
+                transform: translateX(-100%);
                 height: 100vh;
                 position: fixed;
                 top: 0;
@@ -192,6 +205,85 @@
                 z-index: 1060;
             }
 
+            .sidebar.collapsed {
+                width: 100% !important;
+                /* Keep full width even when collapsed */
+                transform: translateX(-100%);
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+                width: 100% !important;
+            }
+
+            /* Show all text elements when sidebar is shown on mobile */
+            .sidebar.collapsed.show .nav-link span,
+            .sidebar.collapsed.show .brand span,
+            .sidebar.collapsed.show hr {
+                display: block;
+            }
+
+            /* Reset nav links on mobile */
+            .sidebar.collapsed.show .nav-link {
+                display: flex;
+                justify-content: flex-start;
+                padding: 0.5rem 1rem;
+            }
+
+            /* Reset brand alignment on mobile */
+            .sidebar.collapsed.show .brand {
+                justify-content: flex-start !important;
+            }
+
+            /* Topbar adjustments for mobile */
+            .top-bar {
+                padding-left: 60px !important;
+                /* Space for hamburger */
+                justify-content: space-between;
+            }
+
+            .top-bar.content-shifted {
+                padding-left: 60px !important;
+                /* Keep consistent spacing */
+            }
+
+            /* Ensure hamburger is always visible and properly positioned on mobile */
+            .hamburger {
+                position: fixed;
+                left: 10px;
+                top: 10px;
+                z-index: 1070;
+                display: flex !important;
+                /* Always show hamburger */
+                background-color: rgba(13, 110, 253, 0.7);
+                /* Make it more visible */
+                width: 40px;
+                height: 40px;
+                border-radius: 4px;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Move hamburger when sidebar is open */
+            .sidebar.show~#content .hamburger {
+                visibility: hidden;
+                /* Hide hamburger when sidebar is open */
+            }
+
+            /* Always fully collapse main content on mobile */
+            .content-shifted main {
+                margin-left: 0 !important;
+            }
+
+            main {
+                margin-left: 0 !important;
+            }
+        }
+
+        /* Small screens */
+        @media (max-width: 820px) {
+
+            /* Hide school title and time on small screens */
             .school-title {
                 display: none;
             }
@@ -200,18 +292,15 @@
                 display: none;
             }
 
+            /* Center the remaining topbar content */
             .top-bar {
-                justify-content: space-between;
-                padding-left: 1rem !important;
+                justify-content: center;
             }
         }
 
-        /* Extra small screens */
-        @media (max-width: 576px) {}
-
         main {
-            margin-left: 270px;
-            padding: 2rem;
+            margin-left: 250px;
+            padding: 1rem;
             transition: margin-left 0.3s ease;
         }
 
@@ -330,7 +419,7 @@
         }
 
         .sidebar .nav-link[aria-expanded="true"] {
-            color: #0d6efd;
+            color: white;
         }
 
         /* Make sure submenu styling works in mini sidebar mode */
@@ -342,11 +431,29 @@
 </head>
 
 <body class="bg-light">
-    @include('components.sidebar')
+    @include('components.topbar')
 
     <div id="content" class="w-100">
-        @include('components.topbar')
-        @yield('content')
+        @include('components.sidebar')
+        <div class="sidebar-overlay"></div>
+
+        <main>
+            @if (session('success'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+            @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i data-feather="alert-triangle" class="icon-sm me-2"></i>
+                    {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
+
+            @yield('content')
+        </main>
     </div>
 
     <!-- jQuery -->
@@ -401,25 +508,92 @@
             // Toggle sidebar on all screen sizes
             const toggleBtn = document.getElementById('toggleBtn');
             const sidebar = document.getElementById('sidebar');
+            const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
             const content = document.getElementById('content');
             const mainContent = document.querySelector('main');
+            const topBar = document.querySelector('.top-bar');
+
+            // Ensure sidebar is closed by default on mobile
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                sidebar.classList.add('collapsed');
+                sidebar.classList.remove('show');
+            }
 
             if (toggleBtn && sidebar) {
                 toggleBtn.addEventListener('click', function() {
-                    sidebar.classList.toggle('collapsed');
-                    sidebar.classList.toggle('show');
-                    content.classList.toggle('content-shifted');
+                    const isMobile = window.innerWidth < 768;
+
+                    if (isMobile) {
+                        // On mobile, just toggle show/hide for fullscreen sidebar
+                        sidebar.classList.toggle('show');
+
+                        // Ensure collapsed class is managed properly
+                        if (sidebar.classList.contains('show')) {
+                            sidebar.classList.remove('collapsed');
+                        } else {
+                            sidebar.classList.add('collapsed');
+                        }
+
+                        // Prevent body scrolling when sidebar is open
+                        document.body.style.overflow = sidebar.classList.contains('show') ? 'hidden' : '';
+                    } else {
+                        // On desktop, toggle collapsed state
+                        sidebar.classList.toggle('collapsed');
+
+                        // Always keep show class on desktop when sidebar is visible
+                        if (sidebar.classList.contains('collapsed')) {
+                            sidebar.classList.remove('show');
+                        } else {
+                            sidebar.classList.add('show');
+                        }
+
+                        // Toggle content-shifted class for desktop layout
+                        content.classList.toggle('content-shifted');
+                        if (topBar) {
+                            topBar.classList.toggle('content-shifted');
+                        }
+                    }
+                });
+            } // Close sidebar when clicking close button
+            if (sidebarCloseBtn) {
+                sidebarCloseBtn.addEventListener('click', function() {
+                    if (sidebar) {
+                        sidebar.classList.remove('show');
+                        sidebar.classList.add('collapsed');
+                        document.body.style.overflow = '';
+                    }
                 });
             }
 
-            // Close sidebar when clicking outside
+            // Close sidebar when clicking outside or on overlay
+            const overlay = document.querySelector('.sidebar-overlay');
+
+            if (overlay) {
+                overlay.addEventListener('click', function() {
+                    if (sidebar && sidebar.classList.contains('show')) {
+                        sidebar.classList.remove('show');
+                        sidebar.classList.add('collapsed');
+                        document.body.style.overflow = '';
+                    }
+                });
+            }
+
             document.addEventListener('click', function(event) {
                 if (sidebar && toggleBtn) {
                     const isClickInsideSidebar = sidebar.contains(event.target);
                     const isClickOnToggleBtn = toggleBtn.contains(event.target);
+                    const isClickOnOverlay = overlay && overlay.contains(event.target);
+                    const isMobile = window.innerWidth < 768;
 
-                    if (!isClickInsideSidebar && !isClickOnToggleBtn) {
-                        if (window.innerWidth < 992 && sidebar.classList.contains('show')) {
+                    if (!isClickInsideSidebar && !isClickOnToggleBtn && !isClickOnOverlay) {
+                        if (isMobile && sidebar.classList.contains('show')) {
+                            // For mobile, hide the sidebar
+                            sidebar.classList.remove('show');
+                            sidebar.classList.add('collapsed');
+                            document.body.style.overflow = '';
+                        } else if (window.innerWidth < 992 && sidebar.classList.contains('show')) {
+                            // For small desktop, hide sidebar
                             sidebar.classList.remove('show');
                         }
                     }
@@ -427,10 +601,18 @@
             });
 
 
-            // Re-initialize Feather icons when dropdowns are shown
+            // Re-initialize Feather icons when dropdowns or modals are shown
             const dropdowns = document.querySelectorAll('.dropdown');
             dropdowns.forEach(dropdown => {
                 dropdown.addEventListener('shown.bs.dropdown', function() {
+                    feather.replace();
+                });
+            });
+
+            // Initialize Feather icons in modals when they're shown
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                modal.addEventListener('shown.bs.modal', function() {
                     feather.replace();
                 });
             });
@@ -449,131 +631,37 @@
                     toggler.setAttribute('aria-expanded', 'true');
                 }
             });
+
+            // Handle window resize events
+            window.addEventListener('resize', function() {
+                const isMobile = window.innerWidth < 768;
+
+                if (isMobile) {
+                    // On mobile, make sure topbar and main are correctly positioned
+                    if (topBar) {
+                        topBar.classList.remove('content-shifted');
+                    }
+                    // Ensure main content has no margin
+                    mainContent.style.marginLeft = '0px';
+                } else {
+                    // On desktop, restore proper classes based on sidebar state
+                    if (sidebar.classList.contains('collapsed')) {
+                        if (topBar) {
+                            topBar.classList.add('content-shifted');
+                        }
+                        content.classList.add('content-shifted');
+                    } else {
+                        if (topBar) {
+                            topBar.classList.remove('content-shifted');
+                        }
+                        content.classList.remove('content-shifted');
+                    }
+                }
+            });
         });
     </script>
 
     @stack('scripts')
-
-    <script>
-        // Initialize charts
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Enrollment Chart
-            const enrollmentData = {
-                months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                series: [{
-                    name: 'Students',
-                    data: [320, 332, 345, 340, 355, 365, 360, 370, 385, 390, 380, 375]
-                }]
-            };
-
-            const enrollmentOptions = {
-                chart: {
-                    type: 'line',
-                    height: 300,
-                    toolbar: {
-                        show: false
-                    },
-                    zoom: {
-                        enabled: false
-                    }
-                },
-                stroke: {
-                    curve: 'smooth',
-                    width: 3
-                },
-                colors: ['#0d6efd'],
-                series: enrollmentData.series,
-                xaxis: {
-                    categories: enrollmentData.months
-                },
-                yaxis: {
-                    title: {
-                        text: 'Number of Students'
-                    },
-                    min: 300
-                },
-                markers: {
-                    size: 4
-                },
-                tooltip: {
-                    theme: 'light',
-                    y: {
-                        formatter: function(value) {
-                            return value + ' students';
-                        }
-                    }
-                },
-                title: {
-                    text: 'Monthly Enrollment (2025)',
-                    align: 'left',
-                    style: {
-                        fontSize: '14px',
-                        fontWeight: 'normal',
-                        color: '#555'
-                    }
-                },
-                grid: {
-                    borderColor: '#e0e0e0',
-                    row: {
-                        colors: ['#f5f5f5', 'transparent'],
-                        opacity: 0.5
-                    }
-                }
-            };
-
-            // Initialize Class Distribution Chart
-            const classData = {
-                series: [35, 25, 20, 15, 5],
-                labels: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5']
-            };
-
-            const classOptions = {
-                chart: {
-                    type: 'donut',
-                    height: 300
-                },
-                colors: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1'],
-                series: classData.series,
-                labels: classData.labels,
-                legend: {
-                    position: 'bottom'
-                },
-                responsive: [{
-                    breakpoint: 480,
-                    options: {
-                        chart: {
-                            width: 200
-                        },
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }],
-                tooltip: {
-                    y: {
-                        formatter: function(value) {
-                            return value + '% of students';
-                        }
-                    }
-                }
-            };
-
-            // Remove loading spinners and render charts
-            const enrollmentChartElement = document.getElementById('enrollmentChart');
-            if (enrollmentChartElement) {
-                enrollmentChartElement.innerHTML = '';
-                const enrollmentChart = new ApexCharts(enrollmentChartElement, enrollmentOptions);
-                enrollmentChart.render();
-            }
-
-            const classDistributionElement = document.getElementById('classDistributionChart');
-            if (classDistributionElement) {
-                classDistributionElement.innerHTML = '';
-                const classDistributionChart = new ApexCharts(classDistributionElement, classOptions);
-                classDistributionChart.render();
-            }
-        });
-    </script>
 </body>
 
 </html>

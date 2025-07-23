@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\User;
+use App\Models\Teacher;
 use App\Models\Student;
+use App\Models\Role;
+use App\Models\Guardian;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -18,11 +21,12 @@ class SectionController extends Controller
     public function index()
     {
         $sections = Section::withCount('students')
-            ->with(['adviser', 'gradeLevel'])
+            ->with(['teacher', 'gradeLevel'])
             ->latest()
             ->get(); // Using get() instead of paginate since we filter by grade level in view
-
-        return view('admin.sections.index', compact('sections'));
+        $teachers = Teacher::all();
+        $subjects = Subject::all();
+        return view('admin.sections.index', compact('sections', 'teachers', 'subjects'));
     }
 
     /**
@@ -30,10 +34,10 @@ class SectionController extends Controller
      */
     public function create()
     {
-        $advisers = User::where('role', 'teacher')->get();
+        $teachers = Teacher::all();
         $subjects = Subject::all();
 
-        return view('admin.sections.create', compact('advisers', 'subjects'));
+        return view('admin.sections.create', compact('teachers', 'subjects'));
     }
 
     /**
@@ -45,7 +49,7 @@ class SectionController extends Controller
             'name' => 'required|string|max:255|unique:sections',
             'grade_level_id' => 'required|integer|min:1|max:12',
             'description' => 'nullable|string',
-            'adviser_id' => 'nullable|exists:users,id',
+            'teacher_id' => 'nullable|exists:teachers,id',
             'capacity' => 'nullable|integer|min:1|max:50',
             'subjects' => 'nullable|array',
             'subjects.*' => 'exists:subjects,id',
@@ -77,7 +81,7 @@ class SectionController extends Controller
     public function show(Section $section)
     {
         $section->load([
-            'adviser',
+            'teacher',
             'students',
             'subjects',
             'schedules' => function ($query) {
@@ -99,11 +103,11 @@ class SectionController extends Controller
      */
     public function edit(Section $section)
     {
-        $advisers = User::where('role', 'teacher')->get();
+        $teachers = Teacher::all();
         $subjects = Subject::all();
         $section->load('subjects');
 
-        return view('admin.sections.edit', compact('section', 'advisers', 'subjects'));
+        return view('admin.sections.edit', compact('section', 'teachers', 'subjects'));
     }
 
     /**
@@ -114,7 +118,7 @@ class SectionController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:sections,name,' . $section->id,
             'grade_level_id' => 'required|integer|min:1|max:12',
-            'adviser_id' => 'nullable|exists:users,id',
+            'teacher_id' => 'nullable|exists:users,id',
             'description' => 'nullable|string',
             'capacity' => 'nullable|integer|min:1|max:50',
             'subjects' => 'nullable|array',
@@ -174,23 +178,84 @@ class SectionController extends Controller
     public function addStudent(Request $request, Section $section)
     {
         $validated = $request->validate([
-            'student_id' => 'required|exists:students,id',
+            // Student fields
+            'student_id' => 'required|string|unique:students,student_id',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'birthdate' => 'required|date',
+            'gender' => 'required|in:male,female',
+            'status' => 'required|in:active,inactive,alumni,transferee',
+            'enrollment_date' => 'required|date',
+            // Guardian fields
+            'guardian_first_name' => 'required|string|max:255',
+            'guardian_last_name' => 'required|string|max:255',
+            'guardian_phone' => 'string|max:20',
+            'guardian_email' => 'email|max:255',
+            'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
 
-        $student = Student::findOrFail($validated['student_id']);
-
-        // Check if student is already in a section
-        if ($student->section_id) {
-            return back()->with('error', 'Student is already assigned to a section.');
-        }
 
         // Check section capacity
         if ($section->students()->count() >= $section->capacity) {
             return back()->with('error', 'Section has reached its capacity.');
         }
 
-        $student->section()->associate($section);
-        $student->save();
+        // Generate password: guardian initials + student birth year
+        $initials = strtoupper(substr($validated['guardian_first_name'], 0, 1) . substr($validated['guardian_last_name'], 0, 1));
+        $birthYear = date('Y', strtotime($validated['birthdate']));
+        $password = $initials . $birthYear;
+
+        $user = User::create([
+            'first_name' => $validated['guardian_first_name'],
+            'last_name' => $validated['guardian_last_name'],
+            'email' => $validated['guardian_email'],
+            'password' => bcrypt($password),
+            'role_id' => 3,
+        ]);
+        $user->refresh();
+        $guardianUserId = $user->id;
+        // Create Guardian
+        $guardian = Guardian::create([
+            'user_id' => $guardianUserId,
+            'phone' => $validated['guardian_phone'],
+            'relationship' => $validated['guardian_relationship'],
+        ]);
+
+        // Assign a teacher (adviser) to the student
+        $teacherId = $section->teacher_id;
+        if (!$teacherId) {
+            return back()->with('error', 'Section does not have an assigned adviser.');
+        }
+        $currentYear = date('Y');
+        $latestStudent = Student::where('student_id', 'like', 'SP-' . $currentYear . '-%')
+            ->orderBy('student_id', 'desc') // Order by string to get the highest suffix
+            ->first();
+
+        $nextSequence = 1;
+        if ($latestStudent) {
+            // Extract the numeric part after 'GX-YYYY-'
+            $parts = explode('-', $latestStudent->student_id);
+            if (count($parts) === 3) { // Expecting ['GX', 'YYYY', 'XXXX']
+                $lastSequence = (int)$parts[2]; // Convert 'XXXX' to integer
+                $nextSequence = $lastSequence + 1;
+            }
+        }
+        $gradeLevel = $section->grade_level_id;
+
+        $generatedStudentId = 'G' . $gradeLevel . '-' . $currentYear . '-' . str_pad($nextSequence, 4, '0', STR_PAD_LEFT);
+        // Create Student
+        Student::create([
+            'student_id' => $validated['student_id'] ??  $generatedStudentId,
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'],
+            'birthdate' => $validated['birthdate'],
+            'gender' => $validated['gender'],
+            'status' => $validated['status'],
+            'enrollment_date' => $validated['enrollment_date'],
+            'section_id' => $section->id,
+            'guardian_id' => $guardian->id,
+            'teacher_id' => $teacherId,
+        ]);
 
         return back()->with('success', 'Student added to section successfully.');
     }
@@ -205,6 +270,7 @@ class SectionController extends Controller
         }
 
         $student->section()->dissociate();
+        $student->destroy($student->id); // Delete the student record
         $student->save();
 
         return back()->with('success', 'Student removed from section successfully.');
@@ -267,7 +333,7 @@ class SectionController extends Controller
             'saturday' => 'Saturday',
         ];
 
-        return view('admin.sections.schedule', compact('section', 'days'));
+        return view('admin.sections.index', compact('section', 'days'));
     }
 
     /**
@@ -290,7 +356,7 @@ class SectionController extends Controller
             // Delete existing schedules
             $section->schedules()->delete();
 
-            // Add new schedules
+            // Add schedules
             foreach ($validated['schedules'] as $scheduleData) {
                 $section->schedules()->create([
                     'subject_id' => $scheduleData['subject_id'],
@@ -318,5 +384,17 @@ class SectionController extends Controller
     {
         $section->load('gradeLevel');
         return response()->json($section);
+    }
+
+    /**
+     * Display the manage section page.
+     */
+    public function manage(Section $section)
+    {
+        $section->load(['gradeLevel', 'teacher.user', 'students', 'schedules.subject', 'schedules.teacher.user']);
+        $subjects = Subject::where('grade_level_id', $section->grade_level_id)->get();
+        $teachers = Teacher::with('user')->get();
+
+        return view('admin.sections.manage', compact('section', 'subjects', 'teachers'));
     }
 }

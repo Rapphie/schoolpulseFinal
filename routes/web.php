@@ -1,15 +1,26 @@
 <?php
 
+use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\ClassRecordController;
+use App\Http\Controllers\EmailController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\Auth\ForgotPasswordController;
+// ...existing code...
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\TeacherController;
 use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\SubjectController;
+use App\Http\Controllers\Admin\ScheduleController;
+use App\Http\Controllers\Teacher\EnrollmentController;
+use App\Http\Controllers\Teacher\ScheduleController as TeacherScheduleController;
+use App\Http\Controllers\TeacherSectionsController;
 use App\Http\Controllers\Teacher\DashboardController as TeacherDashboardController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-
-
+use App\Http\Controllers\Auth\ChangePasswordController;
+use App\Imports\ClassRecordImport;
+use Laravel\Prompts\Clear;
 
 // testing routes
 Route::get('/student/qr-code', function () {
@@ -18,28 +29,54 @@ Route::get('/student/qr-code', function () {
 Route::get('/least-learn-competency', function () {
     return view('llc');
 })->name('llc');
-Route::get('/test', function () {
-    return view('test');
-})->name('test');
+// Route::get('/test', function () {
+//     return view('welcome');
+// });
+Route::get('/test', [AdminController::class, 'test']);
+
+
 Route::get('/base', function () {
-    return view('base');
+    return view('welcome');
 })->name('base');
+Route::get('/send-email', function () {
+    return view('send-email');
+});
+
+Route::post('/resend-email', [EmailController::class, 'send'])->name('resend.email');
 
 
 
 // Authentication Routes
 Route::get('/login', [LoginController::class, 'login'])->name('login');
 Route::post('login', [LoginController::class, 'authenticate'])->name('authenticate');
+Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
+
+// Admin password reset
+Route::post('/admin/users/{user}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
+Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+Route::get('/teacher/welcome-email', [EmailController::class, 'sendTeacherWelcomeEmail'])->name('teacher.send.welcome');
 
 
 // Authenticated Routes
-Route::middleware(['auth'])->group(function () {
+
+
+Route::middleware(['auth', 'password.force-change'])->group(function () {
+    Route::get('/change-password', [ChangePasswordController::class, 'showChangePasswordForm'])->name('password.change');
+    Route::post('/change-password', [ChangePasswordController::class, 'changePassword'])->name('password.update');
+
     // Dashboard
-    Route::get('/', fn() => match (true) {
-        Auth::check() && Auth::user()->hasRole('admin')   => view('admin.dashboard'),
-        Auth::check() && Auth::user()->hasRole('teacher') => view('teacher.dashboard'),
-        // Auth::user()->hasRole('parent')  => view('parent.dashboard'),
-        default                            => abort(403),
+    Route::get('/', function () {
+        if (Auth::check()) {
+            if (Auth::user()->hasRole('admin')) {
+                return redirect()->route('admin.dashboard');
+            } elseif (Auth::user()->hasRole('teacher')) {
+                return redirect()->route('teacher.dashboard');
+            }
+        }
+        return redirect()->route('login'); // Or a default landing page
     })->name('dashboard');
 
     // Profile
@@ -55,23 +92,29 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/system', [AdminController::class, 'updateSystemSettings'])->name('system.update');
     });
 
-    // Logout
-    Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
 
     // Admin Routes
     Route::prefix('admin')->name('admin.')->group(function () {
         // Dashboard
         Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('dashboard');
+        Route::get('/dashboard/chart-data', [AdminController::class, 'getChartData'])->name('chart-data');
         Route::get('/attendance/records', [AdminController::class, 'attendanceReport'])->name('records');
+        // Email
+
+        // Settings
+        Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
+        Route::post('settings', [SettingController::class, 'update'])->name('settings.update');
 
         // Subjects
-        Route::resource('subjects', AdminController::class)->only([
+        Route::resource('subjects', SubjectController::class)->only([
             'index',
             'store',
             'edit',
             'update',
             'destroy'
         ]);
+
+        Route::get('analytics', [AdminController::class, 'dashboard'])->name('analytics.show');
 
         // Sections
         Route::prefix('sections')->name('sections.')->group(function () {
@@ -81,11 +124,12 @@ Route::middleware(['auth'])->group(function () {
             Route::get('students/{section}', [SectionController::class, 'show'])->name('show');
             Route::get('/{section}/edit', [SectionController::class, 'edit'])->name('edit');
             Route::get('/{section}/data', [SectionController::class, 'getSectionData'])->name('data');
+            Route::get('/{section}/manage', [SectionController::class, 'manage'])->name('manage');
             Route::put('/{section}', [SectionController::class, 'update'])->name('update');
             Route::delete('/{section}', [SectionController::class, 'destroy'])->name('destroy');
 
             // Section Students
-            Route::post('/{section}/students', [SectionController::class, 'addStudent'])->name('students.store');
+            Route::post('/sections/students/{section}', [SectionController::class, 'addStudent'])->name('students.store');
             Route::delete('/{section}/students/{student}', [SectionController::class, 'removeStudent'])->name('students.destroy');
 
             // Section Subjects
@@ -102,20 +146,15 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [TeacherController::class, 'index'])->name('index');
             Route::get('/create', [TeacherController::class, 'create'])->name('create');
             Route::post('/', [TeacherController::class, 'store'])->name('store');
-            Route::get('/{teacher}', [TeacherController::class, 'show'])->name('show');
             Route::get('/{teacher}/edit', [TeacherController::class, 'edit'])->name('edit');
             Route::put('/{teacher}', [TeacherController::class, 'update'])->name('update');
-
-            Route::delete('/delete={teacher}', [TeacherController::class, 'destroy'])->name('admin.destroy');
-
-
-            // Teacher Documents
-            Route::post('/{teacher}/documents', [TeacherController::class, 'uploadDocument'])->name('documents.store');
-            Route::delete('/documents/{document}', [TeacherController::class, 'deleteDocument'])->name('documents.destroy');
-
-            // Teacher Status
-            Route::post('/{teacher}/status', [TeacherController::class, 'updateStatus'])->name('status.update');
+            Route::delete('/{teacher}', [TeacherController::class, 'destroy'])->name('destroy');
+            Route::post('/{teacher}/assign-subject', [TeacherController::class, 'assignSubject'])->name('assign_subject');
+            Route::delete('/{teacher}/unassign-subject', [TeacherController::class, 'unassignSubject'])->name('unassign_subject');
         });
+
+        // Schedules
+        Route::resource('schedules', ScheduleController::class);
     });
 
 
@@ -125,9 +164,15 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('teacher')->name('teacher.')->group(function () {
         Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
         Route::get('/classes', [TeacherDashboardController::class, 'classes'])->name('classes');
+        Route::get('/sections/{section}/students', [TeacherDashboardController::class, 'getStudentsForSection'])->name('sections.students');
+        Route::get('/schedules', [TeacherDashboardController::class, 'loggedTeacherSchedules'])->name('schedules.index');
         Route::get('/students', [TeacherDashboardController::class, 'students'])->name('students');
         Route::get('/grades', [TeacherDashboardController::class, 'grades'])->name('grades');
-        Route::get('/sections-by-grade-level', [TeacherDashboardController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');
+        Route::get('/sections-by-grade-level', [TeacherSectionsController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');
+        Route::get('/sections/{section}/subjects', [TeacherSectionsController::class, 'getSubjectsBySection'])->name('subjects.by-section');
+        Route::get('/enrollment', [EnrollmentController::class, 'index'])->name('enrollment.index');
+        Route::post('/upload-class-record', [ClassRecordController::class, 'upload'])->name('class-record.upload');
+        Route::post('/save-class-record', [ClassRecordController::class, 'saveClassRecord'])->name('class-record.save');
     });
 
 
@@ -149,6 +194,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/scan', [TeacherDashboardController::class, 'scanAttendance'])->name('scan');
         Route::get('/get-students', [TeacherDashboardController::class, 'getStudents'])->name('get-students');
         Route::post('/save', [TeacherDashboardController::class, 'saveAttendance'])->name('save');
+        Route::delete('/{id}/delete', [TeacherDashboardController::class, 'deleteAttendanceRecord'])->name('delete');
     });
 
 

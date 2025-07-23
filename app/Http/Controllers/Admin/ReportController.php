@@ -106,7 +106,7 @@ class ReportController extends Controller
                 $studentData['attendance'][$date] = [
                     'status' => null,
                     'time_in' => null,
-                    'time_out' => null,
+                    // 'time_out' => null,
                     'remarks' => null
                 ];
             }
@@ -118,7 +118,7 @@ class ReportController extends Controller
                     $studentData['attendance'][$date] = [
                         'status' => $attendance->status,
                         'time_in' => $attendance->time_in,
-                        'time_out' => $attendance->time_out,
+                        // 'time_out' => $attendance->time_out,
                         'remarks' => $attendance->remarks
                     ];
 
