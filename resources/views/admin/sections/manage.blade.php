@@ -15,6 +15,12 @@
                 <h1 class="h3 mb-0 text-gray-800">Manage: {{ $section->name }}</h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
+            <form action="{{ route('admin.sections.destroy', $class) }}" method="POST"
+                onsubmit="return confirm('Are you sure you want to delete this section? This action cannot be undone.');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-outline-danger btn-lg">Delete</button>
+            </form>
         </div>
 
         <div class="row">

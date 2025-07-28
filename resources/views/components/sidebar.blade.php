@@ -21,6 +21,13 @@
                         <span>Dashboard</span>
                     </a>
                 </li>
+                <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.grade-levels.*') ? 'active' : 'link-dark' }}"
+                        href="{{ route('admin.grade-levels.index') }}" style="width: 100%;">
+                        <i data-feather="home" class="me-2"></i>
+                        <span>Grade Levels</span>
+                    </a>
+                </li>
 
                 <li class="nav-item mb-3 dropdown position-static w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.subjects.*') ? 'active' : 'link-dark' }} dropdown-toggle"
