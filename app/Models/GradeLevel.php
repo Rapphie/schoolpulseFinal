@@ -26,4 +26,9 @@ class GradeLevel extends Model
     {
         return $this->hasMany(Section::class);
     }
+    public function enrollments()
+    {
+        return $this->hasMany(Enrollment::class);
+        
+    }
 }

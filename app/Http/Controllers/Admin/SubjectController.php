@@ -73,6 +73,7 @@ class SubjectController extends Controller
             'code' => 'required|string|max:50|unique:subjects,code,' . $subject->id,
             'description' => 'nullable|string',
             'grade_level_id' => 'required|exists:grade_levels,id',
+            
         ]);
 
         $validated['is_active'] = $request->has('is_active');

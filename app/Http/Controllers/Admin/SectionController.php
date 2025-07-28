@@ -149,5 +149,9 @@ class SectionController extends Controller
         return redirect()->back()->with('success', 'Schedule entry added successfully.');
     }
 
-    // You can add update, destroy, getSectionData methods here as needed
+    public function destroy(Request $request, Classes $class)
+    {
+        $class->delete();
+        return redirect()->back()->with('Success', 'Successfully deleted class section');
+    }
 }

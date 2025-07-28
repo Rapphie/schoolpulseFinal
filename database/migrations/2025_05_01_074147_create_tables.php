@@ -74,7 +74,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Foreign Key(s)
-            $table->foreign('grade_level_id')->references('id')->on('grade_levels');
+            $table->foreign('grade_level_id')->references('id')->on('grade_levels')->onDelete('cascade');
         });
 
 

@@ -14,6 +14,7 @@ use App\Models\Section;
 use App\Models\Schedule;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
+use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -25,6 +26,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+
+
 
 
 
@@ -62,14 +65,19 @@ class DatabaseSeeder extends Seeder
             'qualification' => 'Bachelor of Education',
             'status' => 'active',
         ]);
-        Guardian::create([
+        $guardian = User::create([
             'first_name' => 'Kim',
             'last_name' => 'Lee',
             'email' => 'kim.lee@gmail.com',
             'password' => Hash::make(12345678),
             'role_id' => 3,
         ]);
-        GradeLevel::factory(6)->create();
+        $guardian = Guardian::create([
+            'user_id' => $guardian->id,
+            'phone' => '09123456789',
+            'relationship' => 'parent',
+        ]);
+        // GradeLevel::factory(6)->create();
         // // Create teachers
         // $teacherUsers = User::factory(10)->create([
         //     'role_id' => 2,
