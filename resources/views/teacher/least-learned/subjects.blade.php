@@ -3,99 +3,97 @@
 @section('title', 'Least Learned Competencies')
 
 @section('content')
-    <main class="p-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Least Learned Competencies by Subject</h6>
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLLCModal">
-                    <i data-feather="plus"></i> Add LLC
-                </button>
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Least Learned Competencies by Subject</h6>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLLCModal">
+                <i data-feather="plus"></i> Add LLC
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="section-filter" class="form-label">Filter by Section</label>
+                        <select id="section-filter" class="form-select">
+                            <option value="">All Sections</option>
+                            @foreach ($sections as $section)
+                                <option value="{{ $section->name }}">{{ $section->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">~
+                        <label for="subject-filter" class="form-label">Filter by Subject</label>
+                        <select id="subject-filter" class="form-select">
+                            <option value="">All Subjects</option>
+                            @foreach ($subjects as $subject)
+                                <option value="{{ $subject->name }}">{{ $subject->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="section-filter" class="form-label">Filter by Section</label>
-                            <select id="section-filter" class="form-select">
-                                <option value="">All Sections</option>
-                                @foreach ($sections as $section)
-                                    <option value="{{ $section->name }}">{{ $section->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">~
-                            <label for="subject-filter" class="form-label">Filter by Subject</label>
-                            <select id="subject-filter" class="form-select">
-                                <option value="">All Subjects</option>
-                                @foreach ($subjects as $subject)
-                                    <option value="{{ $subject->name }}">{{ $subject->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="llcTable" width="100%" cellspacing="0">
-                        <thead>
+            <div class="table-responsive">
+                <table class="table table-bordered" id="llcTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Section</th>
+                            <th>Quarter</th>
+                            <th>Competencies</th>
+                            <th>Date Identified</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($llcs as $llc)
                             <tr>
-                                <th>Subject</th>
-                                <th>Section</th>
-                                <th>Quarter</th>
-                                <th>Competencies</th>
-                                <th>Date Identified</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <td>{{ $llc->subject_name }}</td>
+                                <td>{{ $llc->section_name }}</td>
+                                <td>{{ $llc->quarter }}</td>
+                                <td>{{ $llc->competency_count }}</td>
+                                <td>{{ $llc->date_identified }}</td>
+                                <td>
+                                    <span class="badge bg-{{ $llc->status === 'resolved' ? 'success' : 'warning' }}">
+                                        {{ ucfirst($llc->status) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex justify-content-center align-items-start">
+                                        <a href="{{ route('teacher.least-learned.view', $llc->id) }}"
+                                            class="btn btn-info btn-sm mx-1" title="View LLC">
+                                            <i data-feather="eye" class="feather-sm text-white"></i>
+                                        </a>
+                                        <a href="{{ route('teacher.least-learned.edit', $llc->id) }}"
+                                            class="btn btn-primary btn-sm mx-1" title="Edit LLC">
+                                            <i data-feather="edit-2" class="feather-sm"></i>
+                                        </a>
+                                        <a href="{{ route('teacher.least-learned.plan', $llc->id) }}"
+                                            class="btn btn-success btn-sm mx-1" title="Intervention Plan">
+                                            <i data-feather="clipboard" class="feather-sm"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-danger btn-sm mx-1 delete-llc-btn"
+                                            data-bs-toggle="modal" data-bs-target="#deleteLLCModal"
+                                            data-id="{{ $llc->id }}" data-subject="{{ $llc->subject_name }}"
+                                            data-section="{{ $llc->section_name }}" title="Delete LLC">
+                                            <i data-feather="trash-2" class="feather-sm"></i>
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($llcs as $llc)
-                                <tr>
-                                    <td>{{ $llc->subject_name }}</td>
-                                    <td>{{ $llc->section_name }}</td>
-                                    <td>{{ $llc->quarter }}</td>
-                                    <td>{{ $llc->competency_count }}</td>
-                                    <td>{{ $llc->date_identified }}</td>
-                                    <td>
-                                        <span class="badge bg-{{ $llc->status === 'resolved' ? 'success' : 'warning' }}">
-                                            {{ ucfirst($llc->status) }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex justify-content-center align-items-start">
-                                            <a href="{{ route('teacher.least-learned.view', $llc->id) }}"
-                                                class="btn btn-info btn-sm mx-1" title="View LLC">
-                                                <i data-feather="eye" class="feather-sm text-white"></i>
-                                            </a>
-                                            <a href="{{ route('teacher.least-learned.edit', $llc->id) }}"
-                                                class="btn btn-primary btn-sm mx-1" title="Edit LLC">
-                                                <i data-feather="edit-2" class="feather-sm"></i>
-                                            </a>
-                                            <a href="{{ route('teacher.least-learned.plan', $llc->id) }}"
-                                                class="btn btn-success btn-sm mx-1" title="Intervention Plan">
-                                                <i data-feather="clipboard" class="feather-sm"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-danger btn-sm mx-1 delete-llc-btn"
-                                                data-bs-toggle="modal" data-bs-target="#deleteLLCModal"
-                                                data-id="{{ $llc->id }}" data-subject="{{ $llc->subject_name }}"
-                                                data-section="{{ $llc->section_name }}" title="Delete LLC">
-                                                <i data-feather="trash-2" class="feather-sm"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center">No least learned competencies found.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center">No least learned competencies found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
-    </main>
+    </div>
 
     <!-- Add LLC Modal -->
     <div class="modal fade" id="addLLCModal" tabindex="-1" aria-labelledby="addLLCModalLabel" aria-hidden="true">

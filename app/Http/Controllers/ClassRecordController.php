@@ -39,50 +39,82 @@ class ClassRecordController extends Controller
 
     public function saveClassRecord(Request $request)
     {
-        $data = $request->json()->all();
+        try {
+            $data = $request->json()->all();
 
 
-        // $userId = Auth::user()->id;
-        // $teacherId = Teacher::where('user_id', $userId)->value('id');
 
-        $headerData = $data['headerData'];
-        $maleStudents = $data['maleStudents'];
-        $femaleStudents = $data['femaleStudents'];
-        // Set gender for each male student
-        foreach ($maleStudents as &$student) {
-            $student['gender'] = 'male';
+            $userId = Auth::user()->id;
+            $teacherId = Teacher::where('user_id', $userId)->value('id');
+
+            $headerData = $data['headerData'];
+            $maleStudents = $data['maleStudents'];
+            $femaleStudents = $data['femaleStudents'];
+            $maleStudents = array_map(function ($student) {
+                $student['gender'] = 'male';
+                return $student;
+            }, $data['maleStudents']);
+
+            $femaleStudents = array_map(function ($student) {
+                $student['gender'] = 'female';
+                return $student;
+            }, $data['femaleStudents']);
+
+            // Combine students into one list for a single loop
+            $allStudents = array_merge($maleStudents, $femaleStudents);
+            $existingFullNames = []; // Array to collect names of duplicates
+            foreach ($allStudents as $studentData) {
+                $student =  Student::firstOrCreate(
+                    [
+                        'first_name' => $studentData['first_name'],
+                        'last_name' => $studentData['last_name'],
+                    ],
+                    [
+                        'lrn' => $studentData['lrn'] ?? null,
+                        'first_name' => $studentData['first_name'],
+                        'last_name' => $studentData['last_name'],
+                        'section_id' => $data['section_id'] ?? null,
+                        'gender' => in_array($studentData, $maleStudents) ? 'male' : 'female',
+                        'teacher_id' => $teacherId,
+                    ]
+                );
+                if (!$student->wasRecentlyCreated) {
+                    // Student already existed. Instead of returning, collect their name.
+                    $existingFullNames[] = $student->last_name . ', ' . $student->first_name;
+                }
+            }
+
+
+
+            if (!empty($existingFullNames)) {
+                // If the duplicates array is not empty, return a single conflict error.
+                $count = count($existingFullNames);
+                $plural = $count === 1 ? 'student' : 'students';
+                $studentList = '';
+                foreach ($existingFullNames as $index => $name) {
+                    $studentList .= ($index + 1) . '. ' . $name . "\n";
+                }
+                $studentList = trim($studentList);
+
+                return response()->json([
+                    'error'   => true,
+                    'message' => "Found {$count} duplicate {$plural}. The following students already exist and were not re-added:
+
+{$studentList}"
+                ], 409); // 409 Conflict
+            }
+            return response()->json(['success' => true, 'message' => 'Class record saved successfully!']);
+        } catch (\Throwable $th) {
+            return response()->json(['error' => true, 'message' => 'Failed to save class record: ' . $th->getMessage()]);
         }
-        unset($student);
 
-        foreach ($femaleStudents as &$student) {
-            $student['gender'] = 'female';
-        }
-        unset($student);
-        // Combine male and female students for processing
-        $allStudents = array_merge($maleStudents, $femaleStudents);
-
-        foreach (array_merge($maleStudents, $femaleStudents) as $studentData) {
-            Student::updateOrCreate(
-                ['lrn' => $studentData['lrn']],
-                [
-                    'first_name' => $studentData['first_name'],
-                    'last_name' => $studentData['last_name'],
-                    'section_id' => 1,
-                    'gender' => in_array($studentData, $maleStudents) ? 'male' : 'female',
-                    'teacher_id' => 1,
-                ]
-            );
-        }
         // foreach ($allStudents as $studentData) {
         //     $student = Student::firstOrNew(['lrn' => $studentData['lrn']]);
         //     $student->first_name = $studentData['first_name'];
         //     $student->last_name = $studentData['last_name'];
         //     $student->gender = $studentData['gender'];
         //     $student->teacher_id = $teacherId;
-        //     dd($student);
         //     $student->save();
         // }
-
-        return response()->json(['success' => true, 'message' => 'Class record saved successfully!']);
     }
 }

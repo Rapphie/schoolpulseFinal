@@ -45,7 +45,7 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('temp'),
             'role_id' => 1,
         ]);
-        User::create([
+        $user =  User::create([
             'first_name' => 'Christian',
             'last_name' => 'Plasabas',
             'email' => 'teacher@gmail.com',
@@ -54,13 +54,20 @@ class DatabaseSeeder extends Seeder
         ]);
 
         Teacher::create([
-            'user_id' => 2,
+            'user_id' => $user->id,
             'phone' => '09123456789',
             'gender' => 'male',
             'date_of_birth' => '1990-01-01',
             'address' => '123 Teacher St, City, Country',
             'qualification' => 'Bachelor of Education',
             'status' => 'active',
+        ]);
+        Guardian::create([
+            'first_name' => 'Kim',
+            'last_name' => 'Lee',
+            'email' => 'kim.lee@gmail.com',
+            'password' => Hash::make(12345678),
+            'role_id' => 3,
         ]);
         GradeLevel::factory(6)->create();
         // // Create teachers

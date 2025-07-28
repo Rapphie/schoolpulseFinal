@@ -107,7 +107,7 @@ class ClassRecordImport implements ToCollection
                         }
 
                         // Extract LRN for the student.
-                        $lrn = 'N/A';
+                        $lrn = null;
                         if ($this->lrnColumn !== null) {
                             $lrnValue = $rows[$j][$this->lrnColumn] ?? null;
                             if (!empty(trim($lrnValue))) {

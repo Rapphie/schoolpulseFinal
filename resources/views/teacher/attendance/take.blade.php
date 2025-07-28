@@ -40,26 +40,16 @@
                                     <li>
                                         <hr class="dropdown-divider">
                                     </li>
-                                    @php
-                                        $renderedSections = [];
-                                        // Sort schedules by section grade_level_id ascending
-                                        $sortedSchedules = $schedules->sortBy(function ($schedule) {
-                                            return $schedule->section->grade_level_id;
-                                        });
-                                    @endphp
-                                    @foreach ($sortedSchedules as $schedule)
-                                        @if (!in_array($schedule->section->id, $renderedSections))
-                                            <li>
-                                                <span class="dropdown-item section-option" style="cursor:pointer;"
-                                                    data-id="{{ $schedule->section->id }}">
-                                                    {{ 'Grade ' . ($schedule->section->grade_level_id ?? 'Error') }} -
-                                                    {{ $schedule->section->name . $schedule->section->id }}
-                                                </span>
-                                            </li>
-                                            @php
-                                                $renderedSections[] = $schedule->section->id;
-                                            @endphp
-                                        @endif
+
+                                    @foreach ($sections as $section)
+                                        <li>
+                                            <span class="dropdown-item section-option" style="cursor:pointer;"
+                                                data-id="{{ $section->id }}">
+                                                {{ 'Grade ' . ($section->grade_level_id ?? 'Error') }} -
+                                                {{ $section->name
+                                                }}
+                                            </span>
+                                        </li>
                                     @endforeach
                                 </ul>
                                 <input type="hidden" id="section_id" name="section_id" required>
@@ -330,7 +320,7 @@
                 $('#subjectDropdownMenu li:not(:first-child):not(:nth-child(2))').remove();
                 $('#subjectDropdownLoading').text('Loading subjects...').show();
 
-                // Make AJAX call to get subjects for this section
+                // Make AJAX call to  subjects for this section
                 console.log('Loading subjects for section ID:', sectionId);
 
                 $.ajax({
@@ -476,9 +466,9 @@
                     sectionDropdown.empty().prop('disabled', false);
                     sectionDropdown.append('<option value="">Select Section</option>');
 
-                    if (response.sections && response.sections.length > 0) {
-                        const options = response.sections.map(section =>
-                            `<option value="${section.id}">${section.name}</option>`
+                    if (response.allClasses && response.allClasses.length > 0) {
+                        const options = response.allClasses.map(classes =>
+                            `<option value="${classes.id}">${classes.section.name}</option>`
                         ).join('');
                         sectionDropdown.append(options);
                     } else {

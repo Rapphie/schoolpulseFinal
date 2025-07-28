@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Schedule;
 use App\Models\Section;
@@ -11,93 +12,108 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use App\Models\Teacher;
+use App\Models\Llc;
+use App\Models\SchoolYear;
+use App\Models\Enrollment;
+use App\Models\Grade;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AbsentAlertMail;
 
-class DashboardController extends Controller
+class TeacherDashboardController extends Controller
 {
     public function index()
     {
-        $userId = Auth::id();
-        $teacherId = Teacher::where('user_id', $userId)->value('id');
+        // Get the authenticated user and their teacher profile
+        $teacher = Auth::user()->teacher;
 
-        // Get today's date
-        $today = now()->toDateString();
-        $dayOfWeek = strtolower(now()->format('l')); // e.g., "monday"
+        if (!$teacher) {
+            // Handle cases where the user is not a teacher
+            abort(403, 'User is not a teacher.');
+        }
 
-        // Count classes (schedules) assigned to this teacher
-        $classCount = Schedule::where('teacher_id', $teacherId)->distinct('subject_id', 'section_id')->count();
+        $activeSchoolYear = SchoolYear::active()->first();
 
-        // Get subjects taught by this teacher
-        $subjects = Subject::whereHas('schedules', function ($query) use ($teacherId) {
-            $query->where('teacher_id', $teacherId);
-        })->get();
+        // If no active school year, return the view with a message and empty data
+        if (!$activeSchoolYear) {
+            return view('teacher.dashboard')->with('error', 'Data cannot be loaded because no school year is active.');
+        }
 
-        // Get sections taught by this teacher
-        $sections = Section::whereHas('schedules', function ($query) use ($teacherId) {
-            $query->where('teacher_id', $teacherId);
-        })->get();
+        // --- DATA FOR CARDS ---
 
-        // Count students in those sections
-        $studentCount = Student::whereIn('section_id', $sections->pluck('id'))->count();
+        // 1. Get all unique Class IDs the teacher interacts with for the active school year
+        $advisoryClassIds = $teacher->advisoryClasses()
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->pluck('id');
 
-        // Count attendance records created by this teacher today
-        $todayAttendanceCount = Attendance::where('teacher_id', $teacherId)
-            ->where('date', $today)
+        $scheduledClassIds = $teacher->schedules()
+            ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+            ->pluck('class_id');
+
+        $allClassIds = $advisoryClassIds->merge($scheduledClassIds)->unique();
+
+        // Card 1: My Classes Count
+        $classCount = $allClassIds->count();
+
+        // Card 2: Student Count (unique students across all their classes)
+        $studentCount = Enrollment::whereIn('class_id', $allClassIds)->distinct('student_id')->count();
+
+        // Card 3: Today's Attendance Count (students marked by this teacher today)
+        $todayAttendanceCount = Attendance::where('teacher_id', $teacher->id)
+            ->whereDate('date', today())
+            ->distinct('student_id')
             ->count();
 
-        // Get upcoming classes for today (schedules)
+        // --- DATA FOR TABLES AND LISTS ---
+
+        // Upcoming Schedules for Today
+        $dayOfWeek = strtolower(now()->format('l'));
         $currentTime = now()->format('H:i:s');
-        $upcomingClasses = Schedule::where('teacher_id', $teacherId)
+
+        $upcomingSchedules = $teacher->schedules()
+            ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
             ->whereJsonContains('day_of_week', $dayOfWeek)
             ->whereTime('start_time', '>=', $currentTime)
-            ->with(['section', 'subject'])
+            ->with(['class.section.gradeLevel', 'subject'])
             ->orderBy('start_time')
             ->get();
 
+        // Card 4: Count of today's upcoming schedules
+        $scheduleCount = $upcomingSchedules->count();
 
-        // Count total upcoming schedules
-        $scheduleCount = $upcomingClasses->count();
+        // Student Performance Data
+        $studentIds = Enrollment::whereIn('class_id', $allClassIds)->pluck('student_id')->unique();
+        $grades = Grade::whereIn('student_id', $studentIds)
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->select('student_id', DB::raw('AVG(grade) as average_grade'))
+            ->groupBy('student_id')
+            ->get();
 
-        // Get students performance data
-        // High performers (above 90%)
-        $highPerformers = 0;
-        $averagePerformers = 0;
-        $lowPerformers = 0;
+        $highPerformers = $grades->where('average_grade', '>=', 90)->count();
+        $averagePerformers = $grades->where('average_grade', '>=', 75)->where('average_grade', '<', 90)->count();
+        $lowPerformers = $grades->where('average_grade', '<', 75)->count();
 
-        // In a real application, this would be calculated from actual grade data
-        // For demo purposes, we'll use placeholder values
-        $highPerformers = rand(3, 8);
-        $averagePerformers = rand(10, 20);
-        $lowPerformers = rand(1, 5);
+        // Subjects for the performance filter dropdown
+        $subjects = Subject::whereIn('id', function ($query) use ($teacher, $activeSchoolYear) {
+            $query->select('schedules.subject_id')
+                ->from('schedules')
+                ->join('classes', 'schedules.class_id', '=', 'classes.id')
+                ->where('schedules.teacher_id', $teacher->id)
+                ->where('classes.school_year_id', $activeSchoolYear->id);
+        })->get();
 
-        // Recent activities - for demo, we'll create some placeholder activities
-        $recentActivities = collect([
-            (object)[
-                'title' => 'Attendance Recorded',
-                'description' => 'You recorded attendance for Science class',
-                'created_at' => now()->subHours(2),
-            ],
-            (object)[
-                'title' => 'Quiz Created',
-                'description' => 'You created a new quiz for Mathematics class',
-                'created_at' => now()->subDays(1),
-            ],
-            (object)[
-                'title' => 'Exam Graded',
-                'description' => 'You finished grading midterm exams for English class',
-                'created_at' => now()->subDays(3),
-            ],
-        ]);
+        // Placeholder for recent activities
+        $recentActivities = collect([]);
 
         return view('teacher.dashboard', compact(
             'classCount',
             'studentCount',
             'scheduleCount',
             'todayAttendanceCount',
-            'upcomingClasses',
+            'upcomingSchedules',
             'highPerformers',
             'averagePerformers',
             'lowPerformers',
@@ -162,17 +178,49 @@ class DashboardController extends Controller
     }
     public function classes()
     {
-        $userId = Auth::id();
-        $teacherId = Teacher::where('user_id',  $userId)->value('id');
-        $gradeLevels = GradeLevel::all();
-        $subjects = Subject::whereHas('schedules', function ($query) use ($teacherId) {
-            $query->where('teacher_id', $teacherId);
-        })->get();
-        $sections = Section::where('teacher_id', $teacherId)->get();
+        $teacher = Auth::user()->teacher;
+        $activeSchoolYear = SchoolYear::active()->first();
 
-        return view('teacher.classes', compact('sections', 'subjects'));
+        if (!$activeSchoolYear) {
+            return view('teacher.classes')->with('error', 'No active school year has been set.');
+        }
+
+        // 1. Get IDs of classes where the teacher is the adviser
+        $advisoryClassIds = $teacher->advisoryClasses()
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->pluck('id');
+
+        // 2. Get IDs of classes where the teacher has a schedule
+        $scheduledClassIds = $teacher->schedules()
+            ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+            ->pluck('class_id');
+
+        // 3. Merge and get unique IDs, then fetch the full Class models
+        $allClassIds = $advisoryClassIds->merge($scheduledClassIds)->unique();
+
+        $classes = Classes::whereIn('id', $allClassIds)
+            ->with(['section.gradeLevel', 'teacher.user', 'enrollments']) // Eager load needed data
+            ->get()
+            ->sortBy('section.gradeLevel.level');
+
+        return view('teacher.classes', compact('classes', 'teacher'));
     }
+    public function viewClass(Classes $class)
+    {
+        $class->load([
+            'section.gradeLevel',
+            'teacher.user',
+            'schoolYear',
+            'enrollments.student.guardian.user',
+            'schedules.subject',
+            'schedules.teacher.user'
+        ]);
 
+        // Get the currently logged-in teacher to pass to the view
+        $teacher = Auth::user()->teacher;
+
+        return view('teacher.classes.view', compact('class', 'teacher'));
+    }
     public function getStudentsForSection(Section $section)
     {
         // Optional: Add authorization to ensure the logged-in teacher can view this section
@@ -205,7 +253,12 @@ class DashboardController extends Controller
 
     public function grades()
     {
-        return view('teacher.grades.index');
+        $userId = Auth::id();
+        $teacherId = Teacher::where('user_id', $userId)->value('id');
+        $sections = Section::where('teacher_id', $teacherId)->get();
+        $subjects = Subject::where('teacher_id', $teacherId)->get();
+
+        return view('teacher.grades', compact('sections', 'subjects'));
     }
 
     public function gradebookQuiz()
@@ -224,26 +277,76 @@ class DashboardController extends Controller
         return view('teacher.gradebook.exam', compact('sections', 'subjects'));
     }
 
-    public function leastLearnedSubjects()
+    public function leastLearnedCompetencies()
     {
-
+        // Data for dropdown filters
         $subjects = Subject::all();
         $sections = Section::all();
 
-
-        return view('teacher.least-learned.subjects', compact('subjects', 'sections'));
+        // **FIX: Query the LLC data**
+        // This query fetches all LLCs, counts their competencies,
+        // and joins the subject and section tables to get their names.
+        $llcs = Llc::withCount('llcItems') // This adds an `llc_items_count` attribute
+            ->join('subjects', 'llc.subject_id', '=', 'subjects.id')
+            ->join('sections', 'llc.section_id', '=', 'sections.id')
+            ->select(
+                'llc.*', // Selects all columns from the `llc` table
+                'subjects.name as subject_name',
+                'sections.name as section_name'
+            )
+            ->orderBy('llc.created_at', 'desc')
+            ->get();
+        $gradeLevels = GradeLevel::all();
+        return view('llc', compact('llcs', 'subjects', 'sections', 'gradeLevels'));
     }
+    // **FIX: Pass the new $ll
+    public function leastLearnedSubjects()
+    {
+        // Data for dropdown filters
+        $subjects = Subject::all();
+        $sections = Section::all();
+
+        // **FIX: Query the LLC data**
+        // This query fetches all LLCs, counts their competencies,
+        // and joins the subject and section tables to get their names.
+        $llcs = Llc::withCount('llcItems') // This adds an `llc_items_count` attribute
+            ->join('subjects', 'llc.subject_id', '=', 'subjects.id')
+            ->join('sections', 'llc.section_id', '=', 'sections.id')
+            ->select(
+                'llc.*', // Selects all columns from the `llc` table
+                'subjects.name as subject_name',
+                'sections.name as section_name'
+            )
+            ->orderBy('llc.created_at', 'desc')
+            ->get();
+
+        // **FIX: Pass the new $llcs variable to the view**
+        return view('teacher.least-learned.subjects', compact('llcs', 'subjects', 'sections'));
+    }
+
 
 
     public function takeAttendance()
     {
         $userId = Auth::user()->id;
-        $teacherId = Teacher::where('user_id', $userId)->value('id');
-        // Get all schedules for this teacher
-        $schedules = Schedule::where('teacher_id', $teacherId)->get();
-        $gradeLevels = GradeLevel::all();
-        // Only pass sections and not subjects
-        return view('teacher.attendance.take', compact('schedules', 'teacherId', 'gradeLevels'));
+        $teacher = Teacher::where('user_id', $userId)->firstOrFail();
+        $teacherId = $teacher->id;
+
+        // Get the active school year
+        $activeSchoolYear = SchoolYear::active()->first();
+
+        // Get all schedules for this teacher in the active school year
+        $schedules = Schedule::with('class.section', 'subject')
+            ->where('teacher_id', $teacherId)
+            ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })
+            ->get();
+
+        // Get unique sections (classes) from the schedules
+        $sections = $schedules->pluck('class.section')->unique('id');
+
+        return view('teacher.attendance.take', compact('sections', 'teacherId'));
     }
 
     public function attendanceRecords()
@@ -255,11 +358,11 @@ class DashboardController extends Controller
         $attendanceRecords = Attendance::where('attendances.teacher_id', $teacherId)
 
             ->join('students', 'attendances.student_id', '=', 'students.id')
-            ->join('sections', 'students.section_id', '=', 'sections.id')
+            ->join('classes', 'students.class_id', '=', 'classes.id')
             ->join('subjects', 'attendances.subject_id', '=', 'subjects.id')
             ->select(
                 'attendances.date',
-                'sections.name as section_name',
+                'classes.name as class_name',
                 'subjects.name as subject_name',
                 'subjects.id as subject_id',
                 'sections.id as section_id',
@@ -316,18 +419,27 @@ class DashboardController extends Controller
             'date' => 'required|date',
         ]);
 
-        $section = Section::with('gradeLevel')->findOrFail($request->section_id);
+        $section = Classes::with('sections')->findOrFail($request->section_id);
         $subject = Subject::findOrFail($request->subject_id);
         $date = $request->date;
 
-        // Get schedule for this section and subject if available
-        $schedule = Schedule::where([
-            'section_id' => $section->id,
-            'subject_id' => $subject->id,
-        ])->first();
+        $class =
+            // Get schedule for this section and subject if available
+            $schedule = Schedule::where([
+                'class_id' => $section->id,
+                'subject_id' => $subject->id,
+            ])->first();
 
-        // Get all students in this section
-        $students = Student::where('section_id', $section->id)->get();
+        // Get all students enrolled in this section (via enrollments and classes)
+        $students = Student::whereIn('id', function ($query) use ($section) {
+            $query->select('student_id')
+                ->from('enrollments')
+                ->where('class_id', function ($subQuery) use ($section) {
+                    $subQuery->select('id')
+                        ->from('classes')
+                        ->where('section_id', $section->id);
+                });
+        })->get();
 
         // Get existing attendance records for this section, subject and date
         $existingAttendance = Attendance::where([
@@ -430,7 +542,8 @@ class DashboardController extends Controller
             'remarks' => 'nullable|array',
         ]);
 
-        $teacherId = Auth::id();
+        $userId = Auth::id();
+        $teacherId = Teacher::where('user_id', $userId)->value('id');
 
         // Process each student's attendance
         foreach ($request->status as $studentId => $status) {
@@ -454,12 +567,51 @@ class DashboardController extends Controller
                     'teacher_id' => $teacherId,
                 ]
             );
+
+            // Check for absences
+            $this->checkAbsences($studentId, $teacherId);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Attendance saved successfully'
         ]);
+    }
+
+    private function checkAbsences($studentId, $teacherId)
+    {
+        $student = Student::find($studentId);
+        $teacher = Teacher::find($teacherId);
+
+        // Check for 3 consecutive absences
+        $consecutiveAbsences = 0;
+        for ($i = 0; $i < 3; $i++) {
+            $date = now()->subDays($i)->toDateString();
+            $attendance = Attendance::where('student_id', $studentId)
+                ->where('date', $date)
+                ->where('status', 'absent')
+                ->first();
+
+            if ($attendance) {
+                $consecutiveAbsences++;
+            } else {
+                break;
+            }
+        }
+
+        if ($consecutiveAbsences >= 3) {
+            Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
+        }
+
+        // Check for 5 total absences in the current month
+        $totalAbsences = Attendance::where('student_id', $studentId)
+            ->where('status', 'absent')
+            ->whereMonth('date', now()->month)
+            ->count();
+
+        if ($totalAbsences >= 5) {
+            Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $totalAbsences));
+        }
     }
 
     /**
@@ -479,5 +631,18 @@ class DashboardController extends Controller
         return response()->json([
             'sections' => $sections
         ]);
+    }
+
+    public function getGradesForSection(Section $section)
+    {
+        $grades = Grade::whereHas('student', function ($query) use ($section) {
+            $query->where('section_id', $section->id);
+        })
+            ->with(['student']) // Eager load the student relationship
+            ->get();
+
+        dd($grades);
+        // This returns the simple list of grades that the new table structure needs
+        return response()->json($grades);
     }
 }

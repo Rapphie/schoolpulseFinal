@@ -145,8 +145,8 @@
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary">Detailed Attendance Records</h6>
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
-                            id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
+                            data-bs-toggle="dropdown" aria-expanded="false">
                             <i data-feather="download"></i> Export
                         </button>
                         <ul class="dropdown-menu" aria-labelledby="exportDropdown">
@@ -195,8 +195,8 @@
                                                 <i data-feather="eye" class="feather-sm"></i>
                                             </button>
                                             <button class="btn btn-sm btn-warning text-white"
-                                                onclick="editAttendance({{ $attendance->id }})"
-                                                data-bs-toggle="tooltip" title="Edit">
+                                                onclick="editAttendance({{ $attendance->id }})" data-bs-toggle="tooltip"
+                                                title="Edit">
                                                 <i data-feather="edit-2" class="feather-sm"></i>
                                             </button>
                                         </td>
@@ -244,353 +244,353 @@
             </div>
         </div>
     </div>
+@endsection
 
 
+@push('scripts')
+    <!-- Defer non-critical scripts -->
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js" defer></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js" defer></script>
 
-    @push('scripts')
-        <!-- Defer non-critical scripts -->
-        <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js" defer></script>
-        <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js" defer></script>
+    <!-- DataTables export plugins (load on demand) -->
+    <script>
+        // Function to dynamically load scripts
+        function loadScript(url, callback) {
+            var script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = url;
+            script.defer = true;
 
-        <!-- DataTables export plugins (load on demand) -->
-        <script>
-            // Function to dynamically load scripts
-            function loadScript(url, callback) {
-                var script = document.createElement('script');
-                script.type = 'text/javascript';
-                script.src = url;
-                script.defer = true;
-
-                if (callback) {
-                    if (script.readyState) { // IE
-                        script.onreadystatechange = function() {
-                            if (script.readyState === 'loaded' || script.readyState === 'complete') {
-                                script.onreadystatechange = null;
-                                callback();
-                            }
-                        };
-                    } else { // Other browsers
-                        script.onload = function() {
+            if (callback) {
+                if (script.readyState) { // IE
+                    script.onreadystatechange = function() {
+                        if (script.readyState === 'loaded' || script.readyState === 'complete') {
+                            script.onreadystatechange = null;
                             callback();
-                        };
-                    }
+                        }
+                    };
+                } else { // Other browsers
+                    script.onload = function() {
+                        callback();
+                    };
                 }
-
-                document.head.appendChild(script);
             }
 
-            // Load export functionality when interacting with export dropdown
-            document.addEventListener('DOMContentLoaded', function() {
-                const exportDropdown = document.getElementById('exportDropdown');
-                if (exportDropdown) {
-                    exportDropdown.addEventListener('click', function loadExportScripts() {
-                        // Remove the listener so we only load once
-                        exportDropdown.removeEventListener('click', loadExportScripts);
+            document.head.appendChild(script);
+        }
 
-                        const scripts = [
-                            'https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js',
-                            'https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js',
-                            'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js',
-                            'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js',
-                            'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js',
-                            'https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js',
-                            'https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js'
-                        ];
+        // Load export functionality when interacting with export dropdown
+        document.addEventListener('DOMContentLoaded', function() {
+            const exportDropdown = document.getElementById('exportDropdown');
+            if (exportDropdown) {
+                exportDropdown.addEventListener('click', function loadExportScripts() {
+                    // Remove the listener so we only load once
+                    exportDropdown.removeEventListener('click', loadExportScripts);
 
-                        // Load scripts sequentially
-                        let i = 0;
+                    const scripts = [
+                        'https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js',
+                        'https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js',
+                        'https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js',
+                        'https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js'
+                    ];
 
-                        function loadNextScript() {
-                            if (i < scripts.length) {
-                                loadScript(scripts[i], function() {
-                                    i++;
-                                    loadNextScript();
-                                });
-                            } else {
-                                // All scripts loaded, initialize export buttons
-                                initializeExportButtons();
-                            }
+                    // Load scripts sequentially
+                    let i = 0;
+
+                    function loadNextScript() {
+                        if (i < scripts.length) {
+                            loadScript(scripts[i], function() {
+                                i++;
+                                loadNextScript();
+                            });
+                        } else {
+                            // All scripts loaded, initialize export buttons
+                            initializeExportButtons();
                         }
+                    }
 
-                        loadNextScript();
-                    });
-                }
+                    loadNextScript();
+                });
+            }
+        });
+
+        // Inner document ready function
+        document.addEventListener('DOMContentLoaded', function() {
+            initPieChart();
+            // Initialize DataTables lazily when user interacts with the page
+            const lazyInitDataTables = () => {
+                // Initialize attendance table
+                if ($.fn.dataTable.isDataTable('#attendanceTable')) return;
+
+                $('#attendanceTable').DataTable({
+                    "pageLength": 10,
+                    "language": {
+                        "paginate": {
+                            "previous": "&laquo;",
+                            "next": "&raquo;"
+                        }
+                    },
+                    // Configure server-side pagination processing
+                    "processing": true,
+                    "serverSide": false, // We're using Laravel's pagination already
+                    // Enable the built-in pagination controls but use Laravel's pagination behind the scenes
+                    "paging": false, // Disable DataTables paging since Laravel handles it
+                    "ordering": true,
+                    "info": true,
+                    "searching": true
+                });
+
+                // Remove the event listeners after initialization
+                document.removeEventListener('scroll', lazyInitDataTables);
+                document.removeEventListener('mousemove', lazyInitDataTables);
+            };
+
+            // Initialize DataTables when user begins to interact with the page
+            document.addEventListener('scroll', lazyInitDataTables, {
+                passive: true
+            });
+            document.addEventListener('mousemove', lazyInitDataTables, {
+                passive: true
             });
 
-            // Inner document ready function
-            document.addEventListener('DOMContentLoaded', function() {
-                initPieChart();
-                // Initialize DataTables lazily when user interacts with the page
-                const lazyInitDataTables = () => {
-                    // Initialize attendance table
-                    if ($.fn.dataTable.isDataTable('#attendanceTable')) return;
+            // Initialize tooltips only when they're needed
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            if (tooltipTriggerList.length > 0) {
+                const initTooltips = () => {
+                    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+                    document.removeEventListener('mouseover', initTooltips);
+                };
+                document.addEventListener('mouseover', initTooltips, {
+                    passive: true
+                });
 
-                    $('#attendanceTable').DataTable({
-                        "pageLength": 10,
-                        "language": {
-                            "paginate": {
-                                "previous": "&laquo;",
-                                "next": "&raquo;"
+                // Lazy load charts when they're in viewport and Chart.js is loaded
+                const observeElement = (elementId, callback) => {
+                    const element = document.getElementById(elementId);
+                    if (!element) {
+                        console.error(`Element with id '${elementId}' not found`);
+                        return;
+                    }
+
+                    console.log(`Setting up observer for ${elementId}`);
+
+                    const observer = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                console.log(
+                                    `${elementId} is visible, preparing to initialize chart`
+                                );
+                                // Ensure Chart.js is loaded first
+                                loadChartJs().then(() => {
+                                    console.log(
+                                        `Chart.js is loaded, initializing ${elementId}`
+                                    );
+                                    callback();
+                                }).catch(error => {
+                                    console.error(
+                                        `Failed to load Chart.js for ${elementId}:`,
+                                        error);
+                                });
+                                observer.disconnect();
                             }
-                        },
-                        // Configure server-side pagination processing
-                        "processing": true,
-                        "serverSide": false, // We're using Laravel's pagination already
-                        // Enable the built-in pagination controls but use Laravel's pagination behind the scenes
-                        "paging": false, // Disable DataTables paging since Laravel handles it
-                        "ordering": true,
-                        "info": true,
-                        "searching": true
+                        });
+                    }, {
+                        threshold: 0.1
                     });
 
-                    // Remove the event listeners after initialization
-                    document.removeEventListener('scroll', lazyInitDataTables);
-                    document.removeEventListener('mousemove', lazyInitDataTables);
+                    observer.observe(element);
+                    console.log(`Observer set for ${elementId}`);
                 };
 
-                // Initialize DataTables when user begins to interact with the page
-                document.addEventListener('scroll', lazyInitDataTables, {
-                    passive: true
+                var monthlyData = @json($monthlyData ?? []);
+                var labels = Object.keys(monthlyData);
+                var presentData = [];
+                var absentData = [];
+                var lateData = [];
+
+                labels.forEach(function(date) {
+                    presentData.push(monthlyData[date]?.present || 0);
+                    absentData.push(monthlyData[date]?.absent || 0);
+                    lateData.push(monthlyData[date]?.late || 0);
                 });
-                document.addEventListener('mousemove', lazyInitDataTables, {
-                    passive: true
+
+                // Initialize trend chart only when it's visible and Chart is available
+                observeElement('attendanceTrendChart', () => {
+                    console.log('Initializing trend chart now that Chart.js is loaded');
+                    initTrendChart();
                 });
 
-                // Initialize tooltips only when they're needed
-                const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-                if (tooltipTriggerList.length > 0) {
-                    const initTooltips = () => {
-                        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
-                        document.removeEventListener('mouseover', initTooltips);
-                    };
-                    document.addEventListener('mouseover', initTooltips, {
-                        passive: true
-                    });
-
-                    // Lazy load charts when they're in viewport and Chart.js is loaded
-                    const observeElement = (elementId, callback) => {
-                        const element = document.getElementById(elementId);
-                        if (!element) {
-                            console.error(`Element with id '${elementId}' not found`);
-                            return;
-                        }
-
-                        console.log(`Setting up observer for ${elementId}`);
-
-                        const observer = new IntersectionObserver((entries) => {
-                            entries.forEach(entry => {
-                                if (entry.isIntersecting) {
-                                    console.log(
-                                        `${elementId} is visible, preparing to initialize chart`
-                                    );
-                                    // Ensure Chart.js is loaded first
-                                    loadChartJs().then(() => {
-                                        console.log(
-                                            `Chart.js is loaded, initializing ${elementId}`
-                                        );
-                                        callback();
-                                    }).catch(error => {
-                                        console.error(
-                                            `Failed to load Chart.js for ${elementId}:`,
-                                            error);
-                                    });
-                                    observer.disconnect();
+                function initTrendChart() {
+                    console.log('Initializing trend chart');
+                    var trendCtx = document.getElementById('attendanceTrendChart').getContext('2d');
+                    var trendChart = new Chart(trendCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Present',
+                                data: presentData,
+                                borderColor: '#1cc88a',
+                                backgroundColor: 'rgba(28, 200, 138, 0.05)',
+                                tension: 0.3,
+                                fill: true
+                            }, {
+                                label: 'Late',
+                                data: lateData,
+                                borderColor: '#f6c23e',
+                                backgroundColor: 'rgba(246, 194, 62, 0.05)',
+                                tension: 0.3,
+                                fill: true
+                            }, {
+                                label: 'Absent',
+                                data: absentData,
+                                borderColor: '#e74a3b',
+                                backgroundColor: 'rgba(231, 74, 59, 0.05)',
+                                tension: 0.3,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            maintainAspectRatio: false,
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
                                 }
-                            });
-                        }, {
-                            threshold: 0.1
-                        });
-
-                        observer.observe(element);
-                        console.log(`Observer set for ${elementId}`);
-                    };
-
-                    var monthlyData = @json($monthlyData ?? []);
-                    var labels = Object.keys(monthlyData);
-                    var presentData = [];
-                    var absentData = [];
-                    var lateData = [];
-
-                    labels.forEach(function(date) {
-                        presentData.push(monthlyData[date]?.present || 0);
-                        absentData.push(monthlyData[date]?.absent || 0);
-                        lateData.push(monthlyData[date]?.late || 0);
-                    });
-
-                    // Initialize trend chart only when it's visible and Chart is available
-                    observeElement('attendanceTrendChart', () => {
-                        console.log('Initializing trend chart now that Chart.js is loaded');
-                        initTrendChart();
-                    });
-
-                    function initTrendChart() {
-                        console.log('Initializing trend chart');
-                        var trendCtx = document.getElementById('attendanceTrendChart').getContext('2d');
-                        var trendChart = new Chart(trendCtx, {
-                            type: 'line',
-                            data: {
-                                labels: labels,
-                                datasets: [{
-                                    label: 'Present',
-                                    data: presentData,
-                                    borderColor: '#1cc88a',
-                                    backgroundColor: 'rgba(28, 200, 138, 0.05)',
-                                    tension: 0.3,
-                                    fill: true
-                                }, {
-                                    label: 'Late',
-                                    data: lateData,
-                                    borderColor: '#f6c23e',
-                                    backgroundColor: 'rgba(246, 194, 62, 0.05)',
-                                    tension: 0.3,
-                                    fill: true
-                                }, {
-                                    label: 'Absent',
-                                    data: absentData,
-                                    borderColor: '#e74a3b',
-                                    backgroundColor: 'rgba(231, 74, 59, 0.05)',
-                                    tension: 0.3,
-                                    fill: true
-                                }]
                             },
-                            options: {
-                                maintainAspectRatio: false,
-                                responsive: true,
-                                plugins: {
-                                    legend: {
-                                        position: 'top',
-                                    },
-                                    tooltip: {
-                                        mode: 'index',
-                                        intersect: false,
+                            scales: {
+                                x: {
+                                    display: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Date'
                                     }
                                 },
-                                scales: {
-                                    x: {
+                                y: {
+                                    display: true,
+                                    title: {
                                         display: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Date'
-                                        }
+                                        text: 'Number of Students'
                                     },
-                                    y: {
-                                        display: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Number of Students'
-                                        },
-                                        beginAtZero: true,
-                                        ticks: {
-                                            precision: 0
-                                        }
+                                    beginAtZero: true,
+                                    ticks: {
+                                        precision: 0
                                     }
                                 }
                             }
-                        });
-
-                        console.log('Trend chart initialized successfully');
-                    }
-                });
-
-            // Initialize pie chart only when it's visible and Chart is available
-            observeElement('attendancePieChart', () => {
-                console.log('Initializing pie chart now that Chart.js is loaded');
-                initPieChart();
-            });
-
-            function initPieChart() {
-                var pieCtx = document.getElementById('attendancePieChart').getContext('2d');
-                var pieChart = new Chart(pieCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Present', 'Absent', 'Late'],
-                        datasets: [{
-                            data: [
-                                {{ $presentCount ?? 0 }},
-                                {{ $absentCount ?? 0 }},
-                                {{ $lateCount ?? 0 }}
-                            ],
-                            backgroundColor: ['#1cc88a', '#e74a3b', '#f6c23e'],
-                            hoverBackgroundColor: ['#17a673', '#be2617', '#dda20a'],
-                            hoverBorderColor: 'rgba(234, 236, 244, 1)',
-                        }],
-                    },
-                    options: {
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: { // Updated for Chart.js v3+
-                                backgroundColor: "rgb(255,255,255)",
-                                bodyColor: "#858796",
-                                borderColor: '#dddfeb',
-                                borderWidth: 1,
-                                padding: 15,
-                                displayColors: false,
-                                caretPadding: 10,
-                            }
-                        },
-                        cutout: '80%',
-                    },
-                });
-
-                console.log('Pie chart initialized successfully');
-            }
-            });
-
-            // Function to initialize export buttons
-            function initializeExportButtons() {
-                // Implementation would go here when export scripts are loaded
-                console.log('Export buttons initialized');
-            }
-
-            // Attach event listeners using event delegation where possible
-            document.addEventListener('click', function(e) {
-                // Handle filter button
-                if (e.target.closest('#applyFilter')) {
-                    var month = document.getElementById('monthFilter').value;
-                    window.location.href = '{{ route('admin.records') }}?month=' + month;
-                }
-
-
-            });
-
-            // Lazy load feather icons
-            if (window.feather) {
-                const featherInit = () => {
-                    feather.replace({
-                        'stroke-width': 1.5
+                        }
                     });
-                    document.removeEventListener('DOMContentLoaded', featherInit);
-                };
-                document.addEventListener('DOMContentLoaded', featherInit);
-            }
+
+                    console.log('Trend chart initialized successfully');
+                }
             });
 
-            // Optimize modal functions
-            function viewAttendanceDetails(attendanceId) {
-                // Only initialize modal when needed
-                if (!window.attendanceModal) {
-                    window.attendanceModal = new bootstrap.Modal(document.getElementById('attendanceDetailsModal'));
-                }
+        // Initialize pie chart only when it's visible and Chart is available
+        observeElement('attendancePieChart', () => {
+            console.log('Initializing pie chart now that Chart.js is loaded');
+            initPieChart();
+        });
 
-                var contentDiv = document.getElementById('attendanceDetailsContent');
+        function initPieChart() {
+            var pieCtx = document.getElementById('attendancePieChart').getContext('2d');
+            var pieChart = new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Present', 'Absent', 'Late'],
+                    datasets: [{
+                        data: [
+                            {{ $presentCount ?? 0 }},
+                            {{ $absentCount ?? 0 }},
+                            {{ $lateCount ?? 0 }}
+                        ],
+                        backgroundColor: ['#1cc88a', '#e74a3b', '#f6c23e'],
+                        hoverBackgroundColor: ['#17a673', '#be2617', '#dda20a'],
+                        hoverBorderColor: 'rgba(234, 236, 244, 1)',
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: { // Updated for Chart.js v3+
+                            backgroundColor: "rgb(255,255,255)",
+                            bodyColor: "#858796",
+                            borderColor: '#dddfeb',
+                            borderWidth: 1,
+                            padding: 15,
+                            displayColors: false,
+                            caretPadding: 10,
+                        }
+                    },
+                    cutout: '80%',
+                },
+            });
 
-                // Show loading spinner
-                contentDiv.innerHTML = `
+            console.log('Pie chart initialized successfully');
+        }
+        });
+
+        // Function to initialize export buttons
+        function initializeExportButtons() {
+            // Implementation would go here when export scripts are loaded
+            console.log('Export buttons initialized');
+        }
+
+        // Attach event listeners using event delegation where possible
+        document.addEventListener('click', function(e) {
+            // Handle filter button
+            if (e.target.closest('#applyFilter')) {
+                var month = document.getElementById('monthFilter').value;
+                window.location.href = '{{ route('admin.records') }}?month=' + month;
+            }
+
+
+        });
+
+        // Lazy load feather icons
+        if (window.feather) {
+            const featherInit = () => {
+                feather.replace({
+                    'stroke-width': 1.5
+                });
+                document.removeEventListener('DOMContentLoaded', featherInit);
+            };
+            document.addEventListener('DOMContentLoaded', featherInit);
+        }
+        });
+
+        // Optimize modal functions
+        function viewAttendanceDetails(attendanceId) {
+            // Only initialize modal when needed
+            if (!window.attendanceModal) {
+                window.attendanceModal = new bootstrap.Modal(document.getElementById('attendanceDetailsModal'));
+            }
+
+            var contentDiv = document.getElementById('attendanceDetailsContent');
+
+            // Show loading spinner
+            contentDiv.innerHTML = `
         <div class="text-center my-5">
             <div class="spinner-border" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </div>`;
 
-                window.attendanceModal.show();
+            window.attendanceModal.show();
 
-                // In a real application, this would fetch data from server
-                // Simulate API delay with a short timeout
-                setTimeout(() => {
-                    contentDiv.innerHTML = `
+            // In a real application, this would fetch data from server
+            // Simulate API delay with a short timeout
+            setTimeout(() => {
+                contentDiv.innerHTML = `
             <div class="row">
                 <div class="col-md-6">
                     <h6>Student Information</h6>
@@ -631,13 +631,13 @@
                 <h6>Notes</h6>
                 <p>No additional notes.</p>
             </div>`;
-                }, 1000);
-            }
+            }, 1000);
+        }
 
-            function editAttendance(attendanceId) {
-                alert('Edit attendance with ID: ' + attendanceId);
-            }
-            });
-            });
-        </script>
-    @endpush
+        function editAttendance(attendanceId) {
+            alert('Edit attendance with ID: ' + attendanceId);
+        }
+        });
+        });
+    </script>
+@endpush

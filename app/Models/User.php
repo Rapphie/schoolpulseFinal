@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\Access\Authorizable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -25,7 +26,14 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $guarded = [];
+    protected $fillable = [
+        'first_name',
+        'last_name',
+        'email',
+        'password',
+        'profile_picture',
+        'role_id',
+    ];
 
 
     /**
@@ -60,44 +68,19 @@ class User extends Authenticatable
         return "{$this->first_name} {$this->last_name}";
     }
 
-    /**
-     * Get the sections where the user is an adviser
-     */
-    public function sectionsAdvised(): HasMany
+    public function teacher(): HasOne
     {
-        return $this->hasMany(Section::class, 'teacher_id');
+        return $this->hasOne(Teacher::class);
     }
 
-    /**
-     * Get the subjects taught by the user
-     */
-    public function subjects()
-    {
-        return $this->belongsToMany(Subject::class, 'subject_teacher_section', 'teacher_id', 'subject_id')
-            ->withPivot('subject_id')
-            ->withTimestamps();
-    }
-
-    /**
-     * Get the user's schedules
-     */
-    public function schedules()
-    {
-        return $this->hasMany(Schedule::class, 'teacher_id');
-    }
-
-    public function teacher()
-    {
-        return $this->hasMany(Teacher::class);
-    }
-
-
-    /**
-     * Get the student record for this user
-     */
-    public function student()
+    public function student(): HasOne
     {
         return $this->hasOne(Student::class);
+    }
+
+    public function guardian(): HasOne
+    {
+        return $this->hasOne(Guardian::class);
     }
 
     /**
@@ -119,22 +102,5 @@ class User extends Authenticatable
     public function hasRole(string $role): bool
     {
         return $this->role->name == $role;
-    }
-    public function grades(): HasMany
-    {
-        return $this->hasMany(Grade::class);
-    }
-
-    public function students(): HasMany
-    {
-        return $this->hasMany(Student::class);
-    }
-    public function attendances(): HasMany
-    {
-        return $this->hasMany(Attendance::class);
-    }
-    public function llc(): HasMany
-    {
-        return $this->hasMany(LLC::class);
     }
 }

@@ -1,24 +1,26 @@
 @extends('base')
 
-@section('title', 'Grades Management')
+@section('title', 'Manage Grades')
+
+@push('styles')
+    <link rel="stylesheet" href="https://cdn.datatables.net/rowgroup/1.1.4/css/rowGroup.dataTables.min.css">
+@endpush
 
 @section('content')
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Grades Management</h6>
-            <div class="d-flex align-items-center">
-                <select id="section-filter" class="form-select form-select-sm me-2">
-                    <option value="">All Sections</option>
+            <h6 class="m-0 font-weight-bold text-primary">Manage Grades</h6>
+            <div>
+                <select id="section-filter" class="form-select form-select-sm">
+                    <option value="" selected>Select a Section</option>
                     @foreach ($sections as $section)
-                        <option value="{{ $section->name }}">{{ $section->name }}</option>
+                        <option value="{{ $section->id }}">{{ $section->gradeLevel->name }} - {{ $section->name }}</option>
                     @endforeach
                 </select>
-                <select id="subject-filter" class="form-select form-select-sm">
-                    <option value="">All Subjects</option>
-                    @foreach ($subjects as $subject)
-                        <option value="{{ $subject->name }}">{{ $subject->name }}</option>
-                    @endforeach
-                </select>
+                <button type="button" class="btn btn-primary btn-sm ms-2" data-bs-toggle="modal"
+                    data-bs-target="#importReportCardModal">
+                    Import Report Card
+                </button>
             </div>
         </div>
         <div class="card-body">
@@ -26,85 +28,41 @@
                 <table class="table table-bordered" id="gradesTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>Section</th>
-                            <th>Subject</th>
-                            <th>Total Students</th>
-                            <th>Grading Period</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Gender</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($classes  as $class)
-                            <tr>
-                                <td>{{ $class->section_name }}</td>
-                                <td>{{ $class->subject_name }}</td>
-                                <td>{{ $class->student_count }}</td>
-                                <td>
-                                    <select class="form-select form-select-sm grading-period"
-                                        data-class-id="{{ $class->id }}">
-                                        <option value="1">1st Quarter</option>
-                                        <option value="2">2nd Quarter</option>
-                                        <option value="3">3rd Quarter</option>
-                                        <option value="4">4th Quarter</option>
-                                        <option value="final">Final</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <span class="badge bg-{{ $class->status === 'complete' ? 'success' : 'warning' }}">
-                                        {{ $class->status === 'complete' ? 'Complete' : 'Pending' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="d-flex justify-content-center align-items-start">
-                                        <a href="{{ route('teacher.grades.view', ['class_id' => $class->id]) }}"
-                                            class="btn btn-info btn-sm mx-1" title="View Grades">
-                                            <i data-feather="eye" class="feather-sm text-white"></i>
-                                        </a>
-                                        <a href="{{ route('teacher.grades.edit', ['class_id' => $class->id]) }}"
-                                            class="btn btn-primary btn-sm mx-1" title="Edit Grades">
-                                            <i data-feather="edit-2" class="feather-sm"></i>
-                                        </a>
-                                        <button type="button" class="btn btn-success btn-sm mx-1 publish-grades-btn"
-                                            data-bs-toggle="modal" data-bs-target="#publishGradesModal"
-                                            data-class-id="{{ $class->id }}" data-section="{{ $class->section_name }}"
-                                            data-subject="{{ $class->subject_name }}" title="Publish Grades">
-                                            <i data-feather="check-square" class="feather-sm"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center">No classes found.</td>
-                            </tr>
-                        @endforelse
+                        {{-- Grade rows will be dynamically inserted here --}}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-
-    <!-- Publish Grades Modal -->
-    <div class="modal fade" id="publishGradesModal" tabindex="-1" aria-labelledby="publishGradesModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
+    <div class="modal fade" id="importReportCardModal" tabindex="-1" role="dialog"
+        aria-labelledby="importReportCardModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="publishGradesModalLabel">Publish Grades</h5>
+                    <h5 class="modal-title" id="importReportCardModalLabel">Import Report Card</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form id="publishGradesForm" action="#" method="POST">
+                <form id="importClassRecordForm" method="POST"
+                    action="{{ route('teacher.report-card.upload', ['section_id' => '']) }}" enctype="multipart/form-data">
                     @csrf
-                    <input type="hidden" id="class_id" name="class_id">
-                    <input type="hidden" id="grading_period" name="grading_period">
+                    <input type="hidden" name="section_id" value="">
                     <div class="modal-body">
-                        <p>Are you sure you want to publish the grades for <span id="modal-section-subject"></span>?</p>
-                        <p class="text-warning">Note: Once published, the grades cannot be modified.</p>
+                        <div class="mb-3">
+                            <label for="report_card_file" class="form-label">Select Report Card File</label>
+                            <input type="file" class="form-control" id="report_card_file" name="report_card_file"
+                                accept=".xlsx, .xls, .csv" required>
+                        </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-success">Publish Grades</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Import</button>
                     </div>
                 </form>
             </div>
@@ -113,73 +71,79 @@
 @endsection
 
 @push('scripts')
+    {{-- jQuery and DataTables CDN links --}}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/rowgroup/1.1.4/js/dataTables.rowGroup.min.js"></script>
+
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize DataTable
+        $(document).ready(function() {
             const table = $('#gradesTable').DataTable({
-                responsive: true,
-                order: [
-                    [0, 'asc']
-                ]
+                // ... your datatable options
             });
 
-            // Initialize tooltips
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            const tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-
-            // Section filter
+            // --- Section Filter Logic ---
             $('#section-filter').on('change', function() {
-                const value = $(this).val();
-                table.column(0).search(value).draw();
-            });
+                const sectionId = $(this).val();
+                table.clear().draw();
 
-            // Subject filter
-            $('#subject-filter').on('change', function() {
-                const value = $(this).val();
-                table.column(1).search(value).draw();
-            });
+                if (sectionId) {
+                    // 1. THIS IS THE FIX: Create a URL template from the PHP route function
+                    let urlTemplate =
+                        "{{ route('teacher.sections.grades', ['section' => ':section_id']) }}";
 
-            // Grading Period Change
-            $('.grading-period').on('change', function() {
-                const classId = $(this).data('class-id');
-                const period = $(this).val();
+                    // 2. Replace the placeholder with the real ID from the dropdown
+                    let finalUrl = urlTemplate.replace(':section_id', sectionId);
 
-                // Here you would typically make an AJAX call to load the grades for the selected period
-                console.log(`Loading grades for class ${classId}, period ${period}`);
-            });
+                    // 3. Use the corrected, final URL in your fetch request
+                    fetch(finalUrl)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok');
+                            }
+                            return response.json();
+                        })
+                        .then(grades => {
+                            // 1. Create a URL template for the report card route
+                            let reportCardUrlTemplate =
+                                "{{ route('teacher.report-card.show', ['student' => ':student_id']) }}";
+                            grades.forEach(studentData => {
+                                let finalReportCardUrl = reportCardUrlTemplate.replace(
+                                    ':student_id', studentData.student_id);
 
-            // Publish Grades Button Click Event
-            $('.publish-grades-btn').on('click', function() {
-                const classId = $(this).data('class-id');
-                const section = $(this).data('section');
-                const subject = $(this).data('subject');
-                const period = $(`select.grading-period[data-class-id="${classId}"]`).val();
-
-                $('#class_id').val(classId);
-                $('#grading_period').val(period);
-                $('#modal-section-subject').text(`${section} - ${subject} (${getPeriodName(period)})`);
-            });
-
-            function getPeriodName(period) {
-                switch (period) {
-                    case '1':
-                        return '1st Quarter';
-                    case '2':
-                        return '2nd Quarter';
-                    case '3':
-                        return '3rd Quarter';
-                    case '4':
-                        return '4th Quarter';
-                    case 'final':
-                        return 'Final';
-                    default:
-                        return '';
+                                let actionButton =
+                                    `<a href="${finalReportCardUrl}" class="btn btn-info btn-sm text-white" target="_blank">View Report Card</a>`;
+                                table.row.add([
+                                    studentData.student_id,
+                                    studentData.student_name,
+                                    studentData.gender,
+                                    actionButton
+                                ]).draw(false);
+                            });
+                        })
+                        .catch(error => {
+                            console.error('There has been a problem with your fetch operation:', error);
+                            alert(
+                                'Failed to load grades. Check the developer console for more details.'
+                            );
+                        });
                 }
-            }
+            });
+
+            // This part updates the hidden input for your import form
+            $('#section-filter').on('change', function() {
+                const sectionId = $(this).val();
+                const form = $('#importClassRecordForm');
+
+                if (sectionId) {
+                    form.find('input[name="section_id"]').val(sectionId);
+                    let urlTemplate =
+                        "{{ route('teacher.report-card.upload', ['section_id' => ':section_id']) }}";
+                    let newUrl = urlTemplate.replace(':section_id', sectionId);
+                    form.attr('action', newUrl);
+                }
+            });
         });
     </script>
 @endpush

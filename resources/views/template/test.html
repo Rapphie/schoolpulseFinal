@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Report Card - {{ $student['name'] }}</title>
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; font-size: 10.5pt; margin: 0; padding: 0; }
+        .page { width: 8.5in; height: 13in; padding: 0.5in; margin: auto; box-sizing: border-box; }
+        .header, .sub-header { text-align: center; line-height: 1.2; }
+        .header-title { font-weight: bold; }
+        .logo { position: absolute; left: 1.2in; top: 0.6in; width: 0.75in; }
+        .info-table, .grades-table, .values-table, .attendance-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .info-table td { padding: 2px 5px; }
+        .grades-table th, .grades-table td, .values-table th, .values-table td, .attendance-table th, .attendance-table td { border: 1px solid black; padding: 4px; text-align: center; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        .section-title { text-align: center; font-weight: bold; margin-top: 15px; margin-bottom: 5px; }
+        .signature-line { border-top: 1px solid black; text-align: center; }
+        .mt-20 { margin-top: 20px; }
+        .mt-40 { margin-top: 40px; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Department_of_Education_Seal.svg/1200px-Department_of_Education_Seal.svg.png" class="logo" alt="DepEd Logo">
+        <div class="header">
+            Republic of the Philippines<br>
+            Department of Education<br>
+            <span class="header-title">Region XI</span><br>
+            <span class="header-title">Division of {{ $headers['division'] ?? 'Panabo City' }}</span>
+        </div>
+        <div class="sub-header mt-20">
+            <span class="header-title">LEARNER'S PROGRESS REPORT CARD</span><br>
+            School Year: {{ $headers['school_year'] ?? '2025-2026' }}
+        </div>
+
+        <table class="info-table mt-20">
+            <tr>
+                <td class="text-left">Name: <span class="font-bold">{{ $student['name'] }}</span></td>
+                <td class="text-left">LRN: <span class="font-bold">________________</span></td>
+            </tr>
+            <tr>
+                <td class="text-left">Age: <span class="font-bold">________________</span></td>
+                <td class="text-left">Grade & Section: <span class="font-bold">{{ $headers['grade_section'] ?? '________________' }}</span></td>
+            </tr>
+            <tr>
+                <td class="text-left">Sex: <span class="font-bold">________________</span></td>
+                <td></td>
+            </tr>
+        </table>
+
+        <p class="mt-20">
+            Dear Parent/Guardian,<br>
+            This report card shows the ability and progress your child has made in the different learning areas as well as his/her progress in character development. The school welcomes you should you desire to know more about your child's progress.
+        </p>
+
+        @php
+            $allFinalGrades = [];
+        @endphp
+        <div class="section-title">REPORT ON LEARNING PROGRESS AND ACHIEVEMENT</div>
+        <table class="grades-table">
+            <thead>
+                <tr>
+                    <th rowspan="2">Learning Areas</th>
+                    <th colspan="4">Quarter</th>
+                    <th rowspan="2">Final Grade</th>
+                    <th rowspan="2">Remarks</th>
+                </tr>
+                <tr>
+                    <th>1</th>
+                    <th>2</th>
+                    <th>3</th>
+                    <th>4</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($student['gradesBySubject'] as $subjectName => $grades)
+                    @php
+                        $q1 = $grades->where('quarter', '1')->first()->grade ?? null;
+                        $q2 = $grades->where('quarter', '2')->first()->grade ?? null;
+                        $q3 = $grades->where('quarter', '3')->first()->grade ?? null;
+                        $q4 = $grades->where('quarter', '4')->first()->grade ?? null;
+                        
+                        $gradesForAverage = array_filter([$q1, $q2, $q3, $q4]);
+                        $finalGrade = !empty($gradesForAverage) ? round(array_sum($gradesForAverage) / count($gradesForAverage)) : null;
+                        if ($finalGrade !== null) $allFinalGrades[] = $finalGrade;
+                        $remarks = $finalGrade !== null ? ($finalGrade >= 75 ? 'Passed' : 'Failed') : '';
+                    @endphp
+                    <tr>
+                        <td class="text-left">{{ $subjectName }}</td>
+                        <td>{{ $q1 }}</td>
+                        <td>{{ $q2 }}</td>
+                        <td>{{ $q3 }}</td>
+                        <td>{{ $q4 }}</td>
+                        <td class="font-bold">{{ $finalGrade }}</td>
+                        <td class="font-bold">{{ $remarks }}</td>
+                    </tr>
+                @endforeach
+                {{-- Placeholder for other subjects not in the excel file --}}
+                <tr><td colspan="7" class="text-left font-bold" style="background-color: #e0e0e0;"></td></tr>
+                <tr><td class="text-left">General Average</td>
+                    <td colspan="4"></td>
+                    @php
+                        $generalAverage = !empty($allFinalGrades) ? round(array_sum($allFinalGrades) / count($allFinalGrades)) : null;
+                        $generalRemarks = $generalAverage !== null ? ($generalAverage >= 75 ? 'Passed' : 'Failed') : '';
+                    @endphp
+                    <td class="font-bold">{{ $generalAverage }}</td>
+                    <td class="font-bold">{{ $generalRemarks }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {{-- The sections below are included for formatting but have no data source from your Excel file. --}}
+        
+        <div class="section-title mt-20">REPORT ON LEARNER'S OBSERVED VALUES</div>
+        <table class="values-table">
+            <thead>
+                <tr>
+                    <th rowspan="2">Core Values</th>
+                    <th rowspan="2">Behavior Statements</th>
+                    <th colspan="4">Quarter</th>
+                </tr>
+                 <tr>
+                    <th>1</th>
+                    <th>2</th>
+                    <th>3</th>
+                    <th>4</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td rowspan="2">1. Maka-diyos</td>
+                    <td class="text-left">Expresses one's spiritual beliefs...</td>
+                    <td></td><td></td><td></td><td></td>
+                </tr>
+                <tr>
+                    <td class="text-left">Shows adherence to ethical principles...</td>
+                    <td></td><td></td><td></td><td></td>
+                </tr>
+                {{-- Add other values rows similarly --}}
+            </tbody>
+        </table>
+
+        <div class="section-title mt-20">ATTENDANCE RECORD</div>
+        <table class="attendance-table">
+            <thead>
+                <tr>
+                    <th>Month</th><th>Jun</th><th>Jul</th><th>Aug</th><th>Sep</th><th>Oct</th><th>Nov</th><th>Dec</th><th>Jan</th><th>Feb</th><th>Mar</th><th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>No. of School Days</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>No. of Days Present</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>No. of Days Absent</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            </tbody>
+        </table>
+
+    </div>
+</body>
+</html>

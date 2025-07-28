@@ -11,6 +11,9 @@
                     <li class="breadcrumb-item active" aria-current="page">Add Teacher</li>
                 </ol>
             </nav>
+            <a href="{{ route('admin.teachers.index') }}"
+                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-decoration-none">Back to
+                Teachers</a>
         </div>
 
         <div class="card shadow mb-4">
@@ -45,15 +48,15 @@
                     </div>
                     <div class="col-md-6">
                         <label for="date_of_birth" class="form-label">Date of Birth</label>
-                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth">
+                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
                     </div>
                     <div class="col-12">
                         <label for="address" class="form-label">Address</label>
-                        <input type="text" class="form-control" id="address" name="address">
+                        <input type="text" class="form-control" id="address" name="address" required>
                     </div>
                     <div class="col-md-6">
                         <label for="qualification" class="form-label">Qualification</label>
-                        <input type="text" class="form-control" id="qualification" name="qualification">
+                        <input type="text" class="form-control" id="qualification" name="qualification" required>
                     </div>
                     <div class="col-md-6">
                         <label for="status" class="form-label">Status</label>

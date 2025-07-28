@@ -88,14 +88,7 @@
 <body>
 
     <div class="report-card-container">
-        <!-- Section 1: Header -->
-        <div class="text-center">
-            <p class="text-sm">Republic of the Philippines</p>
-            <p class="font-bold text-sm">Department of Education</p>
-            <p class="text-sm">REGION XI</p>
-            <p class="text-sm">[District]</p>
-            <p class="font-bold text-sm">[School]</p>
-        </div>
+
 
         <!-- Section 2: Main Body (Two-Column Layout) -->
         <div class="flex flex-grow space-x-6 mt-4">
@@ -103,28 +96,38 @@
             <!-- LEFT COLUMN -->
             <div class="w-1/2 flex flex-col">
                 <!-- Student Info Table -->
+                <!-- Section 1: Header -->
+                <div class="text-center">
+                    <p class="text-sm">Republic of the Philippines</p>
+                    <p class="font-bold text-sm">Department of Education</p>
+                    <p class="text-sm">REGION XI</p>
+                    <p class="text-sm"> PANABO CITY</p>
+                    <p class="font-bold text-sm">STA. CRUZ ELEM. SCHOOL</p>
+                </div>
+
                 <table class="text-xs">
                     <tr>
                         <td>Name:</td>
-                        <td class="font-bold" colspan="3" id="studentName">[Student Name]</td>
+                        <td class="font-bold" colspan="3" id="studentName">{{ $student['name'] }}</td>
                     </tr>
                     <tr>
                         <td>Age:</td>
-                        <td class="font-bold">[Age]</td>
+                        <td class="font-bold"></td>
                         <td class="pl-4">Sex:</td>
-                        <td class="font-bold">[Sex]</td>
+                        <td class="font-bold">{{ $student['gender'] }}</td>
                     </tr>
                     <tr>
                         <td>Grade:</td>
-                        <td class="font-bold">[Grade]</td>
+                        <td class="font-bold">">{{ $student['grade'] }}</td>
                         <td class="pl-4">Section:</td>
-                        <td class="font-bold">[Section]</td>
+                        <td class="font-bold">DAGOHOY</td>
                     </tr>
                     <tr>
                         <td>LRN:</td>
-                        <td class="font-bold">[LRN]</td>
+                        <td class="font-bold">466060150011
+                        </td>
                         <td class="pl-4">School Year:</td>
-                        <td class="font-bold">[2024-2025]</td>
+                        <td class="font-bold">2025-2026</td>
                     </tr>
                 </table>
 
@@ -137,11 +140,11 @@
 
                 <div class="flex justify-between mt-2 text-xs">
                     <div class="w-1/2 text-center pt-4">
-                        <p class="border-bottom font-bold">[Head Teacher Name]</p>
+                        <p class="border-bottom font-bold"></p>
                         <p>Head Teacher III</p>
                     </div>
                     <div class="w-1/2 text-center pt-4">
-                        <p class="border-bottom font-bold">[Emilyn S. Abasolo]</p>
+                        <p class="border-bottom font-bold">Christian S. Plasabas</p>
                         <p>Adviser</p>
                     </div>
                 </div>
@@ -165,26 +168,17 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="subject">Filipino</td>
-                                <td class="text-center grade">88</td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject">English</td>
-                                <td class="text-center grade">90</td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
                                 <td class="subject">Mathematics</td>
-                                <td class="text-center grade">85</td>
+                                <td class="text-center grade">79</td>
+                                <td class="text-center">80</td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                            </tr>
+                            <tr>
+                                <td class="subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -192,8 +186,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="subject">Science and Health</td>
-                                <td class="text-center grade">87</td>
+                                <td class="subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -201,8 +195,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="subject">Araling Panlipunan (AP)</td>
-                                <td class="text-center grade">86</td>
+                                <td class="subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -210,8 +204,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="subject">Edukasyon sa Pagpapakatao EsP</td>
-                                <td class="text-center grade">92</td>
+                                <td class="subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -219,8 +213,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="subject">EPP/TLE</td>
-                                <td class="text-center grade">84</td>
+                                <td class="subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -228,8 +222,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="font-bold subject">MAPEH</td>
-                                <td class="text-center grade">88</td>
+                                <td class="subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -237,8 +231,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="pl-4 subject">Music</td>
-                                <td class="text-center grade">89</td>
+                                <td class="font-bold subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -246,8 +240,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="pl-4 subject">Arts</td>
-                                <td class="text-center grade">87</td>
+                                <td class="pl-4 subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -255,8 +249,8 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="pl-4 subject">Physical Education</td>
-                                <td class="text-center grade">90</td>
+                                <td class="pl-4 subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -264,8 +258,17 @@
                                 <td class="text-center"></td>
                             </tr>
                             <tr>
-                                <td class="pl-4 subject">Health</td>
-                                <td class="text-center grade">86</td>
+                                <td class="pl-4 subject"></td>
+                                <td class="text-center grade"></td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                                <td class="text-center"></td>
+                            </tr>
+                            <tr>
+                                <td class="pl-4 subject"></td>
+                                <td class="text-center grade"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
                                 <td class="text-center"></td>
@@ -317,6 +320,51 @@
                         </tr>
                     </tbody>
                 </table>
+                <div class="mt-auto pt-4 text-xs">
+                    <p class="font-bold text-center">Certificate of Transfer</p>
+                    <table class="mt-1">
+                        <tbody>
+                            <tr>
+                                <td class="w-[15%]">Admitted in Grade:</td>
+                                <td class="w-[35%]"></td>
+                                <td class="w-[10%] pl-4">Section:</td>
+                                <td class="w-[40%]"></td>
+                            </tr>
+                            <tr>
+                                <td class="pt-2">Eligibility for Admission to Grade:</td>
+                                <td class="pt-2" colspan="3"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p class="mt-1">Approved:</p>
+                    <div class="flex justify-between mt-2">
+                        <div class="w-1/2 text-center pt-2">
+                            <p class="border-bottom font-bold"></p>
+                            <p>HEAD TEACHER III</p>
+                        </div>
+                        <div class="w-1/2 text-center pt-2">
+                            <p class="border-bottom font-bold">Christian S. Plasabas</p>
+                            <p>Teacher</p>
+                        </div>
+                    </div>
+                    <p class="mt-2 font-bold">Cancellation of Eligibility to Transfer</p>
+                    <table class="mt-1">
+                        <tbody>
+                            <tr>
+                                <td class="w-[15%]">Admitted in:</td>
+                                <td class="w-[35%]"></td>
+                                <td class="w-[10%] pl-4">Date:</td>
+                                <td class="w-[40%]"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="flex justify-end mt-2">
+                        <div class="w-1/2 text-center pt-2">
+                            <p class="border-bottom font-bold"></p>
+                            <p>HEAD TEACHER III</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- RIGHT COLUMN -->
@@ -344,48 +392,48 @@
                         <tbody>
                             <tr>
                                 <td class="text-xs">No. of School Days</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
+                                <td>30</td>
+                                <td>31</td>
+                                <td>31</td>
+                                <td>30</td>
+                                <td>31</td>
+                                <td>30</td>
+                                <td>31</td>
+                                <td>28</td>
+                                <td>31</td>
+                                <td>31</td>
+                                <td>30</td>
+                                <td>334</td>
                             </tr>
                             <tr>
                                 <td class="text-xs">No. of Days Present</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
+                                <td>0</td>
+                                <td>1</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>1</td>
                             </tr>
                             <tr>
                                 <td class="text-xs">No. of Days Absent</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
+                                <td>0</td>
                             </tr>
                         </tbody>
                     </table>
@@ -493,53 +541,14 @@
         </div>
 
         <!-- Section 3: Footer -->
-        <div class="mt-auto pt-4 text-xs">
-            <p class="font-bold text-center">Certificate of Transfer</p>
-            <table class="mt-1">
-                <tbody>
-                    <tr>
-                        <td class="w-[15%]">Admitted in Grade:</td>
-                        <td class="w-[35%]"></td>
-                        <td class="w-[10%] pl-4">Section:</td>
-                        <td class="w-[40%]"></td>
-                    </tr>
-                    <tr>
-                        <td class="pt-2">Eligibility for Admission to Grade:</td>
-                        <td class="pt-2" colspan="3"></td>
-                    </tr>
-                </tbody>
-            </table>
-            <p class="mt-1">Approved:</p>
-            <div class="flex justify-between mt-2">
-                <div class="w-1/2 text-center pt-2">
-                    <p class="border-bottom font-bold">[Head Teacher Name]</p>
-                    <p>HEAD TEACHER III</p>
-                </div>
-                <div class="w-1/2 text-center pt-2">
-                    <p class="border-bottom font-bold">[Emilyn S. Abasolo]</p>
-                    <p>Teacher</p>
-                </div>
-            </div>
-            <p class="mt-2 font-bold">Cancellation of Eligibility to Transfer</p>
-            <table class="mt-1">
-                <tbody>
-                    <tr>
-                        <td class="w-[15%]">Admitted in:</td>
-                        <td class="w-[35%]"></td>
-                        <td class="w-[10%] pl-4">Date:</td>
-                        <td class="w-[40%]"></td>
-                    </tr>
-                </tbody>
-            </table>
-            <div class="flex justify-end mt-2">
-                <div class="w-1/2 text-center pt-2">
-                    <p class="border-bottom font-bold">[Head Teacher Name]</p>
-                    <p>HEAD TEACHER III</p>
-                </div>
-            </div>
-        </div>
-    </div>
 
+    </div>
+    <script>
+        // Wait for the entire page to load before triggering the print dialog
+        window.onload = function() {
+            window.print();
+        };
+    </script>
 </body>
 
 </html>

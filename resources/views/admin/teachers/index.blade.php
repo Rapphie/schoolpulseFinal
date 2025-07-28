@@ -422,12 +422,12 @@
     <div class="card shadow mb-4">
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered" id="teachersTable" width="100%" cellspacing="0">
+                <table class="table table-hover" id="teachersTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
                             <th>Profile</th>
                             <th>Name</th>
-                            <th>Advisory</th>
+                            <th>Advisories</th>
                             <th>Contact</th>
                             <th>Subjects</th>
                             <th>Status</th>
@@ -436,86 +436,89 @@
                     </thead>
                     <tbody>
                         @forelse ($teachers as $teacher)
-                            <tr>
-                                <td class="align-middle">
-                                    @if ($teacher->profile_picture)
-                                        <img src="{{ asset('storage/' . $teacher->profile_picture) }}"
+                            @if ($teacher->user)
+                                <tr>
+                                    <td class="align-middle">
+                                        <img src="{{ $teacher->user->profile_picture ? asset('storage/' . $teacher->user->profile_picture) : asset('images/user-placeholder.png') }}"
                                             class="rounded-circle" style="width: 40px; height: 40px;" alt="Teacher">
-                                    @else
-                                        <img src="{{ asset('images/user-placeholder.png') }}" class="rounded-circle"
-                                            style="width: 40px; height: 40px;" alt="Teacher">
-                                    @endif
-                                </td>
-                                <td class="align-middle">
-                                    <span class="fw-bold">{{ $teacher->full_name }}</span>
-                                </td>
-                                <td class="align-middle">
-                                    @if ($teacher->sectionsAdvised()->exists())
-                                        @php
-                                            $advisories = $teacher->sectionsAdvised->map(function ($section) {
-                                                return $section->grade_level_id . ' - ' . $section->name;
-                                            });
-                                            $advisoryText = $advisories->implode(', ');
-                                            $advisoryList =
-                                                '<ul>' .
-                                                $advisories->map(fn($val) => '<li>' . $val . '</li>')->implode('') .
-                                                '</ul>';
-                                        @endphp
-                                        <div class="advisory-orb" data-bs-toggle="popover" data-bs-trigger="hover"
-                                            data-bs-html="true" data-bs-content="{{ $advisoryList }}"
-                                            title="Advisory Classes">
-                                            {{ $advisoryText }}
+                                    </td>
+                                    <td class="align-middle">
+                                        <span class="fw-bold">{{ $teacher->user->full_name }}</span>
+                                    </td>
+                                    <td class="align-middle">
+                                        @if ($teacher->classes->isNotEmpty())
+                                            @php
+                                                $advisories = $teacher->classes->map(function ($class) {
+                                                    return optional($class->section->gradeLevel)->name .
+                                                        '-' .
+                                                        optional($class->section)->name;
+                                                });
+                                                $advisoryText = $advisories->implode(', ');
+                                                $advisoryList =
+                                                    '<ul>' .
+                                                    $advisories
+                                                        ->map(fn($val) => '<li>' . e($val) . '</li>')
+                                                        ->implode('') .
+                                                    '</ul>';
+                                            @endphp
+                                            <div class="advisory-orb" data-bs-toggle="popover" data-bs-trigger="hover"
+                                                data-bs-html="true" data-bs-content="{{ $advisoryList }}"
+                                                title="Advisory Classes">
+                                                {{ $advisoryText }}
+                                            </div>
+                                        @else
+                                            <span class="badge bg-secondary">No Advisory</span>
+                                        @endif
+                                    </td>
+                                    <td class="align-middle">
+                                        <div><i data-feather="mail" class="feather-sm me-1"></i> {{ $teacher->user->email }}
                                         </div>
-                                    @else
-                                        <span class="badge bg-secondary">No Advisory</span>
-                                    @endif
-                                </td>
-                                <td class="align-middle">
-                                    <div><i data-feather="mail" class="feather-sm me-1"></i> {{ $teacher->email }}
-                                    </div>
-                                    <div><i data-feather="phone" class="feather-sm me-1"></i> (555) 111-2233</div>
-                                </td>
-                                <td class="align-middle">
-                                    @if ($teacher->subjects()->exists())
-                                        @foreach ($teacher->subjects->unique() as $subject)
+                                        <div><i data-feather="phone" class="feather-sm me-1"></i>
+                                            {{ $teacher->phone ?? 'N/A' }}</div>
+                                    </td>
+                                    <td class="align-middle">
+                                        @forelse ($teacher->subjects->unique() as $subject)
                                             <span class="badge bg-info text-dark">{{ $subject->name }}</span>
-                                        @endforeach
-                                    @else
-                                        <span class="badge bg-secondary">No Subjects Assigned</span>
-                                    @endif
-                                </td>
-                                <td class="align-middle">
-                                    <span class="badge bg-success">Active</span>
-                                </td>
-                                <td class="align-middle">
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-sm btn-outline-primary btn-message" data-bs-toggle="tooltip"
-                                            data-bs-placement="top" title="Send Message"
-                                            data-email="maria.clara@school.edu">
-                                            <i data-feather="mail"></i>
-                                        </button>
-                                        <a href="{{ route('admin.teachers.edit', $teacher) }}"
-                                            class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip"
-                                            data-bs-placement="top" title="Edit Teacher">
-                                            <i data-feather="edit-2"></i>
-                                        </a>
-                                        <button class="btn btn-sm btn-outline-danger deleteTeacherBtn"
-                                            data-bs-toggle="modal" data-bs-target="#deleteConfirmationModal"
-                                            data-teacher-id="{{ $teacher->id }}" data-bs-placement="top"
-                                            title="Delete Teacher">
-                                            <i data-feather="trash-2"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                        @endforelse
+                                        @empty
+                                            <span class="badge bg-secondary">No Subjects</span>
+                                        @endforelse
+                                    </td>
+                                    <td class="align-middle">
+                                        <span
+                                            class="badge {{ $teacher->status == 'active' ? 'bg-success' : 'bg-danger' }}">{{ $teacher->status }}</span>
+                                    </td>
+                                    <td class="align-middle">
+                                        <div class="d-flex gap-2">
 
+                                            <a href="{{ route('admin.teachers.edit', $teacher->user) }}"
+                                                class="btn btn-sm btn-outline-success" title="Edit">
+                                                <i data-feather="edit-2"></i>
+                                            </a>
+                                            <form action="{{ route('admin.teachers.destroy', $teacher->id) }}"
+                                                method="POST" class="mx-1"
+                                                onsubmit="return confirm('Are you sure you want to delete this subject?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-danger btn-sm"
+                                                    data-bs-toggle="tooltip" title="Delete">
+                                                    <i data-feather="trash-2"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endif
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center">No teachers found.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+
 
     <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel"
@@ -693,7 +696,7 @@
             // Handle delete button click
             $('.deleteTeacherBtn').on('click', function() {
                 const teacherId = $(this).data('teacher-id');
-                $('#deleteTeacherForm').attr('action', `/admin/teachers/delete=${teacherId}`);
+                $('#deleteTeacherForm').attr('action', `/admin/teachers/destroy=${teacherId}`);
             });
         });
 

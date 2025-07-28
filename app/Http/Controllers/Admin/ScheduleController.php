@@ -8,6 +8,8 @@ use App\Models\Schedule;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Models\Classes;
+use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 
 class ScheduleController extends Controller
@@ -17,39 +19,44 @@ class ScheduleController extends Controller
      */
     public function index()
     {
-        $schedules = Schedule::with(['section', 'subject', 'teacher'])->get();
+        $activeSchoolYear = SchoolYear::active()->first();
         $events = [];
-        $subjectColors = [];
-        $colorPalette = ['#4C51BF', '#6B46C1', '#9F7AEA', '#ED64A6', '#F56565', '#ED8936', '#ECC94B', '#48BB78', '#38B2AC', '#4299E1'];
-        $colorIndex = 0;
 
-        foreach ($schedules as $schedule) {
-            if (!isset($subjectColors[$schedule->subject_id])) {
-                $subjectColors[$schedule->subject_id] = $colorPalette[$colorIndex % count($colorPalette)];
-                $colorIndex++;
+        if ($activeSchoolYear) {
+            $schedules = Schedule::whereHas('class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })->with(['class.section.gradeLevel', 'subject', 'teacher.user'])->get();
+
+            foreach ($schedules as $schedule) {
+                $daysOfWeek = $schedule->day_of_week;
+                if (!is_array($daysOfWeek)) continue;
+
+                $dayNumbers = array_map(fn($day) => $this->dayToNumber($day), $daysOfWeek);
+
+                $subjectName = $schedule->subject?->name ?? 'No Subject';
+                $teacherName = $schedule->teacher?->user ? $schedule->teacher->user->first_name . ' ' . $schedule->teacher->user->last_name : 'No Teacher';
+                $sectionName = $schedule->class?->section?->name ?? 'No Section';
+
+                $events[] = [
+                    'title' => $subjectName,
+                    'startTime' => $schedule->start_time->format('H:i:s'),
+                    'endTime' => $schedule->end_time->format('H:i:s'),
+                    'daysOfWeek' => $dayNumbers,
+                    'allDay' => false,
+                    'extendedProps' => [
+                        'section' => $sectionName,
+                        'subject' => $subjectName,
+                        'teacher' => $teacherName,
+                        'room' => $schedule->room,
+                    ],
+                ];
             }
-
-            $daysOfWeek = is_array($schedule->day_of_week) ? $schedule->day_of_week : [$schedule->day_of_week];
-            $days = array_map([$this, 'dayToNumber'], $daysOfWeek);
-            $teacherName = $schedule->teacher && $schedule->teacher->user ? $schedule->teacher->user->name : 'No Teacher';
-
-            $events[] = [
-                'title' => $schedule->subject->name . ' - ' . $teacherName,
-                'startTime' => $schedule->start_time,
-                'endTime' => $schedule->end_time,
-                'daysOfWeek' => $days,
-                'url' => route('admin.schedules.show', $schedule),
-                'extendedProps' => [
-                    'section' => $schedule->section->name,
-                    'subject' => $schedule->subject->name,
-                    'teacher' => $teacherName,
-                    'room' => $schedule->room,
-                ],
-                'backgroundColor' => $subjectColors[$schedule->subject_id],
-                'borderColor' => $subjectColors[$schedule->subject_id],
-            ];
         }
-        return view('admin.schedules.index', ['events' => json_encode($events)]);
+
+        return view('admin.schedules.index', [
+            'events' => json_encode($events),
+            'activeSchoolYear' => $activeSchoolYear
+        ]);
     }
 
     private function dayToNumber($day)
@@ -75,31 +82,38 @@ class ScheduleController extends Controller
      */
     public function create()
     {
-        $sections = Section::all();
-        $subjects = Subject::all();
-        $teachers = Teacher::all();
-        $gradeLevels = GradeLevel::all();
-        return view('admin.schedules.create', compact('sections', 'subjects', 'teachers', 'gradeLevels'));
-    }
+        $activeSchoolYear = SchoolYear::active()->first();
+        $classes = collect();
+        if ($activeSchoolYear) {
+            $classes = Classes::where('school_year_id', $activeSchoolYear->id)->with('section.gradeLevel')->get();
+        }
 
+        $teachers = Teacher::with('user')->get();
+        $subjects = Subject::with('gradeLevel')->get();
+        $gradeLevels = GradeLevel::all();
+
+        return view('admin.schedules.create', compact('classes', 'teachers', 'subjects', 'gradeLevels'));
+    }
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'section_id' => 'required|exists:sections,id',
+        $validated = $request->validate([
+            'class_id' => 'required|exists:classes,id',
             'subject_id' => 'required|exists:subjects,id',
             'teacher_id' => 'required|exists:teachers,id',
-            'day_of_week' => 'required|array',
-            'start_time' => 'required',
-            'end_time' => 'required',
-            'room' => 'nullable|string',
+            'day_of_week' => 'required|array|min:1',
+            'day_of_week.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i|after:start_time',
+            'room' => 'nullable|string|max:255',
         ]);
 
-        Schedule::create($request->all());
+        // The 'class_id' is now correctly included in the validated data from the form.
+        Schedule::create($validated);
 
-        return redirect()->route('admin.sections.manage', $request->section_id)->with('success', 'Schedule created successfully.');
+        return redirect()->route('admin.schedules.index')->with('success', 'Schedule created successfully.');
     }
 
     /**
@@ -147,9 +161,9 @@ class ScheduleController extends Controller
      */
     public function destroy(Schedule $schedule)
     {
-        $sectionId = $schedule->section_id;
+        $classId = $schedule->class_id;
         $schedule->delete();
 
-        return redirect()->route('admin.sections.manage', $sectionId)->with('success', 'Assigned subject schedule deleted successfully.');
+        return redirect()->route('admin.sections.manage', $classId)->with('success', 'Assigned subject schedule deleted successfully.');
     }
 }

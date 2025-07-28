@@ -174,7 +174,6 @@
                                     <th>4th Quarter</th>
                                     <th>Final Grade</th>
                                     <th>Remarks</th>
-                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>

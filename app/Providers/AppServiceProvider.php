@@ -23,7 +23,9 @@ class AppServiceProvider extends ServiceProvider
     {
         View::composer('components.sidebar', function ($view) {
             $teacher_enrollment = Setting::where('key', 'teacher_enrollment')->first();
+            $school_year = Setting::where('key', 'school_year')->first();
             $view->with('teacher_enrollment_enabled', $teacher_enrollment ? $teacher_enrollment->value : false);
+            $view->with('school_year', $school_year ? $school_year->value : null);
         });
     }
 }

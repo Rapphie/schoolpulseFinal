@@ -16,19 +16,17 @@ class Attendance extends Model
     protected $fillable = [
         "student_id",
         "subject_id",
+        "teacher_id",
         "time_in",
         "status",
         "date",
         "quarter",
-        "school_year",
-        "teacher_id",
+        "school_year_id",
     ];
 
     protected $casts = [
         'date' => 'date',
-        'quarter' => 'integer',
         'time_in' => 'datetime',
-        'status' => 'string',
     ];
 
     public function subject(): BelongsTo
@@ -36,9 +34,9 @@ class Attendance extends Model
         return $this->belongsTo(Subject::class);
     }
 
-    public function user(): BelongsTo
+    public function teacher(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'teacher_id');
+        return $this->belongsTo(Teacher::class);
     }
 
     public function student(): BelongsTo

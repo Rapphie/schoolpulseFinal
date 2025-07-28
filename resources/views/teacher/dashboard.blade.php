@@ -105,7 +105,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($upcomingClasses as $class)
+                                @foreach ($upcomingSchedules as $class)
                                     <tr>
                                         <td>{{ $class->section->grade_level_id ?? 'N/A' }}</td>
                                         <td>{{ $class->section->name ?? 'N/A' }}</td>
@@ -226,14 +226,6 @@
                                             <div class="legend-item me-3">
                                                 <span class="badge rounded-circle bg-primary">&nbsp;</span>
                                                 <span class="small">Regular Class</span>
-                                            </div>
-                                            <div class="legend-item me-3">
-                                                <span class="badge rounded-circle bg-success">&nbsp;</span>
-                                                <span class="small">Quiz</span>
-                                            </div>
-                                            <div class="legend-item me-3">
-                                                <span class="badge rounded-circle bg-warning">&nbsp;</span>
-                                                <span class="small">Exam</span>
                                             </div>
                                             <div class="legend-item">
                                                 <span class="badge rounded-circle bg-danger">&nbsp;</span>

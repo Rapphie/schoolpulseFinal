@@ -15,19 +15,15 @@ class LLCItem extends Model
 
     protected $fillable = [
         "llc_id",
-        "teacher_id"
+        "item_number",
+        "students_wrong",
+        "category_name",
+        "item_start",
+        "item_end"
     ];
 
-    public function student(): HasMany
+    public function llc(): BelongsTo
     {
-        return $this->hasMany(Student::class);
-    }
-    public function subject(): HasMany
-    {
-        return $this->hasMany(Subject::class);
-    }
-    public function teacher(): HasMany
-    {
-        return $this->hasMany(Teacher::class);
+        return $this->belongsTo(LLC::class);
     }
 }

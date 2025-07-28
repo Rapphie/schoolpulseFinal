@@ -18,18 +18,6 @@ class Subject extends Model
     ];
 
 
-    public function sections()
-    {
-        return $this->belongsToMany(Section::class, 'subject_teacher_section')->withPivot('teacher_id');
-    }
-
-    public function teachers()
-    {
-        return $this->belongsToMany(Teacher::class, 'subject_teacher_section', 'subject_id', 'teacher_id')
-            ->withPivot('section_id')
-            ->withTimestamps()
-            ->distinct();
-    }
 
     public function schedules()
     {

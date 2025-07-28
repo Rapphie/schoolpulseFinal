@@ -16,15 +16,14 @@ class Grade extends Model
     protected $fillable = [
         'student_id',
         'subject_id',
+        'teacher_id',
+        'school_year_id',
         'grade',
         'quarter',
-        'school_year',
-        'teacher_id'
     ];
 
     protected $casts = [
         'grade' => 'float',
-        'quarter' => 'integer',
     ];
 
     public function student(): BelongsTo
@@ -37,13 +36,8 @@ class Grade extends Model
         return $this->belongsTo(Subject::class);
     }
 
-    public function user(): BelongsTo
+    public function teacher(): BelongsTo
     {
-        return $this->belongsTo(User::class);
-    }
-
-    public function getScorePercentageAttribute()
-    {
-        return ($this->grade / $this->max_score) * 100;
+        return $this->belongsTo(Teacher::class);
     }
 }

@@ -130,29 +130,12 @@
                         <span>Settings</span>
                     </a>
                 </li> --}}
-                <li class="nav-item mb-3 dropdown position-static w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.settings.*') ? 'active' : 'link-dark' }} dropdown-toggle"
-                        href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown"
-                        aria-expanded="false" style="width: 100%;">
-                        <i data-feather="settings" class="me-2"></i>
+                <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.settings') ? 'active' : 'link-dark' }}"
+                        href="{{ route('admin.settings.index') }}" style="width: 100%;">
+                        <i class="me-2" data-feather="settings"></i>
                         <span>System Settings</span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="settingsDropdown">
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center"
-                                href="{{ route('reports.enrollees') }}">
-                                <i class="me-2" data-feather="calendar"></i>
-                                <span>School Year</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item d-flex align-items-center"
-                                href="{{ route('admin.settings.index') }}">
-                                <i class="me-2" data-feather="check-circle"></i>
-                                <span>General Settings</span>
-                            </a>
-                        </li>
-                    </ul>
                 </li>
             </ul>
         @elseif (Auth::check() && Auth::user()->hasRole('teacher'))
@@ -200,14 +183,14 @@
                 <li class="nav-item mb-3">
                     <a class="nav-link {{ request()->routeIs('teacher.grades*') ? 'active' : 'link-dark' }} d-flex align-items-center"
                         href="{{ route('teacher.grades') }}">
-                        <i data-feather="award"></i>
+                        <i class="me-1" data-feather="award"></i>
                         <span>Grades</span>
                     </a>
                 </li>
 
                 <li class="nav-item mb-3 w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('llc') ? 'active' : 'link-dark' }}"
-                        href="{{ route('llc') }}" style="width: 100%;">
+                        href="{{ route('teacher.least-learned.index') }}" style="width: 100%;">
                         <i data-feather="bar-chart-2" class="me-2"></i>
                         <span>Least Learned</span>
                     </a>
@@ -234,8 +217,17 @@
                                 <span>Attendance Records</span>
                             </a>
                         </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ route('teacher.attendance.pattern') }}">
+                                <i data-feather="bar-chart"></i>
+                                <span>Attendance Pattern</span>
+                            </a>
+                        </li>
                     </ul>
                 </li>
+                <li>
+            </ul>
+            </li>
             </ul>
         @endif
     </div>

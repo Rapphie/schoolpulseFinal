@@ -11,7 +11,8 @@ class SettingController extends Controller
     public function index()
     {
         $teacher_enrollment = Setting::where('key', 'teacher_enrollment')->first();
-        return view('admin.settings.index', compact('teacher_enrollment'));
+        $school_year = Setting::where('key', 'school_year')->first();
+        return view('admin.settings.index', compact('teacher_enrollment', 'school_year'));
     }
 
     public function update(Request $request)
@@ -19,6 +20,11 @@ class SettingController extends Controller
         Setting::updateOrCreate(
             ['key' => 'teacher_enrollment'],
             ['value' => $request->has('teacher_enrollment')]
+        );
+
+        Setting::updateOrCreate(
+            ['key' => 'school_year'],
+            ['value' => $request->input('school_year')]
         );
 
         return back()->with('success', 'Settings updated successfully.');

@@ -105,4 +105,10 @@ class SubjectController extends Controller
                 ->with('error', 'An unexpected error occurred.');
         }
     }
+
+    public function getSubjectsByGradeLevel($gradeLevel)
+    {
+        $subjects = Subject::where('grade_level_id', $gradeLevel)->get();
+        return response()->json($subjects);
+    }
 }

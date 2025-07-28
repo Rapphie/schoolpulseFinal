@@ -10,6 +10,9 @@ use App\Models\Grade;
 use App\Models\Student;
 use App\Models\Attendance;
 use App\Models\Subject;
+use App\Models\Setting;
+use App\Models\Enrollment;
+use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -17,45 +20,7 @@ use PhpParser\Node\Stmt\TryCatch;
 
 class AdminController extends Controller
 {
-    public function dashboard()
-    {
-        return view('admin.dashboard');
-    }
 
-    public function getChartData(Request $request)
-    {
-        $schoolYear = $request->query('school_year', 'current'); // Default to 'current'
-
-        // Enrollment Chart Data (Students per Grade Level)
-        $enrollmentData = Student::select(DB::raw('COUNT(*) as count'), 'grade_levels.name as grade_level_name')
-            ->join('sections', 'students.section_id', '=', 'sections.id')
-            ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->groupBy('grade_level_name')
-            ->orderBy('grade_level_name')
-            ->get();
-
-        $enrollmentChart = [
-            'labels' => $enrollmentData->pluck('grade_level_name')->toArray(),
-            'data' => $enrollmentData->pluck('count')->toArray(),
-        ];
-
-        // Class Distribution Chart Data (Sections per Grade Level)
-        $classDistributionData = Section::select(DB::raw('COUNT(*) as count'), 'grade_levels.name as grade_level_name')
-            ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->groupBy('grade_level_name')
-            ->orderBy('grade_level_name')
-            ->get();
-
-        $classDistributionChart = [
-            'labels' => $classDistributionData->pluck('grade_level_name')->toArray(),
-            'data' => $classDistributionData->pluck('count')->toArray(),
-        ];
-
-        return response()->json([
-            'enrollmentChart' => $enrollmentChart,
-            'classDistributionChart' => $classDistributionChart,
-        ]);
-    }
     // Teachers Management
 
     /**
@@ -63,9 +28,11 @@ class AdminController extends Controller
      */
     public function teachers()
     {
-        $teachers = User::whereHas('role', function ($query) {
+        $teacherUsers = User::whereHas('role', function ($query) {
             $query->where('id', '2');
         })->get();
+
+        $teachers = Teacher::where('user_id', $teacherUsers);
 
         return view('admin.teachers.index', compact('teachers'));
     }
@@ -190,7 +157,7 @@ class AdminController extends Controller
 
     public function unassignSubject(Request $request, Teacher $teacher)
     {
-        DB::table('subject_teacher_section')
+        DB::table('classes')
             ->where('teacher_id', $teacher->id)
             ->where('subject_id', $request->input('subject_id'))
             ->where('section_id', $request->input('section_id'))
@@ -262,7 +229,18 @@ class AdminController extends Controller
     public function enrolleesReport()
     {
         $sections = Section::withCount('students')->get();
-        return view('admin.reports.enrollees', compact('sections'));
+
+        $enrollmentTrends = Student::select(
+            DB::raw('YEAR(enrollment_date) as enrollment_year'),
+            'status',
+            DB::raw('COUNT(*) as count')
+        )
+            ->groupBy('enrollment_year', 'status')
+            ->orderBy('enrollment_year', 'asc')
+            ->orderBy('status', 'asc')
+            ->get();
+
+        return view('admin.reports.enrollees', compact('sections', 'enrollmentTrends'));
     }
 
     /**
@@ -275,7 +253,7 @@ class AdminController extends Controller
             ->paginate(10);
 
         // Setup additional data for charts and stats
-        $todayPresentCount = Attendance::whereDate(now())
+        $todayPresentCount = Attendance::whereDate('created_at', now()->toDateString())
             ->where('status', 'present')
             ->count();
 

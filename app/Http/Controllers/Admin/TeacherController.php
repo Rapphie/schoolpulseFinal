@@ -4,11 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Models\Subject;
 use App\Models\Section;
+use App\Models\Classes;
+use App\Models\Schedule;
+use App\Models\SchoolYear;
 use App\Mail\WelcomeEmail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -29,12 +34,15 @@ class TeacherController extends Controller
 
     public function index()
     {
-        $teachers = User::whereHas('role', function ($query) {
-            $query->where('name', 'teacher');
-        })
-            ->withCount('subjects')
-            ->latest()
-            ->get();
+        // Fetch all teachers and eagerly load the relationships needed by the view.
+        // This is the most efficient way to get the data.
+        $teachers = Teacher::with([
+            'user',
+            'subjects',
+            'classes.section.gradeLevel'
+        ])->get();
+        // dd($teachers);
+
         $sections = Section::all();
         $subjects = Subject::all();
 
@@ -56,6 +64,8 @@ class TeacherController extends Controller
      */
     public function store(Request $request)
     {
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -66,45 +76,52 @@ class TeacherController extends Controller
             'address' => 'required|string',
             'qualification' => 'required|string',
             'status' => 'required|string',
-            'section_id' => 'nullable|exists:sections,id',
+            'section_id' => 'nullable|integer',
         ]);
+        DB::beginTransaction();
+        try {
+            $password = strtolower($validated['first_name']) . strtolower(substr($validated['last_name'], 0, 1)) . date('Y');
 
-        $password = strtolower($validated['first_name']) . strtolower(substr($validated['last_name'], 0, 1)) . date('Y');
+            // Create user first
+            $user = User::create([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($password),
+                'profile_picture' => $request->file('profile_picture') ? $request->file('profile_picture')->store('teachers/profile-pictures', 'public') : null,
+                'role_id' => 2,
+            ]);
 
-        // Create user first
-        $user = User::create([
-            'first_name' => $validated['first_name'],
-            'last_name' => $validated['last_name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($password),
-            'profile_picture' => $request->file('profile_picture') ? $request->file('profile_picture')->store('teachers/profile-pictures', 'public') : null,
-            'role_id' => 2,
-        ]);
+            // Create teacher record associated with the user
+            $teacher = $user->teacher()->create([
+                'phone' => $validated['phone'],
+                'gender' => $validated['gender'],
+                'date_of_birth' => $validated['date_of_birth'],
+                'address' => $validated['address'],
+                'qualification' => $validated['qualification'],
+                'status' => $validated['status'],
+            ]);
 
-        // Create teacher record associated with the user
-        $teacher = $user->teacher()->create([
-            'phone' => $validated['phone'],
-            'gender' => $validated['gender'],
-            'date_of_birth' => $validated['date_of_birth'],
-            'address' => $validated['address'],
-            'qualification' => $validated['qualification'],
-            'status' => $validated['status'],
-        ]);
-
-        // Handle advisory class assignment
-        if ($request->filled('section_id')) {
-            $section = Section::find($validated['section_id']);
-            if ($section) {
-                $section->teacher_id = $teacher->id;
-                $section->save();
+            if (!empty($validated['section_id'])) {
+                $class = Classes::firstOrCreate(
+                    [
+                        'section_id' => $validated['section_id'],
+                        'school_year_id' => $activeSchoolYear->id,
+                    ]
+                );
+                $class->update(['teacher_id' => $teacher->id]);
             }
+
+
+            Mail::to($user->email)->send(new WelcomeEmail($user, $password));
+            DB::commit();
+            return redirect()->route('admin.teachers.index')
+                ->with('success', 'Teacher created successfully.');
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'An error has occured failed to save Teacher' . $th->getMessage());
         }
-
-        // Send welcome email
-        Mail::to($user->email)->send(new WelcomeEmail($user, $password));
-
-        return redirect()->route('admin.teachers.index')
-            ->with('success', 'Teacher created successfully.');
     }
 
     /**
@@ -123,11 +140,28 @@ class TeacherController extends Controller
      */
     public function edit(User $teacher)
     {
-        $subjects = Subject::all();
-        $sections = Section::all();
-        $teacher->load('subjects');
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
 
-        return view('admin.teachers.edit', compact('teacher', 'subjects', 'sections'));
+        $advisoryClasses = collect();
+        $scheduledSubjects = collect();
+        $teacher_id = $teacher->teacher;
+
+        if ($activeSchoolYear) {
+            $advisoryClasses = Classes::where('teacher_id', $teacher_id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->with('section.gradeLevel')
+                ->get();
+
+            // Get the schedule entries for this teacher for the active year
+            $scheduledSubjects = Schedule::where('teacher_id', $teacher_id)
+                ->with('class.section', 'subject')
+                ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                    $query->where('school_year_id', $activeSchoolYear->id);
+                })
+                ->get();
+        }
+
+        return view('admin.teachers.edit', compact('teacher', 'advisoryClasses', 'scheduledSubjects'));
     }
 
     /**
@@ -152,73 +186,62 @@ class TeacherController extends Controller
             'address' => 'nullable|string',
             'qualification' => 'nullable|string',
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'subjects' => 'nullable|array',
-            'subjects.*.id' => 'required|exists:subjects,id',
-            'subjects.*.section_id' => 'required|exists:sections,id',
         ]);
-
-        // Extract subjects from validated data to handle separately
-        $subjects = [];
-        if (isset($validated['subjects'])) {
-            $subjects = collect($validated['subjects'])->mapWithKeys(function ($item) {
-                return [$item['id'] => ['section_id' => $item['section_id']]];
-            })->toArray();
-            unset($validated['subjects']);
-        }
-
-        // Handle file upload
-        if ($request->hasFile('profile_picture')) {
-            // Delete old profile picture if exists
-            if ($teacher->profile_picture) {
-                Storage::disk('public')->delete($teacher->profile_picture);
+        try {
+            // Handle file upload
+            if ($request->hasFile('profile_picture')) {
+                // Delete old profile picture if exists
+                if ($teacher->profile_picture) {
+                    Storage::disk('public')->delete($teacher->profile_picture);
+                }
+                $path = $request->file('profile_picture')->store('teachers/profile-pictures', 'public');
+                $validated['profile_picture'] = $path;
             }
-            $path = $request->file('profile_picture')->store('teachers/profile-pictures', 'public');
-            $validated['profile_picture'] = $path;
+
+            // Update password if provided
+            if (empty($validated['password'])) {
+                unset($validated['password']);
+            } else {
+                $validated['password'] = Hash::make($validated['password']);
+            }
+
+            $validated['is_active'] = $request->has('is_active');
+
+            // Update the teacher record
+            $teacher->update($validated);
+
+            return redirect()->route('admin.teachers.index', $teacher)
+                ->with('success', 'Teacher updated successfully.');
+        } catch (\Throwable $th) {
+            return redirect()->back()->with('error', "Failed to update teacher" . $th->getMessage());
         }
-
-        // Update password if provided
-        if (empty($validated['password'])) {
-            unset($validated['password']);
-        } else {
-            $validated['password'] = Hash::make($validated['password']);
-        }
-
-        $validated['is_active'] = $request->has('is_active');
-
-        // Update the teacher record
-        $teacher->update($validated);
-
-        // Sync subjects
-        if ($subjects !== null) {
-            $teacher->subjects()->sync($subjects);
-        } else {
-            $teacher->subjects()->detach();
-        }
-
-        return redirect()->route('admin.teachers.show', $teacher)
-            ->with('success', 'Teacher updated successfully.');
     }
 
     /**
      * Remove the specified teacher from storage.
      */
-    public function destroy(User $teacher)
+    public function destroy(Teacher $teacher)
     {
-        try {
-            if ($teacher->profile_picture) {
-                Storage::disk('public')->delete($teacher->profile_picture);
-            }
+        // dd($teacher);
+        DB::transaction(function () use ($teacher) {
+            // Get the associated user before deleting the teacher
+            $user = $teacher->user;
 
+            // First, delete the teacher record.
+            // The database schema should handle setting teacher_id to null in related tables.
             $teacher->delete();
-            return back()
-                ->with('success', 'Teacher deleted successfully.');
-        } catch (\Illuminate\Database\QueryException $e) {
-            return back()
-                ->with('error', 'An unexpected error occurred.');
-        } catch (\Throwable $th) {
-            return back()
-                ->with('error', $th);
-        }
+
+            // Then, delete the user record.
+            if ($user) {
+                if ($user->profile_picture) {
+                    Storage::disk('public')->delete($user->profile_picture);
+                }
+                $user->delete();
+            }
+        });
+
+        return redirect()->route('admin.teachers.index')
+            ->with('success', 'Teacher deleted successfully.');
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Grade;
+use App\Models\Teacher;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -14,6 +15,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\EnrolleesExport;
 use App\Exports\AttendanceExport;
 use App\Exports\GradesExport;
+use Illuminate\Support\Facades\Auth;
+use App\Models\Schedule;
 
 class ReportController extends Controller
 {
@@ -308,8 +311,13 @@ class ReportController extends Controller
 
     public function leastLearned()
     {
-        // Implementation for least learned competencies report
-        return view('admin.reports.least_learned');
+        $userId = Auth::id();
+        $teacherId = Teacher::where('user_id', $userId)->value('id');
+        $schedules = Schedule::where('teacher_id', $teacherId)
+            ->where(['section_id', 'subject_id'])
+            ->get();
+
+        return view('admin.reports.least_learned', compact('schedules'));
     }
 
 

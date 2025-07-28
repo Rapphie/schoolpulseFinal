@@ -17,8 +17,9 @@
                 <span data-feather="user"></span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end text-small shadow" aria-labelledby="userDropdown">
-                <li><a class="dropdown-item" href="{{ url('/profile') }}">Profile</a></li>
-                <li><a class="dropdown-item" href="{{ url('/admin/settings') }}">Settings</a></li>
+                @if (Auth::user()->role === 'admin')
+                    <li><a class="dropdown-item" href="{{ url('/admin/settings') }}">Settings</a></li>
+                @endif
                 <li>
                     <hr class="dropdown-divider">
                 </li>
