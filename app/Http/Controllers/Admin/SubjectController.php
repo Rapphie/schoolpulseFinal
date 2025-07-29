@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Subject;
 use App\Models\GradeLevel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SubjectController extends Controller
 {
@@ -32,19 +34,35 @@ class SubjectController extends Controller
      */
     public function store(Request $request)
     {
+        // Validate the incoming request
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:subjects,code',
-            'description' => 'nullable|string',
             'grade_level_id' => 'required|exists:grade_levels,id',
+            'subjects'       => 'required|array|min:1',
+            'subjects.*.name' => 'required|string|max:255',
+            'subjects.*.code' => 'required|string|max:100',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
+        try {
+            DB::beginTransaction();
 
-        Subject::create($validated);
+            $gradeLevelId = $validated['grade_level_id'];
 
-        return redirect()->route('admin.subjects.index')
-            ->with('success', 'Subject created successfully.');
+            foreach ($validated['subjects'] as $subjectData) {
+                Subject::create([
+                    'name'           => $subjectData['name'],
+                    'code'           => $subjectData['code'],
+                    'grade_level_id' => $gradeLevelId,
+                    'is_active'      => true, // Default to active
+                ]);
+            }
+
+            DB::commit();
+            return redirect()->route('admin.subjects.index')->with('success', 'Subjects added successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error adding subjects: ' . $e->getMessage());
+            return back()->with('error', 'An error occurred while adding subjects. Please try again.');
+        }
     }
 
     /**
@@ -73,7 +91,7 @@ class SubjectController extends Controller
             'code' => 'required|string|max:50|unique:subjects,code,' . $subject->id,
             'description' => 'nullable|string',
             'grade_level_id' => 'required|exists:grade_levels,id',
-            
+
         ]);
 
         $validated['is_active'] = $request->has('is_active');
