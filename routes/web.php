@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\ScheduleController;
+use App\Http\Controllers\Admin\GradeLevelController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\PromotionController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
@@ -102,7 +103,7 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
                 Route::get('/{section}/data', [SectionController::class, 'getSectionData'])->name('data');
                 Route::get('/{section}/manage', [SectionController::class, 'manage'])->name('manage');
                 Route::put('/{section}', [SectionController::class, 'update'])->name('update');
-                Route::delete('/{section}', [SectionController::class, 'destroy'])->name('destroy');
+                Route::delete('/destroy/{class}', [SectionController::class, 'destroy'])->name('destroy');
 
                 // Section Students
                 Route::post('/sections/students/{section}', [SectionController::class, 'addStudent'])->name('students.store');
@@ -131,6 +132,7 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
 
             // Schedules
             Route::resource('schedules', ScheduleController::class);
+            Route::resource('grade-levels', GradeLevelController::class);
         });
     });
 
@@ -139,10 +141,12 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
     Route::group(['middleware' => 'role:teacher'], function () {
 
         Route::prefix('teacher')->name('teacher.')->group(function () {
+            Route::get('/enrollment/export-all', [EnrollmentController::class, 'exportAll'])
+                ->name('enrollment.exportAll');
             Route::post('enrollment/store-past-student', [App\Http\Controllers\Teacher\EnrollmentController::class, 'storePastStudent'])->name('enrollment.storePastStudent');
             Route::prefix('classes/assessments')->name('assessments.')->group(function () {
+                Route::get('/list', [AssessmentController::class, 'list'])->name('list');
                 Route::get('/{class}', [AssessmentController::class, 'index'])->name('index');
-
                 // Form to create a new assessment
                 Route::get('/create/{class}', [AssessmentController::class, 'create'])->name('create');
 
@@ -161,6 +165,8 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
 
             Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
             Route::get('/enrollment', [EnrollmentController::class, 'index'])->name('enrollment.index');
+            Route::get('enrollment/export', [EnrollmentController::class, 'export'])->name('enrollment.export');
+            Route::get('enrollment/class/{class}', [EnrollmentController::class, 'getEnrollmentsByClass'])->name('enrollment.class');
             // School-Wide Enrollment Routes for Teachers
             Route::post('/enrollment', [EnrollmentController::class, 'store'])->name('enrollment.store');
 
@@ -181,10 +187,6 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
             Route::get('/report-card/{student}', [ReportCardController::class, 'showReportCard'])
                 ->name('report-card.show');
 
-            Route::prefix('gradebook')->name('teacher.gradebook.')->group(function () {
-                Route::get('/quiz', [TeacherDashboardController::class, 'gradebookQuiz'])->name('quiz');
-                Route::get('/exam', [TeacherDashboardController::class, 'gradebookExam'])->name('exam');
-            });
 
             // CORRECTED: Removed the redundant ->name('teacher.least-learned.')
             Route::prefix('least-learned')->name('least-learned.')->group(function () {
@@ -198,8 +200,11 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
                 Route::post('/scan', [TeacherDashboardController::class, 'scanAttendance'])->name('scan');
                 Route::get('/get-students', [TeacherDashboardController::class, 'getStudents'])->name('get-students');
                 Route::post('/save', [TeacherDashboardController::class, 'saveAttendance'])->name('save');
-                Route::delete('/{id}/delete', [TeacherDashboardController::class, 'deleteAttendanceRecord'])->name('delete');
+                Route::put('/{id}/delete', [TeacherDashboardController::class, 'updateAttendance'])->name('update');
+                Route::delete('/{id}/delete', [TeacherDashboardController::class, 'destroyAttendance'])->name('delete');
+                Route::delete('/', [TeacherDashboardController::class, 'getAttendanceSummary'])->name('summary');
                 Route::get('/pattern', [\App\Http\Controllers\Teacher\AttendanceController::class, 'attendancePattern'])->name('pattern');
+                Route::get('/export', [\App\Http\Controllers\Teacher\AttendanceController::class, 'exportAttendancePattern'])->name('pattern.export');
             });
 
             Route::get('/report-cards', [ReportCardController::class, 'index'])->name('report-cards');

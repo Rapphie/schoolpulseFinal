@@ -14,7 +14,7 @@
                 </ol>
             </nav>
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h4>Assessments for {{ $class->section->grade_level_id }} - {{ $class->section->name }}</h4>
+                <h4>Assessments for Grade-{{ $class->section->grade_level_id }} Section-{{ $class->section->name }}</h4>
                 <a href="{{ route('teacher.assessments.create', $class) }}" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Create New Assessment
                 </a>

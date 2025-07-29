@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 use App\Mail\AbsentAlertMail;
 
 class TeacherDashboardController extends Controller
@@ -156,17 +157,26 @@ class TeacherDashboardController extends Controller
                 $colorIndex++;
             }
 
-            $daysOfWeek = is_array($schedule->day_of_week) ? $schedule->day_of_week : [$schedule->day_of_week];
+            $daysOfWeekRaw = $schedule->day_of_week;
+
+            if (is_string($daysOfWeekRaw)) {
+                $decoded = json_decode($daysOfWeekRaw, true);
+                $daysOfWeek = is_array($decoded) ? $decoded : [$daysOfWeekRaw];
+            } else {
+                $daysOfWeek = is_array($daysOfWeekRaw) ? $daysOfWeekRaw : [$daysOfWeekRaw];
+            }
             $days = array_map([$this, 'dayToNumber'], $daysOfWeek);
 
+            // dd($days, $schedule->start_time);
             $events[] = [
                 'title' => $schedule->subject->name,
-                'startTime' => $schedule->start_time,
-                'endTime' => $schedule->end_time,
+                'startTime' => $schedule->start_time->format('H:i:s'),
+                'endTime' => $schedule->end_time->format('H:i:s'),
                 'daysOfWeek' => $days,
                 'url' => route('admin.schedules.show', $schedule),
+                'allDay' => false,
                 'extendedProps' => [
-                    'section' => $schedule->section->name,
+                    'section' => $schedule->class->section->name,
                     'subject' => $schedule->subject->name,
                     'room' => $schedule->room,
                 ],
@@ -344,7 +354,7 @@ class TeacherDashboardController extends Controller
             ->get();
 
         // Get unique sections (classes) from the schedules
-        $sections = $schedules->pluck('class.section')->unique('id');
+        $sections = $schedules->pluck('class')->unique('id');
 
         return view('teacher.attendance.take', compact('sections', 'teacherId'));
     }
@@ -354,34 +364,42 @@ class TeacherDashboardController extends Controller
         $userId = Auth::id();
         $teacherId = Teacher::where('user_id', $userId)->value('id');
 
-        // Get grouped attendance records by date, section, and subject
+        // Fetch individual attendance records
         $attendanceRecords = Attendance::where('attendances.teacher_id', $teacherId)
-
             ->join('students', 'attendances.student_id', '=', 'students.id')
-            ->join('classes', 'students.class_id', '=', 'classes.id')
+            ->join('classes', 'attendances.class_id', '=', 'classes.id')
+            ->join('sections', 'classes.section_id', '=', 'sections.id')
             ->join('subjects', 'attendances.subject_id', '=', 'subjects.id')
             ->select(
+                'attendances.id',
                 'attendances.date',
-                'classes.name as class_name',
+                'attendances.status',
+                'students.first_name',
+                'students.last_name',
+                'sections.name as section_name',
                 'subjects.name as subject_name',
-                'subjects.id as subject_id',
-                'sections.id as section_id',
-                DB::raw('COUNT(CASE WHEN attendances.status = "present" THEN 1 END) as present_count'),
-                DB::raw('COUNT(CASE WHEN attendances.status = "late" THEN 1 END) as late_count'),
-                DB::raw('COUNT(CASE WHEN attendances.status = "absent" THEN 1 END) as absent_count'),
-                DB::raw('COUNT(CASE WHEN attendances.status = "excused" THEN 1 END) as excused_count'),
-                DB::raw('MIN(attendances.id) as id')
+                'attendances.class_id'
             )
-            ->groupBy('attendances.date', 'sections.name', 'subjects.name', 'subjects.id', 'sections.id')
             ->orderBy('attendances.date', 'desc')
+            ->orderBy('students.last_name', 'asc')
             ->get();
 
+        // Get all subjects and sections for the filter dropdowns
         $subjects = Subject::all();
         $sections = Section::all();
 
-        return view('teacher.attendance.records', compact('subjects', 'sections', 'attendanceRecords'));
-    }
+        // Get the classes assigned to the logged-in teacher for the summary modal
+        $teacherClasses = Classes::where('teacher_id', $teacherId)
+            ->with('section') // Eager load the section for display
+            ->get();
 
+        return view('teacher.attendance.records', compact(
+            'subjects',
+            'sections',
+            'attendanceRecords',
+            'teacherClasses'
+        ));
+    }
     /**
      * Delete attendance record
      */
@@ -414,7 +432,7 @@ class TeacherDashboardController extends Controller
     public function getStudents(Request $request)
     {
         $request->validate([
-            'section_id' => 'required|exists:sections,id',
+            'section_id' => 'required',
             'subject_id' => 'required|exists:subjects,id',
             'date' => 'required|date',
         ]);
@@ -423,22 +441,28 @@ class TeacherDashboardController extends Controller
         $subject = Subject::findOrFail($request->subject_id);
         $date = $request->date;
 
-        $class =
-            // Get schedule for this section and subject if available
-            $schedule = Schedule::where([
-                'class_id' => $section->id,
-                'subject_id' => $subject->id,
-            ])->first();
+        $activeSchoolYear = SchoolYear::active()->first();
 
-        // Get all students enrolled in this section (via enrollments and classes)
-        $students = Student::whereIn('id', function ($query) use ($section) {
+        if (!$activeSchoolYear) {
+            return response()->json(['message' => 'No active school year found.'], 400);
+        }
+
+        // Get the class for this section and active school year
+        $class = Classes::where('section_id', $section->id)
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->firstOrFail();
+
+        // Get schedule for this class and subject if available
+        $schedule = Schedule::where([
+            'class_id' => $class->id,
+            'subject_id' => $subject->id,
+        ])->first();
+
+        // Get all students enrolled in this class
+        $students = Student::whereIn('id', function ($query) use ($class) {
             $query->select('student_id')
                 ->from('enrollments')
-                ->where('class_id', function ($subQuery) use ($section) {
-                    $subQuery->select('id')
-                        ->from('classes')
-                        ->where('section_id', $section->id);
-                });
+                ->where('class_id', $class->id);
         })->get();
 
         // Get existing attendance records for this section, subject and date
@@ -482,7 +506,7 @@ class TeacherDashboardController extends Controller
     {
         $request->validate([
             'bar_code' => 'required|string',
-            'section_id' => 'required|exists:sections,id',
+            'section_id' => 'required',
             'subject_id' => 'required|exists:subjects,id',
             'date' => 'required|date',
         ]);
@@ -507,12 +531,19 @@ class TeacherDashboardController extends Controller
             ], 400);
         }
 
+        $activeSchoolYear = SchoolYear::active()->first();
+
+        if (!$activeSchoolYear) {
+            return response()->json(['message' => 'No active school year found.'], 400);
+        }
+
         // Create or update attendance record
         $attendance = Attendance::updateOrCreate(
             [
                 'student_id' => $student->id,
                 'subject_id' => $request->subject_id,
-                'date' => $request->date
+                'date' => $request->date,
+                'school_year_id' => $activeSchoolYear->id,
             ],
             [
                 'status' => 'present',
@@ -534,14 +565,13 @@ class TeacherDashboardController extends Controller
     public function saveAttendance(Request $request)
     {
         $request->validate([
-            'section_id' => 'required|exists:sections,id',
+            'section_id' => 'required',
             'subject_id' => 'required|exists:subjects,id',
             'date' => 'required|date',
             'quarter' => 'required|string', // Accept string (e.g., '1st Quarter')
             'status' => 'required|array',
             'remarks' => 'nullable|array',
         ]);
-
         $userId = Auth::id();
         $teacherId = Teacher::where('user_id', $userId)->value('id');
 
@@ -554,12 +584,26 @@ class TeacherDashboardController extends Controller
 
             $remarks = $request->remarks[$studentId] ?? null;
 
+            $activeSchoolYear = SchoolYear::active()->first();
+
+            if (!$activeSchoolYear) {
+                return response()->json(['message' => 'No active school year found.'], 400);
+            }
+
+            $activeSchoolYear = SchoolYear::active()->first();
+
+            if (!$activeSchoolYear) {
+                return response()->json(['message' => 'No active school year found.'], 400);
+            }
+
             Attendance::updateOrCreate(
                 [
                     'student_id' => $studentId,
                     'subject_id' => $request->subject_id,
+                    'class_id' => $request->section_id,
                     'date' => $request->date,
-                    'quarter' => $request->quarter
+                    'quarter' => $request->quarter,
+                    'school_year_id' => $activeSchoolYear->id,
                 ],
                 [
                     'status' => $status,
@@ -644,5 +688,39 @@ class TeacherDashboardController extends Controller
         dd($grades);
         // This returns the simple list of grades that the new table structure needs
         return response()->json($grades);
+    }
+
+    public function updateAttendance(Request $request, $id)
+    {
+        // Validate the incoming request
+        $request->validate([
+            'status' => ['required', \Illuminate\Validation\Rule::in(['present', 'late', 'absent', 'excused'])],
+        ]);
+
+        // Find the attendance record
+        $attendance = Attendance::findOrFail($id);
+
+        // Update the status
+        $attendance->status = $request->input('status');
+        $attendance->save();
+
+        // Redirect back with a success message
+        return redirect()->route('teacher.attendance.records')->with('success', 'Attendance record updated successfully.');
+    }
+
+    /**
+     * Remove the specified attendance record from storage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function destroyAttendance($id)
+    {
+        // Find and delete the attendance record
+        $attendance = Attendance::findOrFail($id);
+        $attendance->delete();
+
+        // Redirect back with a success message
+        return redirect()->route('teacher.attendance.records')->with('success', 'Attendance record deleted successfully.');
     }
 }

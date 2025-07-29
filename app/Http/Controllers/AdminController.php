@@ -33,7 +33,6 @@ class AdminController extends Controller
         })->get();
 
         $teachers = Teacher::where('user_id', $teacherUsers);
-
         return view('admin.teachers.index', compact('teachers'));
     }
     /**

@@ -122,37 +122,44 @@
                 <div class="modal-body">
                     <form id="addSubjectForm" action="{{ route('admin.subjects.store') }}" method="POST">
                         @csrf
-                        <div class="mb-3">
-                            <label for="name" class="form-label">Subject Name <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="name" name="name" required>
-                            <div class="invalid-feedback" id="name_error"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="code" class="form-label">Subject Code <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="code" name="code" required>
-                            <div class="invalid-feedback" id="code_error"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="description" class="form-label">Description(optional)</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                            <div class="invalid-feedback" id="description_error"></div>
-                        </div>
+                        {{-- Step 1: Select Grade Level --}}
                         <div class="mb-3">
                             <label for="grade_level_id" class="form-label">Assign to Grade Level <span
                                     class="text-danger">*</span></label>
                             <select class="form-control" id="grade_level_id" name="grade_level_id" required>
-                                <option value="">Select Grade Level</option>
+                                <option value="" disabled selected>-- Select a Grade Level --</option>
                                 @foreach ($gradeLevels as $gradeLevel)
                                     <option value="{{ $gradeLevel->id }}">{{ $gradeLevel->name }}</option>
                                 @endforeach
                             </select>
                             <div class="invalid-feedback" id="grade_level_id_error"></div>
                         </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="is_active" name="is_active" checked>
-                            <label class="form-check-label" for="is_active">Active</label>
+
+                        <hr>
+
+                        {{-- Step 2: Add Subjects --}}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">Subject Entries</h6>
+                            <button type="button" id="add-subject-entry-btn"
+                                class="btn btn-sm btn-outline-primary d-flex align-items-center">
+                                <i data-feather="plus" class="me-1 feather-sm"></i> Add Row
+                            </button>
+                        </div>
+
+                        <div id="subject-entries-container">
+                            <div class="row subject-entry mb-2">
+                                <div class="col-md-5">
+                                    <input type="text" name="subjects[0][name]" class="form-control"
+                                        placeholder="Subject Name" required>
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="text" name="subjects[0][code]" class="form-control"
+                                        placeholder="Subject Code" required>
+                                </div>
+                                <div class="col-md-2">
+                                    {{-- The first row doesn't have a remove button --}}
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -265,6 +272,7 @@
             </div>
         </div>
     </div>
+
 @endsection
 
 @push('scripts')
@@ -273,6 +281,31 @@
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            let subjectIndex = 1; // Start index for new rows, since 0 is already in the HTML
+
+            $('#add-subject-entry-btn').on('click', function() {
+                const newEntryHtml = `
+                    <div class="row subject-entry mb-2">
+                        <div class="col-md-5">
+                            <input type="text" name="subjects[${subjectIndex}][name]" class="form-control" placeholder="Subject Name" required>
+                        </div>
+                        <div class="col-md-5">
+                            <input type="text" name="subjects[${subjectIndex}][code]" class="form-control" placeholder="Subject Code" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-danger btn-sm remove-subject-entry-btn w-100">Remove</button>
+                        </div>
+                    </div>
+                `;
+                $('#subject-entries-container').append(newEntryHtml);
+                subjectIndex++; // Increment index for the next row
+            });
+
+            // Use event delegation to handle remove button clicks
+            $('#subject-entries-container').on('click', '.remove-subject-entry-btn', function() {
+                $(this).closest('.subject-entry').remove();
+            });
+
             // Ensure only one modal is open at a time
             $('.modal').on('show.bs.modal', function() {
                 $('.modal').not(this).modal('hide');

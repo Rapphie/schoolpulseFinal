@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Assessment;
 use App\Models\AssessmentScore;
 use App\Models\Classes;
+use App\Models\SchoolYear;
 use App\Models\Teacher;
 use App\Models\Student;
 use Illuminate\Http\Request;
@@ -31,36 +32,65 @@ class AssessmentController extends Controller
         return view('teacher.assessments.create', compact('class', 'subjects'));
     }
 
+    public function list()
+    {
+        $teacher = Auth::user()->teacher;
+        $activeSchoolYear = SchoolYear::active()->first();
+
+        if (!$activeSchoolYear) {
+            return view('teacher.classes')->with('error', 'No active school year has been set.');
+        }
+
+        // 1. Get IDs of classes where the teacher is the adviser
+        $advisoryClassIds = $teacher->advisoryClasses()
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->pluck('id');
+
+        // 2. Get IDs of classes where the teacher has a schedule
+        $scheduledClassIds = $teacher->schedules()
+            ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+            ->pluck('class_id');
+
+        // 3. Merge and get unique IDs, then fetch the full Class models
+        $allClassIds = $advisoryClassIds->merge($scheduledClassIds)->unique();
+
+        $classes = Classes::whereIn('id', $allClassIds)
+            ->with(['section.gradeLevel', 'teacher.user', 'enrollments']) // Eager load needed data
+            ->get()
+            ->sortBy('section.gradeLevel.level');
+
+        return view('teacher.assessments.list', compact('classes', 'teacher'));
+    }
     /**
      * Store a new assessment in the database.
      */
     public function store(Request $request, Classes $class)
     {
-        // $userId = Auth::id();
-        // $teacher = Teacher::where('user_id', $userId)->first();
-        // // Check if the authenticated user is actually a teacher
-        // if (!$teacher) {
-        //     return redirect()->back()->with('error', 'You must be a registered teacher to create assessments.');
-        // }
-        // $request->validate([
-        //     'subject_id' => 'required|exists:subjects,id',
-        //     'name' => 'required|string|max:255',
-        //     'type' => 'required|in:quiz,exam,assignment,project,performance_task',
-        //     'max_score' => 'required|numeric|min:1',
-        //     'quarter' => 'required|integer|in:1,2,3,4',
-        //     'assessment_date' => 'required|date',
-        // ]);
+        $userId = Auth::id();
+        $teacher = Teacher::where('user_id', $userId)->first();
+        // Check if the authenticated user is actually a teacher
+        if (!$teacher) {
+            return redirect()->back()->with('error', 'You must be a registered teacher to create assessments.');
+        }
+        $request->validate([
+            'subject_id' => 'required|exists:subjects,id',
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:quiz,exam,assignment,project,performance_task',
+            'max_score' => 'required|numeric|min:1',
+            'quarter' => 'required|integer|in:1,2,3,4',
+            'assessment_date' => 'required|date',
+        ]);
 
-        // $class->assessments()->create([
-        //     'subject_id' => $request->subject_id,
-        //     'teacher_id' => $teacher->id,
-        //     'school_year_id' => $class->school_year_id,
-        //     'name' => $request->name,
-        //     'type' => $request->type,
-        //     'max_score' => $request->max_score,
-        //     'quarter' => $request->quarter,
-        //     'assessment_date' => $request->assessment_date,
-        // ]);
+        $class->assessments()->create([
+            'subject_id' => $request->subject_id,
+            'teacher_id' => $teacher->id,
+            'school_year_id' => $class->school_year_id,
+            'name' => $request->name,
+            'type' => $request->type,
+            'max_score' => $request->max_score,
+            'quarter' => $request->quarter,
+            'assessment_date' => $request->assessment_date,
+        ]);
 
         return redirect()->route('teacher.assessments.index', $class)->with('success', 'Assessment created successfully.');
     }

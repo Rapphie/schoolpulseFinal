@@ -41,13 +41,12 @@
                                         <hr class="dropdown-divider">
                                     </li>
 
-                                    @foreach ($sections as $section)
+                                    @foreach ($sections as $class)
                                         <li>
                                             <span class="dropdown-item section-option" style="cursor:pointer;"
-                                                data-id="{{ $section->id }}">
-                                                {{ 'Grade ' . ($section->grade_level_id ?? 'Error') }} -
-                                                {{ $section->name
-                                                }}
+                                                data-id="{{ $class->section->id }}">
+                                                {{ 'Grade ' . ($class->section->grade_level_id ?? 'Error') }} -
+                                                {{ $class->section->name }}
                                             </span>
                                         </li>
                                     @endforeach

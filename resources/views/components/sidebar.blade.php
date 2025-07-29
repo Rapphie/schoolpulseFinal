@@ -24,7 +24,7 @@
                 <li class="nav-item mb-3 w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.grade-levels.*') ? 'active' : 'link-dark' }}"
                         href="{{ route('admin.grade-levels.index') }}" style="width: 100%;">
-                        <i data-feather="home" class="me-2"></i>
+                        <i data-feather="layers" class="me-2"></i>
                         <span>Grade Levels</span>
                     </a>
                 </li>
@@ -186,14 +186,38 @@
                         </a>
                     </li>
                 @endif
+                <li class="nav-item mb-3 dropdown position-static w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.assessments.*') || request()->routeIs('teacher.grades*') ? 'active' : 'link-dark' }} dropdown-toggle"
+                        href="#" id="gradebookDropdown" role="button" data-bs-toggle="dropdown"
+                        aria-expanded="false" style="width: 100%;">
+                        <i data-feather="book" class="me-2"></i>
+                        <span>Gradebook</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="gradebookDropdown"
+                        style="min-width: 200px; left: 100%; top: 0; position: fixed; z-index: 999; overflow: auto; max-height: 80vh;">
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('teacher.assessments.list') }}">
+                                <i data-feather="edit-3" class="me-1"></i>
+                                <span>Assessment</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{{ route('teacher.grades') }}">
+                                <i data-feather="award" class="me-1"></i>
+                                <span>Grades</span>
+                            </a>
+                        </li>
 
-                <li class="nav-item mb-3">
+                    </ul>
+                </li>
+                {{-- <li class="nav-item mb-3">
                     <a class="nav-link {{ request()->routeIs('teacher.grades*') ? 'active' : 'link-dark' }} d-flex align-items-center"
                         href="{{ route('teacher.grades') }}">
                         <i class="me-1" data-feather="award"></i>
                         <span>Grades</span>
                     </a>
-                </li>
+                </li> --}}
 
                 <li class="nav-item mb-3 w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('llc') ? 'active' : 'link-dark' }}"
@@ -213,20 +237,23 @@
                     <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="attendanceDropdown"
                         style="min-width: 200px; left: 100%; top: 0; position: fixed; z-index: 999; overflow: auto; max-height: 80vh;">
                         <li>
-                            <a class="dropdown-item" href="{{ route('teacher.attendance.take') }}">
-                                <i data-feather="edit"></i>
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('teacher.attendance.take') }}">
+                                <i data-feather="edit" class="me-1"></i>
                                 <span>Take Attendance</span>
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item" href="{{ route('teacher.attendance.records') }}">
-                                <i data-feather="list"></i>
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('teacher.attendance.records') }}">
+                                <i data-feather="list" class="me-1"></i>
                                 <span>Attendance Records</span>
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item" href="{{ route('teacher.attendance.pattern') }}">
-                                <i data-feather="bar-chart"></i>
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('teacher.attendance.pattern') }}">
+                                <i data-feather="bar-chart" class="me-1"></i>
                                 <span>Attendance Pattern</span>
                             </a>
                         </li>

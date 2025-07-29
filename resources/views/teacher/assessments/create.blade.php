@@ -9,7 +9,7 @@
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ route('teacher.dashboard') }}">Dashboard</a></li>
                     <li class="breadcrumb-item"><a
-                            href="{{ route('teacher.classes.view', $class) }}">{{ $class->section->name }}</a></li>
+                            href="{{ route('teacher.classes.view', $class) }}">Section-{{ $class->section->name }}</a></li>
                     <li class="breadcrumb-item"><a href="{{ route('teacher.assessments.index', $class) }}">Manage
                             Assessments</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Create Assessment</li>

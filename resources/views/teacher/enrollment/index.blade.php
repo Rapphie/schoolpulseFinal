@@ -14,8 +14,12 @@
         </div>
 
         <div class="card shadow mb-4">
-            <div class="card-header py-3">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Enroll New Student</h6>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal"
+                    data-bs-target="#enrollmentModal">
+                    View My Enrollments
+                </button>
             </div>
             <div class="card-body">
                 @if (isset($error))
@@ -122,8 +126,9 @@
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label for="guardian_relationship" class="form-label">Relationship to Student <span
-                                        class="text-danger">*</span></label>
+                                <label for="guardian_relationship" class="form-label">Relationship to Student
+                                    <span
+                                        ="text-danger">*</span></label>
                                 <select class="form-select" id="guardian_relationship" name="guardian_relationship"
                                     required>
                                     <option value="parent">Parent</option>
@@ -158,7 +163,8 @@
                     </div>
                 @else
                     <div class="table-responsive">
-                        <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <table class="table table-bordered" id="previousYearStudentsTable" width="100%"
+                            cellspacing="0">
                             <thead>
                                 <tr>
                                     <th>LRN</th>
@@ -210,26 +216,115 @@
             </div>
         </div>
     </div>
+
+    <!-- Enrollment Modal -->
+    <div class="modal fade" id="enrollmentModal" tabindex="-1" role="dialog" aria-labelledby="enrollmentModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header d-flex justify-between">
+                    <div>
+                        <h5 class="modal-title" id="enrollmentModalLabel">My Enrollments</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <a href="{{ route('teacher.enrollment.exportAll') }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-file-excel"></i> Export All
+                    </a>
+                </div>
+                <div class="modal-body">
+                    @if ($teacherEnrollments->isEmpty())
+                        <div class="alert alert-info text-center">
+                            <h4 class="alert-heading">No Enrollments Found</h4>
+                            <p>You have not enrolled any students yet for the current school year.</p>
+                        </div>
+                    @else
+                        @foreach ($teacherEnrollments as $classId => $enrollments)
+                            @php
+                                $class = $enrollments->first()->class;
+                            @endphp
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                                    <h6 class="m-0 font-weight-bold text-primary">
+                                        {{ $class->section->gradeLevel->name }} - {{ $class->section->name }}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered" width="100%" cellspacing="0">
+                                            <thead>
+                                                <tr>
+                                                    <th>LRN</th>
+                                                    <th>Student Name</th>
+                                                    <th>Enrollment Date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($enrollments as $enrollment)
+                                                    <tr>
+                                                        <td>{{ $enrollment->student->lrn ?? 'N/A' }}</td>
+                                                        <td>{{ $enrollment->student->first_name }}
+                                                            {{ $enrollment->student->last_name }}</td>
+                                                        <td>{{ $enrollment->created_at->format('M d, Y') }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const classSelect = document.getElementById('class_id');
-            const formFields = document.getElementById('enrollment-form-fields');
+        < script src = "{{ asset('vendor/datatables/jquery.dataTables.min.js') }}" >
+    </script>
+    <script src="{{ asset('vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
 
-            function toggleForm() {
-                if (classSelect.value) {
-                    formFields.classList.remove('d-none');
-                } else {
-                    formFields.classList.add('d-none');
+    <script>
+        $(document).ready(function() {
+            // Initialize DataTables to add search, sort, and pagination
+            $('#previousYearStudentsTable').DataTable({
+                // This line explicitly enables the search box. It's true by default.
+                searching: true
+            });
+            document.addEventListener('DOMContentLoaded', function() {
+                const classSelect = document.getElementById('class_id');
+                const formFields = document.getElementById('enrollment-form-fields');
+
+                function toggleForm() {
+                    if (classSelect.value) {
+                        formFields.classList.remove('d-none');
+                    } else {
+                        formFields.classList.add('d-none');
+                    }
                 }
-            }
 
-            // Check on page load in case of validation errors
-            toggleForm();
+                // Check on page load in case of validation errors
+                toggleForm();
 
-            classSelect.addEventListener('change', toggleForm);
+                classSelect.addEventListener('change', toggleForm);
+
+                // Removed modalClassSelect and related AJAX call
+                // const modalClassSelect = document.getElementById('modal_class_id');
+                // const enrollmentTableContainer = document.getElementById('enrollment-table-container');
+
+                // modalClassSelect.addEventListener('change', function() {
+                //     const classId = this.value;
+                //     if (classId) {
+                //         fetch(`/teacher/enrollment/class/${classId}`)
+                //             .then(response => response.text())
+                //             .then(html => {
+                //                 enrollmentTableContainer.innerHTML = html;
+                //             });
+                //     }
+                // });
+            });
         });
     </script>
     <script src="{{ asset('vendor/datatables/jquery.dataTables.min.js') }}"></script>
