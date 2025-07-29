@@ -281,53 +281,100 @@
 @endsection
 
 @push('scripts')
-    <script>
-        < script src = "{{ asset('vendor/datatables/jquery.dataTables.min.js') }}" >
-    </script>
-    <script src="{{ asset('vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap4.min.css">
+
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap4.min.js"></script>
 
     <script>
         $(document).ready(function() {
-            // Initialize DataTables to add search, sort, and pagination
+            // Initialize DataTables for the previous year students table
             $('#previousYearStudentsTable').DataTable({
-                // This line explicitly enables the search box. It's true by default.
-                searching: true
-            });
-            document.addEventListener('DOMContentLoaded', function() {
-                const classSelect = document.getElementById('class_id');
-                const formFields = document.getElementById('enrollment-form-fields');
-
-                function toggleForm() {
-                    if (classSelect.value) {
-                        formFields.classList.remove('d-none');
-                    } else {
-                        formFields.classList.add('d-none');
+                searching: true,
+                paging: true,
+                info: true,
+                lengthChange: true,
+                pageLength: 10,
+                responsive: true,
+                // Layout configuration to ensure search box shows
+                dom: '<"row"<"col-sm-6"l><"col-sm-6"f>>' +
+                    '<"row"<"col-sm-12"tr>>' +
+                    '<"row"<"col-sm-5"i><"col-sm-7"p>>',
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search students...",
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Showing _START_ to _END_ of _TOTAL_ students",
+                    infoEmpty: "No students found",
+                    infoFiltered: "(filtered from _MAX_ total students)",
+                    zeroRecords: "No matching students found",
+                    paginate: {
+                        first: "First",
+                        last: "Last",
+                        next: "Next",
+                        previous: "Previous"
                     }
+                },
+                columnDefs: [{
+                        orderable: false,
+                        targets: [3]
+                    }, // Disable sorting on Action column
+                    {
+                        width: "15%",
+                        targets: [0]
+                    }, // LRN column
+                    {
+                        width: "30%",
+                        targets: [1]
+                    }, // Student Name column
+                    {
+                        width: "25%",
+                        targets: [2]
+                    }, // Grade column
+                    {
+                        width: "30%",
+                        targets: [3]
+                    } // Action column
+                ],
+                order: [
+                    [1, 'asc']
+                ], // Default sort by Student Name
+                initComplete: function() {
+                    console.log('DataTable initialized successfully');
+                    // Style the search input
+                    $('.dataTables_filter input').addClass('form-control form-control-sm');
+                    $('.dataTables_filter input').css({
+                        'width': '250px',
+                        'display': 'inline-block'
+                    });
+                    $('.dataTables_length select').addClass('form-control form-control-sm');
+                    $('.dataTables_length select').css({
+                        'width': 'auto',
+                        'display': 'inline-block'
+                    });
                 }
-
-                // Check on page load in case of validation errors
-                toggleForm();
-
-                classSelect.addEventListener('change', toggleForm);
-
-                // Removed modalClassSelect and related AJAX call
-                // const modalClassSelect = document.getElementById('modal_class_id');
-                // const enrollmentTableContainer = document.getElementById('enrollment-table-container');
-
-                // modalClassSelect.addEventListener('change', function() {
-                //     const classId = this.value;
-                //     if (classId) {
-                //         fetch(`/teacher/enrollment/class/${classId}`)
-                //             .then(response => response.text())
-                //             .then(html => {
-                //                 enrollmentTableContainer.innerHTML = html;
-                //             });
-                //     }
-                // });
             });
+
+            // Form toggle functionality
+            const classSelect = document.getElementById('class_id');
+            const formFields = document.getElementById('enrollment-form-fields');
+
+            function toggleForm() {
+                if (classSelect && classSelect.value) {
+                    formFields.classList.remove('d-none');
+                } else if (formFields) {
+                    formFields.classList.add('d-none');
+                }
+            }
+
+            // Check on page load in case of validation errors
+            toggleForm();
+
+            if (classSelect) {
+                classSelect.addEventListener('change', toggleForm);
+            }
         });
     </script>
-    <script src="{{ asset('vendor/datatables/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ asset('vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
-    <script src="{{ asset('js/demo/datatables-demo.js') }}"></script>
 @endpush
