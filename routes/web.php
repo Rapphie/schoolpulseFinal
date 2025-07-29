@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\GradeLevelController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\PromotionController;
+use App\Http\Controllers\Teacher\AnalyticsController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
 use App\Http\Controllers\Teacher\EnrollmentController;
 use App\Http\Controllers\Teacher\AssessmentController;
@@ -154,13 +155,13 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
                 Route::post('/create/{class}/store', [AssessmentController::class, 'store'])->name('store');
 
                 // Page to input/edit scores for all students for a specific assessment
-                Route::get('/{assessment}/scores', [AssessmentController::class, 'editScores'])->name('scores.edit');
+                Route::get('/{class}/{assessment}/scores', [AssessmentController::class, 'editScores'])->name('scores.edit');
 
                 // Save the scores
-                Route::post('/{assessment}/scores', [AssessmentController::class, 'updateScores'])->name('scores.update');
+                Route::post('/{class}/{assessment}/scores', [AssessmentController::class, 'updateScores'])->name('scores.update');
 
                 // Delete an assessment
-                Route::delete('/{assessment}', [AssessmentController::class, 'destroy'])->name('destroy');
+                Route::delete('/{class}/{assessment}', [AssessmentController::class, 'destroy'])->name('destroy');
             });
 
             Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
@@ -183,8 +184,8 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
             Route::post('/save-class-record', [ClassRecordController::class, 'saveClassRecord'])->name('class-record.save');
             Route::post('/upload-report-card', [ReportCardController::class, 'upload'])->name('report-card.upload');
 
-            Route::get('/sections/{section}/grades', [ReportCardController::class, 'getGradesForSection'])->name('sections.grades');
-            Route::get('/report-card/{student}', [ReportCardController::class, 'showReportCard'])
+            Route::get('/sections/{section}/grades', [ReportCardController::class, 'getStudentsBySection'])->name('sections.grades');
+            Route::get('/report-card/show', [ReportCardController::class, 'showReportCard'])
                 ->name('report-card.show');
 
 
@@ -206,7 +207,7 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
                 Route::get('/pattern', [\App\Http\Controllers\Teacher\AttendanceController::class, 'attendancePattern'])->name('pattern');
                 Route::get('/export', [\App\Http\Controllers\Teacher\AttendanceController::class, 'exportAttendancePattern'])->name('pattern.export');
             });
-
+            Route::get('/analytics/absenteeism', [AnalyticsController::class, 'absenteeismAnalytics'])->name('analytics.absenteeism');
             Route::get('/report-cards', [ReportCardController::class, 'index'])->name('report-cards');
         });
     });

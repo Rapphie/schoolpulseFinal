@@ -9,7 +9,7 @@
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ route('admin.subjects.index') }}">Subjects</a></li>
                     <li class="breadcrumb-item active" aria-current="page">List</li>
-                </ol>
+                </ol>P
             </nav>
             <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" data-bs-toggle="modal"
                 data-bs-target="#addSubjectModal">

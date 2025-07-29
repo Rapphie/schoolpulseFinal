@@ -230,7 +230,7 @@
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.analytics.*') ? 'active' : 'link-dark' }}"
                         href="{{ route('teacher.analytics.absenteeism') }}" style="width: 100%;">
                         <i data-feather="pie-chart" class="me-2"></i>
-                        <span>Absenteeism Analytics</span>
+                        <span>Absenteeism</span>
                     </a>
                 </li>
                 <li class="nav-item mb-3 dropdown position-static w-100">

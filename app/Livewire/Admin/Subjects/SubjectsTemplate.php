@@ -1,20 +1,22 @@
 <?php
 
-namespace Database\Seeders;
+namespace App\Livewire\Admin\Subjects;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use App\Models\GradeLevel;
+use App\Models\Subject;
+use Livewire\Component;
 
-
-class SubjectSeeder extends Seeder
+class SubjectsTemplate extends Component
 {
-    /**
-     * Run the database seeds.
-     */
-    public function run(): void
+    public $gradeLevels;
+    public $selectedGradeLevel;
+    public $subjects = [];
+    public $previewSubjects = [];
+
+    public function mount()
     {
-        $subjects = [
+        $this->gradeLevels = GradeLevel::all();
+        $this->subjects = [
             ['level' => '1', 'name' => 'Mother Tongue 1', 'code' => 'MT1', 'is_active' => true],
             ['level' => '2', 'name' => 'Mother Tongue 2', 'code' => 'MT2', 'is_active' => true],
             ['level' => '3', 'name' => 'Mother Tongue 3', 'code' => 'MT3', 'is_active' => true],
@@ -65,22 +67,39 @@ class SubjectSeeder extends Seeder
             ['level' => '5', 'name' => 'Health 5', 'code' => 'H5', 'is_active' => true],
             ['level' => '6', 'name' => 'Health 6', 'code' => 'H6', 'is_active' => true],
         ];
+    }
 
-        foreach ($subjects as $subject) {
-            $gradeLevelId = DB::table('grade_levels')
-                ->where('level', $subject['level'])
-                ->value('id');
+    public function updatedSelectedGradeLevel($value)
+    {
+        $this->previewSubjects = collect($this->subjects)->where('level', $value)->all();
+    }
 
+    public function store()
+    {
+        $this->validate([
+            'selectedGradeLevel' => 'required',
+        ]);
 
-            if (!$gradeLevelId) {
-                continue;
-            }
+        $selectedSubjects = collect($this->subjects)->where('level', $this->selectedGradeLevel);
 
-            $subjectExists = DB::table('subjects')->where('level', $gradeLevelId)->where('name', $subject['name'])->exists();
-
-            if (!$subjectExists) {
-                DB::table('subjects')->insert($subject);
-            }
+        foreach ($selectedSubjects as $subject) {
+            Subject::firstOrCreate(
+                ['code' => $subject['code']],
+                [
+                    'name' => $subject['name'],
+                    'grade_level_id' => $this->selectedGradeLevel,
+                    'is_active' => $subject['is_active'],
+                ]
+            );
         }
+
+        session()->flash('message', 'Subjects imported successfully.');
+
+        return redirect()->route('admin.subjects.index');
+    }
+
+    public function render()
+    {
+        return view('livewire.admin.subjects.subjects-template');
     }
 }

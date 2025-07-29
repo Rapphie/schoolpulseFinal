@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Imports\ReportCardImport;
+use App\Models\Classes;
 use App\Models\Grade;
 use App\Models\GradeLevel;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
+use App\Models\SchoolYear;
 use App\Models\Teacher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +140,36 @@ class ReportCardController extends Controller
             return back()->with('error', 'Error saving data: ' . $e->getMessage());
         }
     }
+    public function getStudentsBySection(Section $section)
+    {
+        $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
+        dd($activeSchoolYear);
+        // Find the specific class instance associated with the section for the active school year
+        $class = Classes::where('id', $section->id)
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->first();
+
+        // If no class is found for that section in the current year, return no students
+        if (!$class) {
+            return response()->json([]);
+        }
+
+        // Get students who are enrolled in that specific class
+        $students = Student::whereHas('enrollments', function ($query) use ($class) {
+            $query->where('class_id', $class->id);
+        })->orderBy('last_name', 'asc')->get();
+
+        // Format the data as expected by the DataTable in the view
+        $studentData = $students->map(function ($student) {
+            return [
+                'student_id'   => $student->student_id,
+                'student_name' => $student->last_name . ', ' . $student->first_name,
+                'gender'       => ucfirst($student->gender),
+            ];
+        });
+
+        return response()->json($studentData);
+    }
     public function getGradesForSection(Section $section)
     {
         // Fetch all grade records for students in the given section
@@ -178,20 +210,12 @@ class ReportCardController extends Controller
 
         return response()->json($formattedData);
     }
-    public function showReportCard(Student $student): \Illuminate\View\View
+    public function showReportCard(): \Illuminate\View\View
     {
-
-        // Prepare the student data array as expected by the report card template
-        $studentData = [
-            'name'   => $student->last_name . ', ' . $student->first_name,
-            'gender' => $student->gender,
-            'grade' => $student->section->grade_level_id,
-
-        ];
 
 
 
         // Return the view, passing the student data to it
-        return view('template.report-card', ['student' => $studentData]);
+        return view('template.report-card');
     }
 }

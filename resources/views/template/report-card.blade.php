@@ -108,23 +108,23 @@
                 <table class="text-xs">
                     <tr>
                         <td>Name:</td>
-                        <td class="font-bold" colspan="3" id="studentName">{{ $student['name'] }}</td>
+                        <td class="font-bold" colspan="3" id="studentName">Christian Plasabas</td>
                     </tr>
                     <tr>
                         <td>Age:</td>
                         <td class="font-bold"></td>
                         <td class="pl-4">Sex:</td>
-                        <td class="font-bold">{{ $student['gender'] }}</td>
+                        <td class="font-bold">Male</td>
                     </tr>
                     <tr>
                         <td>Grade:</td>
-                        <td class="font-bold">">{{ $student['grade'] }}</td>
+                        <td class="font-bold">">91</td>
                         <td class="pl-4">Section:</td>
                         <td class="font-bold">DAGOHOY</td>
                     </tr>
                     <tr>
                         <td>LRN:</td>
-                        <td class="font-bold">466060150011
+                        <td class="font-bold">123
                         </td>
                         <td class="pl-4">School Year:</td>
                         <td class="font-bold">2025-2026</td>
@@ -144,7 +144,7 @@
                         <p>Head Teacher III</p>
                     </div>
                     <div class="w-1/2 text-center pt-4">
-                        <p class="border-bottom font-bold">Christian S. Plasabas</p>
+                        <p class="border-bottom font-bold">Christian Plasabas</p>
                         <p>Adviser</p>
                     </div>
                 </div>
@@ -168,7 +168,7 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="subject">Mathematics</td>
+                                <td class="subject">Mathematics 1</td>
                                 <td class="text-center grade">79</td>
                                 <td class="text-center">80</td>
                                 <td class="text-center"></td>

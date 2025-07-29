@@ -45,7 +45,7 @@
                                         <li>
                                             <span class="dropdown-item section-option" style="cursor:pointer;"
                                                 data-id="{{ $class->section->id }}">
-                                                {{ 'Grade ' . ($class->section->grade_level_id ?? 'Error') }} -
+                                                {{ 'Grade ' . ($class->section->gradeLevel->level ?? 'Error') }} -
                                                 {{ $class->section->name }}
                                             </span>
                                         </li>

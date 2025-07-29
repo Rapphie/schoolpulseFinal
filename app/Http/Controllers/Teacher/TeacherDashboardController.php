@@ -263,12 +263,20 @@ class TeacherDashboardController extends Controller
 
     public function grades()
     {
-        $userId = Auth::id();
-        $teacherId = Teacher::where('user_id', $userId)->value('id');
-        $sections = Section::where('teacher_id', $teacherId)->get();
-        $subjects = Subject::where('teacher_id', $teacherId)->get();
+        $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
+        $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
 
-        return view('teacher.grades', compact('sections', 'subjects'));
+        // Correctly fetch the sections assigned to the teacher via their schedule for the active year
+        $classIds = \App\Models\Schedule::where('teacher_id', $teacher->id)
+            ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })
+            ->pluck('class_id')->unique();
+
+        $sectionIds = Classes::whereIn('id', $classIds)->pluck('section_id')->unique();
+        $sections = Section::whereIn('id', $sectionIds)->with('gradeLevel')->get();
+
+        return view('teacher.grades', compact('sections'));
     }
 
     public function gradebookQuiz()
@@ -612,7 +620,6 @@ class TeacherDashboardController extends Controller
                 ]
             );
 
-            // Check for absences
             $this->checkAbsences($studentId, $teacherId);
         }
 
@@ -644,17 +651,12 @@ class TeacherDashboardController extends Controller
         }
 
         if ($consecutiveAbsences >= 3) {
-            Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
-        }
-
-        // Check for 5 total absences in the current month
-        $totalAbsences = Attendance::where('student_id', $studentId)
-            ->where('status', 'absent')
-            ->whereMonth('date', now()->month)
-            ->count();
-
-        if ($totalAbsences >= 5) {
-            Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $totalAbsences));
+            // Check if an email has been sent recently for this student to avoid spamming
+            $lastSent = cache('absent_alert_sent_' . $studentId);
+            if (!$lastSent || now()->diffInHours($lastSent) >= 24) {
+                Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
+                cache(['absent_alert_sent_' . $studentId => now()], now()->addHours(24));
+            }
         }
     }
 
@@ -722,5 +724,35 @@ class TeacherDashboardController extends Controller
 
         // Redirect back with a success message
         return redirect()->route('teacher.attendance.records')->with('success', 'Attendance record deleted successfully.');
+    }
+    public function getStudentsBySection(Section $section)
+    {
+        $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
+
+        // Find the specific class instance associated with the section for the active school year
+        $class = Classes::where('section_id', $section->id)
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->first();
+
+        // If no class is found for that section in the current year, return no students
+        if (!$class) {
+            return response()->json([]);
+        }
+
+        // Get students who are enrolled in that specific class
+        $students = Student::whereHas('enrollments', function ($query) use ($class) {
+            $query->where('class_id', $class->id);
+        })->orderBy('last_name', 'asc')->get();
+
+        // Format the data as expected by the DataTable in the view
+        $studentData = $students->map(function ($student) {
+            return [
+                'student_id'   => $student->student_id,
+                'student_name' => $student->last_name . ', ' . $student->first_name,
+                'gender'       => ucfirst($student->gender),
+            ];
+        });
+
+        return response()->json($studentData);
     }
 }

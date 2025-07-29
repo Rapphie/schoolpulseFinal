@@ -3,23 +3,24 @@
 @section('title', 'Manage Grades')
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/rowgroup/1.1.4/css/rowGroup.dataTables.min.css">
+    {{-- You can include DataTables specific styles here if needed --}}
 @endpush
 
 @section('content')
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Manage Grades</h6>
-            <div>
-                <select id="section-filter" class="form-select form-select-sm">
-                    <option value="" selected>Select a Section</option>
+            <h6 class="m-0 font-weight-bold text-primary">Manage Student Grades</h6>
+            <div class="d-flex align-items-center">
+                <label for="section-filter" class="form-label me-2 mb-0">Section:</label>
+                <select id="section-filter" class="form-select form-select-sm" style="width: 250px;">
+                    <option value="" selected>-- Select a Section --</option>
                     @foreach ($sections as $section)
                         <option value="{{ $section->id }}">{{ $section->gradeLevel->name }} - {{ $section->name }}</option>
                     @endforeach
                 </select>
                 <button type="button" class="btn btn-primary btn-sm ms-2" data-bs-toggle="modal"
-                    data-bs-target="#importReportCardModal">
-                    Import Report Card
+                    data-bs-target="#importReportCardModal" id="importBtn" disabled>
+                    <i data-feather="upload" class="feather-sm"></i> Import
                 </button>
             </div>
         </div>
@@ -28,19 +29,28 @@
                 <table class="table table-bordered" id="gradesTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>lrn</th>
                             <th>Name</th>
                             <th>Gender</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {{-- Grade rows will be dynamically inserted here --}}
+                        <tr>
+                            <td>Christian</td>
+                            <td>Plasabas</td>
+                            <td>Male</td>
+                            <td><a href="{{ route('teacher.report-card.show') }}" class="btn btn-info btn-sm text-white"
+                                    target="_blank">View
+                                    Report Card</a></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+
+    <!-- Import Report Card Modal -->
     <div class="modal fade" id="importReportCardModal" tabindex="-1" role="dialog"
         aria-labelledby="importReportCardModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg" role="document">
@@ -49,20 +59,21 @@
                     <h5 class="modal-title" id="importReportCardModalLabel">Import Report Card</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form id="importClassRecordForm" method="POST"
-                    action="{{ route('teacher.report-card.upload', ['section_id' => '']) }}" enctype="multipart/form-data">
+                <form id="importClassRecordForm" method="POST" action="" enctype="multipart/form-data">
                     @csrf
-                    <input type="hidden" name="section_id" value="">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label for="report_card_file" class="form-label">Select Report Card File</label>
+                            <label for="report_card_file" class="form-label">Select Report Card File (.csv, .xlsx)</label>
                             <input type="file" class="form-control" id="report_card_file" name="report_card_file"
                                 accept=".xlsx, .xls, .csv" required>
+                        </div>
+                        <div class="alert alert-info">
+                            <p class="mb-0">Please ensure your file has the correct format before uploading.</p>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Import</button>
+                        <button type="submit" class="btn btn-primary">Upload and Import</button>
                     </div>
                 </form>
             </div>
@@ -75,12 +86,30 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdn.datatables.net/rowgroup/1.1.4/js/dataTables.rowGroup.min.js"></script>
 
     <script>
         $(document).ready(function() {
             const table = $('#gradesTable').DataTable({
-                // ... your datatable options
+                processing: true,
+                columns: [{
+                        data: 'student_id'
+                    },
+                    {
+                        data: 'student_name'
+                    },
+                    {
+                        data: 'gender'
+                    },
+                    {
+                        data: 'action',
+                        orderable: false,
+                        searchable: false
+                    }
+                ],
+                // Add a message for when the table is empty
+                language: {
+                    emptyTable: "Please select a section to view students."
+                }
             });
 
             // --- Section Filter Logic ---
@@ -89,7 +118,7 @@
                 table.clear().draw();
 
                 if (sectionId) {
-                    // 1. THIS IS THE FIX: Create a URL template from the PHP route function
+                    // 1. Create a URL template from the PHP route function
                     let urlTemplate =
                         "{{ route('teacher.sections.grades', ['section' => ':section_id']) }}";
 
@@ -98,52 +127,17 @@
 
                     // 3. Use the corrected, final URL in your fetch request
                     fetch(finalUrl)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('Network response was not ok');
-                            }
-                            return response.json();
-                        })
-                        .then(grades => {
-                            // 1. Create a URL template for the report card route
-                            let reportCardUrlTemplate =
-                                "{{ route('teacher.report-card.show', ['student' => ':student_id']) }}";
-                            grades.forEach(studentData => {
-                                let finalReportCardUrl = reportCardUrlTemplate.replace(
-                                    ':student_id', studentData.student_id);
-
-                                let actionButton =
-                                    `<a href="${finalReportCardUrl}" class="btn btn-info btn-sm text-white" target="_blank">View Report Card</a>`;
-                                table.row.add([
-                                    studentData.student_id,
-                                    studentData.student_name,
-                                    studentData.gender,
-                                    actionButton
-                                ]).draw(false);
-                            });
-                        })
-                        .catch(error => {
-                            console.error('There has been a problem with your fetch operation:', error);
-                            alert(
-                                'Failed to load grades. Check the developer console for more details.'
-                            );
+                        .then(response => response.json())
+                        .then(students => {
+                            // ... logic to add students to the table
                         });
                 }
             });
 
-            // This part updates the hidden input for your import form
-            $('#section-filter').on('change', function() {
-                const sectionId = $(this).val();
-                const form = $('#importClassRecordForm');
-
-                if (sectionId) {
-                    form.find('input[name="section_id"]').val(sectionId);
-                    let urlTemplate =
-                        "{{ route('teacher.report-card.upload', ['section_id' => ':section_id']) }}";
-                    let newUrl = urlTemplate.replace(':section_id', sectionId);
-                    form.attr('action', newUrl);
-                }
-            });
+            // Re-initialize feather icons if they are used
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
         });
     </script>
 @endpush

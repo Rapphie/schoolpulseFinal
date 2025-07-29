@@ -44,7 +44,7 @@ class Classes extends Model
 
     public function assessments()
     {
-        return $this->hasMany(Schedule::class, 'class_id');
+        return $this->hasMany(Assessment::class, 'class_id');
     }
     public function students()
     {

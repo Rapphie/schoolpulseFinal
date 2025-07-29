@@ -22,12 +22,6 @@
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success">
-            {{ session('success') }}
-        </div>
-    @endif
-
     <div class="card shadow">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">Assessment List</h6>
@@ -56,20 +50,23 @@
                                 <td>{{ $assessment->max_score }}</td>
                                 <td>{{ $assessment->quarter }}</td>
                                 <td>
-                                    <a href="{{ route('teacher.assessments.scores.edit', ['class' => $class, 'assessment' => $assessment]) }}"
+                                    {{-- <a href="{{ route('teacher.assessments.scores.edit', ['class' => $class, 'assessment' => $assessment]) }}"
                                         class="btn btn-sm btn-info" title="Enter/Edit Scores">
                                         <i class="fas fa-edit"></i> Scores
+                                    </a> --}}
+                                    <a href="#" class="btn btn-sm btn-info" title="Enter/Edit Scores">
+                                        <i class="fas fa-edit"></i> Scores
                                     </a>
-                                    <form
+                                    {{-- <form
                                         action="{{ route('teacher.assessments.destroy', ['class' => $class, 'assessment' => $assessment]) }}"
                                         method="POST" class="d-inline"
                                         onsubmit="return confirm('Are you sure you want to delete this assessment and all its scores? This cannot be undone.');">
                                         @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger" title="Delete Assessment">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
+                                        @method('DELETE') --}}
+                                    <button class="btn btn-sm btn-danger" title="Delete Assessment">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {{-- </form> --}}
                                 </td>
                             </tr>
                         @empty
