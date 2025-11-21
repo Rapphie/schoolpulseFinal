@@ -12,14 +12,8 @@
 <!-- Charts -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- DataTables -->
+<!-- DataTables CSS only - JS loaded after jQuery in page scripts -->
 <link rel="preconnect" href="https://cdn.datatables.net">
-<link rel="preconnect" href="cdn.datatables.net">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" />
-<link rel = "stylesheet" href = "https://cdn.datatables.net/2.3.2/css/dataTables.dataTables.css" />
-<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
 @vite(['resources/css/app.css', 'resources/js/app.js'])

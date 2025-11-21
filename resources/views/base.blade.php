@@ -12,7 +12,7 @@
     <style>
         @font-face {
             font-family: 'Inter';
-            src: url('{{ Vite::asset('resources/fonts/inter/Inter-Regular.woff2') }}') format('woff2'),
+            src: url('{{ Vite::asset('resources/fonts/inter/Inter-Regular.woff2') }}') format('woff2');
         }
 
         body {
@@ -46,16 +46,20 @@
 
         .sidebar {
             width: 250px;
-            height: 100vh;
+            /* Overlay the top bar (full viewport height) */
             position: fixed;
             top: 0;
             left: 0;
+            height: 100vh;
             background-color: white;
             border-right: 1px solid #dee2e6;
             padding: 1rem;
             z-index: 1040;
+            /* higher than top-bar (1030) so it overlaps */
             display: flex;
             flex-direction: column;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         /* Mobile sidebar close button */
@@ -86,7 +90,8 @@
             width: 70px;
             padding: 1rem 0.5rem;
             overflow-y: auto;
-            max-height: 100vh;
+            height: 100vh;
+            /* maintain full height overlay even when collapsed */
         }
 
         /* Hide text in mini sidebar */
@@ -203,6 +208,7 @@
                 top: 0;
                 left: 0;
                 z-index: 1060;
+                overflow-y: auto;
             }
 
             .sidebar.collapsed {
@@ -490,10 +496,9 @@
             const dateString = now.toLocaleDateString('en-PH', dateOptions);
             const timeElement = document.getElementById('ph-time');
             if (timeElement) {
-                timeElement.innerHTML = `
-          <div class="text-end">${timeString}</div>
-          <div class="small">${dateString} (PHT)</div>
-        `;
+                timeElement.innerHTML =
+                    '<div class="text-end">' + timeString + '</div>' +
+                    '<div class="small">' + dateString + ' (PHT)</div>';
             }
         }
 
@@ -629,7 +634,7 @@
 
             // Auto-open active submenu on page load
             document.querySelectorAll('.sidebar .collapse.show').forEach(menu => {
-                const toggler = document.querySelector(`[href="#${menu.id}"]`);
+                const toggler = document.querySelector('[href="#' + menu.id + '"]');
                 if (toggler) {
                     toggler.setAttribute('aria-expanded', 'true');
                 }

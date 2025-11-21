@@ -118,7 +118,7 @@
                     </tr>
                     <tr>
                         <td>Grade:</td>
-                        <td class="font-bold">">91</td>
+                        <td class="font-bold">5</td>
                         <td class="pl-4">Section:</td>
                         <td class="font-bold">DAGOHOY</td>
                     </tr>

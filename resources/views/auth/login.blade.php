@@ -235,7 +235,7 @@
                             <option value="">-- Select user type -- </option>
                             <option value="1">Administrator</option>
                             <option value="2">Teacher</option>
-                            <option value="3">Parent</option>
+                            <option value="3">Guardian</option>
                         </select>
                     </div>
 

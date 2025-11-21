@@ -88,7 +88,7 @@
 
 
                 <li class="nav-item mb-3 dropdown position-static w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('reports.*') ? 'active' : 'link-dark' }} dropdown-toggle"
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.reports.*') ? 'active' : 'link-dark' }} dropdown-toggle"
                         href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown"
                         aria-expanded="false" style="width: 100%;">
                         <i data-feather="pie-chart" class="me-2"></i>
@@ -96,33 +96,36 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="reportsDropdown">
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{{ route('reports.enrollees') }}">
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('admin.reports.enrollees') }}">
                                 <i class="me-2" data-feather="user-plus"></i>
                                 <span>Enrollees</span>
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{{ route('admin.records') }}">
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('admin.reports.attendance') }}">
                                 <i class="me-2" data-feather="check-circle"></i>
                                 <span>Attendance</span>
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item d-flex align-items-center" href="{{ route('reports.grades') }}">
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('admin.reports.grades') }}">
                                 <i class="me-2" data-feather="award"></i>
                                 <span>Grades</span>
                             </a>
                         </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center"
-                                href="{{ route('reports.least-learned') }}">
+                                href="{{ route('admin.reports.least-learned') }}">
                                 <i class="me-2" data-feather="alert-circle"></i>
                                 <span>Least Learned</span>
                             </a>
                         </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center"
-                                href="{{ route('reports.cumulative') }}">
+                                href="{{ route('admin.reports.cumulative') }}">
                                 <i class="me-2" data-feather="trending-up"></i>
                                 <span>Cumulative</span>
                             </a>
@@ -199,13 +202,13 @@
                             <a class="dropdown-item d-flex align-items-center"
                                 href="{{ route('teacher.assessments.list') }}">
                                 <i data-feather="edit-3" class="me-1"></i>
-                                <span>Assessment</span>
+                                <span>Grade Management</span>
                             </a>
                         </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{{ route('teacher.grades') }}">
                                 <i data-feather="award" class="me-1"></i>
-                                <span>Grades</span>
+                                <span>Report Card</span>
                             </a>
                         </li>
 
@@ -218,14 +221,14 @@
                         <span>Grades</span>
                     </a>
                 </li> --}}
-
+                {{--
                 <li class="nav-item mb-3 w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('llc') ? 'active' : 'link-dark' }}"
                         href="{{ route('teacher.least-learned.index') }}" style="width: 100%;">
                         <i data-feather="bar-chart-2" class="me-2"></i>
                         <span>Least Learned</span>
                     </a>
-                </li>
+                </li> --}}
                 <li class="nav-item mb-3 w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.analytics.*') ? 'active' : 'link-dark' }}"
                         href="{{ route('teacher.analytics.absenteeism') }}" style="width: 100%;">

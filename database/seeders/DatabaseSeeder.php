@@ -18,6 +18,7 @@ use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 class DatabaseSeeder extends Seeder
 {
@@ -34,7 +35,7 @@ class DatabaseSeeder extends Seeder
         $roles = [
             ['name' => 'admin', 'description' => 'Administrator with full access'],
             ['name' => 'teacher', 'description' => 'Teacher with subject and class access'],
-            ['name' => 'parent', 'description' => 'Parent access to view their children\'s progress'],
+            ['name' => 'guardian', 'description' => 'Guardian access to view their children\'s progress'],
         ];
 
         // Insert roles
@@ -44,20 +45,19 @@ class DatabaseSeeder extends Seeder
         User::create([
             'first_name' => 'Admin',
             'last_name' => 'Nistrator',
-            'email' => 'temp@gmail.com',
+            'email' => 'admin@gmail.com',
             'password' => Hash::make('temp'),
             'role_id' => 1,
         ]);
-        $user =  User::create([
+        $teacherUser   =  User::create([
             'first_name' => 'Christian',
             'last_name' => 'Plasabas',
-            'email' => 'teacher@gmail.com',
+            'email' => 'tempinnovision@gmail.com',
             'password' => Hash::make('123'),
             'role_id' => 2,
         ]);
-
-        Teacher::create([
-            'user_id' => $user->id,
+        ~Teacher::create([
+            'user_id' => $teacherUser->id,
             'phone' => '09123456789',
             'gender' => 'male',
             'date_of_birth' => '1990-01-01',
@@ -65,18 +65,25 @@ class DatabaseSeeder extends Seeder
             'qualification' => 'Bachelor of Education',
             'status' => 'active',
         ]);
-        $guardian = User::create([
+
+
+        $guardianUser = User::create([
             'first_name' => 'Kim',
             'last_name' => 'Lee',
-            'email' => 'kim.lee@gmail.com',
+            'email' => 'guardian@gmail.com',
             'password' => Hash::make(12345678),
             'role_id' => 3,
         ]);
+
+
         $guardian = Guardian::create([
-            'user_id' => $guardian->id,
+            'user_id' => $guardianUser->id,
             'phone' => '09123456789',
             'relationship' => 'parent',
         ]);
+        Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, '12345678'));
+        Mail::to($teacherUser->email)->send(new \App\Mail\WelcomeEmail($teacherUser, '123'));
+
         // GradeLevel::factory(6)->create();
         // // Create teachers
         // $teacherUsers = User::factory(10)->create([
