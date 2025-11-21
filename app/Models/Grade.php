@@ -22,6 +22,11 @@ class Grade extends Model
         'quarter',
     ];
 
+    // After adding a surrogate primary key `id` via migration
+    protected $primaryKey = 'id';
+    public $incrementing = true;
+    protected $keyType = 'int';
+
     protected $casts = [
         'grade' => 'float',
     ];

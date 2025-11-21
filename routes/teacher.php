@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ClassRecordController;
+use App\Http\Controllers\ReportCardOutputController;
 use App\Http\Controllers\Teacher\AnalyticsController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
 use App\Http\Controllers\Teacher\EnrollmentController;
@@ -33,6 +34,8 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         Route::post('enrollment/store-past-student', [EnrollmentController::class, 'storePastStudent'])->name('enrollment.storePastStudent');
         Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
         Route::post('/enrollment', [EnrollmentController::class, 'store'])->name('enrollment.store');
+        // Student update
+        Route::put('/students/{student}', [EnrollmentController::class, 'updateStudent'])->name('students.update');
 
         // Assessment Management
         Route::prefix('classes/assessments')->name('assessments.')->group(function () {
@@ -40,6 +43,9 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::get('/{class}', [AssessmentController::class, 'index'])->name('index');
             Route::get('/create/{class}', [AssessmentController::class, 'create'])->name('create');
             Route::post('/create/{class}/store', [AssessmentController::class, 'store'])->name('store');
+            Route::post('/{class}/quick-add', [AssessmentController::class, 'quickAddAssessment'])->name('quickAdd');
+            Route::post('/{class}/update-max-score', [AssessmentController::class, 'updateMaxScore'])->name('updateMaxScore');
+            Route::post('/{class}/save-grades', [AssessmentController::class, 'saveGrades'])->name('saveGrades');
             Route::get('/{class}/{assessment}/scores', [AssessmentController::class, 'editScores'])->name('scores.edit');
             Route::post('/{class}/{assessment}/scores', [AssessmentController::class, 'updateScores'])->name('scores.update');
             Route::delete('/{class}/{assessment}', [AssessmentController::class, 'destroy'])->name('destroy');
@@ -48,13 +54,16 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         // Class Management
         Route::get('/classes/{section?}', [TeacherDashboardController::class, 'classes'])->name('classes');
         Route::get('/classes/view/{class}', [TeacherDashboardController::class, 'viewClass'])->name('classes.view');
+        Route::get('/classes/{class}/subjects', [AssessmentController::class, 'getSubjectsForClass'])->name('classes.subjects');
+        // Adviser schedule creation
+        Route::post('/classes/{class}/store-schedule', [TeacherDashboardController::class, 'storeSchedule'])->name('classes.schedule.store');
         Route::get('/sections/{section}/students', [TeacherDashboardController::class, 'getStudentsForSection'])->name('sections.students');
-        Route::get('/sections/{section}/grades', [ReportCardController::class, 'getStudentsBySection'])->name('sections.grades');
 
         // Schedules & Students
         Route::get('/schedules', [TeacherDashboardController::class, 'loggedTeacherSchedules'])->name('schedules.index');
         Route::get('/students', [TeacherDashboardController::class, 'students'])->name('students');
         Route::get('/grades', [TeacherDashboardController::class, 'grades'])->name('grades');
+        Route::get('/grades/{class}', [TeacherDashboardController::class, 'showGrades'])->name('grades.show');
 
         // Section & Subject Queries
         Route::get('/sections-by-grade-level', [TeacherSectionsController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');
@@ -67,7 +76,8 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
 
         // Report Cards
         Route::get('/report-cards', [ReportCardController::class, 'index'])->name('report-cards');
-        Route::get('/report-card/show', [ReportCardController::class, 'showReportCard'])->name('report-card.show');
+        Route::get('/report-card/show/{studentId}', [ReportCardOutputController::class, 'generateReportCard'])
+            ->name('report-card.show');
 
         // Least Learned Competencies
         Route::prefix('least-learned')->name('least-learned.')->group(function () {
