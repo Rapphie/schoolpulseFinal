@@ -1,7 +1,8 @@
 <?php
 
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\AdminReportController;
+use App\Http\Controllers\ReportCardOutputController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -31,17 +32,24 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
 
     // Reports
     Route::prefix('reports')->name('reports.')->group(function () {
-        Route::get('enrollees', [ReportController::class, 'enrollees'])->name('enrollees');
-        Route::get('attendance', [ReportController::class, 'attendance'])->name('attendance');
-        Route::get('grades', [ReportController::class, 'grades'])->name('grades');
-        Route::get('least-learned', [ReportController::class, 'leastLearned'])->name('least-learned');
-        Route::get('cumulative', [ReportController::class, 'cumulative'])->name('cumulative');
+        Route::get('enrollees', [AdminReportController::class, 'enrollees'])->name('enrollees');
+        Route::get('attendance', [AdminReportController::class, 'attendance'])->name('attendance');
+        Route::get('grades', [AdminReportController::class, 'grades'])->name('grades');
+        Route::get('least-learned', [AdminReportController::class, 'leastLearned'])->name('least-learned');
+        Route::get('cumulative', [AdminReportController::class, 'cumulative'])->name('cumulative');
 
         // Export Reports
         Route::prefix('export')->name('export.')->group(function () {
-            Route::get('enrollees/export', [ReportController::class, 'exportEnrollees'])->name('enrollees');
-            Route::get('attendance', [ReportController::class, 'exportAttendance'])->name('attendance');
-            Route::get('grades', [ReportController::class, 'exportGrades'])->name('grades');
+            Route::get('enrollees/export', [AdminReportController::class, 'exportEnrollees'])->name('enrollees');
+            Route::get('attendance', [AdminReportController::class, 'exportAttendance'])->name('attendance');
+            Route::get('grades', [AdminReportController::class, 'exportGrades'])->name('grades');
         });
     });
+
+    // Analytics accessible to admin and teacher
+    Route::get('/analytics/absenteeism', [\App\Http\Controllers\Teacher\AnalyticsController::class, 'absenteeismAnalytics'])
+        ->middleware('role:teacher|admin')
+        ->name('analytics.absenteeism');
+
+
 });

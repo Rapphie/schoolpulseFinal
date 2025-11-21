@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\DevAttendanceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,7 +29,7 @@ Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink
 Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-// Email Routes (may need to be moved or protected)
+// Email Routes
 Route::get('/teacher/welcome-email', [EmailController::class, 'sendTeacherWelcomeEmail'])->name('teacher.send.welcome');
 
 // Main Dashboard Route & Password Change (Authenticated)
@@ -51,6 +52,10 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
         }
         return redirect()->route('login');
     })->name('dashboard');
+
+    // Temporary Dev Tooling Routes
+    Route::get('/dev/attendance-entry', [DevAttendanceController::class, 'index'])->name('dev.attendance.form');
+    Route::post('/dev/attendance-entry', [DevAttendanceController::class, 'store'])->name('dev.attendance.store');
 });
 
 /*
@@ -68,3 +73,8 @@ require __DIR__ . '/admin.php';      // Admin routes
 require __DIR__ . '/teacher.php';    // Teacher routes
 require __DIR__ . '/guardian.php';   // Guardian routes
 require __DIR__ . '/shared.php';     // Shared routes (profile, settings, reports)
+
+// Fallback route for unmatched URLs -> returns 404 view
+Route::fallback(function () {
+    return response()->view('errors.404', [], 404);
+});

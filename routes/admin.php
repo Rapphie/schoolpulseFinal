@@ -3,12 +3,12 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\TeacherController;
-use App\Http\Controllers\Admin\SectionController;
+use App\Http\Controllers\Admin\ClassroomSectionController;
 use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\GradeLevelController;
 use App\Http\Controllers\Admin\AdminDashboardController;
-use App\Http\Controllers\Teacher\EnrollmentController;
+use App\Http\Controllers\Admin\AdminReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,28 +27,23 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'dashboard'])->name('dashboard');
         Route::get('/dashboard/chart-data/', [AdminDashboardController::class, 'getChartData'])->name('chart-data');
-        Route::get('/attendance/records', [AdminDashboardController::class, 'attendanceReport'])->name('records');
+        // Route::get('/attendance/records', [AdminReportController::class, 'attendance'])->name('records');
         Route::post('/school-year/store', [AdminDashboardController::class, 'storeSchoolYear'])->name('school-year.store');
         Route::put('/school-year/{id}', [AdminDashboardController::class, 'updateSchoolYear'])->name('school-year.update');
         Route::delete('/school-year/{id}', [AdminDashboardController::class, 'deleteSchoolYear'])->name('school-year.delete');
 
         // Class Management
-        Route::post('/classes/{class}/assign-adviser', [SectionController::class, 'assignAdviser'])->name('sections.adviser.assign');
-        Route::post('/classes/{class}/store-schedule', [SectionController::class, 'storeSchedule'])->name('sections.schedule.store');
-        Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
+        Route::post('/classes/{class}/assign-adviser', [ClassroomSectionController::class, 'assignClassAdviser'])->name('sections.adviser.assign');
+        Route::post('/classes/{class}/store-schedule', [ClassroomSectionController::class, 'storeSchedule'])->name('sections.schedule.store');
+        // Use the admin ClassroomSectionController to handle enrollments created from the admin class view
+        Route::post('/classes/{class}/enroll', [ClassroomSectionController::class, 'enrollStudent'])->name('enrollment.store');
 
         // Settings
         Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
         Route::post('settings', [SettingController::class, 'update'])->name('settings.update');
 
         // Subjects
-        Route::resource('subjects', SubjectController::class)->only([
-            'index',
-            'store',
-            'edit',
-            'update',
-            'destroy'
-        ]);
+        Route::resource('subjects', SubjectController::class);
         Route::get('subjects/grade/{gradeLevel}', [SubjectController::class, 'getSubjectsByGradeLevel'])->name('subjects.by_grade_level');
 
         // Analytics
@@ -56,27 +51,27 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
 
         // Sections Management
         Route::prefix('sections')->name('sections.')->group(function () {
-            Route::get('/', [SectionController::class, 'index'])->name('index');
-            Route::get('/create', [SectionController::class, 'create'])->name('create');
-            Route::post('/', [SectionController::class, 'store'])->name('store');
-            Route::get('students/{section}', [SectionController::class, 'show'])->name('show');
-            Route::get('/{section}/edit', [SectionController::class, 'edit'])->name('edit');
-            Route::get('/{section}/data', [SectionController::class, 'getSectionData'])->name('data');
-            Route::get('/{section}/manage', [SectionController::class, 'manage'])->name('manage');
-            Route::put('/{section}', [SectionController::class, 'update'])->name('update');
-            Route::delete('/destroy/{class}', [SectionController::class, 'destroy'])->name('destroy');
+            Route::get('/', [ClassroomSectionController::class, 'index'])->name('index');
+            Route::get('/create', [ClassroomSectionController::class, 'create'])->name('create');
+            Route::post('/', [ClassroomSectionController::class, 'store'])->name('store');
+            Route::get('students/{section}', [ClassroomSectionController::class, 'show'])->name('show');
+            Route::get('/{section}/edit', [ClassroomSectionController::class, 'edit'])->name('edit');
+            Route::get('/{section}/data', [ClassroomSectionController::class, 'getSectionData'])->name('data');
+            Route::get('/{section}/manage', [ClassroomSectionController::class, 'manageClass'])->name('manage');
+            Route::put('/{section}', [ClassroomSectionController::class, 'update'])->name('update');
+            Route::delete('/destroy/{class}', [ClassroomSectionController::class, 'destroyClass'])->name('destroy');
 
             // Section Students
-            Route::post('/sections/students/{section}', [SectionController::class, 'addStudent'])->name('students.store');
-            Route::delete('/{section}/students/{student}', [SectionController::class, 'removeStudent'])->name('students.destroy');
+            Route::post('/sections/students/{section}', [ClassroomSectionController::class, 'addStudent'])->name('students.store');
+            Route::delete('/{section}/students/{student}', [ClassroomSectionController::class, 'removeStudent'])->name('students.destroy');
 
             // Section Subjects
-            Route::post('/{section}/subjects', [SectionController::class, 'addSubject'])->name('subjects.store');
-            Route::post('/subjects/create', [SectionController::class, 'create'])->name('subjects.create');
-            Route::delete('/{section}/subjects/{subject}', [SectionController::class, 'removeSubject'])->name('subjects.destroy');
+            Route::post('/{section}/subjects', [ClassroomSectionController::class, 'addSubject'])->name('subjects.store');
+            Route::post('/subjects/create', [ClassroomSectionController::class, 'create'])->name('subjects.create');
+            Route::delete('/{section}/subjects/{subject}', [ClassroomSectionController::class, 'removeSubject'])->name('subjects.destroy');
 
             // Section Schedule
-            Route::get('/{section}/schedule', [SectionController::class, 'schedule'])->name('schedule');
+            Route::get('/{section}/schedule', [ClassroomSectionController::class, 'schedule'])->name('schedule');
         });
 
         // Teachers Management
@@ -94,7 +89,26 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         // Schedules & Grade Levels
         Route::resource('schedules', ScheduleController::class);
         Route::resource('grade-levels', GradeLevelController::class);
+
+        // Reports
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::get('enrollees', [AdminReportController::class, 'enrollees'])->name('enrollees');
+            // Route::get('attendance', [AdminReportController::class, 'attendance'])->name('attendance');
+            Route::get('attendance', [AdminReportController::class, 'attendanceReport'])->name('attendance');
+            Route::get('grades', [AdminReportController::class, 'grades'])->name('grades');
+            Route::get('least-learned', [AdminReportController::class, 'leastLearned'])->name('least-learned');
+            Route::get('cumulative', [AdminReportController::class, 'cumulative'])->name('cumulative');
+
+            // Export Reports
+            Route::prefix('export')->name('export.')->group(function () {
+                Route::get('enrollees/export', [AdminReportController::class, 'exportEnrollees'])->name('enrollees');
+                Route::get('attendance', [AdminReportController::class, 'exportAttendance'])->name('attendance');
+                Route::get('grades', [AdminReportController::class, 'exportGrades'])->name('grades');
+            });
+        });
     });
+
+
 
     // Admin password reset (outside of admin prefix)
     Route::post('/admin/users/{user}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
