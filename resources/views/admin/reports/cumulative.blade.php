@@ -78,118 +78,236 @@
 @endsection
 
 @section('content')
-    <h2 class="mb-4">Cumulative Performance Report</h2>
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Cumulative Performance Report</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ route('admin.reports.cumulative') }}" class="mb-4">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label for="section" class="form-label">Section</label>
+                        <select class="form-select" id="section" name="section" required>
+                            <option value="">Select Section</option>
+                            @foreach ($sections as $section)
+                                <option value="{{ $section->id }}"
+                                    {{ $selectedSection == $section->id ? 'selected' : '' }}>
+                                    {{ $section->name }}
+                                    ({{ $section->gradeLevel ? 'Grade ' . $section->gradeLevel->level : 'N/A' }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="subject" class="form-label">Subject</label>
+                        <select class="form-select" id="subject" name="subject" required>
+                            <option value="">Select Subject</option>
+                            @foreach ($subjects as $subject)
+                                <option value="{{ $subject->id }}"
+                                    {{ $selectedSubject == $subject->id ? 'selected' : '' }}>
+                                    {{ $subject->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="school_year" class="form-label">School Year</label>
+                        <select class="form-select" id="school_year" name="school_year" required>
+                            <option value="">Select School Year</option>
+                            @foreach ($schoolYears as $sy)
+                                <option value="{{ $sy->id }}" {{ $selectedSchoolYear == $sy->id ? 'selected' : '' }}>
+                                    {{ $sy->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i data-feather="filter"></i> Apply Filter
+                        </button>
+                    </div>
+                </div>
+            </form>
 
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card report-card">
-                <div class="card-body">
-                    <select class="form-select" id="academicYear">
-                        <option value="2024-2025" selected>School Year 2024-2025</option>
-                        <option value="2023-2024">School Year 2023-2024</option>
-                        <option value="2022-2023">School Year 2022-2023</option>
-                    </select>
+            @if (isset($cumulativeData) && $studentPerformance->count() > 0)
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card border-left-primary h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                            Total Students</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ $cumulativeData->totalStudents }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-users fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-left-success h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                            Average Grade</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ number_format($cumulativeData->averageGrade, 2) }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-left-info h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                            Passing Students</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ $cumulativeData->passingCount }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-left-warning h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                            Failing Students</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ $cumulativeData->failingCount }}</div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="fas fa-exclamation-circle fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card report-card">
-                <div class="card-body">
-                    <select class="form-select" id="gradeLevelFilter">
-                        <option value="">All Grade Levels</option>
-                        <option>Grade 1</option>
-                        <option>Grade 2</option>
-                        <option>Grade 3</option>
-                        <option>Grade 4</option>
-                        <option>Grade 5</option>
-                        <option>Grade 6</option>
-                    </select>
+
+                <div class="card report-card">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0">Student Performance Across Quarters</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="cumulativeTable">
+                                <thead>
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th>LRN</th>
+                                        <th>1st Quarter</th>
+                                        <th>2nd Quarter</th>
+                                        <th>3rd Quarter</th>
+                                        <th>4th Quarter</th>
+                                        <th>Average</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($studentPerformance as $student)
+                                        @php
+                                            $rowClass = '';
+                                            if ($student->average !== null) {
+                                                $rowClass = $student->average >= 75 ? 'table-success' : 'table-danger';
+                                            }
+                                        @endphp
+                                        <tr class="{{ $rowClass }}">
+                                            <td>{{ $student->name }}</td>
+                                            <td>{{ $student->lrn }}</td>
+                                            <td class="text-center">
+                                                {{ $student->quarters['1st Quarter'] !== null ? number_format($student->quarters['1st Quarter'], 2) : '-' }}
+                                            </td>
+                                            <td class="text-center">
+                                                {{ $student->quarters['2nd Quarter'] !== null ? number_format($student->quarters['2nd Quarter'], 2) : '-' }}
+                                            </td>
+                                            <td class="text-center">
+                                                {{ $student->quarters['3rd Quarter'] !== null ? number_format($student->quarters['3rd Quarter'], 2) : '-' }}
+                                            </td>
+                                            <td class="text-center">
+                                                {{ $student->quarters['4th Quarter'] !== null ? number_format($student->quarters['4th Quarter'], 2) : '-' }}
+                                            </td>
+                                            <td class="text-center fw-bold">
+                                                {{ $student->average !== null ? number_format($student->average, 2) : 'N/A' }}
+                                            </td>
+                                            <td class="text-center">
+                                                <span
+                                                    class="badge bg-{{ $student->status == 'Passing' ? 'success' : ($student->status == 'Failing' ? 'danger' : 'secondary') }}">
+                                                    {{ $student->status }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            @else
+                <div class="alert alert-info">
+                    Please select a section, subject, and school year to view the cumulative performance report.
+                </div>
+            @endif
         </div>
-        <div class="col-md-4">
-            <div class="card report-card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <button class="btn btn-primary" id="generateReport">
-                        <i data-feather="bar-chart-2" class="me-1"></i> Generate Report
-                    </button>
-                    <button class="btn btn-success ms-2" id="exportReport">
-                        <i data-feather="download" class="me-1"></i> Export
-                    </button>
+    </div>
+    <div class="h5 mb-0 font-weight-bold">85.4%</div>
+    </div>
+    </div>
+    <div class="text-muted small">Compared to previous year: <span class="text-success">+1.8%</span>
+    </div>
+    </div>
+    </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card summary-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="icon-circle bg-info-light me-3">
+                        <i data-feather="check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-uppercase mb-1 text-info font-weight-bold">Attendance Rate</div>
+                        <div class="h5 mb-0 font-weight-bold">94.7%</div>
+                    </div>
+                </div>
+                <div class="text-muted small">Compared to previous year: <span class="text-danger">-0.5%</span>
                 </div>
             </div>
         </div>
     </div>
-
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card summary-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="icon-circle bg-primary-light me-3">
-                            <i data-feather="users"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-uppercase mb-1 text-primary font-weight-bold">Total Students</div>
-                            <div class="h5 mb-0 font-weight-bold">856</div>
-                        </div>
+    <div class="col-md-3">
+        <div class="card summary-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="icon-circle bg-warning-light me-3">
+                        <i data-feather="trending-up"></i>
                     </div>
-                    <div class="text-muted small">Compared to previous year: <span class="text-success">+3.2%</span>
+                    <div>
+                        <div class="text-xs text-uppercase mb-1 text-warning font-weight-bold">Promotion Rate</div>
+                        <div class="h5 mb-0 font-weight-bold">98.2%</div>
                     </div>
+                </div>
+                <div class="text-muted small">Compared to previous year: <span class="text-success">+0.7%</span>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card summary-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="icon-circle bg-success-light me-3">
-                            <i data-feather="award"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-uppercase mb-1 text-success font-weight-bold">Average Grade</div>
-                            <div class="h5 mb-0 font-weight-bold">85.4%</div>
-                        </div>
-                    </div>
-                    <div class="text-muted small">Compared to previous year: <span class="text-success">+1.8%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card summary-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="icon-circle bg-info-light me-3">
-                            <i data-feather="check-circle"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-uppercase mb-1 text-info font-weight-bold">Attendance Rate</div>
-                            <div class="h5 mb-0 font-weight-bold">94.7%</div>
-                        </div>
-                    </div>
-                    <div class="text-muted small">Compared to previous year: <span class="text-danger">-0.5%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card summary-card h-100">
-                <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <div class="icon-circle bg-warning-light me-3">
-                            <i data-feather="trending-up"></i>
-                        </div>
-                        <div>
-                            <div class="text-xs text-uppercase mb-1 text-warning font-weight-bold">Promotion Rate</div>
-                            <div class="h5 mb-0 font-weight-bold">98.2%</div>
-                        </div>
-                    </div>
-                    <div class="text-muted small">Compared to previous year: <span class="text-success">+0.7%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+    </div>
     </div>
 
     <div class="row mb-4">
@@ -325,136 +443,28 @@
     </div>
 @endsection
 
+@push('styles')
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+@endpush
+
 @push('scripts')
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Performance Trend Chart
-            const trendCtx = document.getElementById('performanceTrendChart').getContext('2d');
-            const performanceTrendChart = new Chart(trendCtx, {
-                type: 'line',
-                data: {
-                    labels: ['First Quarter', 'Second Quarter', 'Third Quarter', 'Fourth Quarter'],
-                    datasets: [{
-                        label: 'SY 2024-2025',
-                        data: [82.5, 84.3, 85.8, 86.7],
-                        borderColor: '#4e73df',
-                        backgroundColor: 'rgba(78, 115, 223, 0.1)',
-                        pointBackgroundColor: '#4e73df',
-                        pointBorderColor: '#ffffff',
-                        pointHoverBackgroundColor: '#ffffff',
-                        pointHoverBorderColor: '#4e73df',
-                        pointBorderWidth: 2,
-                        pointHoverRadius: 6,
-                        pointHoverBorderWidth: 2,
-                        pointRadius: 4,
-                        fill: true,
-                        lineTension: 0.3
-                    }, {
-                        label: 'SY 2023-2024',
-                        data: [81.2, 82.7, 83.6, 84.9],
-                        borderColor: '#1cc88a',
-                        backgroundColor: 'rgba(28, 200, 138, 0.1)',
-                        pointBackgroundColor: '#1cc88a',
-                        pointBorderColor: '#ffffff',
-                        pointHoverBackgroundColor: '#ffffff',
-                        pointHoverBorderColor: '#1cc88a',
-                        pointBorderWidth: 2,
-                        pointHoverRadius: 6,
-                        pointHoverBorderWidth: 2,
-                        pointRadius: 4,
-                        fill: true,
-                        lineTension: 0.3
-                    }]
-                },
-                options: {
+            feather.replace();
+
+            @if (isset($studentPerformance) && $studentPerformance->count() > 0)
+                // Initialize DataTable for cumulative data
+                $('#cumulativeTable').DataTable({
                     responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            min: 75,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.raw + '%';
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+                    order: [
+                        [0, 'asc']
+                    ]
+                });
+            @endif
 
-            // Initialize Subject Performance Chart
-            const subjectCtx = document.getElementById('subjectPerformanceChart').getContext('2d');
-            const subjectPerformanceChart = new Chart(subjectCtx, {
-                type: 'radar',
-                data: {
-                    labels: ['Math', 'Science', 'English', 'Filipino', 'Araling Panlipunan', 'MAPEH'],
-                    datasets: [{
-                        label: 'Average Grade',
-                        data: [88, 83, 86, 85, 82, 89],
-                        backgroundColor: 'rgba(78, 115, 223, 0.2)',
-                        borderColor: '#4e73df',
-                        pointBackgroundColor: '#4e73df',
-                        pointBorderColor: '#ffffff',
-                        pointHoverBackgroundColor: '#ffffff',
-                        pointHoverBorderColor: '#4e73df',
-                        pointBorderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            min: 70,
-                            max: 100,
-                            ticks: {
-                                stepSize: 10,
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.raw + '%';
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Handle generate report button
-            document.getElementById('generateReport').addEventListener('click', function() {
-                // In a real application, this would fetch data from the server
-                alert('Generating cumulative report based on selected filters...');
-            });
-
-            // Handle export button
-            document.getElementById('exportReport').addEventListener('click', function() {
-                // In a real application, this would trigger an export
-                alert('Exporting cumulative report...');
-            });
-
-            // Initialize Feather Icons
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-            }
         });
     </script>
 @endpush

@@ -10,15 +10,23 @@
 
     <div class="row g-4 mb-4">
         <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card h-100 border-0 shadow-sm hover-lift">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div class="bg-soft-primary rounded p-2">
                             <i data-feather="users" class="text-primary"></i>
                         </div>
+                        <span class="badge bg-soft-primary text-primary" data-bs-toggle="tooltip"
+                            title="Current school year">
+                            <i data-feather="trending-up" class="feather-sm"></i> Active
+                        </span>
                     </div>
-                    <h3 class="mb-1">{{ $enrolledStudents }}</h3>
-                    <p class="text-muted mb-0">Enrolled Students</p>
+                    <h3 class="mb-1 fw-bold">{{ number_format($enrolledStudents) }}</h3>
+                    <p class="text-muted mb-2">Enrolled Students</p>
+                    @if (isset($recentEnrolledStudents) && $recentEnrolledStudents > 0)
+                        <small class="text-success"><i data-feather="arrow-up" class="feather-sm"></i>
+                            +{{ $recentEnrolledStudents }} this year</small>
+                    @endif
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-primary" role="progressbar" style="width: 100%" aria-valuenow="100"
                             aria-valuemin="0" aria-valuemax="100"></div>
@@ -28,15 +36,22 @@
         </div>
 
         <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card h-100 border-0 shadow-sm hover-lift">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div class="bg-soft-success rounded p-2">
                             <i data-feather="user-check" class="text-success"></i>
                         </div>
+                        @if (isset($teacherStudentRatio))
+                            <span class="badge bg-soft-success text-success" data-bs-toggle="tooltip"
+                                title="Student-Teacher Ratio">
+                                1:{{ $teacherStudentRatio }}
+                            </span>
+                        @endif
                     </div>
-                    <h3 class="mb-1">{{ $teacherCount }}</h3>
-                    <p class="text-muted mb-0">Teaching Staff</p>
+                    <h3 class="mb-1 fw-bold">{{ number_format($teacherCount) }}</h3>
+                    <p class="text-muted mb-2">Teaching Staff</p>
+                    <small class="text-muted">Active teachers</small>
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-success" role="progressbar" style="width: 100%" aria-valuenow="100"
                             aria-valuemin="0" aria-valuemax="100"></div>
@@ -46,15 +61,22 @@
         </div>
 
         <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card h-100 border-0 shadow-sm hover-lift">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div class="bg-soft-warning rounded p-2">
                             <i data-feather="book-open" class="text-warning"></i>
                         </div>
+                        @if (isset($averageClassSize))
+                            <span class="badge bg-soft-warning text-warning" data-bs-toggle="tooltip"
+                                title="Average students per class">
+                                Avg: {{ $averageClassSize }}
+                            </span>
+                        @endif
                     </div>
-                    <h3 class="mb-1">{{ $sectionCount }}</h3>
-                    <p class="text-muted mb-0">Active Sections</p>
+                    <h3 class="mb-1 fw-bold">{{ number_format($sectionCount) }}</h3>
+                    <p class="text-muted mb-2">Active Classes</p>
+                    <small class="text-muted">Across all grade levels</small>
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-warning" role="progressbar" style="width: 100%" aria-valuenow="100"
                             aria-valuemin="0" aria-valuemax="100"></div>
@@ -64,18 +86,28 @@
         </div>
 
         <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-sm">
+            <div class="card h-100 border-0 shadow-sm hover-lift">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div class="bg-soft-info rounded p-2">
                             <i data-feather="check-circle" class="text-info"></i>
                         </div>
+                        @if (isset($attendancePercentage))
+                            <span class="badge bg-soft-info text-info" data-bs-toggle="tooltip" title="Attendance rate">
+                                {{ number_format($attendancePercentage, 1) }}%
+                            </span>
+                        @endif
                     </div>
-                    <h3 class="mb-1">{{ $todaysAttendance }}</h3>
-                    <p class="text-muted mb-0">Attendance Today</p>
+                    <h3 class="mb-1 fw-bold">{{ number_format($todaysAttendance) }}</h3>
+                    <p class="text-muted mb-2">Present Today</p>
+                    @if (isset($absentToday))
+                        <small class="text-danger"><i data-feather="user-x" class="feather-sm"></i> {{ $absentToday }}
+                            absent</small>
+                    @endif
                     <div class="progress mt-3" style="height: 4px;">
-                        <div class="progress-bar bg-info" role="progressbar" style="width: 100%" aria-valuenow="100"
-                            aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar bg-info" role="progressbar"
+                            style="width: {{ $attendancePercentage ?? 0 }}%"
+                            aria-valuenow="{{ $attendancePercentage ?? 0 }}" aria-valuemin="0" aria-valuemax="100"></div>
                     </div>
                 </div>
             </div>
@@ -86,43 +118,38 @@
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-bold">Student Enrollment Overview</h5>
-                    <div class="d-flex align-items-center">
-                        <label class="me-2 mb-0 small text-muted">School Year:</label>
-                        <select class="form-select form-select-sm" id="enrollmentYearSelect" style="width: 150px;" disabled>
-                            <option value="current" selected>2025-2026 (Current)</option>
-                        </select>
+                    <h5 class="mb-0 fw-bold">Student Enrollment Trends</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-soft-primary text-primary">Total: <span
+                                id="totalEnrollment">{{ number_format($enrolledStudents) }}</span></span>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex align-items-center mb-3">
-                        <h6 class="mb-0 me-3">Enrolled Students</h6>
-                        <div class="badge bg-soft-primary text-primary">Total: <span
-                                id="totalEnrollment">{{ $enrolledStudents }}</span>
-                            students</div>
-                    </div>
-                    <div id="enrollmentChart" style="height: 275px;">
+                    <div id="enrollmentChart" style="height: 300px;">
                         <div class="text-center py-5">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Loading...</span>
                             </div>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-between mt-3">
-                        <div class="small text-muted">Showing enrollment data for <span
-                                id="currentSelectedYear">2025-2026</span> school year</div>
-                        <div class="d-flex gap-3">
+                    <div class="d-flex justify-content-between mt-3 flex-wrap">
+                        <div class="small text-muted">Enrollment trends across school years</div>
+                        <div class="d-flex gap-3 flex-wrap" id="enrollmentLegend">
                             <div class="d-flex align-items-center">
                                 <div class="bg-primary rounded-circle me-1" style="width: 10px; height: 10px;"></div>
-                                <span class="small">Enrolled Students</span>
+                                <span class="small">Active</span>
                             </div>
                             <div class="d-flex align-items-center">
                                 <div class="bg-success rounded-circle me-1" style="width: 10px; height: 10px;"></div>
-                                <span class="small">Continuing</span>
+                                <span class="small">Alumni</span>
                             </div>
                             <div class="d-flex align-items-center">
                                 <div class="bg-warning rounded-circle me-1" style="width: 10px; height: 10px;"></div>
-                                <span class="small">Transfers</span>
+                                <span class="small">Transferee</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="bg-danger rounded-circle me-1" style="width: 10px; height: 10px;"></div>
+                                <span class="small">Inactive</span>
                             </div>
                         </div>
                     </div>
@@ -141,6 +168,69 @@
                                 <span class="visually-hidden">Loading...</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 fw-bold">Attendance Trend (Last 14 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div id="attendanceTrendChart" style="height: 250px;">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 fw-bold">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ route('admin.sections.index') }}"
+                            class="btn btn-outline-primary btn-sm d-flex align-items-center justify-content-between">
+                            <span><i data-feather="users" class="feather-sm me-2"></i>Manage Classes</span>
+                            <i data-feather="chevron-right" class="feather-sm"></i>
+                        </a>
+                        <a href="{{ route('admin.teachers.index') }}"
+                            class="btn btn-outline-success btn-sm d-flex align-items-center justify-content-between">
+                            <span><i data-feather="user-check" class="feather-sm me-2"></i>Manage Teachers</span>
+                            <i data-feather="chevron-right" class="feather-sm"></i>
+                        </a>
+                        <a href="{{ route('admin.subjects.index') }}"
+                            class="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-between">
+                            <span><i data-feather="book-open" class="feather-sm me-2"></i>Manage Subjects</span>
+                            <i data-feather="chevron-right" class="feather-sm"></i>
+                        </a>
+                        <a href="{{ route('admin.reports.attendance') }}"
+                            class="btn btn-outline-info btn-sm d-flex align-items-center justify-content-between">
+                            <span><i data-feather="calendar" class="feather-sm me-2"></i>Attendance Report</span>
+                            <i data-feather="chevron-right" class="feather-sm"></i>
+                        </a>
+                        <a href="{{ route('admin.reports.enrollees') }}"
+                            class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-between">
+                            <span><i data-feather="file-text" class="feather-sm me-2"></i>Enrollment Report</span>
+                            <i data-feather="chevron-right" class="feather-sm"></i>
+                        </a>
+                        @if (isset($pendingAdmissions) && $pendingAdmissions > 0)
+                            <a href="{{ route('admin.sections.index') }}"
+                                class="btn btn-outline-danger btn-sm d-flex align-items-center justify-content-between">
+                                <span><i data-feather="alert-circle" class="feather-sm me-2"></i>Pending
+                                    Enrollments</span>
+                                <span class="badge bg-danger">{{ $pendingAdmissions }}</span>
+                            </a>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -168,7 +258,7 @@
                                         <p class="mb-2">Status: <span class="badge bg-success">Active</span></p>
                                         <p class="mb-0">Duration:
                                             {{ \Carbon\Carbon::parse($activeSchoolYear->start_date)->format('F j, Y') }}
-                                            '' -
+                                            -
                                             {{ \Carbon\Carbon::parse($activeSchoolYear->end_date)->format('F j, Y') }}
                                         </p>
                                     @else
@@ -334,7 +424,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <form id="deleteSchoolYearForm" method="POST" action="">
+                    <form id="deleteSchoolYearForm" method="POST" action="" style="display: inline;">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-danger">Delete</button>
@@ -345,19 +435,67 @@
     </div>
 @endsection
 
+@push('styles')
+    <style>
+        .hover-lift {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .hover-lift:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .bg-soft-primary {
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+
+        .bg-soft-success {
+            background-color: rgba(25, 135, 84, 0.1);
+        }
+
+        .bg-soft-warning {
+            background-color: rgba(255, 193, 7, 0.1);
+        }
+
+        .bg-soft-info {
+            background-color: rgba(13, 202, 240, 0.1);
+        }
+
+        .feather-sm {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+@endpush
+
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Sample school year data (from your existing code)
-            const schoolYears = [{
-                id: 1,
-                name: '2025-2026',
-                startDate: '2025-06-15',
-                endDate: '2026-03-31',
-                description: 'Regular school year',
-                isCurrent: true
-            }, ];
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Initialize feather icons
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+
+            // Get school years from backend
+            const schoolYears = [
+                @foreach ($schoolYears as $year)
+                    {
+                        id: {{ $year->id }},
+                        name: '{{ $year->name }}',
+                        startDate: '{{ $year->start_date }}',
+                        endDate: '{{ $year->end_date }}',
+                        isCurrent: {{ $year->is_active ? 'true' : 'false' }}
+                    },
+                @endforeach
+            ];
 
             // This is the new function that creates the visual timeline.
             function initSchoolYearTimeline() {
@@ -368,8 +506,8 @@
                 const sortedYears = [...schoolYears].sort((a, b) => new Date(a.startDate) - new Date(b
                     .startDate));
 
-                // Set the current date to match the context
-                const currentDate = new Date('2025-07-24T02:52:35');
+                // Use actual current date
+                const currentDate = new Date();
 
                 let timelineHTML =
                     '<div class="d-flex w-100 align-items-center position-relative" style="height: 60px;">';
@@ -465,18 +603,17 @@
                 timelineContainer.innerHTML = timelineHTML;
             }
 
-            // Keep your other functions as they are
+            // Handle Delete Button Click
             function initSchoolYearManagement() {
-                // This function is from your original code
                 const schoolYearTableBody = document.getElementById('schoolYearTableBody');
                 if (!schoolYearTableBody) return;
 
-
-                // Handle Delete Button Click
                 schoolYearTableBody.addEventListener('click', function(event) {
                     if (event.target.classList.contains('delete-year-btn')) {
                         const button = event.target;
-                        document.getElementById('deleteYearId').value = button.dataset.yearId;
+                        const yearId = button.dataset.yearId;
+                        const deleteForm = document.getElementById('deleteSchoolYearForm');
+                        deleteForm.action = `/admin/school-year/${yearId}`;
                     }
                 });
             }
@@ -484,10 +621,12 @@
             function initDashboardCharts() {
                 const enrollmentChartEl = document.getElementById('enrollmentChart');
                 const classDistributionChartEl = document.getElementById('classDistributionChart');
+                const attendanceTrendChartEl = document.getElementById('attendanceTrendChart');
                 if (!enrollmentChartEl || !classDistributionChartEl) return;
 
                 let enrollmentChart;
                 let classDistributionChart;
+                let attendanceTrendChart;
 
                 const fetchData = async () => {
                     // Show spinners while loading
@@ -497,18 +636,32 @@
                         `<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>`;
 
                     try {
-                        const response = await fetch(
-                            `/admin/dashboard/chart-data`);
+                        const response = await fetch(`{{ route('admin.chart-data') }}`);
                         if (!response.ok) {
                             throw new Error('Network response was not ok');
                         }
-                        const data = await response.json();
-                        updateEnrollmentChart(data.enrollmentTrends);
-                        updateClassDistributionChart(data.classDistributionChart);
-                    } catch (error) {
-                        console.error('Error fetching chart data:', error);
-                        enrollmentChartEl.innerHTML =
-                            `<div class="text-center py-5 text-danger">Failed to load chart data. ${error.message}</div>`;
+                        // Some environments may accidentally wrap JSON in markdown fences. Clean it defensively.
+                        let raw = await response.text();
+                        let cleaned = raw.trim();
+                        if (cleaned.startsWith('```')) {
+                        // Remove opening fence (``` or ```json) and closing fence
+                        cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
+                    }
+                    let data;
+                    try {
+                        data = JSON.parse(cleaned);
+                    } catch (parseErr) {
+                        throw new Error('Invalid JSON from server: ' + parseErr.message);
+                    }
+                    updateEnrollmentChart(data.enrollmentTrends);
+                    updateClassDistributionChart(data.classDistributionChart);
+                    if (attendanceTrendChartEl && data.attendanceTrend) {
+                        updateAttendanceTrendChart(data.attendanceTrend);
+                    }
+                } catch (error) {
+                    console.error('Error fetching chart data:', error);
+                    enrollmentChartEl.innerHTML =
+                        `<div class="text-center py-5 text-danger">Failed to load chart data. ${error.message}</div>`;
                         classDistributionChartEl.innerHTML =
                             '<div class="text-center py-5 text-danger">Failed to load chart data.</div>';
                     }
@@ -617,7 +770,6 @@
                     if (classDistributionChart) {
                         classDistributionChart.destroy();
                     }
-                    // Clear spinner
                     classDistributionChartEl.innerHTML = '';
 
                     classDistributionChart = new Chart(classDistributionChartEl, {
@@ -640,22 +792,99 @@
                             plugins: {
                                 legend: {
                                     position: 'bottom',
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            label += context.parsed + ' sections';
+                                            return label;
+                                        }
+                                    }
                                 }
                             }
                         }
                     });
                 };
 
-                const enrollmentYearSelect = document.getElementById('enrollmentYearSelect');
-                enrollmentYearSelect.addEventListener('change', (e) => {
-                    const selectedYear = e.target.value;
-                    document.getElementById('currentSelectedYear').textContent = e.target.options[e.target
-                        .selectedIndex].text;
-                    fetchData(selectedYear);
-                });
+                const updateAttendanceTrendChart = (attendanceData) => {
+                    if (attendanceTrendChart) {
+                        attendanceTrendChart.destroy();
+                    }
+                    attendanceTrendChartEl.innerHTML = '';
+
+                    const canvas = document.createElement('canvas');
+                    attendanceTrendChartEl.appendChild(canvas);
+
+                    const labels = attendanceData.map(item => {
+                        const date = new Date(item.date);
+                        return date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                        });
+                    });
+                    const percentages = attendanceData.map(item => item.percentage);
+                    const presentCounts = attendanceData.map(item => item.present);
+
+                    attendanceTrendChart = new Chart(canvas, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Attendance Rate (%)',
+                                data: percentages,
+                                borderColor: '#0dcaf0',
+                                backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 3,
+                                pointHoverRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    display: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Date'
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    title: {
+                                        display: true,
+                                        text: 'Percentage (%)'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        afterLabel: function(context) {
+                                            const index = context.dataIndex;
+                                            return 'Present: ' + presentCounts[index];
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                };
 
                 // Initial fetch
-                fetchData(enrollmentYearSelect.value);
+                fetchData();
             }
 
             // Call all initialization functions

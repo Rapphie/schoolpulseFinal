@@ -187,7 +187,18 @@ class AdminController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        Section::create($validated);
+        try {
+            $insertSection = Section::create($validated);
+        } catch (\Throwable $e) {
+            Log::error('Section creation failed: ' . $e->getMessage());
+            return redirect()->route('admin.sections.index')
+                ->with('error', 'Failed to create Section: ' . $e->getMessage());
+        }
+
+        if (!$insertSection) {
+            return redirect()->route('admin.sections.index')
+                ->with('error', 'Failed to create Section.');
+        }
 
         return redirect()->route('admin.sections.index')
             ->with('success', 'Section created successfully.');

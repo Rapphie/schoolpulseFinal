@@ -550,7 +550,7 @@
             // Handle filter button
             if (e.target.closest('#applyFilter')) {
                 var month = document.getElementById('monthFilter').value;
-                window.location.href = '{{ route('admin.records') }}?month=' + month;
+                window.location.href = '{{ route('admin.reports.attendance') }}?month=' + month;
             }
 
 

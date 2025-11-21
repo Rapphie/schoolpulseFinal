@@ -63,6 +63,54 @@ class AdminDashboardController extends Controller
         $totalRelevant = $enrolledStudents + $graduates + $transferStudents;
         $retentionRate = $totalRelevant > 0 ? (($enrolledStudents + $graduates) / $totalRelevant) * 100 : 0;
 
+        // Additional metrics
+        $pendingAdmissions = $activeSchoolYear ? Enrollment::where('school_year_id', $activeSchoolYear->id)->where('status', 'unenrolled')->count() : 0;
+        $absentToday = $todaysAttendance->where('status', 'absent')->count();
+        $averageClassSize = 0;
+        if ($activeSchoolYear) {
+            $averageClassSize = round(Classes::where('school_year_id', $activeSchoolYear->id)
+                ->withCount(['enrollments' => function ($q) {
+                    $q->where('status', 'enrolled');
+                }])
+                ->get()->avg('enrollments_count') ?? 0, 2);
+        }
+        $teacherStudentRatio = $teacherCount > 0 ? round($enrolledStudents / $teacherCount, 2) : 0;
+
+        // Recent activity feed (limited & unified)
+        $recentEnrollments = Enrollment::latest()->take(5)->get()->map(function ($e) {
+            return [
+                'type' => 'Enrollment',
+                'created_at' => $e->created_at,
+                'description' => 'Student ID ' . $e->student_id . ' ' . $e->status,
+            ];
+        });
+        $recentAssessments = \App\Models\Assessment::latest()->take(5)->get()->map(function ($a) {
+            return [
+                'type' => 'Assessment',
+                'created_at' => $a->created_at,
+                'description' => $a->name . ' (Q' . $a->quarter . ')',
+            ];
+        });
+        $recentAbsences = Attendance::where('status', 'absent')->latest()->take(5)->get()->map(function ($at) {
+            return [
+                'type' => 'Absence',
+                'created_at' => $at->created_at,
+                'description' => 'Student ID ' . $at->student_id . ' absent',
+            ];
+        });
+        $recentActivities = collect($recentEnrollments)->merge($recentAssessments)->merge($recentAbsences)
+            ->sortByDesc('created_at')->take(10)->values();
+
+        // Upcoming events (if events table exists)
+        $upcomingEvents = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('events')) {
+            $upcomingEvents = DB::table('events')
+                ->where('start_date', '>=', Carbon::today()->toDateString())
+                ->orderBy('start_date')
+                ->limit(5)
+                ->get();
+        }
+
         return view('admin.dashboard', [
             'enrolledStudents' => $enrolledStudents,
             'teacherCount' => $teacherCount,
@@ -75,6 +123,12 @@ class AdminDashboardController extends Controller
             'todaysAttendance' => $presentCount,
             'schoolYears' => $schoolYears,
             'activeSchoolYear' => $activeSchoolYear,
+            'pendingAdmissions' => $pendingAdmissions,
+            'absentToday' => $absentToday,
+            'averageClassSize' => $averageClassSize,
+            'teacherStudentRatio' => $teacherStudentRatio,
+            'recentActivities' => $recentActivities,
+            'upcomingEvents' => $upcomingEvents,
         ]);
     }
 
@@ -127,10 +181,41 @@ class AdminDashboardController extends Controller
             ->orderBy('status', 'asc')
             ->get();
 
+        // Attendance trend (last 14 days)
+        $attendanceTrend = Attendance::select(
+            'date',
+            DB::raw('SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count'),
+            DB::raw('COUNT(*) as total_count')
+        )
+            ->where('date', '>=', Carbon::today()->subDays(13))
+            ->groupBy('date')
+            ->orderBy('date', 'asc')
+            ->get()
+            ->map(function ($row) {
+                $percentage = $row->total_count > 0 ? round(($row->present_count / $row->total_count) * 100, 2) : 0;
+                return [
+                    'date' => $row->date,
+                    'present' => (int)$row->present_count,
+                    'total' => (int)$row->total_count,
+                    'percentage' => $percentage,
+                ];
+            });
+
+        // Grade performance by quarter
+        $gradePerformance = \App\Models\Grade::select('quarter', DB::raw('AVG(grade) as avg_grade'))
+            ->when($activeSchoolYear, function ($q) use ($activeSchoolYear) {
+                $q->where('school_year_id', $activeSchoolYear->id);
+            })
+            ->groupBy('quarter')
+            ->orderBy('quarter')
+            ->get();
+
         return response()->json([
             'enrollmentChart' => $enrollmentChart,
             'classDistributionChart' => $classDistributionChart,
             'enrollmentTrends' => $enrollmentTrends,
+            'attendanceTrend' => $attendanceTrend,
+            'gradePerformance' => $gradePerformance,
         ]);
     }
     public function storeSchoolYear(Request $request)

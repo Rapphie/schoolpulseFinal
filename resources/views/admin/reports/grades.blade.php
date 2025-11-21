@@ -70,171 +70,160 @@
                     <div class="card border-left-info h-100 py-2">
                         <div class="card-body">
                             <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                        Lowest Grade</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ number_format($lowestGrade, 2) }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-arrow-down fa-2x text-gray-300"></i>
+                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                    Lowest Grade</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ number_format($lowestGrade, 2) }}
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-warning h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                        Passing Rate</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $passingRate }}%</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-percent fa-2x text-gray-300"></i>
-                                </div>
+                            <div class="col-auto">
+                                <i class="fas fa-arrow-down fa-2x text-gray-300"></i>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="card shadow h-100">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Grade Distribution</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-area">
-                                <canvas id="gradeDistributionChart"></canvas>
+            <div class="col-md-3">
+                <div class="card border-left-warning h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                    Passing Rate</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $passingRate }}%</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-percent fa-2x text-gray-300"></i>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card shadow h-100">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Performance Summary</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-pie pt-4">
-                                <canvas id="performancePieChart"></canvas>
-                            </div>
-                            <div class="mt-4 text-center small">
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-success"></i> Excellent (90-100)
-                                </span>
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-info"></i> Good (80-89)
-                                </span>
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-primary"></i> Average (70-79)
-                                </span>
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-warning"></i> Needs Improvement (60-69)
-                                </span>
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-danger"></i> Failing (Below 60)
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-primary">Detailed Grade Report</h6>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i data-feather="download"></i> Export
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                            <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
-                            <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
-                            <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered" id="gradesTable" width="100%" cellspacing="0">
-                            <thead>
-                                <tr>
-                                    <th>Student Name</th>
-                                    <th>Section</th>
-                                    <th>Subject</th>
-                                    <th>1st Quarter</th>
-                                    <th>2nd Quarter</th>
-                                    <th>3rd Quarter</th>
-                                    <th>4th Quarter</th>
-                                    <th>Final Grade</th>
-                                    <th>Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($grades as $grade)
-                                    @php
-                                        $finalGrade =
-                                            ($grade->first_quarter +
-                                                $grade->second_quarter +
-                                                $grade->third_quarter +
-                                                $grade->fourth_quarter) /
-                                            4;
-                                        $remarks = $finalGrade >= 75 ? 'Passed' : 'Failed';
-                                        $rowClass =
-                                            $finalGrade >= 90
-                                                ? 'table-success'
-                                                : ($finalGrade >= 80
-                                                    ? 'table-info'
-                                                    : ($finalGrade >= 70
-                                                        ? ''
-                                                        : ($finalGrade >= 60
-                                                            ? 'table-warning'
-                                                            : 'table-danger')));
-                                    @endphp
-                                    <tr class="{{ $rowClass }}">
-                                        <td>{{ $grade->student->name ?? 'N/A' }}</td>
-                                        <td>{{ $grade->student->section->name ?? 'N/A' }}</td>
-                                        <td>{{ $grade->subject->name ?? 'N/A' }}</td>
-                                        <td class="text-center">{{ number_format($grade->first_quarter, 2) }}</td>
-                                        <td class="text-center">{{ number_format($grade->second_quarter, 2) }}</td>
-                                        <td class="text-center">{{ number_format($grade->third_quarter, 2) }}</td>
-                                        <td class="text-center">{{ number_format($grade->fourth_quarter, 2) }}</td>
-                                        <td class="text-center fw-bold">{{ number_format($finalGrade, 2) }}</td>
-                                        <td class="text-center">
-                                            <span class="badge bg-{{ $remarks == 'Passed' ? 'success' : 'danger' }}">
-                                                {{ $remarks }}
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            <button class="btn btn-sm btn-info"
-                                                onclick="viewGradeDetails({{ $grade->id }})" data-bs-toggle="tooltip"
-                                                title="View Details">
-                                                <i data-feather="eye" class="feather-sm"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-warning text-white"
-                                                onclick="editGrade({{ $grade->id }})" data-bs-toggle="tooltip"
-                                                title="Edit Grade">
-                                                <i data-feather="edit-2" class="feather-sm"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="10" class="text-center">No grade records found.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>
         </div>
+
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card shadow h-100">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Grade Distribution</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-area">
+                            <canvas id="gradeDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow h-100">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Performance Summary</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-pie pt-4">
+                            <canvas id="performancePieChart"></canvas>
+                        </div>
+                        <div class="mt-4 text-center small">
+                            <span class="me-3">
+                                <i class="fas fa-circle text-success"></i> Excellent (90-100)
+                            </span>
+                            <span class="me-3">
+                                <i class="fas fa-circle text-info"></i> Good (80-89)
+                            </span>
+                            <span class="me-3">
+                                <i class="fas fa-circle text-primary"></i> Average (70-79)
+                            </span>
+                            <span class="me-3">
+                                <i class="fas fa-circle text-warning"></i> Needs Improvement (60-69)
+                            </span>
+                            <span class="me-3">
+                                <i class="fas fa-circle text-danger"></i> Failing (Below 60)
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Detailed Grade Report</h6>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        <i data-feather="download"></i> Export
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                        <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
+                        <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
+                        <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="gradesTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Section</th>
+                                <th>Subject</th>
+                                <th>1st Quarter</th>
+                                <th>2nd Quarter</th>
+                                <th>3rd Quarter</th>
+                                <th>4th Quarter</th>
+                                <th>Final Grade</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (isset($gradesData->students) && $gradesData->students->count() > 0)
+                                @foreach ($gradesData->students as $student)
+                                    @php
+                                        $rowClass = '';
+                                        if ($student->grade !== null) {
+                                            if ($student->grade >= 90) {
+                                                $rowClass = 'table-success';
+                                            } elseif ($student->grade >= 80) {
+                                                $rowClass = 'table-info';
+                                            } elseif ($student->grade >= 70) {
+                                                $rowClass = '';
+                                            } elseif ($student->grade >= 60) {
+                                                $rowClass = 'table-warning';
+                                            } else {
+                                                $rowClass = 'table-danger';
+                                            }
+                                        }
+                                    @endphp
+                                    <tr class="{{ $rowClass }}">
+                                        <td>{{ $student->name }}</td>
+                                        <td>{{ $gradesData->section->name ?? 'N/A' }}</td>
+                                        <td>{{ $gradesData->subject->name ?? 'N/A' }}</td>
+                                        <td class="text-center">-</td>
+                                        <td class="text-center">-</td>
+                                        <td class="text-center">-</td>
+                                        <td class="text-center">-</td>
+                                        <td class="text-center fw-bold">
+                                            {{ $student->grade !== null ? number_format($student->grade, 2) : 'N/A' }}</td>
+                                        <td class="text-center">
+                                            <span
+                                                class="badge bg-{{ $student->remarks == 'No Grade' ? 'secondary' : ($student->grade >= 75 ? 'success' : 'danger') }}">
+                                                {{ $student->remarks }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            @else
+                                <tr>
+                                    <td colspan="9" class="text-center">No grade records found. Please select a section
+                                        and subject.</td>
+                                </tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
     </div>
 @endsection
 
