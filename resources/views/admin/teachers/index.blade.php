@@ -470,10 +470,12 @@
                                             <span class="badge bg-secondary">No Advisory</span>
                                         @endif
                                     </td>
-                                    <td class="align-middle">
-                                        <div><i data-feather="mail" class="feather-sm me-1"></i> {{ $teacher->user->email }}
+                                    <td>
+                                        <div class="d-flex justify-content-center"><i data-feather="mail"
+                                                class="feather-sm me-1"></i> {{ $teacher->user->email }}
                                         </div>
-                                        <div><i data-feather="phone" class="feather-sm me-1"></i>
+                                        <div class="d-flex justify-content-center"><i data-feather="phone"
+                                                class="feather-sm me-1"></i>
                                             {{ $teacher->phone ?? 'N/A' }}</div>
                                     </td>
                                     <td class="align-middle">

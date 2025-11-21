@@ -145,28 +145,49 @@
                                             <td>{{ $schedule->teacher->user->first_name }}
                                                 {{ $schedule->teacher->user->last_name }}</td>
                                             <td>
+                                                @php
+                                                    $dayArray = is_array($schedule->day_of_week)
+                                                        ? $schedule->day_of_week
+                                                        : explode(',', $schedule->day_of_week);
+                                                @endphp
                                                 <span class="d-block">
-                                                    {{ implode(', ', array_map('ucfirst', explode(',', $schedule->day_of_week))) }}</span>
-                                                <small
-                                                    class="text-muted">{{ \Carbon\Carbon::parse($schedule->start_time)->format('g:i A') }}
-                                                    -
-                                                    {{ \Carbon\Carbon::parse($schedule->end_time)->format('g:i A') }}</small>
+                                                    {{ implode(', ', array_map('ucfirst', array_map('trim', $dayArray))) }}</span>
+                                                <small class="text-muted">{!! $schedule->start_time?->format('g:i A') ?? '<em>Not Set</em>' !!} -
+                                                    {!! $schedule->end_time?->format('g:i A') ?? '<em>Not Set</em>' !!}</small>
                                             </td>
-                                            <td class="text-center">
-                                                <form action="{{ route('admin.schedules.destroy', $schedule->id) }}"
-                                                    method="POST"
-                                                    onsubmit="return confirm('This action cannot be undone. Confirm to delete Schedule?');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button class="btn btn-sm btn-outline-danger">Remove</button>
-                                                </form>
+                                            <td class="align-middle text-center">
+                                                <div class="d-flex justify-content-center gap-2 align-items-center">
+                                                    <button class="btn btn-sm btn-outline-secondary edit-schedule-btn"
+                                                        data-bs-toggle="modal" data-bs-target="#editScheduleModal"
+                                                        data-schedule-id="{{ $schedule->id }}"
+                                                        data-update-url="{{ route('admin.schedules.update', $schedule->id) }}"
+                                                        data-teacher-id="{{ $schedule->teacher_id }}"
+                                                        data-days="{{ is_array($schedule->day_of_week) ? implode(',', $schedule->day_of_week) : $schedule->day_of_week }}"
+                                                        data-start-time="{{ $schedule->start_time }}"
+                                                        data-end-time="{{ $schedule->end_time }}"
+                                                        data-room="{{ $schedule->room }}"
+                                                        data-subject-id="{{ $schedule->subject_id }}"
+                                                        data-subject-name="{{ $schedule->subject?->name }}">
+                                                        Edit
+                                                    </button>
+
+                                                    <form action="{{ route('admin.schedules.destroy', $schedule->id) }}"
+                                                        method="POST" class="m-0"
+                                                        onsubmit="return confirm('This action cannot be undone. Confirm to delete Schedule?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button class="btn btn-sm btn-outline-danger">Remove</button>
+                                                    </form>
+                                                </div>
                                             </td>
                                         @else
                                             <td class="text-muted"><em>Not Assigned</em></td>
                                             <td class="text-muted"><em>Not Set</em></td>
                                             <td class="text-center">
-                                                <button class="btn btn-sm btn-primary" data-bs-toggle="modal"
-                                                    data-bs-target="#addScheduleModal">
+                                                <button class="btn btn-sm btn-primary assign-schedule-btn"
+                                                    data-bs-toggle="modal" data-bs-target="#addScheduleModal"
+                                                    data-subject-id="{{ $subject->id }}"
+                                                    data-subject-name="{{ $subject->name }}">
                                                     Assign Schedule
                                                 </button>
                                             </td>
@@ -198,6 +219,7 @@
                 <form action="{{ route('admin.enrollment.store', $class) }}" method="POST">
                     @csrf
                     <div class="modal-body">
+                        <input type="hidden" name="class_id" value="{{ $class->id }}">
                         <h6 class="mb-3 border-bottom pb-2">Student Information</h6>
                         <div class="row">
                             <div class="col-md-4 mb-3">
@@ -302,13 +324,14 @@
                     <div class="modal-body">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="subject_id" class="form-label">Subject</label>
-                                <select class="form-select" name="subject_id" required>
+                                <label for="subject_select" class="form-label">Subject</label>
+                                <select class="form-select" id="subject_select" aria-describedby="subjectHelp">
                                     <option value="">-- Select a subject --</option>
                                     @foreach ($subjects as $subject)
                                         <option value="{{ $subject->id }}">{{ $subject->name }}</option>
                                     @endforeach
                                 </select>
+                                <input type="hidden" name="subject_id" id="subject_id_input">
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="teacher_id" class="form-label">Teacher</label>
@@ -322,12 +345,21 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Day(s) of the Week</label>
-                            <div>
-                                @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as $day)
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label mb-0">Day(s) of the Week</label>
+                                <button class="btn btn-link btn-sm p-0" type="button"
+                                    data-day-toggle="#adminDaySelector" aria-expanded="false"
+                                    aria-controls="adminDaySelector" data-hide-label="Hide days">
+                                    Change days
+                                </button>
+                            </div>
+                            <p class="small text-muted mb-2">Defaults to Monday through Friday. Expand if you need to
+                                adjust.</p>
+                            <div id="adminDaySelector" class="day-selector d-none">
+                                @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $day)
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input" type="checkbox" name="day_of_week[]"
-                                            value="{{ $day }}" id="day_{{ $day }}">
+                                            value="{{ $day }}" id="day_{{ $day }}" checked>
                                         <label class="form-check-label"
                                             for="day_{{ $day }}">{{ ucfirst($day) }}</label>
                                     </div>
@@ -336,11 +368,13 @@
                         </div>
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label for="start_time" class="form-label">Start Time</label>
+                                <label for="start_time" class="form-label">Start Time <span
+                                        class="text-danger">*</span></label>
                                 <input type="time" class="form-control" name="start_time" required>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label for="end_time" class="form-label">End Time</label>
+                                <label for="end_time" class="form-label">End Time <span
+                                        class="text-danger">*</span></label>
                                 <input type="time" class="form-control" name="end_time" required>
                             </div>
                             <div class="col-md-4 mb-3">
@@ -352,6 +386,79 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Add to Schedule</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Edit Schedule Modal -->
+    <div class="modal fade" id="editScheduleModal" tabindex="-1" aria-labelledby="editScheduleModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editScheduleModalLabel">Edit Schedule Entry</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editScheduleForm" action="" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-body">
+                        <input type="hidden" name="subject_id" id="edit_subject_id">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="edit_subject_display" class="form-label">Subject</label>
+                                <input type="text" id="edit_subject_display" class="form-control" disabled>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit_teacher_id" class="form-label">Teacher</label>
+                                <select class="form-select" id="edit_teacher_id" name="teacher_id" required>
+                                    <option value="">-- Select a teacher --</option>
+                                    @foreach ($teachers as $teacher)
+                                        <option value="{{ $teacher->id }}">{{ $teacher->user->first_name }}
+                                            {{ $teacher->user->last_name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label mb-0">Day(s) of the Week</label>
+                            <div class="small text-muted mb-2">Select the days for this schedule.</div>
+                            <div id="editDaySelector">
+                                @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $day)
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input edit-day-checkbox" type="checkbox"
+                                            name="day_of_week[]" value="{{ $day }}"
+                                            id="edit_day_{{ $day }}">
+                                        <label class="form-check-label"
+                                            for="edit_day_{{ $day }}">{{ ucfirst($day) }}</label>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="edit_start_time" class="form-label">Start Time <span
+                                        class="text-danger">*</span></label>
+                                <input type="time" class="form-control" name="start_time" id="edit_start_time"
+                                    required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="edit_end_time" class="form-label">End Time <span
+                                        class="text-danger">*</span></label>
+                                <input type="time" class="form-control" name="end_time" id="edit_end_time" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="edit_room" class="form-label">Room (Optional)</label>
+                                <input type="text" class="form-control" name="room" id="edit_room">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
                     </div>
                 </form>
             </div>
@@ -391,3 +498,171 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    @once('day-toggle-script')
+        <script>
+            (() => {
+                const wireDayToggleButtons = () => {
+                    document.querySelectorAll('[data-day-toggle]').forEach((btn) => {
+                        if (btn.dataset.dayToggleBound === 'true') {
+                            return;
+                        }
+
+                        btn.dataset.dayToggleBound = 'true';
+                        const showLabel = btn.dataset.showLabel || btn.textContent.trim() || 'Change days';
+                        const hideLabel = btn.dataset.hideLabel || 'Hide days';
+                        btn.dataset.showLabel = showLabel;
+                        btn.dataset.hideLabel = hideLabel;
+
+                        btn.addEventListener('click', () => {
+                            const selector = btn.getAttribute('data-day-toggle');
+                            if (!selector) {
+                                return;
+                            }
+
+                            const target = document.querySelector(selector);
+                            if (!target) {
+                                return;
+                            }
+
+                            const isHidden = target.classList.toggle('d-none');
+                            const expanded = !isHidden;
+                            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                            btn.textContent = expanded ? hideLabel : showLabel;
+                        });
+                    });
+                };
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', wireDayToggleButtons);
+                } else {
+                    wireDayToggleButtons();
+                }
+
+                document.addEventListener('shown.bs.modal', wireDayToggleButtons);
+            })();
+        </script>
+    @endonce
+@endpush
+
+@push('scripts')
+    <script>
+        (function() {
+            const modalEl = document.getElementById('addScheduleModal');
+            if (!modalEl) return;
+
+            modalEl.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget; // Button that triggered the modal
+                const subjectId = button?.getAttribute('data-subject-id');
+                const subjectName = button?.getAttribute('data-subject-name');
+
+                const select = document.getElementById('subject_select');
+                const hidden = document.getElementById('subject_id_input');
+                const title = modalEl.querySelector('.modal-title');
+
+                if (subjectId) {
+                    // Set hidden input for submission
+                    hidden.value = subjectId;
+
+                    // Set the select to the value and disable it to prevent changes
+                    if (select) {
+                        select.value = subjectId;
+                        select.setAttribute('disabled', 'disabled');
+                    }
+
+                    // Update modal title to indicate subject
+                    if (title && subjectName) {
+                        title.textContent = `Add Schedule Entry — ${subjectName}`;
+                    }
+                } else {
+                    // No subject provided: ensure select is enabled and cleared
+                    if (select) {
+                        select.removeAttribute('disabled');
+                        select.value = '';
+                    }
+                    if (hidden) hidden.value = '';
+                }
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                const select = document.getElementById('subject_select');
+                const hidden = document.getElementById('subject_id_input');
+                const title = modalEl.querySelector('.modal-title');
+
+                if (select) {
+                    select.removeAttribute('disabled');
+                    select.value = '';
+                }
+                if (hidden) hidden.value = '';
+                if (title) title.textContent = 'Add Schedule Entry';
+            });
+        })();
+    </script>
+    <script>
+        (function() {
+            const editModalEl = document.getElementById('editScheduleModal');
+            if (!editModalEl) return;
+
+            editModalEl.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const scheduleId = button?.getAttribute('data-schedule-id');
+                const updateUrl = button?.getAttribute('data-update-url');
+                const teacherId = button?.getAttribute('data-teacher-id');
+                const days = button?.getAttribute('data-days') || '';
+                const startTime = button?.getAttribute('data-start-time');
+                const endTime = button?.getAttribute('data-end-time');
+                const room = button?.getAttribute('data-room');
+                const subjectId = button?.getAttribute('data-subject-id');
+                const subjectName = button?.getAttribute('data-subject-name');
+
+                const form = document.getElementById('editScheduleForm');
+                const teacherSelect = document.getElementById('edit_teacher_id');
+                const subjectInput = document.getElementById('edit_subject_id');
+                const subjectDisplay = document.getElementById('edit_subject_display');
+                const startInput = document.getElementById('edit_start_time');
+                const endInput = document.getElementById('edit_end_time');
+                const roomInput = document.getElementById('edit_room');
+
+                // Set form action
+                if (form && updateUrl) {
+                    form.setAttribute('action', updateUrl);
+                }
+
+                // Populate teacher
+                if (teacherSelect) {
+                    teacherSelect.value = teacherId || '';
+                }
+
+                // Populate subject display and hidden input
+                if (subjectInput) subjectInput.value = subjectId || '';
+                if (subjectDisplay) subjectDisplay.value = subjectName || '';
+
+                // Populate days checkboxes
+                const dayArray = days ? days.split(',').map(d => d.trim().toLowerCase()) : [];
+                document.querySelectorAll('.edit-day-checkbox').forEach((cb) => {
+                    cb.checked = dayArray.includes(cb.value.toLowerCase());
+                });
+
+                // Populate times and room
+                if (startInput) startInput.value = startTime || '';
+                if (endInput) endInput.value = endTime || '';
+                if (roomInput) roomInput.value = room || '';
+            });
+
+            editModalEl.addEventListener('hidden.bs.modal', function() {
+                const form = document.getElementById('editScheduleForm');
+                if (form) {
+                    form.removeAttribute('action');
+                }
+                document.getElementById('edit_subject_id').value = '';
+                document.getElementById('edit_subject_display').value = '';
+                document.getElementById('edit_teacher_id').value = '';
+                document.getElementById('edit_start_time').value = '';
+                document.getElementById('edit_end_time').value = '';
+                document.getElementById('edit_room').value = '';
+                document.querySelectorAll('.edit-day-checkbox').forEach(cb => cb.checked = false);
+            });
+        })();
+    </script>
+@endpush

@@ -27,7 +27,7 @@
         @else
             <ul class="nav nav-tabs" id="gradeLevelTabs" role="tablist">
                 @php
-                    $gradeLevels = range(1, 6);
+                    $gradeLevels = $classes->pluck('section.gradeLevel.level')->filter()->unique()->sort()->values();
                 @endphp
                 @foreach ($gradeLevels as $gradeLevel)
                     <li class="nav-item" role="presentation">
@@ -72,7 +72,9 @@
                                                     <td class="text-center">
                                                         <a href="{{ route('admin.sections.manage', $class->section->id) }}"
                                                             class="btn btn-sm btn-outline-primary">
-                                                            <i data-feather="settings" class="feather-sm me-1"></i> Manage
+                                                            <div class="d-flex align-items-center"><i
+                                                                    data-feather="settings" class="feather-sm me-1"></i>
+                                                                Manage</div>
                                                         </a>
                                                     </td>
                                                 </tr>
@@ -106,14 +108,22 @@
                                 value="{{ old('name') }}" required>
                         </div>
                         <div class="mb-3">
-                            <label for="grade_level_id" class="form-label">Grade Level <span
+                            <label for="grade_level_display" class="form-label">Grade Level <span
                                     class="text-danger">*</span></label>
-                            <select class="form-select" id="grade_level_id" name="grade_level_id" required>
-                                <option value="" selected disabled>Select a grade level...</option>
-                                @for ($i = 1; $i <= 6; $i++)
-                                    <option value="{{ $i }}">Grade {{ $i }}</option>
-                                @endfor
-                            </select>
+                            @php
+                                $modalDefaultGrade =
+                                    $classes
+                                        ->pluck('section.gradeLevel.level')
+                                        ->filter()
+                                        ->unique()
+                                        ->sort()
+                                        ->values()
+                                        ->first() ?? 1;
+                            @endphp
+                            <input type="text" class="form-control" id="grade_level_display"
+                                value="Grade {{ $modalDefaultGrade }}" disabled>
+                            <input type="hidden" id="grade_level_id" name="grade_level_id"
+                                value="{{ $modalDefaultGrade }}">
                         </div>
                         <div class="mb-3">
                             <label for="teacher_id" class="form-label">Adviser</label>
@@ -146,3 +156,47 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            function getActiveGrade() {
+                const activeTab = document.querySelector('#gradeLevelTabs .nav-link.active');
+                if (activeTab) {
+                    const id = activeTab.id || '';
+                    const match = id.match(/grade-(\d+)-tab/);
+                    if (match && match[1]) return parseInt(match[1], 10);
+                    const text = activeTab.textContent || '';
+                    const textMatch = text.match(/Grade\s*(\d+)/i);
+                    if (textMatch && textMatch[1]) return parseInt(textMatch[1], 10);
+                }
+                return 1;
+            }
+
+            function setGradeInputs(grade) {
+                const hidden = document.getElementById('grade_level_id');
+                const display = document.getElementById('grade_level_display');
+                if (hidden) hidden.value = grade;
+                if (display) display.value = `Grade ${grade}`;
+            }
+
+            // Initialize on load
+            setGradeInputs(getActiveGrade());
+
+            // Update when a tab is shown
+            document.querySelectorAll('#gradeLevelTabs .nav-link').forEach(function(el) {
+                el.addEventListener('shown.bs.tab', function() {
+                    setGradeInputs(getActiveGrade());
+                });
+            });
+
+            // Also refresh when modal opens
+            const modal = document.getElementById('addClassModal');
+            if (modal) {
+                modal.addEventListener('shown.bs.modal', function() {
+                    setGradeInputs(getActiveGrade());
+                });
+            }
+        });
+    </script>
+@endpush

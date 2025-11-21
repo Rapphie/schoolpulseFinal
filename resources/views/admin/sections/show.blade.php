@@ -38,8 +38,8 @@
                     <div class="row mb-3">
                         <div class="col-md-4 font-weight-bold">Adviser:</div>
                         <div class="col-md-8">
-                            @if ($section->teacher->user)
-                                {{ $section->teacher->user->full_name }}
+                            @if ($class->teacher && $class->teacher->user)
+                                {{ $class->teacher->user->full_name }}
                             @else
                                 <span class="text-muted">No adviser assigned</span>
                             @endif
@@ -62,38 +62,36 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Students</h5>
                     <div class="d-flex">
-                        <button type="button" class="btn btn-secondary btn-sm me-2" data-bs-toggle="modal"
-                            data-bs-target="#importClassRecordModal">
-                            Import Students
-                        </button>
+
                         <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addStudentModal">
                             <i class="fas fa-plus"></i> Add Student
                         </button>
                     </div>
                 </div>
                 <div class="card-body">
-                    @if ($section->students->count() > 0)
+                    @if ($class->enrollments->count() > 0)
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
                                         <th>ID Number</th>
                                         <th>Name</th>
-                                        <th>Email</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach ($section->students as $student)
+                                    @foreach ($class->enrollments as $enrollment)
+                                        @php $student = $enrollment->student; @endphp
                                         <tr>
                                             <td>{{ $student->id ?? 'N/A' }}</td>
                                             <td>{{ $student->full_name }}</td>
-                                            <td>{{ $student->email }}</td>
                                             <td>
                                                 <button class="btn btn-sm btn-info" title="View">
                                                     <i class="fas fa-eye"></i>
                                                 </button>
-                                                <form action="{{ route('admin.sections.students.destroy', [$section, $student]) }}" method="POST" style="display:inline;">
+                                                <form
+                                                    action="{{ route('admin.sections.students.destroy', [$section, $student]) }}"
+                                                    method="POST" style="display:inline;">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button class="btn btn-sm btn-danger" title="Remove from Section"
@@ -122,21 +120,26 @@
                     <h5 class="mb-0">Quick Stats</h5>
                 </div>
                 <div class="card-body">
+                    @php
+                        $students = $class->enrollments->pluck('student');
+                        $maleCount = $students->where('gender', 'male')->count();
+                        $femaleCount = $students->where('gender', 'female')->count();
+                        $totalCount = $students->count();
+                    @endphp
                     <div class="text-center mb-4">
-                        <div class="display-4 font-weight-bold">{{ $section->students->count() }}</div>
+                        <div class="display-4 font-weight-bold">{{ $totalCount }}</div>
                         <div class="text-muted">Total Students</div>
                     </div>
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-between mb-1">
                             <span>Male</span>
-                            <span>{{ $section->students->where('gender', 'male')->count() }}</span>
+                            <span>{{ $maleCount }}</span>
                         </div>
                         <div class="progress" style="height: 10px;">
                             <div class="progress-bar bg-primary" role="progressbar"
-                                style="width: {{ $section->students->count() > 0 ? ($section->students->where('gender', 'male')->count() / $section->students->count()) * 100 : 0 }}%"
-                                aria-valuenow="{{ $section->students->where('gender', 'male')->count() }}"
-                                aria-valuemin="0" aria-valuemax="{{ $section->students->count() }}">
+                                style="width: {{ $totalCount > 0 ? ($maleCount / $totalCount) * 100 : 0 }}%"
+                                aria-valuenow="{{ $maleCount }}" aria-valuemin="0" aria-valuemax="{{ $totalCount }}">
                             </div>
                         </div>
                     </div>
@@ -144,22 +147,21 @@
                     <div class="mb-3">
                         <div class="d-flex justify-content-between mb-1">
                             <span>Female</span>
-                            <span>{{ $section->students->where('gender', 'female')->count() }}</span>
+                            <span>{{ $femaleCount }}</span>
                         </div>
                         <div class="progress" style="height: 10px;">
                             <div class="progress-bar bg-pink" role="progressbar"
-                                style="width: {{ $section->students->count() > 0 ? ($section->students->where('gender', 'female')->count() / $section->students->count()) * 100 : 0 }}%"
-                                aria-valuenow="{{ $section->students->where('gender', 'female')->count() }}"
-                                aria-valuemin="0" aria-valuemax="{{ $section->students->count() }}">
+                                style="width: {{ $totalCount > 0 ? ($femaleCount / $totalCount) * 100 : 0 }}%"
+                                aria-valuenow="{{ $femaleCount }}" aria-valuemin="0" aria-valuemax="{{ $totalCount }}">
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-4">
                         <h6>Class Schedule</h6>
-                        @if ($section->schedules->count() > 0)
+                        @if ($class->schedules->count() > 0)
                             <ul class="list-group">
-                                @foreach ($section->schedules as $schedule)
+                                @foreach ($class->schedules as $schedule)
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <div>
                                             <strong>{{ $schedule->subject->name }}</strong><br>
