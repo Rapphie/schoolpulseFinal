@@ -11,7 +11,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class EnrolleesExport
+class EnrolleesExport implements FromCollection, WithHeadings, WithMapping, WithTitle, ShouldAutoSize, WithStyles
 {
     protected $grade;
 
@@ -25,11 +25,16 @@ class EnrolleesExport
      */
     public function collection()
     {
-        $query = Section::with(['students', 'teacher_id'])
-            ->withCount('students');
+        $query = Section::with(['gradeLevel', 'classes.enrollments.student'])
+            ->withCount(['classes as students_count' => function ($q) {
+                $q->join('enrollments', 'enrollments.class_id', '=', 'classes.id')
+                    ->where('enrollments.status', '!=', 'unenrolled');
+            }]);
 
         if ($this->grade) {
-            $query->where('grade_level', $this->grade);
+            $query->whereHas('gradeLevel', function ($q) {
+                $q->where('level', $this->grade);
+            });
         }
 
         return $query->get();
@@ -59,14 +64,27 @@ class EnrolleesExport
      */
     public function map($row): array
     {
-        $boyCount = $row->students->where('gender', 'Male')->count();
-        $girlCount = $row->students->where('gender', 'Female')->count();
+        // Get all enrolled students for this section
+        $students = collect();
+        foreach ($row->classes as $class) {
+            foreach ($class->enrollments as $enrollment) {
+                if ($enrollment->status != 'unenrolled' && $enrollment->student) {
+                    $students->push($enrollment->student);
+                }
+            }
+        }
+
+        $boyCount = $students->where('gender', 'male')->count();
+        $girlCount = $students->where('gender', 'female')->count();
+
+        // Get class adviser (teacher from the main class)
+        $adviser = $row->classes->first()?->teacher;
 
         return [
             $row->id,
             $row->name,
-            'Grade ' . $row->grade_level,
-            $row->adviser ? $row->adviser->name : 'No Adviser',
+            'Grade ' . ($row->gradeLevel ? $row->gradeLevel->level : 'N/A'),
+            $adviser ? $adviser->user->first_name . ' ' . $adviser->user->last_name : 'No Adviser',
             $row->students_count,
             $boyCount,
             $girlCount,
