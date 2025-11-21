@@ -50,4 +50,8 @@ class Classes extends Model
     {
         return $this->belongsToMany(Student::class, 'enrollments', 'class_id', 'student_id');
     }
+    public function subject()
+    {
+        return $this->belongsTo(Subject::class);
+    }
 }
