@@ -18,8 +18,8 @@ return new class extends Migration
             $table->unsignedBigInteger('subject_id');
             $table->unsignedBigInteger('teacher_id');
             $table->unsignedBigInteger('school_year_id');
-            $table->string('name');
-            $table->enum('type', ['quiz', 'exam', 'assignment', 'project', 'performance_task']);
+            $table->string('name'); // Name for the assessment (e.g., "Quiz 1", "Midterm Exam")
+            $table->enum('type', ['written_works', 'performance_tasks', 'quarterly_assessments']);
             $table->decimal('max_score', 8, 2);
             $table->integer('quarter');
             $table->date('assessment_date');
@@ -37,7 +37,7 @@ return new class extends Migration
             $table->unsignedBigInteger('assessment_id');
             $table->unsignedBigInteger('student_id');
             $table->decimal('score', 8, 2);
-            $table->string('remarks')->nullable(); // e.g., "Submitted late"
+            $table->string('remarks')->nullable();
             $table->timestamps();
 
             // Foreign Key(s)

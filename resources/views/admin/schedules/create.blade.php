@@ -62,7 +62,7 @@
                     <div class="mb-3">
                         <label class="form-label">5. Day(s) of the Week <span class="text-danger">*</span></label>
                         <div>
-                            @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as $day)
+                            @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $day)
                                 <div class="form-check form-check-inline">
                                     <input class="form-check-input" type="checkbox" name="day_of_week[]"
                                         value="{{ $day }}" id="day_{{ $day }}">

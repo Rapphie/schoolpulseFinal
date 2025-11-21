@@ -203,7 +203,7 @@ return new class extends Migration
             $table->foreign('subject_id')->references('id')->on('subjects');
             $table->foreign('teacher_id')->references('id')->on('teachers');
 
-            $table->primary(['student_id', 'subject_id', 'quarter', 'school_year_id'], 'grades_primary_key');
+            $table->primary(['student_id', 'subject_id', 'quarter'], 'grades_primary_key');
         });
 
         Schema::create('attendances', function (Blueprint $table) {
