@@ -14,9 +14,41 @@ use App\Models\Teacher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-
 class AttendanceController extends Controller
 {
+    public function getSubjectsForClass(Classes $class, Request $request)
+    {
+
+        $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
+
+        $activeSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+        $scheduleQuery = Schedule::with('subject')
+            ->where('class_id', $class->id)
+            ->where('teacher_id', $teacher->id);
+
+        if ($activeSchoolYear) {
+            $scheduleQuery->whereHas('class', function ($q) use ($activeSchoolYear) {
+                $q->where('school_year_id', $activeSchoolYear->id);
+            });
+        }
+
+        $subjects = $scheduleQuery
+            ->get()
+            ->pluck('subject')
+            ->filter()
+            ->unique('id')
+            ->values()
+            ->map(function ($subject) {
+                return [
+                    'id' => $subject->id,
+                    'name' => $subject->name,
+                    'code' => $subject->code ?? null,
+                ];
+            });
+
+        return response()->json($subjects);
+    }
+
     public function attendancePattern(Request $request)
     {
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
@@ -97,6 +129,37 @@ class AttendanceController extends Controller
             'selectedSectionId',
             'selectedSubjectId'
         ));
+    }
+
+    public function normalizeAttendanceRecords($attendanceData)
+    {
+        $attendance_month = $attendanceData->format('F');;
+        $max_days_per_month = [
+            "June" => 11,
+            "July" => 23,
+            "August" => 20,
+            "September" => 22,
+            "October" => 23,
+            "November" => 21,
+            "January" => 14,
+            "February" => 19,
+            "March" => 23
+        ];
+
+        // Default value in case the month isn't found
+        $monthly_max_school_days = 0;
+
+        if (array_key_exists($attendance_month, $max_days_per_month)) {
+            // if month key exists, so we can safely get the value
+            $monthly_max_school_days = $max_days_per_month[$attendance_month];
+        } else {
+            return with('error', "Invalid school month days");
+        }
+
+        $max_present_days = 197;
+        // $normalized_present = $monthly_present_days / $max_present_days;
+        // $normalized_score = row['monthly_avg_score'] / 100.0;
+        // $engagement_score = (normalized_present * ENGAGEMENT_WEIGHT_PRESENT) + (normalized_score * ENGAGEMENT_WEIGHT_SCORE);
     }
     public function exportAttendancePattern(Request $request)
     {
@@ -184,7 +247,7 @@ class AttendanceController extends Controller
             }
             fclose($file);
         };
-
+        //
         return new StreamedResponse($callback, 200, $headers);
     }
 }

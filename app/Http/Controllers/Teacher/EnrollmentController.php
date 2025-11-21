@@ -100,9 +100,10 @@ class EnrollmentController extends Controller
 
     public function store(Request $request, Classes $class)
     {
-        $class = $class->find($request->class_id);
         // 1. Validate all the fields from the "Enroll New Student" modal
         $validated = $request->validate([
+            // Class selection
+            'class_id' => 'required|exists:classes,id',
             // Student fields
             'lrn' => 'nullable|string|max:12|unique:students,lrn',
             'first_name' => 'required|string|max:255',
@@ -119,10 +120,16 @@ class EnrollmentController extends Controller
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
 
+        // Resolve the class via route-model binding or fallback to validated class_id
+        $resolvedClass = $class && $class->exists ? $class : Classes::findOrFail($validated['class_id']);
+
         try {
 
-            DB::transaction(function () use ($validated, $class) {
-                $teacher = Auth::user()->teacher;
+            DB::transaction(function () use ($validated, $resolvedClass) {
+                $teacher = optional(Auth::user())->teacher;
+                if (!$teacher) {
+                    throw new \RuntimeException('Teacher profile missing for the current user.');
+                }
 
                 $guardianUser = User::create([
                     'first_name' => $validated['guardian_first_name'],
@@ -153,11 +160,12 @@ class EnrollmentController extends Controller
                 // 6. Create the final Enrollment Record, linking the Student to the Class
                 Enrollment::create([
                     'student_id' => $student->id,
-                    'class_id' => $class->id,
-                    'school_year_id' => $class->school_year_id,
+                    'class_id' => $resolvedClass->id,
+                    'school_year_id' => $resolvedClass->school_year_id,
                     'teacher_id' => $teacher->id, // Add this line
                     'status' => 'enrolled',
                 ]);
+                
             });
 
             return redirect()->back()->with('success', 'Student enrolled successfully.');
@@ -199,6 +207,80 @@ class EnrollmentController extends Controller
         ]);
 
         return redirect()->route('teacher.enrollment.index')->with('success', 'Student enrolled successfully!');
+    }
+
+    /**
+     * Update an existing student's details (and guardian) from class view modal.
+     */
+    public function updateStudent(Request $request, Student $student)
+    {
+        $guardian = $student->guardian; // may be null
+        $guardianUser = $guardian?->user;
+
+        $validated = $request->validate([
+            // Student fields
+            'lrn' => 'nullable|string|max:12|unique:students,lrn,' . $student->id,
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'gender' => 'required|in:male,female',
+            'birthdate' => 'required|date',
+            'address' => 'nullable|string',
+
+            // Guardian fields
+            'guardian_first_name' => 'required|string|max:255',
+            'guardian_last_name' => 'required|string|max:255',
+            'guardian_email' => 'required|email|max:255' . ($guardianUser ? '|unique:users,email,' . $guardianUser->id : '|unique:users,email'),
+            'guardian_phone' => 'required|string|max:20',
+            'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $student, $guardian, $guardianUser) {
+                // Update guardian user (create if missing)
+                if ($guardianUser) {
+                    $guardianUser->update([
+                        'first_name' => $validated['guardian_first_name'],
+                        'last_name' => $validated['guardian_last_name'],
+                        'email' => $validated['guardian_email'],
+                    ]);
+                } else {
+                    $guardianUser = User::create([
+                        'first_name' => $validated['guardian_first_name'],
+                        'last_name' => $validated['guardian_last_name'],
+                        'email' => $validated['guardian_email'],
+                        'password' => Hash::make(12345678),
+                        'role_id' => 3,
+                    ]);
+                }
+
+                if ($guardian) {
+                    $guardian->update([
+                        'phone' => $validated['guardian_phone'],
+                        'relationship' => $validated['guardian_relationship'],
+                    ]);
+                } else {
+                    $guardian = Guardian::create([
+                        'user_id' => $guardianUser->id,
+                        'phone' => $validated['guardian_phone'],
+                        'relationship' => $validated['guardian_relationship'],
+                    ]);
+                }
+
+                $student->update([
+                    'lrn' => $validated['lrn'] ?? $student->lrn,
+                    'first_name' => $validated['first_name'],
+                    'last_name' => $validated['last_name'],
+                    'gender' => $validated['gender'],
+                    'birthdate' => $validated['birthdate'],
+                    'address' => $validated['address'] ?? $student->address,
+                    'guardian_id' => $guardian->id,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Failed to update student: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Student updated successfully.');
     }
 
     public function storeStudentByAdviser(Request $request, Classes $class)

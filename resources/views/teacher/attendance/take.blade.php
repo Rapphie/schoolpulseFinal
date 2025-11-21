@@ -129,7 +129,7 @@
                 <div class="dropdown d-inline-block me-2">
                     <button type="button" class="btn btn-success btn-sm dropdown-toggle" id="markAllDropdown"
                         data-bs-toggle="dropdown" aria-expanded="false">
-                        <i data-feather="check-square"></i> Mark All
+                        <div class="d-flex align-content-center"><i data-feather="check-square"></i> Mark All</div>
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="markAllDropdown">
                         <li><a class="dropdown-item mark-all-status" href="#" data-status="present">Mark All

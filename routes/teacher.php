@@ -57,6 +57,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         Route::get('/classes/{class}/subjects', [AssessmentController::class, 'getSubjectsForClass'])->name('classes.subjects');
         // Adviser schedule creation
         Route::post('/classes/{class}/store-schedule', [TeacherDashboardController::class, 'storeSchedule'])->name('classes.schedule.store');
+        Route::delete('/classes/{class}/schedules/{schedule}', [TeacherDashboardController::class, 'destroySchedule'])->name('classes.schedule.destroy');
         Route::get('/sections/{section}/students', [TeacherDashboardController::class, 'getStudentsForSection'])->name('sections.students');
 
         // Schedules & Students
@@ -101,5 +102,6 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
 
         // Analytics
         Route::get('/analytics/absenteeism', [AnalyticsController::class, 'absenteeismAnalytics'])->name('analytics.absenteeism');
+        Route::get('/analytics/classes-by-grade', [AnalyticsController::class, 'classesByGrade'])->name('analytics.classes-by-grade');
     });
 });

@@ -40,4 +40,42 @@ class Schedule extends Model
     {
         return $this->belongsTo(Teacher::class);
     }
+
+    /**
+     * Normalized, human-readable day names regardless of storage format.
+     */
+    public function getDayNamesAttribute(): array
+    {
+        $days = $this->day_of_week;
+
+        if (is_string($days) && $days !== '') {
+            $decoded = json_decode($days, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $days = $decoded;
+            } else {
+                $days = explode(',', $days);
+            }
+        }
+
+        if ($days instanceof \Illuminate\Support\Collection) {
+            $days = $days->all();
+        }
+
+        if (!is_array($days)) {
+            $days = [];
+        }
+
+        $days = array_map(static function ($day) {
+            $normalized = ucfirst(trim((string) $day));
+            return $normalized !== '' ? $normalized : null;
+        }, $days);
+
+        return array_values(array_filter($days));
+    }
+
+    public function getDayNamesLabelAttribute(): string
+    {
+        $names = $this->day_names;
+        return $names ? implode(', ', $names) : 'Not Set';
+    }
 }
