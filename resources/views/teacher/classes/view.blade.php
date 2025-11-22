@@ -69,10 +69,12 @@
         <div class="card shadow mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Enrolled Students</h6>
-                <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
-                    data-bs-target="#enrollStudentModal">
-                    <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
-                </button>
+                @if ($isAdviser)
+                    <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
+                        data-bs-target="#enrollStudentModal">
+                        <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
+                    </button>
+                @endif
             </div>
             <div class="card-body">
                 @if ($class->enrollments->isNotEmpty())
@@ -103,31 +105,6 @@
                 @else
                     <p class="text-center text-muted">No students are currently enrolled in this class.</p>
                 @endif
-            </div>
-        </div>
-
-        <!-- Day selector (hidden by default) -->
-        <div class="mb-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <label class="form-label mb-0">Day(s) of the Week <span class="text-danger">*</span></label>
-                <button class="btn btn-link btn-sm p-0" type="button" data-day-toggle="#teacherDaySelector"
-                    aria-expanded="false" aria-controls="teacherDaySelector" data-hide-label="Hide days">
-                    Change days
-                </button>
-            </div>
-            <p class="small text-muted mb-2">Defaults to Monday through Friday. Expand if you need to
-                adjust.</p>
-            <div id="teacherDaySelector" class="day-selector d-none">
-                <div class="d-flex flex-wrap gap-3">
-                    @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as $day)
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input schedule-day-checkbox" type="checkbox" name="day_of_week[]"
-                                value="{{ $day }}" id="teacher_schedule_day_{{ $day }}">
-                            <label class="form-check-label text-capitalize"
-                                for="teacher_schedule_day_{{ $day }}">{{ $day }}</label>
-                        </div>
-                    @endforeach
-                </div>
             </div>
         </div>
 
@@ -229,19 +206,19 @@
                             <table class="table table-bordered" width="100%">
                                 <thead>
                                     <tr>
+                                        <th>Subject</th>
                                         <th>Day(s)</th>
                                         <th>Time</th>
-                                        <th>Subject</th>
                                         <th>Teacher</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach ($class->schedules as $schedule)
                                         <tr>
+                                            <td>{{ $schedule->subject->name }}</td>
                                             <td>{{ $schedule->day_names_label }}</td>
                                             <td>{{ $schedule->start_time?->format('g:i A') }} -
                                                 {{ $schedule->end_time?->format('g:i A') }}</td>
-                                            <td>{{ $schedule->subject->name }}</td>
                                             <td>
                                                 {{ $schedule->teacher->user->first_name }}
                                                 {{ $schedule->teacher->user->last_name }}
@@ -267,8 +244,7 @@
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="manageScheduleModalLabel">Assign Schedule</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <form id="manageScheduleForm" action="{{ route('teacher.classes.schedule.store', $class) }}"
                             method="POST">

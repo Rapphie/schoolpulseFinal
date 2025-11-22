@@ -11,7 +11,8 @@
             @if (isset($error))
                 <div class="alert alert-danger">{{ $error }}</div>
             @elseif($classes->isEmpty())
-                <div class="alert alert-info">You are not handling any classes for the active school year.</div>
+                <div class="alert alert-warning">You don't have an access. No advisory classes for the current school year.
+                </div>
             @else
                 <div class="table-responsive">
                     <table class="table table-bordered" id="classesTable" width="100%" cellspacing="0">

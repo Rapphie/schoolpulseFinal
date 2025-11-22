@@ -208,6 +208,12 @@
                             </button>
                         </li>
                     @endfor
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="finalGrade-tab" data-bs-toggle="tab" data-bs-target="#finalGrade"
+                            type="button" role="tab" aria-controls="finalGrade" aria-selected="false">
+                            <i class="fas fa-chart-line me-2"></i>Final Grade
+                        </button>
+                    </li>
                 </ul>
             </div>
 
@@ -371,7 +377,7 @@
 
                                                 {{-- Quarter Grade --}}
                                                 <td class="calculated-field quarter-grade grade-col"
-                                                    data-quarter="{{ $quarter }}">0.00</td>
+                                                    data-quarter="{{ $quarter }}" data-has-grade="0">0.00</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -379,6 +385,34 @@
                             </div>
                         </div>
                     @endfor
+                    <div class="tab-pane fade" id="finalGrade" role="tabpanel" aria-labelledby="finalGrade-tab">
+                        <div class="table-responsive">
+                            <table class="table table-bordered grade-table mb-0">
+                                <thead class="sticky-top">
+                                    <tr>
+                                        <th class="student-name">LEARNERS' NAMES</th>
+                                        @for ($quarter = 1; $quarter <= 4; $quarter++)
+                                            <th class="grade-col">Quarter {{ $quarter }}</th>
+                                        @endfor
+                                        <th class="grade-col">Final Grade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($studentsData as $studentData)
+                                        <tr data-student-id="{{ $studentData['student']->id }}">
+                                            <td class="student-name">{{ $studentData['student']->last_name }},
+                                                {{ $studentData['student']->first_name }}</td>
+                                            @for ($quarter = 1; $quarter <= 4; $quarter++)
+                                                <td class="calculated-field final-quarter-grade grade-col"
+                                                    data-quarter="{{ $quarter }}">--</td>
+                                            @endfor
+                                            <td class="calculated-field final-grade grade-col">--</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -485,8 +519,11 @@
                 initializeQuarterCalculations(parseInt(quarter));
             });
 
-            // Initialize first quarter on page load
-            initializeQuarterCalculations(1);
+            // Initialize all quarters on load for accurate summaries
+            for (let quarter = 1; quarter <= 4; quarter++) {
+                initializeQuarterCalculations(quarter);
+            }
+            refreshFinalGradesTable();
 
             function initializeQuarterCalculations(quarter) {
                 $(`#quarter${quarter} tbody tr`).each(function() {
@@ -539,6 +576,7 @@
             function calculateQuarterGrades($row, quarter) {
                 const types = ['written-works', 'performance-tasks', 'quarterly-assessments'];
                 let quarterGrade = 0;
+                let quarterHasScores = false;
 
                 types.forEach(type => {
                     let total = 0;
@@ -572,10 +610,59 @@
                     const weighted = ps * (typeWeights[type] || 0);
                     $row.find(`.${type}-weighted[data-quarter="${quarter}"]`).text(weighted.toFixed(2));
                     quarterGrade += weighted;
+
+                    if (maxTotal > 0) {
+                        quarterHasScores = true;
+                    }
                 });
 
                 // Quarter grade equals the sum of weighted component scores
-                $row.find(`.quarter-grade[data-quarter="${quarter}"]`).text(quarterGrade.toFixed(2));
+                $row.find(`.quarter-grade[data-quarter="${quarter}"]`)
+                    .text(quarterGrade.toFixed(2))
+                    .attr('data-has-grade', quarterHasScores ? '1' : '0')
+                    .data('has-grade', quarterHasScores ? 1 : 0);
+
+                const studentId = $row.data('student-id');
+                updateFinalGradeRow(studentId);
+            }
+
+            function updateFinalGradeRow(studentId) {
+                const $finalRow = $(`#finalGrade tbody tr[data-student-id="${studentId}"]`);
+                if (!$finalRow.length) {
+                    return;
+                }
+
+                let total = 0;
+                let countedQuarters = 0;
+
+                for (let quarter = 1; quarter <= 4; quarter++) {
+                    const $quarterRow = $(`#quarter${quarter} tbody tr[data-student-id="${studentId}"]`);
+                    if (!$quarterRow.length) {
+                        continue;
+                    }
+
+                    const $gradeCell = $quarterRow.find(`.quarter-grade[data-quarter="${quarter}"]`).first();
+                    const gradeText = $gradeCell.text();
+                    const numericGrade = parseFloat(gradeText);
+                    const hasGradeFlag = $gradeCell.attr('data-has-grade');
+                    const hasGrade = (hasGradeFlag === '1') && !Number.isNaN(numericGrade);
+                    $finalRow.find(`.final-quarter-grade[data-quarter="${quarter}"]`).text(hasGrade ? numericGrade
+                        .toFixed(2) : '--');
+
+                    if (hasGrade) {
+                        total += numericGrade;
+                        countedQuarters++;
+                    }
+                }
+
+                const finalGrade = countedQuarters > 0 ? (total / countedQuarters) : null;
+                $finalRow.find('.final-grade').text(finalGrade !== null ? finalGrade.toFixed(2) : '--');
+            }
+
+            function refreshFinalGradesTable() {
+                $('#finalGrade tbody tr').each(function() {
+                    updateFinalGradeRow($(this).data('student-id'));
+                });
             }
 
             // Save all grades

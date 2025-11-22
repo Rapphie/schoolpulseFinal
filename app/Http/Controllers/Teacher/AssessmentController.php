@@ -22,8 +22,6 @@ class AssessmentController extends Controller
         'quarterly_assessments' => 1,
     ];
 
-    private const DEFAULT_MAX_SCORE = 100;
-
     /**
      * Show grade management interface for a specific class.
      */
@@ -168,7 +166,7 @@ class AssessmentController extends Controller
             'subject_id' => 'required|exists:subjects,id',
             'name' => 'required|string|max:255',
             'type' => 'required|in:quiz,exam,assignment,project,performance_task',
-            'max_score' => 'required|numeric|min:1',
+            'max_score' => 'nullable|numeric|min:1|max:1000',
             'quarter' => 'required|integer|in:1,2,3,4',
             'assessment_date' => 'required|date',
         ]);
@@ -210,13 +208,16 @@ class AssessmentController extends Controller
         $rules = [
             'scores' => 'required|array',
             'scores.*.student_id' => 'required|exists:students,id',
-            'scores.*.score' => 'nullable|numeric|min:0|max:' . $assessment->max_score,
+            'scores.*.score' => ['nullable', 'numeric', 'min:0'],
             'scores.*.remarks' => 'nullable|string|max:255',
         ];
 
-        $messages = [
-            'scores.*.score.max' => 'The score for a student cannot exceed the maximum score of ' . $assessment->max_score . '.',
-        ];
+        $messages = [];
+
+        if ($assessment->max_score !== null) {
+            $rules['scores.*.score'][] = 'max:' . $assessment->max_score;
+            $messages['scores.*.score.max'] = 'The score for a student cannot exceed the maximum score of ' . $assessment->max_score . '.';
+        }
 
         $request->validate($rules, $messages);
 
@@ -311,7 +312,7 @@ class AssessmentController extends Controller
                 }
 
                 // Validate score against max score
-                if ($gradeData['score'] > $assessment->max_score) {
+                if ($assessment->max_score !== null && $gradeData['score'] > $assessment->max_score) {
                     return response()->json([
                         'success' => false,
                         'message' => 'A score exceeds its maximum allowed score.'
@@ -410,7 +411,7 @@ class AssessmentController extends Controller
             'subject_id' => 'required|exists:subjects,id',
             'name' => 'required|string|max:255',
             'type' => 'required|in:written_works,performance_tasks,quarterly_assessments',
-            'max_score' => 'required|numeric|min:1|max:1000',
+            'max_score' => 'nullable|numeric|min:1|max:1000',
             'quarter' => 'required|integer|in:1,2,3,4',
         ]);
 
@@ -447,7 +448,7 @@ class AssessmentController extends Controller
     {
         $request->validate([
             'assessment_id' => 'required|exists:assessments,id',
-            'max_score' => 'required|numeric|min:1|max:1000',
+            'max_score' => 'nullable|numeric|min:1|max:1000',
         ]);
 
         $teacher = Auth::user()->teacher;
@@ -508,7 +509,7 @@ class AssessmentController extends Controller
                         'school_year_id' => $class->school_year_id,
                         'name' => $this->buildDefaultAssessmentName($type, $typeLabels[$type], $sequence, $quarter),
                         'type' => $type,
-                        'max_score' => self::DEFAULT_MAX_SCORE,
+                        'max_score' => null,
                         'quarter' => $quarter,
                         'assessment_date' => now(),
                     ]);
@@ -563,8 +564,8 @@ class AssessmentController extends Controller
         $students = $class->students()->get();
 
         $weightMap = [
-            'written_works' => 0.40,
-            'performance_tasks' => 0.40,
+            'written_works' => 0.20,
+            'performance_tasks' => 0.60,
             'quarterly_assessments' => 0.20,
         ];
 
