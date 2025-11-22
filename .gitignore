@@ -23,3 +23,7 @@ yarn-error.log
 /.zed
 /.gemini
 GEMINI.md
+/python/__pycache__
+/python/.venv
+/docs
+/.github

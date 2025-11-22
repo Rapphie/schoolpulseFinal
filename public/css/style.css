@@ -129,7 +129,14 @@ body.fixed-nav.sidebar-toggled #content-wrapper {
 .sidebar {
   width: 92px !important;
   background-color: #31304D;
-  min-height: calc(100vh - 56px);
+  /* Ensure the sidebar always fits viewport height minus navbar and becomes scrollable when content exceeds */
+  height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  /* Smooth scrolling especially on mobile devices */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .sidebar .nav-item:last-child {
@@ -165,6 +172,9 @@ body.fixed-nav.sidebar-toggled #content-wrapper {
 @media (min-width: 768px) {
   .sidebar {
     width: 160px !important;
+    /* Re-assert scroll behavior for larger screens */
+    height: calc(100vh - 56px);
+    overflow-y: auto;
   }
   .sidebar .nav-item .nav-link {
     display: block;
@@ -179,7 +189,7 @@ body.fixed-nav.sidebar-toggled #content-wrapper {
   }
 
   .sidebar.toggled {
-    overflow: visible;
+    overflow-y: auto; /* keep scroll when toggled */
     width: 92px !important;
   }
   .sidebar.toggled .nav-item:last-child {
