@@ -56,7 +56,7 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('123'),
             'role_id' => 2,
         ]);
-        ~Teacher::create([
+        Teacher::create([
             'user_id' => $teacherUser->id,
             'phone' => '09123456789',
             'gender' => 'male',
