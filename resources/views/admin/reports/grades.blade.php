@@ -1,508 +1,670 @@
 @extends('base')
 
-@section('title', 'Grades Report')
-
-@section('header', 'Student Grades Report')
+@section('title', 'Grades Analytics')
 
 @section('content')
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Grade Summary</h6>
-            <div class="d-flex">
-                <select class="form-select form-select-sm me-2" id="sectionFilter">
-                    <option value="">All Sections</option>
-                    @foreach ($sections as $section)
-                        <option value="{{ $section->id }}" {{ request('section_id') == $section->id ? 'selected' : '' }}>
-                            {{ $section->name }}
+    @php
+        $summaryData = array_merge(
+            [
+                'average' => 0,
+                'passing_rate' => 0,
+                'highest' => 0,
+                'lowest' => 0,
+                'records' => 0,
+            ],
+            $summary ?? [],
+        );
+
+        $gradeDistributionData = $gradeDistribution ?? [];
+        $quarterTrendData = array_merge(
+            [
+                'labels' => [],
+                'averages' => [],
+            ],
+            $quarterTrend ?? [],
+        );
+
+        $gradeLevelBreakdownData = $gradeLevelBreakdown ?? [];
+        $subjectLeaderboardData = $subjectLeaderboard ?? [];
+        $studentLeaderboardData = $studentLeaderboard ?? [];
+        $classLeaderboardData = $classLeaderboard ?? [];
+        $classOptionsMapData = $classOptionsMap ?? [];
+    @endphp
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">Grades Analytics</h1>
+            <p class="mb-1 text-muted">
+                Active school year:
+                <span class="fw-semibold text-primary">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
+            </p>
+            <p class="mb-0 text-muted">
+                Viewing data for:
+                <span class="fw-semibold text-dark"
+                    id="gradesViewingYearName">{{ $currentSchoolYear->name ?? 'Not set' }}</span>
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div>
+                <label for="gradesSchoolYearSelect" class="form-label small text-muted mb-1">School Year</label>
+                <select class="form-select" id="gradesSchoolYearSelect">
+                    @foreach ($schoolYears as $schoolYear)
+                        <option value="{{ $schoolYear->id }}"
+                            {{ $currentSchoolYear && $schoolYear->id === $currentSchoolYear->id ? 'selected' : '' }}>
+                            {{ $schoolYear->name }}{{ $schoolYear->is_active ? ' (Active)' : '' }}
                         </option>
                     @endforeach
                 </select>
-                <select class="form-select form-select-sm me-2" id="subjectFilter">
-                    <option value="">All Subjects</option>
-                    @foreach ($subjects as $subject)
-                        <option value="{{ $subject->id }}" {{ request('subject_id') == $subject->id ? 'selected' : '' }}>
-                            {{ $subject->name }}
+            </div>
+            <div>
+                <label for="gradesGradeSelect" class="form-label small text-muted mb-1">Grade Level</label>
+                <select class="form-select" id="gradesGradeSelect">
+                    <option value="">All Grade Levels</option>
+                    @foreach ($gradeLevels as $gradeLevel)
+                        <option value="{{ $gradeLevel->id }}"
+                            {{ $selectedGradeLevelId && $gradeLevel->id === (int) $selectedGradeLevelId ? 'selected' : '' }}>
+                            {{ $gradeLevel->name ?? 'Grade ' . $gradeLevel->level }}
                         </option>
                     @endforeach
                 </select>
-                <button class="btn btn-primary btn-sm" id="applyFilter">
-                    <i data-feather="filter"></i> Apply
-                </button>
+            </div>
+            <div>
+                <label for="gradesClassSelect" class="form-label small text-muted mb-1">Class / Section</label>
+                <select class="form-select" id="gradesClassSelect" data-selected-class="{{ $selectedClassId ?? '' }}"
+                    @if (!$selectedGradeLevelId) disabled @endif>
+                    <option value="">All Classes</option>
+                </select>
+                <small class="text-muted d-block mt-1" id="gradesClassSelectHelper">
+                    {{ $selectedGradeLevelId ? 'Showing classes for the selected grade level.' : 'Select a grade level to enable the class filter.' }}
+                </small>
+            </div>
+            <div class="text-muted small d-none" id="gradesLoader">
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                Updating...
             </div>
         </div>
-        <div class="card-body">
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card border-left-primary h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                        Average Grade</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        {{ number_format($averageGrade, 2) }}</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-chart-line fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-success h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                        Highest Grade</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        {{ number_format($highestGrade, 2) }}</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-arrow-up fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-info h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                    Lowest Grade</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ number_format($lowestGrade, 2) }}
-                                </div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-arrow-down fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-left-warning h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                    Passing Rate</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $passingRate }}%</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-percent fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    </div>
 
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="card shadow h-100">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">Grade Distribution</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-primary shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Grade</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesAverageValue">
+                        {{ number_format($summaryData['average'], 1) }}
                     </div>
-                    <div class="card-body">
-                        <div class="chart-area">
-                            <canvas id="gradeDistributionChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card shadow h-100">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">Performance Summary</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-pie pt-4">
-                            <canvas id="performancePieChart"></canvas>
-                        </div>
-                        <div class="mt-4 text-center small">
-                            <span class="me-3">
-                                <i class="fas fa-circle text-success"></i> Excellent (90-100)
-                            </span>
-                            <span class="me-3">
-                                <i class="fas fa-circle text-info"></i> Good (80-89)
-                            </span>
-                            <span class="me-3">
-                                <i class="fas fa-circle text-primary"></i> Average (70-79)
-                            </span>
-                            <span class="me-3">
-                                <i class="fas fa-circle text-warning"></i> Needs Improvement (60-69)
-                            </span>
-                            <span class="me-3">
-                                <i class="fas fa-circle text-danger"></i> Failing (Below 60)
-                            </span>
-                        </div>
-                    </div>
+                    <small class="text-muted">Across selected scope</small>
                 </div>
             </div>
         </div>
-
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Detailed Grade Report</h6>
-                <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                        <i data-feather="download"></i> Export
-                    </button>
-                    <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                        <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
-                        <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
-                        <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
-                    </ul>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-success shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Passing Rate</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesPassingRate">
+                        {{ number_format($summaryData['passing_rate'], 1) }}%
+                    </div>
+                    <small class="text-muted">Grades ≥ 75</small>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="gradesTable" width="100%" cellspacing="0">
-                        <thead>
-                            <tr>
-                                <th>Student Name</th>
-                                <th>Section</th>
-                                <th>Subject</th>
-                                <th>1st Quarter</th>
-                                <th>2nd Quarter</th>
-                                <th>3rd Quarter</th>
-                                <th>4th Quarter</th>
-                                <th>Final Grade</th>
-                                <th>Remarks</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (isset($gradesData->students) && $gradesData->students->count() > 0)
-                                @foreach ($gradesData->students as $student)
-                                    @php
-                                        $rowClass = '';
-                                        if ($student->grade !== null) {
-                                            if ($student->grade >= 90) {
-                                                $rowClass = 'table-success';
-                                            } elseif ($student->grade >= 80) {
-                                                $rowClass = 'table-info';
-                                            } elseif ($student->grade >= 70) {
-                                                $rowClass = '';
-                                            } elseif ($student->grade >= 60) {
-                                                $rowClass = 'table-warning';
-                                            } else {
-                                                $rowClass = 'table-danger';
-                                            }
-                                        }
-                                    @endphp
-                                    <tr class="{{ $rowClass }}">
-                                        <td>{{ $student->name }}</td>
-                                        <td>{{ $gradesData->section->name ?? 'N/A' }}</td>
-                                        <td>{{ $gradesData->subject->name ?? 'N/A' }}</td>
-                                        <td class="text-center">-</td>
-                                        <td class="text-center">-</td>
-                                        <td class="text-center">-</td>
-                                        <td class="text-center">-</td>
-                                        <td class="text-center fw-bold">
-                                            {{ $student->grade !== null ? number_format($student->grade, 2) : 'N/A' }}</td>
-                                        <td class="text-center">
-                                            <span
-                                                class="badge bg-{{ $student->remarks == 'No Grade' ? 'secondary' : ($student->grade >= 75 ? 'success' : 'danger') }}">
-                                                {{ $student->remarks }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            @else
-                                <tr>
-                                    <td colspan="9" class="text-center">No grade records found. Please select a section
-                                        and subject.</td>
-                                </tr>
-                            @endif
-                        </tbody>
-                    </table>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-info shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Highest Grade</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesHighestValue">
+                        {{ number_format($summaryData['highest'], 1) }}
+                    </div>
+                    <small class="text-muted">Best score recorded</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-warning shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Records Evaluated</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesRecordsValue">
+                        {{ number_format($summaryData['records']) }}
+                    </div>
+                    <small class="text-muted">Total grade entries</small>
                 </div>
             </div>
         </div>
     </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Quarterly Trend</h6>
+                    <small class="text-muted">Average per grading period</small>
+                </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 260px;">
+                        <canvas id="quarterTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Grade Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 220px;">
+                        <canvas id="gradeDistributionChart"></canvas>
+                    </div>
+                    <div class="mt-3" id="gradeDistributionList">
+                        @if (empty($gradeDistributionData))
+                            <p class="text-muted text-center mb-0">No grade data for the selected filters.</p>
+                        @else
+                            @foreach ($gradeDistributionData as $item)
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>{{ $item['label'] }}</span>
+                                    <span class="fw-semibold">{{ number_format($item['percentage'] ?? 0, 1) }}%</span>
+                                </div>
+                            @endforeach
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Grade Level Breakdown</h6>
+                </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 260px;">
+                        <canvas id="gradeLevelChart"></canvas>
+                    </div>
+                    <div class="mt-3" id="gradeLevelList">
+                        @forelse ($gradeLevelBreakdownData as $row)
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>{{ $row['label'] }}</span>
+                                <span class="fw-semibold">{{ number_format($row['average'], 1) }}</span>
+                            </div>
+                        @empty
+                            <p class="text-muted text-center mb-0">No grade level data yet.</p>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Top Subjects</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th class="text-end">Avg Grade</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subjectLeaderboardBody">
+                                @forelse ($subjectLeaderboardData as $subject)
+                                    <tr>
+                                        <td>{{ $subject['label'] }}</td>
+                                        <td class="text-end">{{ number_format($subject['average'], 1) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted py-4">No subject data yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Top Students</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th class="text-end">Avg Grade</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentLeaderboardBody">
+                                @forelse ($studentLeaderboardData as $student)
+                                    <tr>
+                                        <td>{{ $student['label'] }}</td>
+                                        <td class="text-end">{{ number_format($student['average'], 1) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted py-4">No student data yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Top Classes</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Class</th>
+                                    <th class="text-end">Avg Grade</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classLeaderboardBody">
+                                @forelse ($classLeaderboardData as $class)
+                                    <tr>
+                                        <td>{{ $class['label'] }}</td>
+                                        <td class="text-end">{{ number_format($class['average'], 1) }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted py-4">No class data yet.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 
-<!-- Grade Details Modal -->
-<div class="modal fade" id="gradeDetailsModal" tabindex="-1" aria-labelledby="gradeDetailsModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="gradeDetailsModalLabel">Grade Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="gradeDetailsContent">
-                <!-- Content will be loaded via AJAX -->
-                <div class="text-center my-5">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="printGradeBtn">
-                    <i data-feather="printer" class="feather-sm me-1"></i> Print
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@push('styles')
-    <!-- Custom styles for this page -->
-    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
-@endpush
-
 @push('scripts')
-    <!-- Page level plugins -->
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize DataTable with export buttons
-            var table = $('#gradesTable').DataTable({
-                responsive: true,
-                order: [
-                    [0, 'asc']
-                ],
-                dom: 'Bfrtip',
-                buttons: [
-                    'copy', 'csv', 'excel', 'pdf', 'print'
-                ]
+        document.addEventListener('DOMContentLoaded', () => {
+            const analyticsUrl = "{{ route('admin.reports.grades') }}";
+            const initialState = {
+                summary: @json($summaryData),
+                gradeDistribution: @json($gradeDistributionData),
+                quarterTrend: @json($quarterTrendData),
+                gradeLevelBreakdown: @json($gradeLevelBreakdownData),
+                subjectLeaderboard: @json($subjectLeaderboardData),
+                studentLeaderboard: @json($studentLeaderboardData),
+                classLeaderboard: @json($classLeaderboardData),
+                classOptionsMap: @json($classOptionsMapData),
+            };
+
+            const state = typeof structuredClone === 'function' ?
+                structuredClone(initialState) :
+                JSON.parse(JSON.stringify(initialState));
+
+            const schoolYearSelect = document.getElementById('gradesSchoolYearSelect');
+            const gradeSelect = document.getElementById('gradesGradeSelect');
+            const classSelect = document.getElementById('gradesClassSelect');
+            const classSelectHelper = document.getElementById('gradesClassSelectHelper');
+            const loader = document.getElementById('gradesLoader');
+            const viewingYearName = document.getElementById('gradesViewingYearName');
+
+            const averageValue = document.getElementById('gradesAverageValue');
+            const passingRateValue = document.getElementById('gradesPassingRate');
+            const highestValue = document.getElementById('gradesHighestValue');
+            const recordsValue = document.getElementById('gradesRecordsValue');
+            const distributionList = document.getElementById('gradeDistributionList');
+            const gradeLevelList = document.getElementById('gradeLevelList');
+            const subjectLeaderboardBody = document.getElementById('subjectLeaderboardBody');
+            const studentLeaderboardBody = document.getElementById('studentLeaderboardBody');
+            const classLeaderboardBody = document.getElementById('classLeaderboardBody');
+
+            const initialClassSelection = classSelect?.dataset?.selectedClass || '';
+
+            const charts = {
+                quarter: null,
+                distribution: null,
+                gradeLevel: null,
+            };
+
+            rebuildQuarterChart();
+            rebuildDistributionChart();
+            rebuildGradeLevelChart();
+            populateClassSelect(initialClassSelection);
+            updateSummaryCards();
+            renderDistributionList(state.gradeDistribution);
+            renderGradeLevelList(state.gradeLevelBreakdown);
+            renderSubjectLeaderboard(state.subjectLeaderboard);
+            renderStudentLeaderboard(state.studentLeaderboard);
+            renderClassLeaderboard(state.classLeaderboard);
+
+            schoolYearSelect.addEventListener('change', handleFilterChange);
+            gradeSelect.addEventListener('change', () => {
+                populateClassSelect();
+                handleFilterChange();
             });
+            classSelect.addEventListener('change', handleFilterChange);
 
-            // Initialize tooltips
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
+            function handleFilterChange() {
+                const params = new URLSearchParams();
 
-            var gradeDistributionData = @json($gradeDistribution);
-            var performanceSummaryData = @json($performanceSummary);
-
-            var gradeCtx = document.getElementById('gradeDistributionChart').getContext('2d');
-            var gradeChart = new Chart(gradeCtx, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(gradeDistributionData),
-                    datasets: [{
-                        label: 'Number of Students',
-                        data: Object.values(gradeDistributionData),
-                        backgroundColor: [
-                            'rgba(28, 200, 138, 0.7)',
-                            'rgba(54, 185, 204, 0.7)',
-                            'rgba(78, 115, 223, 0.7)',
-                            'rgba(246, 194, 62, 0.7)',
-                            'rgba(231, 74, 59, 0.7)'
-                        ],
-                        borderColor: [
-                            'rgba(28, 200, 138, 1)',
-                            'rgba(54, 185, 204, 1)',
-                            'rgba(78, 115, 223, 1)',
-                            'rgba(246, 194, 62, 1)',
-                            'rgba(231, 74, 59, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
+                if (schoolYearSelect.value) {
+                    params.set('school_year_id', schoolYearSelect.value);
                 }
-            });
 
-            var pieCtx = document.getElementById('performancePieChart').getContext('2d');
-            var pieChart = new Chart(pieCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Excellent (90-100)', 'Good (80-89)', 'Average (70-79)',
-                        'Needs Improvement (60-69)', 'Failing (Below 60)'
-                    ],
-                    datasets: [{
-                        data: Object.values(performanceSummaryData),
-                        backgroundColor: ['#1cc88a', '#36b9cc', '#4e73df', '#f6c23e', '#e74a3b'],
-                        hoverBackgroundColor: ['#17a673', '#2c9faf', '#2e59d9', '#dda20a',
-                            '#be2617'
-                        ]
-                    }],
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    tooltips: {
-                        backgroundColor: "rgb(255,255,255)",
-                        bodyFontColor: "#858796",
-                        borderColor: '#dddfeb',
-                        borderWidth: 1,
-                        xPadding: 15,
-                        yPadding: 15,
-                        displayColors: false,
-                        caretPadding: 10,
-                        callbacks: {
-                            label: function(tooltipItem, data) {
-                                var dataset = data.datasets[tooltipItem.datasetIndex];
-                                var total = dataset.data.reduce(function(sum, value) {
-                                    return sum + value;
-                                }, 0);
-                                var currentValue = dataset.data[tooltipItem.index];
-                                var percentage = Math.floor((currentValue / total) * 100 + 0.5);
-                                return data.labels[tooltipItem.index] + ': ' + currentValue + ' (' +
-                                    percentage + '%)';
-                            }
-                        }
-                    },
-                    legend: {
-                        display: false
-                    },
-                    cutout: '80%',
-                },
-            });
+                if (gradeSelect.value) {
+                    params.set('grade_level_id', gradeSelect.value);
+                }
 
-            document.getElementById('applyFilter').addEventListener('click', function() {
-                var sectionId = document.getElementById('sectionFilter').value;
-                var subjectId = document.getElementById('subjectFilter').value;
+                if (classSelect.value) {
+                    params.set('class_id', classSelect.value);
+                }
 
-                var url = new URL(window.location.href);
+                loader.classList.remove('d-none');
 
-                if (sectionId) {
-                    url.searchParams.set('section_id', sectionId);
+                fetch(`${analyticsUrl}?${params.toString()}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        state.summary = data.summary || initialState.summary;
+                        state.gradeDistribution = data.gradeDistribution || [];
+                        state.quarterTrend = data.quarterTrend || {
+                            labels: [],
+                            averages: [],
+                        };
+                        state.gradeLevelBreakdown = data.gradeLevelBreakdown || [];
+                        state.subjectLeaderboard = data.subjectLeaderboard || [];
+                        state.studentLeaderboard = data.studentLeaderboard || [];
+                        state.classLeaderboard = data.classLeaderboard || [];
+                        state.classOptionsMap = data.classOptionsMap || state.classOptionsMap;
+
+                        viewingYearName.textContent = data.schoolYearLabel || 'N/A';
+
+                        populateClassSelect(classSelect.value);
+                        updateSummaryCards();
+                        renderDistributionList(state.gradeDistribution);
+                        renderGradeLevelList(state.gradeLevelBreakdown);
+                        renderSubjectLeaderboard(state.subjectLeaderboard);
+                        renderStudentLeaderboard(state.studentLeaderboard);
+                        renderClassLeaderboard(state.classLeaderboard);
+                        rebuildQuarterChart();
+                        rebuildDistributionChart();
+                        rebuildGradeLevelChart();
+                    })
+                    .catch(() => {
+                        // Swallow errors but keep UI responsive
+                    })
+                    .finally(() => {
+                        loader.classList.add('d-none');
+                    });
+            }
+
+            function populateClassSelect(preservedValue = '') {
+                const selectedGrade = gradeSelect.value;
+                const optionsMap = state.classOptionsMap || {};
+                const previousValue = preservedValue || classSelect.value;
+
+                classSelect.innerHTML = '<option value="">All Classes</option>';
+
+                if (!selectedGrade) {
+                    classSelect.value = '';
+                    classSelect.disabled = true;
+                    classSelectHelper.textContent = 'Select a grade level to enable the class filter.';
+                    return;
+                }
+
+                const options = optionsMap[selectedGrade] || [];
+                if (!options.length) {
+                    classSelect.disabled = true;
+                    classSelectHelper.textContent = 'No classes found for this grade in the selected school year.';
+                    return;
+                }
+
+                options.forEach((option) => {
+                    const opt = document.createElement('option');
+                    opt.value = option.id;
+                    opt.textContent = option.label;
+                    classSelect.appendChild(opt);
+                });
+
+                classSelect.disabled = false;
+                classSelectHelper.textContent = 'Showing classes for the selected grade level.';
+
+                if (previousValue && options.some((option) => String(option.id) === String(previousValue))) {
+                    classSelect.value = previousValue;
                 } else {
-                    url.searchParams.delete('section_id');
+                    classSelect.value = '';
+                }
+            }
+
+            function updateSummaryCards() {
+                averageValue.textContent = Number(state.summary.average || 0).toFixed(1);
+                passingRateValue.textContent = `${Number(state.summary.passing_rate || 0).toFixed(1)}%`;
+                highestValue.textContent = Number(state.summary.highest || 0).toFixed(1);
+                recordsValue.textContent = new Intl.NumberFormat().format(state.summary.records || 0);
+            }
+
+            function renderDistributionList(list) {
+                if (!list.length) {
+                    distributionList.innerHTML =
+                        '<p class="text-muted text-center mb-0">No grade data for the selected filters.</p>';
+                    return;
                 }
 
-                if (subjectId) {
-                    url.searchParams.set('subject_id', subjectId);
-                } else {
-                    url.searchParams.delete('subject_id');
+                distributionList.innerHTML = list.map((item) => (
+                    `<div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${item.label}</span>
+                        <span class="fw-semibold">${Number(item.percentage || 0).toFixed(1)}%</span>
+                    </div>`
+                )).join('');
+            }
+
+            function renderGradeLevelList(list) {
+                if (!list.length) {
+                    gradeLevelList.innerHTML =
+                    '<p class="text-muted text-center mb-0">No grade level data yet.</p>';
+                    return;
                 }
 
-                window.location.href = url.toString();
-            });
+                gradeLevelList.innerHTML = list.map((item) => (
+                    `<div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${item.label}</span>
+                        <span class="fw-semibold">${Number(item.average || 0).toFixed(1)}</span>
+                    </div>`
+                )).join('');
+            }
 
-            document.getElementById('printGradeBtn').addEventListener('click', function() {
-                window.print();
-            });
+            function renderSubjectLeaderboard(rows) {
+                if (!rows.length) {
+                    subjectLeaderboardBody.innerHTML =
+                        '<tr><td colspan="2" class="text-center text-muted py-4">No subject data yet.</td></tr>';
+                    return;
+                }
+
+                subjectLeaderboardBody.innerHTML = rows.map((row) => (
+                    `<tr>
+                        <td>${row.label}</td>
+                        <td class="text-end">${Number(row.average || 0).toFixed(1)}</td>
+                    </tr>`
+                )).join('');
+            }
+
+            function renderStudentLeaderboard(rows) {
+                if (!rows.length) {
+                    studentLeaderboardBody.innerHTML =
+                        '<tr><td colspan="2" class="text-center text-muted py-4">No student data yet.</td></tr>';
+                    return;
+                }
+
+                studentLeaderboardBody.innerHTML = rows.map((row) => (
+                    `<tr>
+                        <td>${row.label}</td>
+                        <td class="text-end">${Number(row.average || 0).toFixed(1)}</td>
+                    </tr>`
+                )).join('');
+            }
+
+            function renderClassLeaderboard(rows) {
+                if (!rows.length) {
+                    classLeaderboardBody.innerHTML =
+                        '<tr><td colspan="2" class="text-center text-muted py-4">No class data yet.</td></tr>';
+                    return;
+                }
+
+                classLeaderboardBody.innerHTML = rows.map((row) => (
+                    `<tr>
+                        <td>${row.label}</td>
+                        <td class="text-end">${Number(row.average || 0).toFixed(1)}</td>
+                    </tr>`
+                )).join('');
+            }
+
+            function rebuildQuarterChart() {
+                const canvas = document.getElementById('quarterTrendChart');
+                if (!canvas || typeof Chart === 'undefined') {
+                    return;
+                }
+
+                if (charts.quarter) {
+                    charts.quarter.destroy();
+                }
+
+                const labels = state.quarterTrend.labels?.length ? state.quarterTrend.labels : ['No data'];
+                const dataPoints = state.quarterTrend.averages?.length ? state.quarterTrend.averages : [0];
+
+                charts.quarter = new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Average Grade',
+                            data: dataPoints,
+                            borderColor: 'rgba(13, 110, 253, 1)',
+                            backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                        }, ],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false,
+                            },
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                suggestedMax: 100,
+                            },
+                        },
+                    },
+                });
+            }
+
+            function rebuildDistributionChart() {
+                const canvas = document.getElementById('gradeDistributionChart');
+                if (!canvas || typeof Chart === 'undefined') {
+                    return;
+                }
+
+                if (charts.distribution) {
+                    charts.distribution.destroy();
+                }
+
+                const labels = state.gradeDistribution.length ?
+                    state.gradeDistribution.map((item) => item.label) :
+                    ['No data'];
+                const dataPoints = state.gradeDistribution.length ?
+                    state.gradeDistribution.map((item) => item.total || 0) :
+                    [0];
+
+                charts.distribution = new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data: dataPoints,
+                            backgroundColor: [
+                                'rgba(13,110,253,0.8)',
+                                'rgba(25,135,84,0.8)',
+                                'rgba(255,193,7,0.8)',
+                                'rgba(220,53,69,0.8)',
+                                'rgba(111,66,193,0.8)',
+                            ],
+                            borderWidth: 0,
+                        }, ],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false,
+                            },
+                        },
+                    },
+                });
+            }
+
+            function rebuildGradeLevelChart() {
+                const canvas = document.getElementById('gradeLevelChart');
+                if (!canvas || typeof Chart === 'undefined') {
+                    return;
+                }
+
+                if (charts.gradeLevel) {
+                    charts.gradeLevel.destroy();
+                }
+
+                const labels = state.gradeLevelBreakdown.length ?
+                    state.gradeLevelBreakdown.map((item) => item.label) :
+                    ['No data'];
+                const dataPoints = state.gradeLevelBreakdown.length ?
+                    state.gradeLevelBreakdown.map((item) => item.average || 0) :
+                    [0];
+
+                charts.gradeLevel = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Average Grade',
+                            data: dataPoints,
+                            backgroundColor: 'rgba(32, 201, 151, 0.7)',
+                            borderRadius: 6,
+                        }, ],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false,
+                            },
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                suggestedMax: 100,
+                            },
+                        },
+                    },
+                });
+            }
         });
-
-        function viewGradeDetails(gradeId) {
-            var modal = new bootstrap.Modal(document.getElementById('gradeDetailsModal'));
-            var contentDiv = document.getElementById('gradeDetailsContent');
-
-            contentDiv.innerHTML = `
-        <div class="text-center my-5">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>`;
-
-            modal.show();
-
-            setTimeout(() => {
-                contentDiv.innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>Student Information</h6>
-                    <table class="table table-sm">
-                        <tr>
-                            <th>Name:</th>
-                            <td>John Doe</td>
-                        </tr>
-                        <tr>
-                            <th>Student ID:</th>
-                            <td>STU-001</td>
-                        </tr>
-                        <tr>
-                            <th>Section:</th>
-                            <td>Grade 10 - Section A</td>
-                        </tr>
-                        <tr>
-                            <th>Subject:</th>
-                            <td>Mathematics</td>
-                        </tr>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <h6>Grade Details</h6>
-                    <table class="table table-sm">
-                        <tr>
-                            <th>1st Quarter:</th>
-                            <td class="text-end">92.50</td>
-                        </tr>
-                        <tr>
-                            <th>2nd Quarter:</th>
-                            <td class="text-end">88.75</td>
-                        </tr>
-                        <tr>
-                            <th>3rd Quarter:</th>
-                            <td class="text-end">95.25</td>
-                        </tr>
-                        <tr>
-                            <th>4th Quarter:</th>
-                            <td class="text-end">90.00</td>
-                        </tr>
-                        <tr class="table-active">
-                            <th>Final Grade:</th>
-                            <td class="text-end fw-bold">91.63</td>
-                        </tr>
-                        <tr>
-                            <th>Remarks:</th>
-                            <td class="text-end"><span class="badge bg-success">Passed</span></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-12">
-                    <h6>Performance Summary</h6>
-                    <div class="progress mb-3" style="height: 25px;">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">1st Q</div>
-                        <div class="progress-bar bg-info" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">2nd Q</div>
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">3rd Q</div>
-                        <div class="progress-bar bg-warning" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100">4th Q</div>
-                    </div>
-                </div>
-            </div>
-            <div class="mt-3">
-                <h6>Teacher's Comments</h6>
-                <div class="alert alert-light">
-                    John has shown excellent performance in Mathematics this school year.
-                    He consistently demonstrates a strong understanding of the concepts
-                    and actively participates in class discussions.
-                </div>
-            </div>`;
-            }, 1000);
-        }
-
-        function editGrade(gradeId) {
-            alert('Edit grade with ID: ' + gradeId);
-        }
     </script>
 @endpush

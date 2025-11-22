@@ -1,717 +1,516 @@
 @extends('base')
 
-@section('title', 'Enrollees Report')
-
+@section('title', 'Enrollees Analytics')
 
 @section('content')
-    <div class="card-header py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">Enrollment Statistics</h6>
-        <div class="dropdown">
-            <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
-                data-bs-toggle="dropdown" aria-expanded="false">
-                <i data-feather="download"></i> Export
-            </button>
-            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
-                <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
-                <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
-            </ul>
+    @php
+        $flatSections = collect($sectionsByGrade)->flatMap(function ($gradeGroup) {
+            return collect($gradeGroup['sections'])->map(function ($section) use ($gradeGroup) {
+                return array_merge($section, ['grade_label' => $gradeGroup['label']]);
+            });
+        });
+    @endphp
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">Enrollees Analytics</h1>
+            <p class="mb-1 text-muted">
+                Active school year:
+                <span class="fw-semibold text-primary" id="activeYearName">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
+            </p>
+            <p class="mb-0 text-muted">
+                Viewing data for:
+                <span class="fw-semibold text-dark" id="viewingYearName">{{ $currentSchoolYear->name ?? 'Not set' }}</span>
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-3 align-items-end">
+            <div>
+                <label for="schoolYearSelect" class="form-label small text-muted mb-1">School Year</label>
+                <select class="form-select" id="schoolYearSelect">
+                    @foreach ($schoolYears as $schoolYear)
+                        <option value="{{ $schoolYear->id }}"
+                            {{ $currentSchoolYear && $schoolYear->id === $currentSchoolYear->id ? 'selected' : '' }}>
+                            {{ $schoolYear->name }}{{ $schoolYear->is_active ? ' (Active)' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="gradeFilter" class="form-label small text-muted mb-1">Grade Level</label>
+                <select class="form-select" id="gradeFilter">
+                    <option value="">All Grades</option>
+                    @foreach ($gradeLevels ?? [] as $gradeLevel)
+                        <option value="{{ $gradeLevel->level }}"
+                            {{ (string) $gradeLevel->level === (string) $selectedGrade ? 'selected' : '' }}>
+                            {{ $gradeLevel->name ?? 'Grade ' . $gradeLevel->level }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="text-muted small d-none" id="analyticsLoader">
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                Updating...
+            </div>
         </div>
     </div>
-    <div class="card-body">
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card border-left-primary h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                    Total Students</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                    {{ $totalStudents }}</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-users fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-left-success h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                    Total Sections</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $totalSections }}</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-layer-group fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-left-info h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                    Average per Section</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                    {{ $averagePerSection }}
-                                </div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-calculator fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-left-warning h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                    Largest Section</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                    {{ $largestSection }} students
-                                </div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-arrow-up fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">Enrollment by Section</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-bar chart-wrapper">
-                            <canvas id="enrollmentChart"></canvas>
-                            <div class="chart-empty" id="enrollmentChartEmpty">No data yet</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">Student Distribution by Grade Level</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-pie chart-wrapper pt-4">
-                            <canvas id="sectionPieChart"></canvas>
-                            <div class="chart-empty" id="sectionPieChartEmpty">No data yet</div>
-                        </div>
-                        <div class="mt-4 text-center small" id="section-legend">
-                            <!-- Legend will be inserted here by JavaScript -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Detailed Enrollment by Grade Level</h6>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="enrollmentTable" width="100%" cellspacing="0">
-                        <thead>
-                            <tr>
-                                <th>Grade Level</th>
-                                <th>Number of Sections</th>
-                                <th>Total Students</th>
-                                <th>Average per Section</th>
-                                <th>Percentage</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                $grandTotalStudents = $totalStudents;
-                            @endphp
 
-                            @forelse ($sectionsByGrade as $gradeData)
-                                @php
-                                    $gradeKey = $gradeData['grade'] ?? 'unassigned';
-                                    $gradePercentage =
-                                        $grandTotalStudents > 0
-                                            ? ($gradeData['total_students'] / $grandTotalStudents) * 100
-                                            : 0;
-                                @endphp
-                                <tr>
-                                    <td><strong>{{ $gradeData['label'] }}</strong></td>
-                                    <td>{{ $gradeData['section_count'] }}</td>
-                                    <td>{{ $gradeData['total_students'] }}</td>
-                                    <td>{{ $gradeData['average_per_section'] }}</td>
-                                    <td>
-                                        <div class="progress">
-                                            <div class="progress-bar" role="progressbar"
-                                                style="width: {{ $gradePercentage }}%; background-color: {{ $gradeData['color'] ?? '#0d6efd' }}"
-                                                aria-valuenow="{{ $gradePercentage }}" aria-valuemin="0"
-                                                aria-valuemax="100">
-                                                {{ number_format($gradePercentage, 1) }}%
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary toggle-sections"
-                                            data-grade="{{ $gradeKey }}">
-                                            <div class="d-flex align-items-center"><i data-feather="chevron-down"
-                                                    class="feather-sm me-1"></i> Show Sections</div>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <!-- Section details for this grade level (initially hidden) -->
-                                <tr class="grade-sections grade-{{ $gradeKey }}-sections" style="display: none;">
-                                    <td colspan="6" class="p-0">
-                                        <table class="table mb-0">
-                                            <thead class="bg-light">
-                                                <tr>
-                                                    <th>Section Name</th>
-                                                    <th>Students</th>
-                                                    <th>% of Grade</th>
-                                                    <th>Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @forelse ($gradeData['sections'] as $section)
-                                                    <tr>
-                                                        <td class="ps-4">{{ $section['name'] }}</td>
-                                                        <td>{{ $section['students'] }}</td>
-                                                        <td>{{ number_format($section['percentage'], 1) }}%</td>
-                                                        <td>
-                                                            <a href="{{ route('admin.sections.show', ['section' => $section['id']]) }}"
-                                                                class="btn btn-sm btn-info">
-                                                                <div class="d-flex align-items-center text-white"><i
-                                                                        data-feather="eye" class="feather-sm me-2"></i>
-                                                                    View
-                                                                </div>
-                                                            </a>
-                                                        </td>
-                                                    </tr>
-                                                @empty
-                                                    <tr>
-                                                        <td colspan="4" class="text-center text-muted">No sections yet.
-                                                        </td>
-                                                    </tr>
-                                                @endforelse
-                                            </tbody>
-                                        </table>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted">No enrollment data yet.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                        <tfoot>
-                            <tr class="font-weight-bold">
-                                <td>Total</td>
-                                <td>{{ $totalSections }}</td>
-                                <td>{{ $totalStudents }}</td>
-                                <td>{{ $totalSections > 0 ? round($totalStudents / $totalSections, 1) : 0 }}
-                                </td>
-                                <td>100%</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-primary shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Enrollees</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalStudentsCount">
+                        {{ number_format($totalStudents) }}</div>
+                    <small class="text-muted">Across selected filters</small>
                 </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-success shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Sections Tracked</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalSectionsCount">
+                        {{ number_format($totalSections) }}</div>
+                    <small class="text-muted">Unique classes in scope</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-info shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Average / Section</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="averagePerSection">
+                        {{ number_format($averagePerSection, 1) }}</div>
+                    <small class="text-muted">Students per section</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-warning shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Largest Section</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="largestSection">
+                        {{ number_format($largestSection) }}</div>
+                    <small class="text-muted">Peak headcount</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Monthly Enrollment Trend</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyTrendChart" height="130"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Grade Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="gradeDistributionChart" height="230"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Sections Comparison</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="sectionDistributionChart" height="230"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Grade-Level Snapshot</h6>
+                </div>
+                <div class="card-body">
+                    <div id="gradeSummaryContainer">
+                        @forelse ($sectionsByGrade as $gradeGroup)
+                            <div class="border rounded p-3 mb-3" data-grade="{{ $gradeGroup['grade'] }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ $gradeGroup['label'] }}</h6>
+                                        <small class="text-muted">Sections: {{ $gradeGroup['section_count'] }}</small>
+                                    </div>
+                                    <span class="badge" style="background-color: {{ $gradeGroup['color'] }};">
+                                        {{ $gradeGroup['total_students'] }} students
+                                    </span>
+                                </div>
+                                <div class="mt-2 d-flex justify-content-between small text-muted">
+                                    <span>Avg / section</span>
+                                    <span>{{ $gradeGroup['average_per_section'] }}</span>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="text-muted text-center py-4">No enrollment data for the selected filters.</div>
+                        @endforelse
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Sections &amp; Enrollment Detail</h6>
+            <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary" id="enrolleesExportLink"
+                    href="{{ route('admin.reports.export.enrollees') }}">
+                    <i data-feather="download"></i> Export
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%">Grade Level</th>
+                            <th style="width: 35%">Section</th>
+                            <th style="width: 20%">Students</th>
+                            <th style="width: 20%">% of Grade</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sectionsTableBody">
+                        @if ($flatSections->isEmpty())
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">No enrollment data for the selected
+                                    filters.</td>
+                            </tr>
+                        @else
+                            @foreach ($flatSections as $row)
+                                <tr>
+                                    <td>{{ $row['grade_label'] }}</td>
+                                    <td>{{ $row['name'] }}</td>
+                                    <td>{{ $row['students'] }}</td>
+                                    <td>{{ $row['percentage'] }}%</td>
+                                </tr>
+                            @endforeach
+                        @endif
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 @endsection
-@push('styles')
-    <!-- Custom styles for this page -->
-    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
-    <style>
-        .chart-wrapper {
-            position: relative;
-            min-height: 300px;
-        }
-
-        .chart-wrapper canvas {
-            width: 100% !important;
-            height: 100% !important;
-        }
-
-        .chart-empty {
-            position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            color: #6c757d;
-            background: rgba(248, 249, 250, 0.85);
-            border-radius: 0.35rem;
-        }
-
-        /* Prevent DataTables from processing nested rows */
-        .datatable-ignore {
-            display: none !important;
-        }
-
-        .grade-sections {
-            display: none;
-        }
-
-        .grade-sections.show {
-            display: table-row !important;
-        }
-    </style>
-@endpush
 
 @push('scripts')
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- Page level plugins -->
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
-    <!-- DataTables Buttons Extension -->
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js"></script>
-
     <script>
-        // Ensure jQuery is loaded before running DataTables
-        (function() {
-            if (typeof jQuery === 'undefined') {
-                console.error('jQuery is not loaded!');
-                return;
+        document.addEventListener('DOMContentLoaded', () => {
+            const analyticsUrl = "{{ route('admin.reports.enrollees') }}";
+            const exportUrl = "{{ route('admin.reports.export.enrollees') }}";
+            const schoolYearSelect = document.getElementById('schoolYearSelect');
+            const gradeFilter = document.getElementById('gradeFilter');
+            const loader = document.getElementById('analyticsLoader');
+            const viewingYearName = document.getElementById('viewingYearName');
+            const totalStudentsCount = document.getElementById('totalStudentsCount');
+            const totalSectionsCount = document.getElementById('totalSectionsCount');
+            const averagePerSection = document.getElementById('averagePerSection');
+            const largestSection = document.getElementById('largestSection');
+            const gradeSummaryContainer = document.getElementById('gradeSummaryContainer');
+            const sectionsTableBody = document.getElementById('sectionsTableBody');
+            const exportLink = document.getElementById('enrolleesExportLink');
+
+            const charts = {
+                monthly: buildLineChart(document.getElementById('monthlyTrendChart'),
+                    @json($monthlyTrend)),
+                grade: buildDoughnutChart(document.getElementById('gradeDistributionChart'),
+                    @json($gradeChartData)),
+                section: buildBarChart(document.getElementById('sectionDistributionChart'),
+                    @json($classChartData))
+            };
+
+            const analyticsState = {
+                sectionsByGrade: @json($sectionsByGrade),
+                classChartData: @json($classChartData),
+                gradeChartData: @json($gradeChartData),
+                monthlyTrend: @json($monthlyTrend),
+                totalStudents: {{ (int) $totalStudents }},
+                totalSections: {{ (int) $totalSections }},
+                averagePerSection: {{ (float) $averagePerSection }},
+                largestSection: {{ (int) $largestSection }},
+            };
+
+            updateSummaryCards(analyticsState);
+            renderGradeSummary(analyticsState.sectionsByGrade);
+            renderSectionsTable(analyticsState.sectionsByGrade);
+            updateExportLink();
+
+            schoolYearSelect.addEventListener('change', handleFilterChange);
+            gradeFilter.addEventListener('change', handleFilterChange);
+
+            function handleFilterChange() {
+                updateExportLink();
+                fetchAnalytics();
             }
 
-            if (typeof Chart === 'undefined') {
-                console.error('Chart.js is not loaded!');
-                return;
-            }
+            async function fetchAnalytics() {
+                const params = new URLSearchParams();
+                if (schoolYearSelect.value) {
+                    params.append('school_year_id', schoolYearSelect.value);
+                }
+                if (schoolYearSelect.value) {
+                    params.append('school_year_id', schoolYearSelect.value);
+                }
+                if (gradeFilter.value) {
+                    params.append('grade', gradeFilter.value);
+                }
+                params.append('_', Date.now());
 
-            console.log('Chart.js version:', Chart.version);
+                toggleLoading(true);
 
-            $(document).ready(function() {
-                // Hide nested section rows before DataTables initialization
-                $('#enrollmentTable tbody .grade-sections').addClass('datatable-ignore');
-
-                // Initialize DataTable - exclude nested section rows
-                $('#enrollmentTable').DataTable({
-                    responsive: true,
-                    order: [
-                        [1, 'desc']
-                    ],
-                    dom: '<"d-none"B>frtip', // Hide the default buttons but keep them accessible
-                    buttons: [{
-                            extend: 'copy',
-                            className: 'buttons-copy',
-                            exportOptions: {
-                                columns: [0, 1, 2, 3] // Exclude Actions and Details columns
-                            }
+                try {
+                    const response = await fetch(`${analyticsUrl}?${params.toString()}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
                         },
-                        {
-                            extend: 'csv',
-                            className: 'buttons-csv',
-                            title: 'Enrollees_Report',
-                            exportOptions: {
-                                columns: [0, 1, 2, 3],
-                                format: {
-                                    body: function(data, row, column, node) {
-                                        // Remove HTML tags and clean up percentage values
-                                        return data.replace(/<[^>]*>/g, '').trim();
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            extend: 'excel',
-                            className: 'buttons-excel',
-                            title: 'Enrollees_Report',
-                            exportOptions: {
-                                columns: [0, 1, 2, 3]
-                            }
-                        },
-                        {
-                            extend: 'pdf',
-                            className: 'buttons-pdf',
-                            title: 'Enrollees_Report',
-                            exportOptions: {
-                                columns: [0, 1, 2, 3]
-                            },
-                            customize: function(doc) {
-                                doc.content[1].table.widths = ['25%', '20%', '20%', '35%'];
-                                doc.styles.tableHeader.alignment = 'left';
-                                doc.content.splice(0, 1, {
-                                    text: 'Enrollees Report',
-                                    style: 'header',
-                                    margin: [0, 0, 0, 12]
-                                });
-                                doc.styles.header = {
-                                    fontSize: 18,
-                                    bold: true
-                                };
-                            }
-                        },
-                        {
-                            extend: 'print',
-                            className: 'buttons-print',
-                            title: 'Enrollees Report',
-                            exportOptions: {
-                                columns: [0, 1, 2, 3]
-                            }
-                        }
-                    ]
-                });
+                    });
 
-                // Temporary sample data for development/testing
-                const sampleClassChart = {
-                    labels: ['Grade 7-A', 'Grade 7-B', 'Grade 8-A', 'Grade 8-B', 'Grade 9-A', 'Grade 9-B',
-                        'Grade 10-A', 'Grade 10-B'
-                    ],
-                    totals: [35, 32, 38, 30, 33, 36, 34, 31],
-                    colors: ['rgba(54, 162, 235, 0.7)', 'rgba(75, 192, 192, 0.7)',
-                        'rgba(255, 206, 86, 0.7)', 'rgba(255, 159, 64, 0.7)',
-                        'rgba(153, 102, 255, 0.7)', 'rgba(255, 99, 132, 0.7)',
-                        'rgba(201, 203, 207, 0.7)', 'rgba(255, 205, 86, 0.7)'
-                    ]
-                };
-
-                const sampleGradeChart = {
-                    labels: ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'],
-                    totals: [67, 68, 69, 65],
-                    colors: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e']
-                };
-
-                const rawClassChart = @json($classChartData ?? ['labels' => [], 'totals' => [], 'colors' => []]);
-                const rawGradeChart = @json($gradeChartData ?? ['labels' => [], 'totals' => [], 'colors' => []]);
-                const rawGradeBreakdown = @json($sectionsByGrade ?? []);
-
-                const normalizeArray = (value) => {
-                    if (Array.isArray(value)) {
-                        return value;
+                    if (!response.ok) {
+                        throw new Error('Unable to fetch analytics data.');
                     }
 
-                    if (value && typeof value === 'object') {
-                        return Object.values(value);
-                    }
+                    const payload = await response.json();
 
-                    return [];
-                };
-
-                // Use sample data if backend data is empty
-                const hasBackendClassData = rawClassChart && rawClassChart.labels && rawClassChart.labels
-                    .length > 0;
-                const hasBackendGradeData = rawGradeChart && rawGradeChart.labels && rawGradeChart.labels
-                    .length > 0;
-
-                const classChart = {
-                    labels: hasBackendClassData ? normalizeArray(rawClassChart.labels) : sampleClassChart
-                        .labels,
-                    totals: hasBackendClassData ? normalizeArray(rawClassChart.totals).map((value) =>
-                        Number(value) || 0) : sampleClassChart.totals,
-                    colors: hasBackendClassData ? normalizeArray(rawClassChart.colors) : sampleClassChart
-                        .colors,
-                };
-
-                const gradeChart = {
-                    labels: hasBackendGradeData ? normalizeArray(rawGradeChart.labels) : sampleGradeChart
-                        .labels,
-                    totals: hasBackendGradeData ? normalizeArray(rawGradeChart.totals).map((value) =>
-                        Number(value) || 0) : sampleGradeChart.totals,
-                    colors: hasBackendGradeData ? normalizeArray(rawGradeChart.colors) : sampleGradeChart
-                        .colors,
-                };
-
-                const gradeBreakdown = normalizeArray(rawGradeBreakdown).map((gradeEntry) => {
-                    const safeEntry = gradeEntry || {};
-                    return {
-                        grade: safeEntry.grade ?? null,
-                        label: safeEntry.label || 'Unspecified Grade',
-                        total_students: Number(safeEntry.total_students) || 0,
-                        section_count: Number(safeEntry.section_count) || 0,
-                        average_per_section: safeEntry.average_per_section || 0,
-                        color: safeEntry.color || '#0d6efd',
-                        sections: normalizeArray(safeEntry.sections).map((section) => ({
-                            id: section.id,
-                            name: section.name,
-                            students: Number(section.students) || 0,
-                            percentage: Number(section.percentage) || 0,
-                        })),
+                    analyticsState.sectionsByGrade = payload.sectionsByGrade || [];
+                    analyticsState.classChartData = payload.classChartData || {
+                        labels: [],
+                        totals: [],
+                        colors: [],
                     };
+                    analyticsState.gradeChartData = payload.gradeChartData || {
+                        labels: [],
+                        totals: [],
+                        colors: [],
+                    };
+                    analyticsState.monthlyTrend = payload.monthlyTrend || {
+                        labels: [],
+                        totals: [],
+                    };
+                    analyticsState.totalStudents = payload.totalStudents || 0;
+                    analyticsState.totalSections = payload.totalSections || 0;
+                    analyticsState.averagePerSection = payload.averagePerSection || 0;
+                    analyticsState.largestSection = payload.largestSection || 0;
+
+                    updateSummaryCards(analyticsState);
+                    renderGradeSummary(analyticsState.sectionsByGrade);
+                    renderSectionsTable(analyticsState.sectionsByGrade);
+                    updateChart(charts.monthly, analyticsState.monthlyTrend.labels, analyticsState.monthlyTrend
+                        .totals);
+                    updateChart(
+                        charts.grade,
+                        analyticsState.gradeChartData.labels,
+                        analyticsState.gradeChartData.totals,
+                        analyticsState.gradeChartData.colors,
+                    );
+                    updateChart(
+                        charts.section,
+                        analyticsState.classChartData.labels,
+                        analyticsState.classChartData.totals,
+                        analyticsState.classChartData.colors,
+                    );
+
+                    if (payload.schoolYearLabel) {
+                        viewingYearName.textContent = payload.schoolYearLabel;
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Unable to refresh analytics data. Please try again.');
+                } finally {
+                    toggleLoading(false);
+                }
+            }
+
+            function toggleLoading(isLoading) {
+                loader.classList.toggle('d-none', !isLoading);
+                schoolYearSelect.disabled = isLoading;
+                gradeFilter.disabled = isLoading;
+            }
+
+            function updateSummaryCards(state) {
+                totalStudentsCount.textContent = Number(state.totalStudents).toLocaleString();
+                totalSectionsCount.textContent = Number(state.totalSections).toLocaleString();
+                averagePerSection.textContent = Number(state.averagePerSection).toLocaleString(undefined, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                });
+                largestSection.textContent = Number(state.largestSection).toLocaleString();
+            }
+
+            function renderGradeSummary(groups) {
+                if (!gradeSummaryContainer) return;
+
+                if (!groups || groups.length === 0) {
+                    gradeSummaryContainer.innerHTML =
+                        '<div class="text-muted text-center py-4">No enrollment data for the selected filters.</div>';
+                    return;
+                }
+
+                const cards = groups
+                    .map((group) => {
+                        return `
+                            <div class="border rounded p-3 mb-3" data-grade="${group.grade ?? ''}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">${group.label}</h6>
+                                        <small class="text-muted">Sections: ${group.section_count}</small>
+                                    </div>
+                                    <span class="badge" style="background-color: ${group.color};">
+                                        ${group.total_students} students
+                                    </span>
+                                </div>
+                                <div class="mt-2 d-flex justify-content-between small text-muted">
+                                    <span>Avg / section</span>
+                                    <span>${group.average_per_section}</span>
+                                </div>
+                            </div>`;
+                    })
+                    .join('');
+
+                gradeSummaryContainer.innerHTML = cards;
+            }
+
+            function renderSectionsTable(groups) {
+                if (!sectionsTableBody) return;
+                const rows = [];
+
+                (groups || []).forEach((group) => {
+                    (group.sections || []).forEach((section) => {
+                        rows.push(`
+                            <tr>
+                                <td>${group.label}</td>
+                                <td>${section.name}</td>
+                                <td>${section.students}</td>
+                                <td>${section.percentage}%</td>
+                            </tr>`);
+                    });
                 });
 
-                const enrollmentChartCanvas = document.getElementById('enrollmentChart');
-                const enrollmentChartEmpty = document.getElementById('enrollmentChartEmpty');
-                const pieChartCanvas = document.getElementById('sectionPieChart');
-                const pieChartEmpty = document.getElementById('sectionPieChartEmpty');
-                const legendContainer = document.getElementById('section-legend');
+                sectionsTableBody.innerHTML = rows.length ?
+                    rows.join('') :
+                    '<tr><td colspan="4" class="text-center text-muted py-4">No enrollment data for the selected filters.</td></tr>';
+            }
 
-                const classLabels = classChart.labels;
-                const classTotals = classChart.totals;
-                const classColors = classChart.colors;
-
-                const classTotalsHaveValue = classTotals.some(value => value > 0);
-                const hasClassLabels = classLabels.length > 0;
-                const classChartHasData = hasClassLabels && classTotalsHaveValue;
-
-                function toOpaqueColor(color) {
-                    if (typeof color !== 'string') {
-                        return '#0d6efd';
-                    }
-
-                    if (color.includes('rgba')) {
-                        return color.replace(/0\.7(?=\))/g, '1');
-                    }
-
-                    return color;
-                }
-
-                function toggleChartState(canvas, emptyState, isActive) {
-                    if (!canvas || !emptyState) {
-                        return;
-                    }
-
-                    canvas.style.display = isActive ? 'block' : 'none';
-                    emptyState.style.display = isActive ? 'none' : 'flex';
-                }
-
-                function renderEnrollmentChart() {
-                    toggleChartState(enrollmentChartCanvas, enrollmentChartEmpty, classChartHasData);
-
-                    if (!classChartHasData || !enrollmentChartCanvas) {
-                        return;
-                    }
-
-                    new Chart(enrollmentChartCanvas.getContext('2d'), {
-                        type: 'bar',
-                        data: {
-                            labels: classLabels,
-                            datasets: [{
-                                label: 'Number of Students per Class',
-                                backgroundColor: classColors.length ? classColors : '#0d6efd',
-                                borderColor: classColors.length ? classColors.map(
-                                    toOpaqueColor) : '#0d6efd',
-                                borderWidth: 1,
-                                data: classTotals,
-                            }],
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        precision: 0
-                                    }
-                                }
+            function buildLineChart(canvas, dataset) {
+                return new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: dataset.labels || [],
+                        datasets: [{
+                            label: 'Enrollees',
+                            data: dataset.totals || [],
+                            borderColor: 'rgba(13,110,253,0.9)',
+                            backgroundColor: 'rgba(13,110,253,0.15)',
+                            pointBackgroundColor: 'rgba(13,110,253,1)',
+                            pointRadius: 4,
+                            tension: 0.3,
+                            fill: true,
+                        }, ],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0,
+                                },
                             },
-                            plugins: {
-                                legend: {
-                                    display: false
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            return context.parsed.y + ' students';
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-
-                function renderLegend(totals, colors, labels) {
-                    if (!legendContainer) {
-                        return;
-                    }
-
-                    const hasLegendData = totals.some(value => Number(value) > 0);
-
-                    if (!hasLegendData) {
-                        legendContainer.innerHTML = '<span class="text-muted">No data yet.</span>';
-                        return;
-                    }
-
-                    const legendHtml = labels.map(function(label, index) {
-                        const color = colors[index] || '#0d6efd';
-                        const total = totals[index] || 0;
-                        return (
-                            '<span class="me-3">' +
-                            '<i class="fas fa-circle me-1" style="color:' + color + '"></i>' +
-                            label + ' (' + total + ')' +
-                            '</span>'
-                        );
-                    }).join('');
-
-                    legendContainer.innerHTML = legendHtml;
-                }
-
-                function renderPieChart() {
-                    const pieLabels = gradeChart.labels;
-                    const pieTotals = gradeChart.totals;
-                    const pieColors = gradeChart.colors;
-                    const pieHasData = pieLabels.length > 0 && pieTotals.some(value => Number(value) > 0);
-
-                    toggleChartState(pieChartCanvas, pieChartEmpty, pieHasData);
-
-                    if (!pieHasData || !pieChartCanvas) {
-                        renderLegend([], [], []);
-                        return;
-                    }
-
-                    new Chart(pieChartCanvas.getContext('2d'), {
-                        type: 'doughnut',
-                        data: {
-                            labels: pieLabels,
-                            datasets: [{
-                                data: pieTotals,
-                                backgroundColor: pieColors,
-                                borderColor: '#fff',
-                                borderWidth: 2,
-                            }],
                         },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            var label = context.label || '';
-                                            var value = context.raw || 0;
-                                            var total = context.dataset.data.reduce((a, b) => a + b,
-                                                    0) ||
-                                                1;
-                                            var percentage = Math.round((value / total) * 100);
-                                            return `${label}: ${value} students (${percentage}%)`;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-
-                    renderLegend(pieTotals, pieColors, pieLabels);
-                }
-
-                renderEnrollmentChart();
-                renderPieChart();
-
-                // Export button click handlers
-                const exportPdfButton = document.getElementById('exportPDF');
-                if (exportPdfButton) {
-                    exportPdfButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        exportData('pdf');
-                    });
-                }
-
-                const exportExcelButton = document.getElementById('exportExcel');
-                if (exportExcelButton) {
-                    exportExcelButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const selectedGrade = new URLSearchParams(window.location.search).get(
-                            'grade') || '';
-                        const excelUrl = "{{ route('admin.reports.export.enrollees') }}" +
-                            (selectedGrade ? '?grade=' + selectedGrade : '');
-                        window.location.href = excelUrl;
-                    });
-                }
-
-                const exportCsvButton = document.getElementById('exportCSV');
-                if (exportCsvButton) {
-                    exportCsvButton.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const selectedGrade = new URLSearchParams(window.location.search).get(
-                            'grade') || '';
-                        const baseUrl = "{{ route('admin.reports.export.enrollees') }}";
-                        const params = new URLSearchParams();
-                        if (selectedGrade) params.append('grade', selectedGrade);
-                        params.append('format', 'csv');
-                        window.location.href = baseUrl + '?' + params.toString();
-                    });
-                }
-
-                // Function to handle DataTables client-side exports (PDF & CSV)
-                function exportData(format) {
-                    const table = $('#enrollmentTable').DataTable();
-
-                    switch (format) {
-                        case 'pdf':
-                            table.button('.buttons-pdf').trigger();
-                            break;
-                        case 'csv':
-                            table.button('.buttons-csv').trigger();
-                            break;
-                    }
-                }
-            });
-        })();
-
-        // Initialize toggle functionality for the grade sections
-        $(document).ready(function() {
-            // Initialize feather icons after AJAX content is loaded
-            function initFeatherIcons() {
-                if (typeof feather !== 'undefined') {
-                    feather.replace();
-                }
-            }
-
-            // Initialize feather icons initially
-            initFeatherIcons();
-
-            function toggleButtonTemplate(isExpanded) {
-                var icon = isExpanded ? 'chevron-up' : 'chevron-down';
-                var text = isExpanded ? 'Hide Sections' : 'Show Sections';
-                return '<div class="d-flex align-items-center"><i data-feather="' + icon +
-                    '" class="feather-sm me-1"></i> ' + text + '</div>';
-            }
-
-            // Add event listeners to toggle section visibility
-            document.querySelectorAll('.toggle-sections').forEach(button => {
-                button.addEventListener('click', function() {
-                    const grade = this.getAttribute('data-grade');
-                    const sectionsRow = document.querySelector(`.grade-${grade}-sections`);
-                    if (!sectionsRow) {
-                        return;
-                    }
-
-                    const isHidden = !sectionsRow.classList.contains('show');
-                    sectionsRow.classList.toggle('show');
-                    this.innerHTML = toggleButtonTemplate(isHidden);
-
-                    // Re-initialize feather icons after changing the content
-                    initFeatherIcons();
+                    },
                 });
-            });
+            }
 
-            // Call feather icons at the end of initialization as well
-            setTimeout(initFeatherIcons, 100);
+            function buildDoughnutChart(canvas, dataset) {
+                return new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: dataset.labels || [],
+                        datasets: [{
+                            data: dataset.totals || [],
+                            backgroundColor: dataset.colors || [],
+                            borderWidth: 1,
+                        }, ],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                        },
+                    },
+                });
+            }
+
+            function buildBarChart(canvas, dataset) {
+                return new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: dataset.labels || [],
+                        datasets: [{
+                            label: 'Students',
+                            data: dataset.totals || [],
+                            backgroundColor: dataset.colors || 'rgba(13,110,253,0.7)',
+                            borderWidth: 0,
+                        }, ],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0,
+                                },
+                            },
+                            x: {
+                                ticks: {
+                                    autoSkip: false,
+                                },
+                            },
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                        },
+                    },
+                });
+            }
+
+            function updateChart(chart, labels, totals, colors) {
+                if (!chart) return;
+                chart.data.labels = labels || [];
+                chart.data.datasets[0].data = totals || [];
+                if (colors && chart.config.type !== 'line') {
+                    chart.data.datasets[0].backgroundColor = colors;
+                }
+                chart.update();
+            }
+
+            function updateExportLink() {
+                if (!exportLink) return;
+                const params = new URLSearchParams();
+                if (gradeFilter.value) {
+                    params.append('grade', gradeFilter.value);
+                }
+                exportLink.href = params.toString() ? `${exportUrl}?${params.toString()}` : exportUrl;
+            }
         });
     </script>
 @endpush

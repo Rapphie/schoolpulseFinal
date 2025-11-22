@@ -1,643 +1,695 @@
 @extends('base')
 
-@section('title', 'Attendance Report')
-@section('head')
-    <!-- Preconnect to external domains to speed up resource loading -->
-    <link rel="preconnect" href="https://cdn.datatables.net">
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="preload" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" as="style"
-        onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" as="style"
-        onload="this.onload=null;this.rel='stylesheet'">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <noscript>
-        <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-        <link href="https://cdn.datatables.net/buttons/2.2.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
-    </noscript>
-@endsection
+@section('title', 'Attendance Analytics')
+
 @section('content')
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Attendance Overview</h6>
+    @php
+        $summary = array_merge(
+            [
+                'total_records' => 0,
+                'present' => 0,
+                'absent' => 0,
+                'late' => 0,
+                'present_rate' => 0,
+                'absence_rate' => 0,
+                'late_rate' => 0,
+            ],
+            $attendanceSummary ?? [],
+        );
+
+        $todaySnapshotData = array_merge(
+            [
+                'date' => now()->format('M d, Y'),
+                'present' => 0,
+                'absent' => 0,
+                'late' => 0,
+                'total' => 0,
+            ],
+            $todaySnapshot ?? [],
+        );
+
+        $statusDistributionData = $statusDistribution ?? [];
+        $monthlyTrendData = array_merge(
+            [
+                'labels' => [],
+                'present' => [],
+                'absent' => [],
+                'late' => [],
+            ],
+            $monthlyTrend ?? [],
+        );
+
+        $dailySparklineData = array_merge(
+            [
+                'labels' => [],
+                'present' => [],
+                'absent' => [],
+                'attendance_rate' => [],
+            ],
+            $dailySparkline ?? [],
+        );
+
+        $classLeaderboardData = $classLeaderboard ?? [];
+        $classOptionsMapData = $classOptionsMap ?? [];
+    @endphp
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-2 text-gray-800">Attendance Analytics</h1>
+            <p class="mb-1 text-muted">
+                Active school year:
+                <span class="fw-semibold text-primary">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
+            </p>
+            <p class="mb-0 text-muted">
+                Viewing data for:
+                <span class="fw-semibold text-dark"
+                    id="attendanceViewingYearName">{{ $currentSchoolYear->name ?? 'Not set' }}</span>
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-3 align-items-end">
             <div>
-                <div class="input-group">
-                    <input type="month" class="form-control" id="monthFilter" value="{{ date('Y-m') }}">
-                    <button class="btn btn-outline-primary" type="button" id="applyFilter">
-                        <i data-feather="filter"></i> Apply
-                    </button>
+                <label for="attendanceSchoolYearSelect" class="form-label small text-muted mb-1">School Year</label>
+                <select class="form-select" id="attendanceSchoolYearSelect">
+                    @foreach ($schoolYears as $schoolYear)
+                        <option value="{{ $schoolYear->id }}"
+                            {{ $currentSchoolYear && $schoolYear->id === $currentSchoolYear->id ? 'selected' : '' }}>
+                            {{ $schoolYear->name }}{{ $schoolYear->is_active ? ' (Active)' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="attendanceGradeSelect" class="form-label small text-muted mb-1">Grade Level</label>
+                <select class="form-select" id="attendanceGradeSelect">
+                    <option value="">All Grade Levels</option>
+                    @foreach ($gradeLevels as $gradeLevel)
+                        <option value="{{ $gradeLevel->id }}"
+                            {{ $selectedGradeLevelId && $gradeLevel->id === (int) $selectedGradeLevelId ? 'selected' : '' }}>
+                            {{ $gradeLevel->name ?? 'Grade ' . $gradeLevel->level }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="attendanceClassSelect" class="form-label small text-muted mb-1">Class / Section</label>
+                <select class="form-select" id="attendanceClassSelect" data-selected-class="{{ $selectedClassId ?? '' }}"
+                    @if (!$selectedGradeLevelId) disabled @endif>
+                    <option value="">All Classes</option>
+                </select>
+                <small class="text-muted d-block mt-1" id="classSelectHelper">
+                    {{ $selectedGradeLevelId ? 'Showing classes for the selected grade level.' : 'Select a grade level to enable the class filter.' }}
+                </small>
+            </div>
+            <div class="text-muted small d-none" id="attendanceLoader">
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                Updating...
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-success shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Attendance Rate</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceRateValue">
+                        {{ number_format($summary['present_rate'], 1) }}%
+                    </div>
+                    <small class="text-muted">Present ÷ total sessions</small>
                 </div>
             </div>
         </div>
-        <div class="card-body">
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card border-left-primary h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                        Present Today</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $todayPresentCount ?? 0 }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
-                                </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-primary shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Sessions Logged</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceSessionsValue">
+                        {{ number_format($summary['total_records']) }}
+                    </div>
+                    <small class="text-muted">Across current filters</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-info shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Present</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendancePresentValue">
+                        {{ number_format($summary['present']) }}
+                    </div>
+                    <small class="text-muted">{{ number_format($summary['present_rate'], 1) }}% of sessions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-left-danger shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Absences</div>
+                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceAbsentValue">
+                        {{ number_format($summary['absent']) }}
+                    </div>
+                    <small class="text-muted">{{ number_format($summary['absence_rate'], 1) }}% of sessions</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Late Arrivals</div>
+                            <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceLateValue">
+                                {{ number_format($summary['late']) }}
                             </div>
+                        </div>
+                        <span class="badge bg-warning text-dark" id="attendanceLateRate">
+                            {{ number_format($summary['late_rate'], 1) }}%
+                        </span>
+                    </div>
+                    <p class="mb-0 text-muted small">Share of sessions tagged as late across the selected scope.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Today's Snapshot</div>
+                            <div class="h4 mb-0 font-weight-bold text-gray-800" id="todaySnapshotDate">
+                                {{ $todaySnapshotData['date'] }}
+                            </div>
+                        </div>
+                        <span class="badge bg-light text-muted">Live</span>
+                    </div>
+                    <div class="d-flex gap-3 flex-wrap">
+                        <div>
+                            <div class="text-muted text-uppercase small">Present</div>
+                            <div class="h5 mb-0" id="todayPresentValue">{{ number_format($todaySnapshotData['present']) }}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small">Absent</div>
+                            <div class="h5 mb-0 text-danger" id="todayAbsentValue">
+                                {{ number_format($todaySnapshotData['absent']) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small">Late</div>
+                            <div class="h5 mb-0 text-warning" id="todayLateValue">
+                                {{ number_format($todaySnapshotData['late']) }}</div>
                         </div>
                     </div>
+                    <small class="text-muted d-block mt-2">Captured from records logged today.</small>
                 </div>
-                <div class="col-md-3">
-                    <div class="card border-left-success h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                        This Month's Attendance</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        {{ $monthlyAttendanceRate ?? 0 }}%
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-percent fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Monthly Attendance Trend</h6>
                 </div>
-                <div class="col-md-3">
-                    <div class="card border-left-info h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                        Total Absences</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $totalAbsences ?? 0 }}</div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-user-times fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-left-warning h-100 py-2">
-                        <div class="card-body">
-                            <div class="row no-gutters align-items-center">
-                                <div class="col mr-2">
-                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                        Late Arrivals</div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $lateArrivalsCount ?? 0 }}
-                                    </div>
-                                </div>
-                                <div class="col-auto">
-                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
-                                </div>
-                            </div>
-                        </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 260px;">
+                        <canvas id="monthlyAttendanceChart"></canvas>
                     </div>
                 </div>
             </div>
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="card shadow h-100">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Monthly Attendance Trend</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-area">
-                                <canvas id="attendanceTrendChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Status Distribution</h6>
                 </div>
-                <div class="col-md-4">
-                    <div class="card shadow h-100">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Attendance Distribution</h6>
-                        </div>
-                        <div class="card-body">
-                            <div id="attendancePieChart" style="height: 300px;">
-                                <div class="text-center py-5">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 220px;">
+                        <canvas id="statusDistributionChart"></canvas>
+                    </div>
+                    <div class="mt-3" id="statusDistributionList">
+                        @if (empty($statusDistributionData))
+                            <p class="text-muted text-center mb-0">No attendance data for the selected filters.</p>
+                        @else
+                            @foreach ($statusDistributionData as $item)
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span>{{ ucfirst($item['label'] ?? $item['status']) }}</span>
+                                    <span class="fw-semibold">{{ number_format($item['percentage'] ?? 0, 1) }}%</span>
                                 </div>
-                            </div>
-                            <div class="mt-4 text-center small">
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-success"></i> Present
-                                </span>
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-danger"></i> Absent
-                                </span>
-                                <span class="me-3">
-                                    <i class="fas fa-circle text-warning"></i> Late
-                                </span>
-                            </div>
-                        </div>
+                            @endforeach
+                        @endif
                     </div>
                 </div>
             </div>
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-primary">Detailed Attendance Records</h6>
-                    <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="exportDropdown"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i data-feather="download"></i> Export
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="exportDropdown">
-                            <li><a class="dropdown-item" href="#" id="exportPDF">PDF</a></li>
-                            <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
-                            <li><a class="dropdown-item" href="#" id="exportCSV">CSV</a></li>
-                        </ul>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Presence Rate</h6>
+                    <small class="text-muted">Last 14 school days</small>
+                </div>
+                <div class="card-body">
+                    <div id="dailyChartEmpty"
+                        class="text-muted text-center py-4 {{ empty($dailySparklineData['labels']) ? '' : 'd-none' }}">
+                        No attendance data for the selected filters.
                     </div>
+                    <div class="position-relative" style="height: 220px;">
+                        <canvas id="dailyAttendanceChart"
+                            class="{{ empty($dailySparklineData['labels']) ? 'd-none' : '' }}"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">Class Attendance Leaders</h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-bordered" id="attendanceTable" width="100%" cellspacing="0">
+                        <table class="table table-hover align-middle mb-0">
                             <thead>
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Student Name</th>
-                                    <th>Section</th>
-                                    <th>Status</th>
-                                    <th>Time In</th>
-                                    <th>Time Out</th>
-                                    <th>Actions</th>
+                                    <th style="width: 45%">Class</th>
+                                    <th style="width: 20%">Attend. Rate</th>
+                                    <th style="width: 15%">Present</th>
+                                    <th style="width: 20%">Absent</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @forelse($attendanceRecords as $attendance)
+                            <tbody id="classLeaderboardBody">
+                                @forelse ($classLeaderboardData as $row)
                                     <tr>
-                                        <td>{{ \Carbon\Carbon::parse($attendance->date)->format('M d, Y') }}</td>
-                                        <td>{{ $attendance->student ? $attendance->student->full_name : 'N/A' }}</td>
-                                        <td>{{ $attendance->student && $attendance->student->section ? $attendance->student->section->name : 'N/A' }}
-                                        </td>
-                                        <td>
-                                            @if ($attendance->status == 'present')
-                                                <span class="badge bg-success">Present</span>
-                                            @elseif($attendance->status == 'late')
-                                                <span class="badge bg-warning text-dark">Late</span>
-                                            @else
-                                                <span class="badge bg-danger">Absent</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ $attendance->time_in ?? 'N/A' }}</td>
-                                        {{-- <td>{{ $attendance->time_out ?? 'N/A' }}</td> --}}
-                                        <td>
-                                            <button class="btn btn-sm btn-info"
-                                                onclick="viewAttendanceDetails({{ $attendance->id }})"
-                                                data-bs-toggle="tooltip" title="View Details">
-                                                <i data-feather="eye" class="feather-sm"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-warning text-white"
-                                                onclick="editAttendance({{ $attendance->id }})" data-bs-toggle="tooltip"
-                                                title="Edit">
-                                                <i data-feather="edit-2" class="feather-sm"></i>
-                                            </button>
-                                        </td>
+                                        <td>{{ $row['label'] }}</td>
+                                        <td>{{ number_format($row['attendance_rate'], 1) }}%</td>
+                                        <td>{{ number_format($row['present']) }}</td>
+                                        <td>{{ number_format($row['absent']) }}</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center">No attendance records found.</td>
+                                        <td colspan="4" class="text-center text-muted py-4">No class-level data yet.
+                                        </td>
                                     </tr>
                                 @endforelse
                             </tbody>
                         </table>
-
-                        <!-- Add Laravel's pagination links -->
-                        <div class="d-flex justify-content-center mt-4">
-                            {{ $attendanceRecords->links('pagination::bootstrap-5') }}
-                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Attendance Details Modal -->
-    <div class="modal fade" id="attendanceDetailsModal" tabindex="-1" aria-labelledby="attendanceDetailsModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="attendanceDetailsModalLabel">Attendance Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="attendanceDetailsContent">
-                    <!-- Content will be loaded via AJAX -->
-                    <div class="text-center my-5">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="printAttendanceBtn">
-                        <i data-feather="printer" class="feather-sm me-1"></i> Print
-                    </button>
                 </div>
             </div>
         </div>
     </div>
 @endsection
 
-
 @push('scripts')
-    <!-- Defer non-critical scripts -->
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js" defer></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js" defer></script>
-
-    <!-- DataTables export plugins (load on demand) -->
     <script>
-        // Function to dynamically load scripts
-        function loadScript(url, callback) {
-            var script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.src = url;
-            script.defer = true;
+        document.addEventListener('DOMContentLoaded', () => {
+            const analyticsUrl = "{{ route('admin.reports.attendance') }}";
+            const initialState = {
+                summary: @json($summary),
+                statusDistribution: @json($statusDistributionData),
+                monthlyTrend: @json($monthlyTrendData),
+                dailySparkline: @json($dailySparklineData),
+                classLeaderboard: @json($classLeaderboardData),
+                todaySnapshot: @json($todaySnapshotData),
+                classOptionsMap: @json($classOptionsMapData),
+            };
 
-            if (callback) {
-                if (script.readyState) { // IE
-                    script.onreadystatechange = function() {
-                        if (script.readyState === 'loaded' || script.readyState === 'complete') {
-                            script.onreadystatechange = null;
-                            callback();
-                        }
-                    };
-                } else { // Other browsers
-                    script.onload = function() {
-                        callback();
-                    };
+            const state = typeof structuredClone === 'function' ?
+                structuredClone(initialState) :
+                JSON.parse(JSON.stringify(initialState));
+
+            const schoolYearSelect = document.getElementById('attendanceSchoolYearSelect');
+            const gradeSelect = document.getElementById('attendanceGradeSelect');
+            const classSelect = document.getElementById('attendanceClassSelect');
+            const classSelectHelper = document.getElementById('classSelectHelper');
+            const loader = document.getElementById('attendanceLoader');
+            const viewingYearName = document.getElementById('attendanceViewingYearName');
+            const rateValue = document.getElementById('attendanceRateValue');
+            const sessionsValue = document.getElementById('attendanceSessionsValue');
+            const presentValue = document.getElementById('attendancePresentValue');
+            const absentValue = document.getElementById('attendanceAbsentValue');
+            const lateValue = document.getElementById('attendanceLateValue');
+            const lateRateBadge = document.getElementById('attendanceLateRate');
+            const todayDate = document.getElementById('todaySnapshotDate');
+            const todayPresent = document.getElementById('todayPresentValue');
+            const todayAbsent = document.getElementById('todayAbsentValue');
+            const todayLate = document.getElementById('todayLateValue');
+            const statusListContainer = document.getElementById('statusDistributionList');
+            const classLeaderboardBody = document.getElementById('classLeaderboardBody');
+            const dailyChartEmpty = document.getElementById('dailyChartEmpty');
+            const initialClassSelection = classSelect?.dataset?.selectedClass || '';
+
+            const monthlyCanvas = document.getElementById('monthlyAttendanceChart');
+            const statusCanvas = document.getElementById('statusDistributionChart');
+            const dailyCanvas = document.getElementById('dailyAttendanceChart');
+
+            const charts = {
+                monthly: null,
+                status: null,
+                daily: null,
+            };
+
+            rebuildMonthlyChart();
+            rebuildStatusChart();
+            rebuildDailyChart();
+
+            populateClassSelect(initialClassSelection);
+            updateSummaryCards();
+            renderStatusList(state.statusDistribution);
+            renderClassLeaderboard(state.classLeaderboard);
+            toggleDailyChart(state.dailySparkline);
+
+            schoolYearSelect.addEventListener('change', handleFilterChange);
+            gradeSelect.addEventListener('change', () => {
+                populateClassSelect();
+                handleFilterChange();
+            });
+            classSelect.addEventListener('change', handleFilterChange);
+
+            function populateClassSelect(preservedValue = '') {
+                const selectedGrade = gradeSelect.value;
+                const optionsMap = state.classOptionsMap || {};
+                const previousValue = preservedValue || classSelect.value;
+
+                classSelect.innerHTML = '<option value="">All Classes</option>';
+
+                if (!selectedGrade) {
+                    classSelect.value = '';
+                    classSelect.disabled = true;
+                    classSelectHelper.textContent = 'Select a grade level to enable the class filter.';
+                    return;
+                }
+
+                const options = optionsMap[selectedGrade] || [];
+                if (!options.length) {
+                    classSelect.disabled = true;
+                    classSelectHelper.textContent = 'No classes found for this grade in the selected school year.';
+                    return;
+                }
+
+                options.forEach((option) => {
+                    const opt = document.createElement('option');
+                    opt.value = option.id;
+                    opt.textContent = option.label;
+                    classSelect.appendChild(opt);
+                });
+
+                classSelect.disabled = false;
+                classSelectHelper.textContent = 'Filtering classes within the selected grade level.';
+
+                if (previousValue && options.some((option) => String(option.id) === String(previousValue))) {
+                    classSelect.value = previousValue;
+                } else {
+                    classSelect.value = '';
                 }
             }
 
-            document.head.appendChild(script);
-        }
+            async function handleFilterChange() {
+                const params = new URLSearchParams();
+                if (schoolYearSelect.value) {
+                    params.append('school_year_id', schoolYearSelect.value);
+                }
+                if (gradeSelect.value) {
+                    params.append('grade_level_id', gradeSelect.value);
+                }
+                if (gradeSelect.value && classSelect.value) {
+                    params.append('class_id', classSelect.value);
+                }
+                params.append('_', Date.now());
 
-        // Load export functionality when interacting with export dropdown
-        document.addEventListener('DOMContentLoaded', function() {
-            const exportDropdown = document.getElementById('exportDropdown');
-            if (exportDropdown) {
-                exportDropdown.addEventListener('click', function loadExportScripts() {
-                    // Remove the listener so we only load once
-                    exportDropdown.removeEventListener('click', loadExportScripts);
+                toggleLoading(true);
 
-                    const scripts = [
-                        'https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js',
-                        'https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js',
-                        'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js',
-                        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js',
-                        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js',
-                        'https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js',
-                        'https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js'
-                    ];
-
-                    // Load scripts sequentially
-                    let i = 0;
-
-                    function loadNextScript() {
-                        if (i < scripts.length) {
-                            loadScript(scripts[i], function() {
-                                i++;
-                                loadNextScript();
-                            });
-                        } else {
-                            // All scripts loaded, initialize export buttons
-                            initializeExportButtons();
-                        }
-                    }
-
-                    loadNextScript();
-                });
-            }
-        });
-
-        // Inner document ready function
-        document.addEventListener('DOMContentLoaded', function() {
-            initPieChart();
-            // Initialize DataTables lazily when user interacts with the page
-            const lazyInitDataTables = () => {
-                // Initialize attendance table
-                if ($.fn.dataTable.isDataTable('#attendanceTable')) return;
-
-                $('#attendanceTable').DataTable({
-                    "pageLength": 10,
-                    "language": {
-                        "paginate": {
-                            "previous": "&laquo;",
-                            "next": "&raquo;"
-                        }
-                    },
-                    // Configure server-side pagination processing
-                    "processing": true,
-                    "serverSide": false, // We're using Laravel's pagination already
-                    // Enable the built-in pagination controls but use Laravel's pagination behind the scenes
-                    "paging": false, // Disable DataTables paging since Laravel handles it
-                    "ordering": true,
-                    "info": true,
-                    "searching": true
-                });
-
-                // Remove the event listeners after initialization
-                document.removeEventListener('scroll', lazyInitDataTables);
-                document.removeEventListener('mousemove', lazyInitDataTables);
-            };
-
-            // Initialize DataTables when user begins to interact with the page
-            document.addEventListener('scroll', lazyInitDataTables, {
-                passive: true
-            });
-            document.addEventListener('mousemove', lazyInitDataTables, {
-                passive: true
-            });
-
-            // Initialize tooltips only when they're needed
-            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-            if (tooltipTriggerList.length > 0) {
-                const initTooltips = () => {
-                    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
-                    document.removeEventListener('mouseover', initTooltips);
-                };
-                document.addEventListener('mouseover', initTooltips, {
-                    passive: true
-                });
-
-                // Lazy load charts when they're in viewport and Chart.js is loaded
-                const observeElement = (elementId, callback) => {
-                    const element = document.getElementById(elementId);
-                    if (!element) {
-                        console.error(`Element with id '${elementId}' not found`);
-                        return;
-                    }
-
-                    console.log(`Setting up observer for ${elementId}`);
-
-                    const observer = new IntersectionObserver((entries) => {
-                        entries.forEach(entry => {
-                            if (entry.isIntersecting) {
-                                console.log(
-                                    `${elementId} is visible, preparing to initialize chart`
-                                );
-                                // Ensure Chart.js is loaded first
-                                loadChartJs().then(() => {
-                                    console.log(
-                                        `Chart.js is loaded, initializing ${elementId}`
-                                    );
-                                    callback();
-                                }).catch(error => {
-                                    console.error(
-                                        `Failed to load Chart.js for ${elementId}:`,
-                                        error);
-                                });
-                                observer.disconnect();
-                            }
-                        });
-                    }, {
-                        threshold: 0.1
+                try {
+                    const response = await fetch(`${analyticsUrl}?${params.toString()}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
                     });
 
-                    observer.observe(element);
-                    console.log(`Observer set for ${elementId}`);
-                };
+                    if (!response.ok) {
+                        throw new Error('Unable to refresh attendance analytics.');
+                    }
 
-                var monthlyData = @json($monthlyData ?? []);
-                var labels = Object.keys(monthlyData);
-                var presentData = [];
-                var absentData = [];
-                var lateData = [];
+                    const payload = await response.json();
 
-                labels.forEach(function(date) {
-                    presentData.push(monthlyData[date]?.present || 0);
-                    absentData.push(monthlyData[date]?.absent || 0);
-                    lateData.push(monthlyData[date]?.late || 0);
+                    state.summary = payload.attendanceSummary || initialState.summary;
+                    state.statusDistribution = payload.statusDistribution || [];
+                    state.monthlyTrend = payload.monthlyTrend || initialState.monthlyTrend;
+                    state.dailySparkline = payload.dailySparkline || initialState.dailySparkline;
+                    state.classLeaderboard = payload.classLeaderboard || [];
+                    state.todaySnapshot = payload.todaySnapshot || initialState.todaySnapshot;
+                    state.classOptionsMap = payload.classOptionsMap ?? state.classOptionsMap;
+
+                    if (payload.schoolYearLabel) {
+                        viewingYearName.textContent = payload.schoolYearLabel;
+                    }
+
+                    populateClassSelect();
+                    updateSummaryCards();
+                    renderStatusList(state.statusDistribution);
+                    renderClassLeaderboard(state.classLeaderboard);
+                    rebuildMonthlyChart();
+                    rebuildStatusChart();
+                    rebuildDailyChart();
+                    toggleDailyChart(state.dailySparkline);
+                } catch (error) {
+                    console.error(error);
+                    alert('Unable to refresh attendance analytics. Please try again.');
+                } finally {
+                    toggleLoading(false);
+                }
+            }
+
+            function toggleLoading(isLoading) {
+                loader.classList.toggle('d-none', !isLoading);
+                schoolYearSelect.disabled = isLoading;
+                gradeSelect.disabled = isLoading;
+                classSelect.disabled = isLoading || !gradeSelect.value || classSelect.options.length <= 1;
+            }
+
+            function updateSummaryCards() {
+                rateValue.textContent = `${(state.summary.present_rate ?? 0).toFixed(1)}%`;
+                sessionsValue.textContent = Number(state.summary.total_records || 0).toLocaleString();
+                presentValue.textContent = Number(state.summary.present || 0).toLocaleString();
+                absentValue.textContent = Number(state.summary.absent || 0).toLocaleString();
+                lateValue.textContent = Number(state.summary.late || 0).toLocaleString();
+                lateRateBadge.textContent = `${(state.summary.late_rate ?? 0).toFixed(1)}%`;
+
+                todayDate.textContent = state.todaySnapshot.date || '';
+                todayPresent.textContent = Number(state.todaySnapshot.present || 0).toLocaleString();
+                todayAbsent.textContent = Number(state.todaySnapshot.absent || 0).toLocaleString();
+                todayLate.textContent = Number(state.todaySnapshot.late || 0).toLocaleString();
+            }
+
+            function renderStatusList(distribution) {
+                if (!statusListContainer) return;
+                if (!distribution || !distribution.length) {
+                    statusListContainer.innerHTML =
+                        '<p class="text-muted text-center mb-0">No attendance data for the selected filters.</p>';
+                    return;
+                }
+
+                const rows = distribution.map((item) => {
+                    const label = item.label || item.status || 'Status';
+                    const percentage = (item.percentage ?? 0).toFixed(1);
+                    return `<div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>${label}</span>
+                                <span class="fw-semibold">${percentage}%</span>
+                            </div>`;
                 });
 
-                // Initialize trend chart only when it's visible and Chart is available
-                observeElement('attendanceTrendChart', () => {
-                    console.log('Initializing trend chart now that Chart.js is loaded');
-                    initTrendChart();
-                });
+                statusListContainer.innerHTML = rows.join('');
+            }
 
-                function initTrendChart() {
-                    console.log('Initializing trend chart');
-                    var trendCtx = document.getElementById('attendanceTrendChart').getContext('2d');
-                    var trendChart = new Chart(trendCtx, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
+            function renderClassLeaderboard(data) {
+                if (!classLeaderboardBody) return;
+                if (!data || !data.length) {
+                    classLeaderboardBody.innerHTML =
+                        '<tr><td colspan="4" class="text-center text-muted py-4">No class-level data yet.</td></tr>';
+                    return;
+                }
+
+                classLeaderboardBody.innerHTML = data.map((row) => {
+                    const rate = (row.attendance_rate ?? 0).toFixed(1);
+                    return `<tr>
+                                <td>${row.label || 'Class'}</td>
+                                <td>${rate}%</td>
+                                <td>${Number(row.present || 0).toLocaleString()}</td>
+                                <td>${Number(row.absent || 0).toLocaleString()}</td>
+                            </tr>`;
+                }).join('');
+            }
+
+            function toggleDailyChart(dataset) {
+                if (!dailyChartEmpty || !dailyCanvas) return;
+                const hasData = dataset.labels && dataset.labels.length;
+                dailyChartEmpty.classList.toggle('d-none', hasData);
+                dailyCanvas.classList.toggle('d-none', !hasData);
+            }
+
+            function rebuildMonthlyChart() {
+                if (!monthlyCanvas) return;
+                if (charts.monthly) {
+                    charts.monthly.destroy();
+                }
+                charts.monthly = buildMonthlyTrendChart(monthlyCanvas, state.monthlyTrend);
+            }
+
+            function rebuildStatusChart() {
+                if (!statusCanvas) return;
+                if (charts.status) {
+                    charts.status.destroy();
+                }
+                charts.status = buildStatusChart(statusCanvas, state.statusDistribution);
+            }
+
+            function rebuildDailyChart() {
+                if (!dailyCanvas) return;
+                if (charts.daily) {
+                    charts.daily.destroy();
+                }
+                charts.daily = buildDailyChart(dailyCanvas, state.dailySparkline);
+            }
+
+            function buildMonthlyTrendChart(canvas, dataset) {
+                if (!canvas) return null;
+                return new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: dataset.labels || [],
+                        datasets: [{
                                 label: 'Present',
-                                data: presentData,
-                                borderColor: '#1cc88a',
-                                backgroundColor: 'rgba(28, 200, 138, 0.05)',
-                                tension: 0.3,
-                                fill: true
-                            }, {
-                                label: 'Late',
-                                data: lateData,
-                                borderColor: '#f6c23e',
-                                backgroundColor: 'rgba(246, 194, 62, 0.05)',
-                                tension: 0.3,
-                                fill: true
-                            }, {
-                                label: 'Absent',
-                                data: absentData,
-                                borderColor: '#e74a3b',
-                                backgroundColor: 'rgba(231, 74, 59, 0.05)',
-                                tension: 0.3,
-                                fill: true
-                            }]
-                        },
-                        options: {
-                            maintainAspectRatio: false,
-                            responsive: true,
-                            plugins: {
-                                legend: {
-                                    position: 'top',
-                                },
-                                tooltip: {
-                                    mode: 'index',
-                                    intersect: false,
-                                }
+                                data: dataset.present || [],
+                                borderColor: 'rgba(25,135,84,1)',
+                                backgroundColor: 'rgba(25,135,84,0.15)',
+                                tension: 0.35,
+                                fill: true,
                             },
-                            scales: {
-                                x: {
-                                    display: true,
-                                    title: {
-                                        display: true,
-                                        text: 'Date'
-                                    }
-                                },
-                                y: {
-                                    display: true,
-                                    title: {
-                                        display: true,
-                                        text: 'Number of Students'
-                                    },
-                                    beginAtZero: true,
-                                    ticks: {
-                                        precision: 0
-                                    }
-                                }
-                            }
-                        }
-                    });
-
-                    console.log('Trend chart initialized successfully');
-                }
-            });
-
-        // Initialize pie chart only when it's visible and Chart is available
-        observeElement('attendancePieChart', () => {
-            console.log('Initializing pie chart now that Chart.js is loaded');
-            initPieChart();
-        });
-
-        function initPieChart() {
-            var pieCtx = document.getElementById('attendancePieChart').getContext('2d');
-            var pieChart = new Chart(pieCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Present', 'Absent', 'Late'],
-                    datasets: [{
-                        data: [
-                            {{ $presentCount ?? 0 }},
-                            {{ $absentCount ?? 0 }},
-                            {{ $lateCount ?? 0 }}
+                            {
+                                label: 'Absent',
+                                data: dataset.absent || [],
+                                borderColor: 'rgba(220,53,69,1)',
+                                backgroundColor: 'rgba(220,53,69,0.1)',
+                                tension: 0.35,
+                                fill: true,
+                            },
+                            {
+                                label: 'Late',
+                                data: dataset.late || [],
+                                borderColor: 'rgba(255,193,7,1)',
+                                backgroundColor: 'rgba(255,193,7,0.2)',
+                                tension: 0.35,
+                                fill: true,
+                            },
                         ],
-                        backgroundColor: ['#1cc88a', '#e74a3b', '#f6c23e'],
-                        hoverBackgroundColor: ['#17a673', '#be2617', '#dda20a'],
-                        hoverBorderColor: 'rgba(234, 236, 244, 1)',
-                    }],
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: { // Updated for Chart.js v3+
-                            backgroundColor: "rgb(255,255,255)",
-                            bodyColor: "#858796",
-                            borderColor: '#dddfeb',
-                            borderWidth: 1,
-                            padding: 15,
-                            displayColors: false,
-                            caretPadding: 10,
-                        }
                     },
-                    cutout: '80%',
-                },
-            });
-
-            console.log('Pie chart initialized successfully');
-        }
-        });
-
-        // Function to initialize export buttons
-        function initializeExportButtons() {
-            // Implementation would go here when export scripts are loaded
-            console.log('Export buttons initialized');
-        }
-
-        // Attach event listeners using event delegation where possible
-        document.addEventListener('click', function(e) {
-            // Handle filter button
-            if (e.target.closest('#applyFilter')) {
-                var month = document.getElementById('monthFilter').value;
-                window.location.href = '{{ route('admin.reports.attendance') }}?month=' + month;
-            }
-
-
-        });
-
-        // Lazy load feather icons
-        if (window.feather) {
-            const featherInit = () => {
-                feather.replace({
-                    'stroke-width': 1.5
+                    options: {
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        stacked: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    precision: 0,
+                                },
+                            },
+                        },
+                    },
                 });
-                document.removeEventListener('DOMContentLoaded', featherInit);
-            };
-            document.addEventListener('DOMContentLoaded', featherInit);
-        }
-        });
-
-        // Optimize modal functions
-        function viewAttendanceDetails(attendanceId) {
-            // Only initialize modal when needed
-            if (!window.attendanceModal) {
-                window.attendanceModal = new bootstrap.Modal(document.getElementById('attendanceDetailsModal'));
             }
 
-            var contentDiv = document.getElementById('attendanceDetailsContent');
+            function getStatusChartDataset(distribution) {
+                const palette = {
+                    present: 'rgba(25,135,84,0.85)',
+                    absent: 'rgba(220,53,69,0.85)',
+                    late: 'rgba(255,193,7,0.85)',
+                    default: 'rgba(108,117,125,0.65)'
+                };
 
-            // Show loading spinner
-            contentDiv.innerHTML = `
-        <div class="text-center my-5">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>`;
+                const labels = [];
+                const values = [];
+                const colors = [];
 
-            window.attendanceModal.show();
+                (distribution || []).forEach((item) => {
+                    const statusKey = (item.status || '').toLowerCase();
+                    labels.push(item.label || item.status || 'Status');
+                    values.push(item.total || 0);
+                    colors.push(palette[statusKey] || palette.default);
+                });
 
-            // In a real application, this would fetch data from server
-            // Simulate API delay with a short timeout
-            setTimeout(() => {
-                contentDiv.innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>Student Information</h6>
-                    <table class="table table-sm">
-                        <tr>
-                            <th>Name:</th>
-                            <td>John Doe</td>
-                        </tr>
-                        <tr>
-                            <th>Section:</th>
-                            <td>Grade 10 - Section A</td>
-                        </tr>
-                        <tr>
-                            <th>Date:</th>
-                            <td>${new Date().toLocaleDateString()}</td>
-                        </tr>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <h6>Attendance Details</h6>
-                    <table class="table table-sm">
-                        <tr>
-                            <th>Status:</th>
-                            <td><span class="badge bg-success">Present</span></td>
-                        </tr>
-                        <tr>
-                            <th>Time In:</th>
-                            <td>07:30 AM</td>
-                        </tr>
-                        <tr>
-                            <th>Time Out:</th>
-                            <td>03:15 PM</td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
-            <div class="mt-3">
-                <h6>Notes</h6>
-                <p>No additional notes.</p>
-            </div>`;
-            }, 1000);
-        }
+                return {
+                    labels,
+                    values,
+                    colors,
+                };
+            }
 
-        function editAttendance(attendanceId) {
-            alert('Edit attendance with ID: ' + attendanceId);
-        }
-        });
+            function buildStatusChart(canvas, distribution) {
+                if (!canvas) return null;
+                const dataset = getStatusChartDataset(distribution);
+                return new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: dataset.labels,
+                        datasets: [{
+                            data: dataset.values,
+                            backgroundColor: dataset.colors,
+                            borderWidth: 1,
+                        }],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                        },
+                    },
+                });
+            }
+
+            function buildDailyChart(canvas, dataset) {
+                if (!canvas) return null;
+                return new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: dataset.labels || [],
+                        datasets: [{
+                            label: 'Presence Rate %',
+                            data: dataset.attendance_rate || [],
+                            backgroundColor: 'rgba(13,110,253,0.7)',
+                            borderWidth: 0,
+                        }],
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: (value) => `${value}%`,
+                                },
+                            },
+                        },
+                        plugins: {
+                            legend: {
+                                display: false,
+                            },
+                        },
+                    },
+                });
+            }
         });
     </script>
 @endpush

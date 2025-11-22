@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Classes;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\Section;
@@ -12,12 +13,14 @@ use App\Models\Teacher;
 use App\Models\Attendance;
 use App\Models\LLC;
 use App\Models\SchoolYear;
+use App\Models\GradeLevel;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\EnrolleesExport;
 use App\Exports\AttendanceExport;
 use App\Exports\GradesExport;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Schedule;
@@ -26,17 +29,43 @@ class AdminReportController extends Controller
 {
     public function enrollees(Request $request)
     {
-        $grades = range(1, 12); // UI helper; levels come from grade_levels
+        $gradeLevels = GradeLevel::orderBy('level')->get();
         $selectedGrade = $request->input('grade');
 
-        $activeSchoolYear = SchoolYear::query()->where('is_active', true)->first();
+        $schoolYears = SchoolYear::query()
+            ->orderByDesc('start_date')
+            ->get();
 
-        if (!$activeSchoolYear) {
-            $activeSchoolYear = SchoolYear::query()->orderByDesc('end_date')->first();
+        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
+            ?? $schoolYears->first();
+
+        $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
+        $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
+            ?? $activeSchoolYear;
+
+        $selectedSchoolYearId = $currentSchoolYear?->id;
+
+        $analyticsPayload = $this->buildEnrollmentAnalyticsPayload($selectedSchoolYearId, $selectedGrade);
+
+        if ($request->expectsJson()) {
+            return response()->json(array_merge($analyticsPayload, [
+                'selectedGrade' => $selectedGrade,
+                'schoolYearId' => $selectedSchoolYearId,
+                'schoolYearLabel' => $currentSchoolYear?->name ?? 'N/A',
+            ]));
         }
 
-        $activeSchoolYearId = $activeSchoolYear?->id;
+        return view('admin.reports.enrollees', array_merge($analyticsPayload, [
+            'gradeLevels' => $gradeLevels,
+            'selectedGrade' => $selectedGrade,
+            'schoolYears' => $schoolYears,
+            'activeSchoolYear' => $activeSchoolYear,
+            'currentSchoolYear' => $currentSchoolYear,
+        ]));
+    }
 
+    private function buildEnrollmentAnalyticsPayload(?int $schoolYearId, $selectedGrade): array
+    {
         $enrollmentRows = Enrollment::query()
             ->select(
                 'classes.id as class_id',
@@ -50,8 +79,8 @@ class AdminReportController extends Controller
             ->join('classes', 'enrollments.class_id', '=', 'classes.id')
             ->join('sections', 'classes.section_id', '=', 'sections.id')
             ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($activeSchoolYearId, function ($query) use ($activeSchoolYearId) {
-                $query->where('enrollments.school_year_id', $activeSchoolYearId);
+            ->when($schoolYearId, function ($query) use ($schoolYearId) {
+                $query->where('enrollments.school_year_id', $schoolYearId);
             })
             ->when($selectedGrade, function ($query) use ($selectedGrade) {
                 $query->where('grade_levels.level', $selectedGrade);
@@ -80,7 +109,7 @@ class AdminReportController extends Controller
                 'grade_level' => $row->grade_level,
                 'grade_name' => $gradeLabel,
                 'label' => trim($sectionName . ' (' . $gradeLabel . ')'),
-                'students_count' => (int)$row->students_count,
+                'students_count' => (int) $row->students_count,
             ];
         });
 
@@ -105,7 +134,7 @@ class AdminReportController extends Controller
                 $color = $colorPalette[$colorIndex % count($colorPalette)];
                 $colorIndex++;
 
-                $totalStudents = (int)$gradeSections->sum('students_count');
+                $totalStudents = (int) $gradeSections->sum('students_count');
                 $sectionCount = $gradeSections->count();
                 $firstSection = $gradeSections->first();
                 $label = $firstSection['grade_name'] ?? 'Unassigned';
@@ -120,7 +149,7 @@ class AdminReportController extends Controller
                     'average_per_section' => $sectionCount > 0 ? round($totalStudents / $sectionCount, 1) : 0,
                     'color' => $color,
                     'sections' => $gradeSections->sortBy('section_name')->values()->map(function ($section) use ($totalStudents) {
-                        $students = (int)$section['students_count'];
+                        $students = (int) $section['students_count'];
                         $percentageOfGrade = $totalStudents > 0 ? round(($students / $totalStudents) * 100, 1) : 0;
 
                         return [
@@ -159,399 +188,854 @@ class AdminReportController extends Controller
             'colors' => $sectionsByGrade->pluck('color')->values()->toArray(),
         ];
 
-        $totalStudents = (int)$classBreakdown->sum('students_count');
+        $monthlyTrendRows = Enrollment::query()
+            ->select(
+                DB::raw("DATE_FORMAT(COALESCE(enrollment_date, enrollments.created_at), '%Y-%m') as ym"),
+                DB::raw('COUNT(*) as total')
+            )
+            ->join('classes', 'enrollments.class_id', '=', 'classes.id')
+            ->join('sections', 'classes.section_id', '=', 'sections.id')
+            ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
+            ->when($schoolYearId, function ($query) use ($schoolYearId) {
+                $query->where('enrollments.school_year_id', $schoolYearId);
+            })
+            ->when($selectedGrade, function ($query) use ($selectedGrade) {
+                $query->where('grade_levels.level', $selectedGrade);
+            })
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->get();
+
+        $monthlyTrend = [
+            'labels' => $monthlyTrendRows->map(function ($row) {
+                try {
+                    return Carbon::createFromFormat('Y-m', $row->ym)->format('M Y');
+                } catch (\Exception $e) {
+                    return $row->ym;
+                }
+            })->toArray(),
+            'totals' => $monthlyTrendRows->pluck('total')->map(fn($value) => (int) $value)->toArray(),
+        ];
+
+        $totalStudents = (int) $classBreakdown->sum('students_count');
         $totalSections = $classBreakdown->count();
         $averagePerSection = $totalSections > 0 ? round($totalStudents / $totalSections, 1) : 0;
         $largestSection = $classBreakdown->max('students_count') ?? 0;
-        // dd(
-        //     $grades,
-        //     $selectedGrade,
-        //     $sectionsByGrade,
-        //     $classChartData,
-        //     $gradeChartData,
-        //     $totalStudents,
-        //     $totalSections,
-        //     $averagePerSection,
-        //     $largestSection
-        // );
-        return view('admin.reports.enrollees', compact(
-            'grades',
-            'selectedGrade',
-            'sectionsByGrade',
-            'classChartData',
-            'gradeChartData',
-            'totalStudents',
-            'totalSections',
-            'averagePerSection',
-            'largestSection'
-        ));
+
+        return [
+            'sectionsByGrade' => $sectionsByGrade,
+            'classChartData' => $classChartData,
+            'gradeChartData' => $gradeChartData,
+            'monthlyTrend' => $monthlyTrend,
+            'totalStudents' => $totalStudents,
+            'totalSections' => $totalSections,
+            'averagePerSection' => $averagePerSection,
+            'largestSection' => $largestSection,
+        ];
     }
 
 
     public function exportEnrollees(Request $request)
     {
         $grade = $request->input('grade');
-        $format = $request->input('format', 'xlsx'); // Default to xlsx
+        $format = $request->input('format', 'xlsx');
+        $schoolYearId = $request->input('school_year_id');
 
-        $filename = 'enrollees_report' . ($grade ? '_grade_' . $grade : '') . '_' . now()->format('Y-m-d');
+        if (!$schoolYearId) {
+            $fallbackYear = SchoolYear::query()->where('is_active', true)->first()
+                ?? SchoolYear::query()->orderByDesc('end_date')->first();
+            $schoolYearId = $fallbackYear?->id;
+        }
+
+        $schoolYearLabel = $schoolYearId ? optional(SchoolYear::find($schoolYearId))->name : null;
+
+        $filenameParts = ['enrollees_report'];
+        if ($grade) {
+            $filenameParts[] = 'grade_' . $grade;
+        }
+        if ($schoolYearLabel) {
+            $filenameParts[] = str_replace(' ', '_', strtolower($schoolYearLabel));
+        }
+        $filenameParts[] = now()->format('Y-m-d');
+
+        $filename = implode('_', array_filter($filenameParts));
+        $export = new EnrolleesExport(null, $grade ? (int) $grade : null, $schoolYearId ? (int) $schoolYearId : null);
 
         switch ($format) {
             case 'csv':
-                return Excel::download(new EnrolleesExport($grade), $filename . '.csv', \Maatwebsite\Excel\Excel::CSV);
+                return Excel::download($export, $filename . '.csv', \Maatwebsite\Excel\Excel::CSV);
             case 'xlsx':
             default:
-                return Excel::download(new EnrolleesExport($grade), $filename . '.xlsx');
+                return Excel::download($export, $filename . '.xlsx');
         }
     }
+
 
     public function attendanceReport(Request $request)
     {
-        // Filter by month (YYYY-MM)
-        $month = $request->input('month', now()->format('Y-m'));
-        $start = Carbon::parse($month)->startOfMonth();
-        $end = Carbon::parse($month)->endOfMonth();
+        $gradeLevels = GradeLevel::orderBy('level')->get();
+        $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        // Paginated detailed attendance for the selected month
-        $attendanceRecords = Attendance::with(['subject', 'student.enrollments.class.section'])
-            ->whereBetween('date', [$start, $end])
-            ->orderBy('date', 'desc')
-            ->paginate(10);
+        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
+            ?? $schoolYears->first();
 
-        // KPI metrics
-        $todayPresentCount = Attendance::where('date', Carbon::today()->toDateString())
-            ->where('status', 'present')
-            ->count();
+        $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
+        $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
+            ?? $activeSchoolYear;
 
-        $counts = Attendance::select('status', DB::raw('COUNT(*) as cnt'))
-            ->whereBetween('date', [$start, $end])
-            ->groupBy('status')
-            ->pluck('cnt', 'status');
+        $selectedSchoolYearId = $currentSchoolYear?->id;
+        $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
+        $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
-        $presentCount = (int)($counts['present'] ?? 0);
-        $absentCount = (int)($counts['absent'] ?? 0);
-        $lateCount = (int)($counts['late'] ?? 0);
-        $totalAbsences = $absentCount; // monthly absences
-        $lateArrivalsCount = $lateCount; // monthly late arrivals
-
-        $totalAttendance = max(1, $presentCount + $absentCount + $lateCount);
-        $monthlyAttendanceRate = number_format(($presentCount / $totalAttendance) * 100, 2);
-
-        // Monthly trend data: counts per day by status
-        $rawDaily = Attendance::select(
-            DB::raw('DATE(date) as d'),
-            'status',
-            DB::raw('COUNT(*) as cnt')
-        )
-            ->whereBetween('date', [$start, $end])
-            ->groupBy(DB::raw('DATE(date)'), 'status')
-            ->orderBy('d')
-            ->get();
-
-        $monthlyData = [];
-        foreach ($rawDaily as $row) {
-            $day = Carbon::parse($row->d)->format('Y-m-d');
-            if (!isset($monthlyData[$day])) {
-                $monthlyData[$day] = [
-                    'present' => 0,
-                    'absent' => 0,
-                    'late' => 0,
-                ];
-            }
-            $status = strtolower($row->status);
-            if (isset($monthlyData[$day][$status])) {
-                $monthlyData[$day][$status] = (int)$row->cnt;
-            }
+        // Enforce grade selection before narrowing down to a specific class
+        if ($selectedClassId && !$selectedGradeLevelId) {
+            $selectedClassId = null;
         }
 
-        return view('admin.reports.attendance', compact(
-            'attendanceRecords',
-            'todayPresentCount',
-            'monthlyAttendanceRate',
-            'totalAbsences',
-            'lateArrivalsCount',
-            'presentCount',
-            'absentCount',
-            'lateCount',
-            'monthlyData'
-        ));
-    }
-    public function attendance(Request $request)
-    {
-        $sections = Section::all();
-        $selectedSection = $request->input('section');
-        $selectedMonth = $request->input('month', now()->format('Y-m'));
+        $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
+        $classOptionsMap = $classes
+            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn($group) => $group->map(fn($class) => [
+                'id' => $class['id'],
+                'label' => $class['label'],
+            ])->values())
+            ->toArray();
 
-        $attendanceData = collect();
-
-        if ($selectedSection) {
-            $startDate = Carbon::parse($selectedMonth)->startOfMonth();
-            $endDate = Carbon::parse($selectedMonth)->endOfMonth();
-
-            $section = Section::find($selectedSection);
-
-            if ($section) {
-                // Fetch students enrolled in any class belonging to this section
-                $students = Student::whereHas('enrollments', function ($q) use ($selectedSection) {
-                    $q->whereHas('class', function ($cq) use ($selectedSection) {
-                        $cq->where('section_id', $selectedSection);
-                    });
-                })->with(['attendances' => function ($q) use ($startDate, $endDate) {
-                    $q->whereBetween('date', [$startDate, $endDate]);
-                }])->get();
-
-                // Attach as a relation for downstream processing
-                $section->setRelation('students', $students);
-
-                $attendanceData = $this->processAttendanceData($section, $startDate, $endDate);
-            }
-        }
-
-        return view('admin.reports.attendance', compact(
-            'sections',
-            'selectedSection',
-            'selectedMonth',
-            'attendanceData'
-        ));
-    }
-
-
-    private function processAttendanceData($section, $startDate, $endDate)
-    {
-        $data = collect();
-        $dates = [];
-        $currentDate = $startDate->copy();
-
-        // Generate all dates in the range
-        while ($currentDate->lte($endDate)) {
-            if ($currentDate->isWeekday()) { // Only include weekdays
-                $dates[] = $currentDate->format('Y-m-d');
-            }
-            $currentDate->addDay();
-        }
-
-        foreach ($section->students as $student) {
-            $studentData = [
-                'id' => $student->id,
-                'name' => $student->full_name,
-                'lrn' => $student->lrn,
-                'attendance' => [],
-                'present' => 0,
-                'absent' => 0,
-                'late' => 0,
-                'excused' => 0
-            ];
-
-            // Initialize attendance for each date
-            foreach ($dates as $date) {
-                $studentData['attendance'][$date] = [
-                    'status' => null,
-                    'time_in' => null,
-                    // 'time_out' => null,
-                    'remarks' => null
-                ];
-            }
-
-            // Fill in actual attendance data
-            foreach ($student->attendances as $attendance) {
-                $date = $attendance->date->format('Y-m-d');
-                if (array_key_exists($date, $studentData['attendance'])) {
-                    $studentData['attendance'][$date] = [
-                        'status' => $attendance->status,
-                        'time_in' => $attendance->time_in,
-                        // 'time_out' => $attendance->time_out,
-                        'remarks' => $attendance->remarks
-                    ];
-
-                    // Count statuses
-                    if (isset($studentData[$attendance->status])) {
-                        $studentData[$attendance->status]++;
-                    }
-                }
-            }
-
-            $data->push((object)$studentData);
-        }
-
-        return (object)[
-            'section' => $section,
-            'dates' => $dates,
-            'students' => $data,
-            'startDate' => $startDate,
-            'endDate' => $endDate
-        ];
-    }
-
-
-    public function exportAttendance(Request $request)
-    {
-        $sectionId = $request->input('section');
-        $month = $request->input('month', now()->format('Y-m'));
-
-        return Excel::download(
-            new AttendanceExport($sectionId, $month),
-            'attendance_report_' . now()->format('Y-m-d') . '.xlsx'
+        $analyticsPayload = $this->buildAttendanceAnalyticsPayload(
+            $selectedSchoolYearId,
+            $selectedGradeLevelId,
+            $selectedClassId
         );
+
+        if ($request->expectsJson()) {
+            return response()->json(array_merge($analyticsPayload, [
+                'schoolYearId' => $selectedSchoolYearId,
+                'schoolYearLabel' => $currentSchoolYear?->name ?? 'N/A',
+                'selectedGradeLevelId' => $selectedGradeLevelId,
+                'selectedClassId' => $selectedClassId,
+                'classOptionsMap' => $classOptionsMap,
+            ]));
+        }
+
+        return view('admin.reports.attendance', array_merge($analyticsPayload, [
+            'gradeLevels' => $gradeLevels,
+            'schoolYears' => $schoolYears,
+            'activeSchoolYear' => $activeSchoolYear,
+            'currentSchoolYear' => $currentSchoolYear,
+            'selectedGradeLevelId' => $selectedGradeLevelId,
+            'selectedClassId' => $selectedClassId,
+            'classOptionsMap' => $classOptionsMap,
+        ]));
     }
 
 
     public function grades(Request $request)
     {
-        $sections = Section::all();
-        $subjects = Subject::all();
+        $gradeLevels = GradeLevel::orderBy('level')->get();
+        $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $selectedSection = $request->input('section');
-        $selectedSubject = $request->input('subject');
-        $gradingPeriod = $request->input('grading_period', 'first');
-        $quarter = $this->mapGradingPeriod($gradingPeriod);
+        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
+            ?? $schoolYears->first();
 
-        $gradesData = collect();
-        $averageGrade = 0;
-        $highestGrade = 0;
-        $lowestGrade = 0;
-        $passingRate = 0;
-        $grades = collect();
-        $gradeDistribution = [
-            '90-100' => 0,
-            '80-89' => 0,
-            '70-79' => 0,
-            '60-69' => 0,
-            'Below 60' => 0
-        ];
-        $performanceSummary = [
-            'excellent' => 0,
-            'good' => 0,
-            'average' => 0,
-            'needs_improvement' => 0,
-            'failing' => 0
-        ];
+        $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
+        $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
+            ?? $activeSchoolYear;
 
-        if ($selectedSection && $selectedSubject) {
-            $section = Section::find($selectedSection);
+        $selectedSchoolYearId = $currentSchoolYear?->id;
+        $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
+        $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
-            if ($section) {
-                // Fetch students for the section via enrollments and load their grades for the subject/quarter
-                $students = Student::whereHas('enrollments', function ($q) use ($selectedSection) {
-                    $q->whereHas('class', function ($cq) use ($selectedSection) {
-                        $cq->where('section_id', $selectedSection);
-                    });
-                })->with(['grades' => function ($q) use ($selectedSubject, $quarter) {
-                    $q->where('subject_id', $selectedSubject)
-                        ->where('quarter', $quarter);
-                }])->get();
-
-                $section->setRelation('students', $students);
-
-                $gradesData = $this->processGradesData($section, $selectedSubject, $quarter);
-
-                // Extract data from gradesData for direct use in blade template
-                $averageGrade = $gradesData->average ?? 0;
-                $highestGrade = $gradesData->highest ?? 0;
-                $lowestGrade = $gradesData->lowest ?? 0;
-
-                // Calculate passing rate
-                if ($gradesData->students->count() > 0) {
-                    $passingCount = $gradesData->students->filter(function ($student) {
-                        return $student->grade >= 75;
-                    })->count();
-
-                    $passingRate = round(($passingCount / $gradesData->students->count()) * 100);
-                }
-
-                // Calculate grade distribution for chart
-                $grades = $gradesData->students;
-                foreach ($grades as $student) {
-                    if ($student->grade >= 90) {
-                        $gradeDistribution['90-100']++;
-                        $performanceSummary['excellent']++;
-                    } elseif ($student->grade >= 80) {
-                        $gradeDistribution['80-89']++;
-                        $performanceSummary['good']++;
-                    } elseif ($student->grade >= 70) {
-                        $gradeDistribution['70-79']++;
-                        $performanceSummary['average']++;
-                    } elseif ($student->grade >= 60) {
-                        $gradeDistribution['60-69']++;
-                        $performanceSummary['needs_improvement']++;
-                    } elseif ($student->grade !== null) {
-                        $gradeDistribution['Below 60']++;
-                        $performanceSummary['failing']++;
-                    }
-                }
-            }
+        if ($selectedClassId && !$selectedGradeLevelId) {
+            $selectedClassId = null;
         }
 
-        return view('admin.reports.grades', compact(
-            'sections',
-            'subjects',
-            'selectedSection',
-            'selectedSubject',
-            'gradingPeriod',
-            'gradesData',
-            'averageGrade',
-            'highestGrade',
-            'lowestGrade',
-            'passingRate',
-            'grades',
-            'gradeDistribution',
-            'performanceSummary'
-        ));
+        $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
+        $classOptionsMap = $classes
+            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn($group) => $group->map(fn($class) => [
+                'id' => $class['id'],
+                'label' => $class['label'],
+            ])->values())
+            ->toArray();
+
+        $analyticsPayload = $this->buildGradesAnalyticsPayload(
+            $selectedSchoolYearId,
+            $selectedGradeLevelId,
+            $selectedClassId
+        );
+
+        if ($request->expectsJson()) {
+            return response()->json(array_merge($analyticsPayload, [
+                'schoolYearId' => $selectedSchoolYearId,
+                'schoolYearLabel' => $currentSchoolYear?->name ?? 'N/A',
+                'selectedGradeLevelId' => $selectedGradeLevelId,
+                'selectedClassId' => $selectedClassId,
+                'classOptionsMap' => $classOptionsMap,
+            ]));
+        }
+
+        return view('admin.reports.grades', array_merge($analyticsPayload, [
+            'gradeLevels' => $gradeLevels,
+            'schoolYears' => $schoolYears,
+            'activeSchoolYear' => $activeSchoolYear,
+            'currentSchoolYear' => $currentSchoolYear,
+            'selectedGradeLevelId' => $selectedGradeLevelId,
+            'selectedClassId' => $selectedClassId,
+            'classOptionsMap' => $classOptionsMap,
+        ]));
     }
 
 
-    private function processGradesData($section, $subjectId, $gradingPeriod)
+    public function cumulative(Request $request)
     {
-        $subject = Subject::find($subjectId);
+        $gradeLevels = GradeLevel::orderBy('level')->get();
+        $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $students = $section->students->map(function ($student) use ($subjectId, $gradingPeriod) {
-            $grade = $student->grades
-                ->where('subject_id', $subjectId)
-                ->where('quarter', $gradingPeriod)
-                ->first();
+        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
+            ?? $schoolYears->first();
 
-            return (object)[
-                'id' => $student->id,
-                'name' => $student->full_name,
-                'lrn' => $student->lrn,
-                'grade' => $grade ? $grade->grade : null,
-                'remarks' => $grade ? $this->getGradeRemarks($grade->grade) : 'No Grade'
+        $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
+        $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
+            ?? $activeSchoolYear;
+
+        $selectedSchoolYearId = $currentSchoolYear?->id;
+        $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
+        $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
+
+        if ($selectedClassId && !$selectedGradeLevelId) {
+            $selectedClassId = null;
+        }
+
+        $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
+        $classOptionsMap = $classes
+            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn($group) => $group->map(fn($class) => [
+                'id' => $class['id'],
+                'label' => $class['label'],
+            ])->values())
+            ->toArray();
+
+        $analyticsPayload = $this->buildCumulativeAnalyticsPayload(
+            $selectedSchoolYearId,
+            $selectedGradeLevelId,
+            $selectedClassId
+        );
+
+        $responsePayload = array_merge($analyticsPayload, [
+            'schoolYearId' => $selectedSchoolYearId,
+            'schoolYearLabel' => $currentSchoolYear?->name ?? 'N/A',
+            'selectedGradeLevelId' => $selectedGradeLevelId,
+            'selectedClassId' => $selectedClassId,
+            'classOptionsMap' => $classOptionsMap,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json($responsePayload);
+        }
+
+        return view('admin.reports.cumulative', array_merge($responsePayload, [
+            'gradeLevels' => $gradeLevels,
+            'schoolYears' => $schoolYears,
+            'activeSchoolYear' => $activeSchoolYear,
+            'currentSchoolYear' => $currentSchoolYear,
+        ]));
+    }
+
+
+    private function buildAttendanceAnalyticsPayload(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
+    {
+        $baseQuery = Attendance::query()
+            ->leftJoin('classes', 'attendances.class_id', '=', 'classes.id')
+            ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
+            ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id');
+
+        if ($schoolYearId) {
+            $baseQuery->where('attendances.school_year_id', $schoolYearId);
+        }
+
+        if ($gradeLevelId) {
+            $baseQuery->where('grade_levels.id', $gradeLevelId);
+        }
+
+        if ($classId) {
+            $baseQuery->where('classes.id', $classId);
+        }
+
+        $statusCounts = (clone $baseQuery)
+            ->select('attendances.status as status_label', DB::raw('COUNT(*) as total'))
+            ->groupBy('attendances.status')
+            ->pluck('total', 'status_label');
+
+        $statusCounts = collect($statusCounts)->mapWithKeys(function ($total, $status) {
+            $key = $status ? strtolower($status) : 'unknown';
+            return [$key => (int) $total];
+        });
+
+        $totalRecords = (int) $statusCounts->sum();
+        $presentCount = $statusCounts->get('present', 0);
+        $absentCount = $statusCounts->get('absent', 0);
+        $lateCount = $statusCounts->get('late', 0);
+
+        $attendanceRate = $totalRecords > 0 ? round(($presentCount / $totalRecords) * 100, 1) : 0;
+        $absenceRate = $totalRecords > 0 ? round(($absentCount / $totalRecords) * 100, 1) : 0;
+        $lateRate = $totalRecords > 0 ? round(($lateCount / $totalRecords) * 100, 1) : 0;
+
+        $statusDistribution = $statusCounts->map(function ($total, $status) use ($totalRecords) {
+            return [
+                'status' => $status,
+                'label' => ucfirst(str_replace('_', ' ', $status)),
+                'total' => (int) $total,
+                'percentage' => $totalRecords > 0 ? round(($total / $totalRecords) * 100, 1) : 0,
             ];
-        })->sortBy('name');
+        })->values()->toArray();
 
-        return (object)[
-            'section' => $section,
-            'subject' => $subject,
-            'gradingPeriod' => $gradingPeriod,
-            'students' => $students,
-            'average' => $students->avg('grade'),
-            'highest' => $students->max('grade'),
-            'lowest' => $students->min('grade')
+        $monthlyRows = (clone $baseQuery)
+            ->select(
+                DB::raw("DATE_FORMAT(COALESCE(attendances.date, attendances.created_at), '%Y-%m') as ym"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present_total"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) as absent_total"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'late' THEN 1 ELSE 0 END) as late_total"),
+                DB::raw('COUNT(*) as total_records')
+            )
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->get();
+
+        $monthlyTrend = [
+            'labels' => $monthlyRows->map(function ($row) {
+                if (!$row->ym) {
+                    return 'N/A';
+                }
+
+                try {
+                    return Carbon::createFromFormat('Y-m', $row->ym)->format('M Y');
+                } catch (\Exception $e) {
+                    return $row->ym;
+                }
+            })->toArray(),
+            'present' => $monthlyRows->map(fn($row) => (int) $row->present_total)->toArray(),
+            'absent' => $monthlyRows->map(fn($row) => (int) $row->absent_total)->toArray(),
+            'late' => $monthlyRows->map(fn($row) => (int) $row->late_total)->toArray(),
+        ];
+
+        $recentStartDate = Carbon::now()->subDays(13)->toDateString();
+
+        $recentRows = (clone $baseQuery)
+            ->select(
+                DB::raw("DATE(COALESCE(attendances.date, attendances.created_at)) as day"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present_total"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) as absent_total"),
+                DB::raw('COUNT(*) as total_records')
+            )
+            ->whereRaw("DATE(COALESCE(attendances.date, attendances.created_at)) >= ?", [$recentStartDate])
+            ->groupBy('day')
+            ->orderBy('day')
+            ->get();
+
+        $dailySparkline = [
+            'labels' => $recentRows->map(function ($row) {
+                if (!$row->day) {
+                    return 'N/A';
+                }
+
+                try {
+                    return Carbon::parse($row->day)->format('M d');
+                } catch (\Exception $e) {
+                    return $row->day;
+                }
+            })->toArray(),
+            'present' => $recentRows->map(fn($row) => (int) $row->present_total)->toArray(),
+            'absent' => $recentRows->map(fn($row) => (int) $row->absent_total)->toArray(),
+            'attendance_rate' => $recentRows->map(function ($row) {
+                return $row->total_records > 0
+                    ? round(($row->present_total / $row->total_records) * 100, 1)
+                    : 0;
+            })->toArray(),
+        ];
+
+        $classLeaderboard = (clone $baseQuery)
+            ->select(
+                'classes.id as class_id',
+                'sections.name as section_name',
+                'grade_levels.name as grade_label',
+                DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present_total"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) as absent_total"),
+                DB::raw('COUNT(*) as total_records')
+            )
+            ->whereNotNull('classes.id')
+            ->groupBy('classes.id', 'sections.name', 'grade_levels.name')
+            ->havingRaw('COUNT(*) > 0')
+            ->orderByDesc(DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)"))
+            ->limit(6)
+            ->get()
+            ->map(function ($row) {
+                $rate = $row->total_records > 0 ? round(($row->present_total / $row->total_records) * 100, 1) : 0;
+                $labelPieces = array_filter([
+                    $row->section_name,
+                    $row->grade_label,
+                ]);
+
+                return [
+                    'class_id' => (int) $row->class_id,
+                    'label' => implode(' • ', $labelPieces) ?: 'Class',
+                    'attendance_rate' => $rate,
+                    'present' => (int) $row->present_total,
+                    'absent' => (int) $row->absent_total,
+                    'total' => (int) $row->total_records,
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        $todayDate = Carbon::now()->toDateString();
+        $todaySnapshotRow = (clone $baseQuery)
+            ->select(
+                DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present_total"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) as absent_total"),
+                DB::raw("SUM(CASE WHEN attendances.status = 'late' THEN 1 ELSE 0 END) as late_total"),
+                DB::raw('COUNT(*) as total_records')
+            )
+            ->whereRaw("DATE(COALESCE(attendances.date, attendances.created_at)) = ?", [$todayDate])
+            ->first();
+
+        $todaySnapshot = [
+            'date' => Carbon::now()->format('M d, Y'),
+            'present' => (int) ($todaySnapshotRow->present_total ?? 0),
+            'absent' => (int) ($todaySnapshotRow->absent_total ?? 0),
+            'late' => (int) ($todaySnapshotRow->late_total ?? 0),
+            'total' => (int) ($todaySnapshotRow->total_records ?? 0),
+        ];
+
+        return [
+            'attendanceSummary' => [
+                'total_records' => $totalRecords,
+                'present' => $presentCount,
+                'absent' => $absentCount,
+                'late' => $lateCount,
+                'present_rate' => $attendanceRate,
+                'absence_rate' => $absenceRate,
+                'late_rate' => $lateRate,
+            ],
+            'statusDistribution' => $statusDistribution,
+            'monthlyTrend' => $monthlyTrend,
+            'dailySparkline' => $dailySparkline,
+            'classLeaderboard' => $classLeaderboard,
+            'todaySnapshot' => $todaySnapshot,
         ];
     }
 
 
-    private function getGradeRemarks($grade)
+    private function buildCumulativeAnalyticsPayload(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
     {
-        if ($grade === null) return 'No Grade';
+        $enrollmentSnapshot = $this->buildEnrollmentSnapshot($schoolYearId, $gradeLevelId, $classId);
+        $attendancePayload = $this->buildAttendanceAnalyticsPayload($schoolYearId, $gradeLevelId, $classId);
+        $gradesPayload = $this->buildGradesAnalyticsPayload($schoolYearId, $gradeLevelId, $classId);
 
-        if ($grade >= 90) return 'Outstanding';
-        if ($grade >= 85) return 'Very Satisfactory';
-        if ($grade >= 80) return 'Satisfactory';
-        if ($grade >= 75) return 'Fairly Satisfactory';
-        return 'Did Not Meet Expectations';
+        $attendanceSummary = $attendancePayload['attendanceSummary'] ?? [
+            'present_rate' => 0,
+            'total_records' => 0,
+            'present' => 0,
+            'absent' => 0,
+            'late' => 0,
+            'absence_rate' => 0,
+            'late_rate' => 0,
+        ];
+
+        $gradesSummary = $gradesPayload['summary'] ?? [
+            'average' => 0,
+            'highest' => 0,
+            'lowest' => 0,
+            'records' => 0,
+            'passing_rate' => 0,
+        ];
+
+        $summaryCards = [
+            'students' => [
+                'label' => 'Enrolled Students',
+                'value' => $enrollmentSnapshot['totals']['students'] ?? 0,
+                'suffix' => '',
+                'precision' => 0,
+            ],
+            'classes' => [
+                'label' => 'Active Classes',
+                'value' => $enrollmentSnapshot['totals']['classes'] ?? 0,
+                'suffix' => '',
+                'precision' => 0,
+            ],
+            'attendance_rate' => [
+                'label' => 'Attendance Rate',
+                'value' => $attendanceSummary['present_rate'] ?? 0,
+                'suffix' => '%',
+                'precision' => 1,
+            ],
+            'average_grade' => [
+                'label' => 'Average Grade',
+                'value' => $gradesSummary['average'] ?? 0,
+                'suffix' => '',
+                'precision' => 1,
+            ],
+        ];
+
+        return [
+            'summaryCards' => $summaryCards,
+            'enrollmentSnapshot' => $enrollmentSnapshot,
+            'attendanceTrend' => $attendancePayload['monthlyTrend'] ?? [
+                'labels' => [],
+                'present' => [],
+                'absent' => [],
+                'late' => [],
+            ],
+            'attendanceSummary' => $attendanceSummary,
+            'gradesSummary' => $gradesSummary,
+            'gradeDistribution' => $gradesPayload['gradeDistribution'] ?? [],
+            'gradeLevelBreakdown' => $gradesPayload['gradeLevelBreakdown'] ?? [],
+            'classLeaderboard' => $attendancePayload['classLeaderboard'] ?? [],
+        ];
     }
 
 
-    public function exportGrades(Request $request)
+    private function buildEnrollmentSnapshot(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
     {
-        $sectionId = $request->input('section');
-        $subjectId = $request->input('subject');
-        $gradingPeriod = $request->input('grading_period', 'first');
+        $baseQuery = Enrollment::query()
+            ->leftJoin('students', 'enrollments.student_id', '=', 'students.id')
+            ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
+            ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
+            ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id');
 
-        return Excel::download(
-            new GradesExport($sectionId, $subjectId, $gradingPeriod),
-            'grades_report_' . now()->format('Y-m-d') . '.xlsx'
-        );
+        if ($schoolYearId) {
+            $baseQuery->where('enrollments.school_year_id', $schoolYearId);
+        }
+
+        if ($gradeLevelId) {
+            $baseQuery->where('grade_levels.id', $gradeLevelId);
+        }
+
+        if ($classId) {
+            $baseQuery->where('classes.id', $classId);
+        }
+
+        $totalStudents = (clone $baseQuery)->count();
+        $uniqueStudents = (clone $baseQuery)->distinct('enrollments.student_id')->count('enrollments.student_id');
+        $classCount = (clone $baseQuery)
+            ->whereNotNull('classes.id')
+            ->distinct('classes.id')
+            ->count('classes.id');
+
+        $averagePerClass = $classCount > 0 ? round($totalStudents / $classCount, 1) : 0;
+
+        $gradeBreakdownRows = (clone $baseQuery)
+            ->selectRaw('COALESCE(grade_levels.id, 0) as grade_level_id')
+            ->selectRaw('grade_levels.name as grade_name')
+            ->selectRaw('grade_levels.level as grade_value')
+            ->selectRaw('COUNT(enrollments.id) as total_students')
+            ->groupByRaw('COALESCE(grade_levels.id, 0), grade_levels.name, grade_levels.level')
+            ->orderByRaw('grade_levels.level IS NULL, grade_levels.level')
+            ->get();
+
+        $gradeBreakdown = $gradeBreakdownRows->map(function ($row) use ($totalStudents) {
+            $label = $row->grade_name ?: ($row->grade_value ? 'Grade ' . $row->grade_value : 'Unassigned');
+
+            return [
+                'grade_level_id' => (int) ($row->grade_level_id ?? 0),
+                'label' => $label,
+                'total' => (int) ($row->total_students ?? 0),
+                'percentage' => $totalStudents > 0
+                    ? round(($row->total_students / $totalStudents) * 100, 1)
+                    : 0,
+            ];
+        })->values()->toArray();
+
+        $classDistributionRows = (clone $baseQuery)
+            ->select('classes.id as class_id', 'sections.name as section_name', 'grade_levels.name as grade_label')
+            ->selectRaw('COUNT(enrollments.id) as total_students')
+            ->whereNotNull('classes.id')
+            ->groupBy('classes.id', 'sections.name', 'grade_levels.name')
+            ->orderByDesc('total_students')
+            ->limit(6)
+            ->get();
+
+        $classDistribution = $classDistributionRows->map(function ($row) {
+            $labelPieces = array_filter([
+                $row->section_name,
+                $row->grade_label,
+            ]);
+
+            return [
+                'class_id' => (int) $row->class_id,
+                'label' => implode(' • ', $labelPieces) ?: 'Class',
+                'students' => (int) ($row->total_students ?? 0),
+            ];
+        })->values()->toArray();
+
+        $genderRows = (clone $baseQuery)
+            ->selectRaw("LOWER(COALESCE(students.gender, 'unspecified')) as gender_key")
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('gender_key')
+            ->get();
+
+        $genderBreakdown = $genderRows->map(function ($row) use ($uniqueStudents) {
+            $key = $row->gender_key ?? 'unspecified';
+            $label = $key === 'unspecified'
+                ? 'Unspecified'
+                : ucfirst($key);
+
+            return [
+                'label' => $label,
+                'total' => (int) ($row->total ?? 0),
+                'percentage' => $uniqueStudents > 0
+                    ? round(($row->total / $uniqueStudents) * 100, 1)
+                    : 0,
+            ];
+        })->values()->toArray();
+
+        $monthlyRows = (clone $baseQuery)
+            ->select(DB::raw("DATE_FORMAT(COALESCE(enrollments.enrollment_date, enrollments.created_at), '%Y-%m') as ym"))
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->get();
+
+        $monthlyTrend = [
+            'labels' => $monthlyRows->map(function ($row) {
+                if (!$row->ym) {
+                    return 'N/A';
+                }
+
+                try {
+                    return Carbon::createFromFormat('Y-m', $row->ym)->format('M Y');
+                } catch (\Exception $e) {
+                    return $row->ym;
+                }
+            })->toArray(),
+            'totals' => $monthlyRows->map(fn($row) => (int) ($row->total ?? 0))->toArray(),
+        ];
+
+        return [
+            'totals' => [
+                'students' => $totalStudents,
+                'unique_students' => $uniqueStudents,
+                'classes' => $classCount,
+                'average_per_class' => $averagePerClass,
+            ],
+            'gradeBreakdown' => $gradeBreakdown,
+            'classDistribution' => $classDistribution,
+            'genderBreakdown' => $genderBreakdown,
+            'monthlyTrend' => $monthlyTrend,
+        ];
     }
+
+
+    private function fetchClassesForSchoolYear(?int $schoolYearId): Collection
+    {
+        if (!$schoolYearId) {
+            return collect();
+        }
+
+        return Classes::query()
+            ->select(
+                'classes.id',
+                'classes.section_id',
+                'sections.name as section_name',
+                'grade_levels.id as grade_level_id',
+                'grade_levels.name as grade_label',
+                'grade_levels.level as grade_level'
+            )
+            ->join('sections', 'classes.section_id', '=', 'sections.id')
+            ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
+            ->where('classes.school_year_id', $schoolYearId)
+            ->orderBy('grade_levels.level')
+            ->orderBy('sections.name')
+            ->get()
+            ->map(function ($row) {
+                $gradeLabel = $row->grade_label ?? ($row->grade_level ? 'Grade ' . $row->grade_level : 'Unassigned');
+
+                return [
+                    'id' => (int) $row->id,
+                    'section_id' => (int) $row->section_id,
+                    'section_name' => $row->section_name,
+                    'grade_level_id' => $row->grade_level_id ? (int) $row->grade_level_id : null,
+                    'grade_label' => $gradeLabel,
+                    'label' => trim(($row->section_name ?? 'Class') . ' (' . $gradeLabel . ')'),
+                ];
+            });
+    }
+
+
+    private function buildGradesAnalyticsPayload(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
+    {
+        $baseQuery = Grade::query()
+            ->leftJoin('students', 'grades.student_id', '=', 'students.id')
+            ->leftJoin('enrollments', function ($join) use ($schoolYearId) {
+                $join->on('grades.student_id', '=', 'enrollments.student_id');
+
+                if ($schoolYearId) {
+                    $join->where('enrollments.school_year_id', $schoolYearId);
+                }
+            })
+            ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
+            ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
+            ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
+            ->leftJoin('subjects', 'grades.subject_id', '=', 'subjects.id')
+            ->whereNotNull('grades.grade');
+
+        if ($schoolYearId) {
+            $baseQuery->where('grades.school_year_id', $schoolYearId);
+        }
+
+        if ($gradeLevelId) {
+            $baseQuery->where('grade_levels.id', $gradeLevelId);
+        }
+
+        if ($classId) {
+            $baseQuery->where('classes.id', $classId);
+        }
+
+        $aggregates = (clone $baseQuery)
+            ->selectRaw('COUNT(*) as total_records')
+            ->selectRaw('AVG(grades.grade) as avg_grade')
+            ->selectRaw('MAX(grades.grade) as max_grade')
+            ->selectRaw('MIN(grades.grade) as min_grade')
+            ->first();
+
+        $passingCount = (clone $baseQuery)
+            ->where('grades.grade', '>=', 75)
+            ->count();
+
+        $totalRecords = (int) ($aggregates->total_records ?? 0);
+
+        $summary = [
+            'average' => $totalRecords > 0 ? round((float) ($aggregates->avg_grade ?? 0), 1) : 0,
+            'highest' => $totalRecords > 0 ? round((float) ($aggregates->max_grade ?? 0), 1) : 0,
+            'lowest' => $totalRecords > 0 ? round((float) ($aggregates->min_grade ?? 0), 1) : 0,
+            'records' => $totalRecords,
+            'passing_rate' => $totalRecords > 0 ? round(($passingCount / $totalRecords) * 100, 1) : 0,
+        ];
+
+        $distributionRow = (clone $baseQuery)
+            ->selectRaw("SUM(CASE WHEN grades.grade >= 90 THEN 1 ELSE 0 END) as g90")
+            ->selectRaw("SUM(CASE WHEN grades.grade >= 85 AND grades.grade < 90 THEN 1 ELSE 0 END) as g85")
+            ->selectRaw("SUM(CASE WHEN grades.grade >= 75 AND grades.grade < 85 THEN 1 ELSE 0 END) as g75")
+            ->selectRaw("SUM(CASE WHEN grades.grade >= 70 AND grades.grade < 75 THEN 1 ELSE 0 END) as g70")
+            ->selectRaw("SUM(CASE WHEN grades.grade < 70 THEN 1 ELSE 0 END) as gBelow70")
+            ->first();
+
+        $gradeDistribution = collect([
+            ['label' => '90-100', 'key' => 'g90'],
+            ['label' => '85-89', 'key' => 'g85'],
+            ['label' => '75-84', 'key' => 'g75'],
+            ['label' => '70-74', 'key' => 'g70'],
+            ['label' => 'Below 70', 'key' => 'gBelow70'],
+        ])->map(function ($bucket) use ($distributionRow, $totalRecords) {
+            $total = (int) ($distributionRow->{$bucket['key']} ?? 0);
+
+            return [
+                'label' => $bucket['label'],
+                'total' => $total,
+                'percentage' => $totalRecords > 0 ? round(($total / $totalRecords) * 100, 1) : 0,
+            ];
+        })->toArray();
+
+        $quarterOrder = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+        $quarterTrendRows = (clone $baseQuery)
+            ->select('grades.quarter')
+            ->selectRaw('AVG(grades.grade) as avg_grade')
+            ->groupBy('grades.quarter')
+            ->orderByRaw("FIELD(grades.quarter, '1st Quarter','2nd Quarter','3rd Quarter','4th Quarter')")
+            ->get();
+
+        $quarterTrend = [
+            'labels' => $quarterTrendRows->map(fn($row) => $row->quarter ?? 'N/A')->toArray(),
+            'averages' => $quarterTrendRows->map(fn($row) => round((float) ($row->avg_grade ?? 0), 1))->toArray(),
+        ];
+
+        $subjectLeaderboard = (clone $baseQuery)
+            ->select('subjects.id as subject_id', 'subjects.name as subject_name')
+            ->selectRaw('AVG(grades.grade) as avg_grade')
+            ->whereNotNull('subjects.id')
+            ->groupBy('subjects.id', 'subjects.name')
+            ->orderByDesc('avg_grade')
+            ->limit(6)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'subject_id' => (int) $row->subject_id,
+                    'label' => $row->subject_name ?? 'Subject',
+                    'average' => round((float) ($row->avg_grade ?? 0), 1),
+                ];
+            })->toArray();
+
+        $studentLeaderboard = (clone $baseQuery)
+            ->select('students.id as student_id', 'students.first_name', 'students.last_name')
+            ->selectRaw('AVG(grades.grade) as avg_grade')
+            ->whereNotNull('students.id')
+            ->groupBy('students.id', 'students.first_name', 'students.last_name')
+            ->orderByDesc('avg_grade')
+            ->limit(6)
+            ->get()
+            ->map(function ($row) {
+                $name = trim(($row->first_name ?? '') . ' ' . ($row->last_name ?? ''));
+
+                return [
+                    'student_id' => (int) $row->student_id,
+                    'label' => $name !== '' ? $name : 'Student',
+                    'average' => round((float) ($row->avg_grade ?? 0), 1),
+                ];
+            })->toArray();
+
+        $classLeaderboard = (clone $baseQuery)
+            ->select('classes.id as class_id', 'sections.name as section_name', 'grade_levels.name as grade_label')
+            ->selectRaw('AVG(grades.grade) as avg_grade')
+            ->whereNotNull('classes.id')
+            ->groupBy('classes.id', 'sections.name', 'grade_levels.name')
+            ->orderByDesc('avg_grade')
+            ->limit(6)
+            ->get()
+            ->map(function ($row) {
+                $labelPieces = array_filter([
+                    $row->section_name,
+                    $row->grade_label,
+                ]);
+
+                return [
+                    'class_id' => (int) $row->class_id,
+                    'label' => implode(' • ', $labelPieces) ?: 'Class',
+                    'average' => round((float) ($row->avg_grade ?? 0), 1),
+                ];
+            })->toArray();
+
+        $gradeLevelBreakdown = (clone $baseQuery)
+            ->select('grade_levels.id as grade_level_id', 'grade_levels.name as grade_name', 'grade_levels.level as grade_value')
+            ->selectRaw('AVG(grades.grade) as avg_grade')
+            ->selectRaw('COUNT(*) as total_records')
+            ->whereNotNull('grade_levels.id')
+            ->groupBy('grade_levels.id', 'grade_levels.name', 'grade_levels.level')
+            ->orderBy('grade_levels.level')
+            ->get()
+            ->map(function ($row) {
+                $label = $row->grade_name ?: ($row->grade_value ? 'Grade ' . $row->grade_value : 'Grade Level');
+
+                return [
+                    'grade_level_id' => (int) $row->grade_level_id,
+                    'label' => $label,
+                    'average' => round((float) ($row->avg_grade ?? 0), 1),
+                    'records' => (int) ($row->total_records ?? 0),
+                ];
+            })->values()->toArray();
+
+        return [
+            'summary' => $summary,
+            'gradeDistribution' => $gradeDistribution,
+            'quarterTrend' => $quarterTrend,
+            'subjectLeaderboard' => $subjectLeaderboard,
+            'studentLeaderboard' => $studentLeaderboard,
+            'classLeaderboard' => $classLeaderboard,
+            'gradeLevelBreakdown' => $gradeLevelBreakdown,
+        ];
+    }
+
+
+
+
 
 
     public function leastLearned(Request $request)
@@ -630,79 +1114,5 @@ class AdminReportController extends Controller
         }
 
         return $map[strtolower((string)$value)] ?? $value;
-    }
-
-
-    public function cumulative(Request $request)
-    {
-        $sections = Section::with('gradeLevel')->get();
-        $subjects = Subject::all();
-        $schoolYears = SchoolYear::orderBy('start_date', 'desc')->get();
-
-        $selectedSection = $request->input('section');
-        $selectedSubject = $request->input('subject');
-        $selectedSchoolYear = $request->input('school_year');
-
-        $cumulativeData = collect();
-        $studentPerformance = collect();
-
-        if ($selectedSection && $selectedSubject && $selectedSchoolYear) {
-            // Get all students in the selected section
-            $students = Student::whereHas('enrollments', function ($q) use ($selectedSection, $selectedSchoolYear) {
-                $q->whereHas('class', function ($cq) use ($selectedSection) {
-                    $cq->where('section_id', $selectedSection);
-                })
-                    ->where('school_year_id', $selectedSchoolYear);
-            })->with(['grades' => function ($q) use ($selectedSubject, $selectedSchoolYear) {
-                $q->where('subject_id', $selectedSubject)
-                    ->where('school_year_id', $selectedSchoolYear)
-                    ->orderBy('quarter');
-            }])->get();
-
-            // Process cumulative data for each student
-            $studentPerformance = $students->map(function ($student) {
-                $grades = $student->grades;
-                $quarters = [
-                    '1st Quarter' => $grades->where('quarter', '1st Quarter')->first()?->grade,
-                    '2nd Quarter' => $grades->where('quarter', '2nd Quarter')->first()?->grade,
-                    '3rd Quarter' => $grades->where('quarter', '3rd Quarter')->first()?->grade,
-                    '4th Quarter' => $grades->where('quarter', '4th Quarter')->first()?->grade,
-                ];
-
-                $validGrades = array_filter($quarters, fn($g) => $g !== null);
-                $average = count($validGrades) > 0 ? array_sum($validGrades) / count($validGrades) : null;
-
-                return (object)[
-                    'id' => $student->id,
-                    'name' => $student->full_name,
-                    'lrn' => $student->lrn,
-                    'quarters' => $quarters,
-                    'average' => $average,
-                    'status' => $average !== null ? ($average >= 75 ? 'Passing' : 'Failing') : 'No Data',
-                ];
-            })->sortBy('name');
-
-            // Calculate summary statistics
-            $validAverages = $studentPerformance->pluck('average')->filter(fn($a) => $a !== null);
-            $cumulativeData = (object)[
-                'totalStudents' => $studentPerformance->count(),
-                'averageGrade' => $validAverages->count() > 0 ? $validAverages->avg() : 0,
-                'highestGrade' => $validAverages->count() > 0 ? $validAverages->max() : 0,
-                'lowestGrade' => $validAverages->count() > 0 ? $validAverages->min() : 0,
-                'passingCount' => $studentPerformance->where('status', 'Passing')->count(),
-                'failingCount' => $studentPerformance->where('status', 'Failing')->count(),
-            ];
-        }
-
-        return view('admin.reports.cumulative', compact(
-            'sections',
-            'subjects',
-            'schoolYears',
-            'selectedSection',
-            'selectedSubject',
-            'selectedSchoolYear',
-            'cumulativeData',
-            'studentPerformance'
-        ));
     }
 }
