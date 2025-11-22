@@ -66,6 +66,12 @@ class TeacherController extends Controller
     {
         $activeSchoolYear = SchoolYear::where('is_active', true)->first();
 
+        if (!$activeSchoolYear) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Please set an active school year before assigning advisory classes.');
+        }
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -76,8 +82,16 @@ class TeacherController extends Controller
             'address' => 'required|string',
             'qualification' => 'required|string',
             'status' => 'required|string',
-            'section_id' => 'nullable|integer',
+            'section_ids' => 'nullable|array',
+            'section_ids.*' => 'integer|exists:sections,id',
         ]);
+
+        $sectionIds = collect($validated['section_ids'] ?? [])
+            ->filter()
+            ->unique()
+            ->values();
+
+        unset($validated['section_ids']);
         DB::beginTransaction();
         try {
             $password = strtolower($validated['first_name']) . strtolower(substr($validated['last_name'], 0, 1)) . date('Y');
@@ -102,21 +116,65 @@ class TeacherController extends Controller
                 'status' => $validated['status'],
             ]);
 
-            if (!empty($validated['section_id'])) {
-                $class = Classes::firstOrCreate(
-                    [
-                        'section_id' => $validated['section_id'],
+            $conflicts = collect();
+
+            if ($sectionIds->isNotEmpty()) {
+                $sectionIds->each(function ($sectionId) use ($activeSchoolYear, $teacher, $conflicts) {
+                    $section = Section::with('gradeLevel')->find($sectionId);
+                    if (!$section) {
+                        return;
+                    }
+
+                    $class = Classes::firstOrCreate([
+                        'section_id' => $section->id,
                         'school_year_id' => $activeSchoolYear->id,
-                    ]
-                );
-                $class->update(['teacher_id' => $teacher->id]);
+                    ]);
+
+                    $gradeLevel = $section->gradeLevel;
+                    $gradeValue = optional($gradeLevel)->level;
+                    $isRestrictedGrade = !is_null($gradeValue) && $gradeValue >= 1 && $gradeValue <= 3;
+
+                    if ($isRestrictedGrade && $class->teacher_id && $class->teacher_id !== $teacher->id) {
+                        $existingTeacher = Teacher::with('user')->find($class->teacher_id);
+                        $existingUser = optional($existingTeacher)->user;
+                        $existingTeacherName = $existingUser
+                            ? trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? ''))
+                            : '';
+                        $existingTeacherName = $existingTeacherName !== '' ? $existingTeacherName : 'another teacher';
+
+                        $gradeLabel = optional($gradeLevel)->name;
+                        if (!$gradeLabel && !is_null($gradeValue)) {
+                            $gradeLabel = 'Grade ' . $gradeValue;
+                        }
+
+                        $conflicts->push([
+                            'section' => $section->name,
+                            'grade' => $gradeLabel,
+                            'teacher' => $existingTeacherName,
+                        ]);
+                        return;
+                    }
+
+                    $class->update(['teacher_id' => $teacher->id]);
+                });
             }
 
 
             Mail::to($user->email)->send(new WelcomeEmail($user, $password));
             DB::commit();
-            return redirect()->route('admin.teachers.index')
+            $redirect = redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher created successfully.');
+
+            if ($sectionIds->isNotEmpty() && $conflicts->isNotEmpty()) {
+                $warningMessage = 'Skipped advisory assignment for: ' . $conflicts->map(function ($conflict) {
+                    $gradeLabel = $conflict['grade'] ? $conflict['grade'] . ' - ' : '';
+                    return $gradeLabel . $conflict['section'] . ' (already handled by ' . $conflict['teacher'] . ')';
+                })->implode('; ');
+
+                $redirect = $redirect->with('warning', $warningMessage);
+            }
+
+            return $redirect;
         } catch (\Throwable $th) {
             DB::rollBack();
             return redirect()->back()

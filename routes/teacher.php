@@ -3,6 +3,7 @@
 use App\Http\Controllers\ClassRecordController;
 use App\Http\Controllers\ReportCardOutputController;
 use App\Http\Controllers\Teacher\AnalyticsController;
+use App\Http\Controllers\Teacher\LeastLearnedController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
 use App\Http\Controllers\Teacher\EnrollmentController;
 use App\Http\Controllers\Teacher\AssessmentController;
@@ -82,8 +83,9 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
 
         // Least Learned Competencies
         Route::prefix('least-learned')->name('least-learned.')->group(function () {
-            Route::get('/', [TeacherDashboardController::class, 'leastLearnedCompetencies'])->name('index');
-            Route::get('/subjects', [TeacherDashboardController::class, 'leastLearnedSubjects'])->name('subjects');
+            Route::get('/', [LeastLearnedController::class, 'index'])->name('index');
+            Route::post('/', [LeastLearnedController::class, 'store'])->name('store');
+            Route::get('/{llc}', [LeastLearnedController::class, 'show'])->name('show');
         });
 
         // Attendance Management

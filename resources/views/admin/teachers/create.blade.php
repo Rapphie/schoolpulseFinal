@@ -66,14 +66,89 @@
                             <option value="inactive">Inactive</option>
                         </select>
                     </div>
-                    <div class="col-md-6">
-                        <label for="section_id" class="form-label">Section Advisory</label>
-                        <select id="section_id" name="section_id" class="form-select">
-                            <option value="">Select Section</option>
-                            @foreach ($sections as $section)
-                                <option value="{{ $section->id }}">{{ $section->name }}</option>
+                    <div class="col-12">
+                        <label for="sectionAssignments" class="form-label">Section Advisory</label>
+                        @php
+                            // Prepare previous selections and grade/section mappings
+                            $sectionSelections = old('section_ids', [null]);
+                            if (empty($sectionSelections)) {
+                                $sectionSelections = [null];
+                            }
+
+                            $gradeLevels = $sections
+                                ->map(function ($s) {
+                                    return optional($s->gradeLevel);
+                                })
+                                ->filter()
+                                ->unique('id')
+                                ->values();
+
+                            $gradeOptions = [];
+                            foreach ($gradeLevels as $g) {
+                                $gradeOptions[$g->id] = $g->name ?? 'Grade ' . $g->level;
+                            }
+
+                            $sectionsByGrade = [];
+                            foreach ($sections as $s) {
+                                $gid = optional($s->gradeLevel)->id ?? 0;
+                                if (!isset($sectionsByGrade[$gid])) {
+                                    $sectionsByGrade[$gid] = [];
+                                }
+                                $sectionsByGrade[$gid][] = ['id' => $s->id, 'name' => $s->name];
+                            }
+                        @endphp
+                        <div id="sectionAssignments" class="d-flex flex-column gap-2">
+                            @foreach ($sectionSelections as $selectedSection)
+                                @php
+                                    $selectedSectionObj = $sections->firstWhere('id', $selectedSection);
+                                    $selectedGradeId = optional(optional($selectedSectionObj)->gradeLevel)->id ?? '';
+                                @endphp
+                                <div class="section-assignment d-flex flex-column flex-md-row gap-2">
+                                    <select name="grade_ids[]" class="form-select grade-select">
+                                        <option value="">Select Grade</option>
+                                        @foreach ($gradeOptions as $gid => $glabel)
+                                            <option value="{{ $gid }}"
+                                                {{ (string) $selectedGradeId === (string) $gid ? 'selected' : '' }}>
+                                                {{ $glabel }}</option>
+                                        @endforeach
+                                    </select>
+
+                                    <select name="section_ids[]" class="form-select section-select">
+                                        <option value="">Select Section</option>
+                                        @foreach ($sections as $section)
+                                            <option value="{{ $section->id }}"
+                                                {{ (string) $selectedSection === (string) $section->id ? 'selected' : '' }}
+                                                data-grade-id="{{ optional($section->gradeLevel)->id ?? 0 }}">
+                                                {{ $section->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <button type="button"
+                                        class="btn btn-outline-danger remove-section {{ $loop->first ? 'd-none' : '' }}">Remove</button>
+                                </div>
                             @endforeach
-                        </select>
+                        </div>
+                        <button type="button" id="addSectionButton" class="btn btn-outline-primary btn-sm mt-2">Add
+                            Advisory Section</button>
+                        <div class="form-text">Use the button to append additional advisory sections as needed.</div>
+                        @error('section_ids.*')
+                            <div class="text-danger small">{{ $message }}</div>
+                        @enderror
+                        <template id="sectionSelectTemplate">
+                            <div class="section-assignment d-flex flex-column flex-md-row gap-2">
+                                <select name="grade_ids[]" class="form-select grade-select">
+                                    <option value="">Select Grade</option>
+                                    @foreach ($gradeOptions as $gid => $glabel)
+                                        <option value="{{ $gid }}">{{ $glabel }}</option>
+                                    @endforeach
+                                </select>
+
+                                <select name="section_ids[]" class="form-select section-select">
+                                    <option value="">Select Section</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-danger remove-section">Remove</button>
+                            </div>
+                        </template>
                     </div>
                     <div class="col-12">
                         <label for="profile_picture" class="form-label">Profile Picture</label>
@@ -88,3 +163,101 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sectionContainer = document.getElementById('sectionAssignments');
+            const addSectionButton = document.getElementById('addSectionButton');
+            const template = document.getElementById('sectionSelectTemplate');
+            const sectionsByGrade = @json($sectionsByGrade);
+
+            if (!sectionContainer || !addSectionButton || !template) {
+                return;
+            }
+
+            const updateRemoveButtons = () => {
+                const groups = sectionContainer.querySelectorAll('.section-assignment');
+                groups.forEach((group, index) => {
+                    const removeButton = group.querySelector('.remove-section');
+                    if (!removeButton) {
+                        return;
+                    }
+                    removeButton.classList.toggle('d-none', groups.length === 1);
+                });
+            };
+
+            const populateSectionOptions = (sectionSelect, gradeId, selectedSectionId = null) => {
+                // Clear existing
+                sectionSelect.innerHTML = '';
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'Select Section';
+                sectionSelect.appendChild(placeholder);
+
+                const list = sectionsByGrade[gradeId] || [];
+                list.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name;
+                    if (selectedSectionId && String(selectedSectionId) === String(s.id)) {
+                        opt.selected = true;
+                    }
+                    sectionSelect.appendChild(opt);
+                });
+            };
+
+            addSectionButton.addEventListener('click', () => {
+                const clone = template.content.cloneNode(true);
+                sectionContainer.appendChild(clone);
+                updateRemoveButtons();
+            });
+
+            // When grade changes, filter the section select in the same row
+            sectionContainer.addEventListener('change', (event) => {
+                const gradeSelect = event.target.closest('.grade-select');
+                if (gradeSelect) {
+                    const group = gradeSelect.closest('.section-assignment');
+                    const sectionSelect = group.querySelector('.section-select');
+                    populateSectionOptions(sectionSelect, gradeSelect.value);
+                }
+            });
+
+            // Initialize rows: for each existing row set section options according to selected grade
+            sectionContainer.querySelectorAll('.section-assignment').forEach(group => {
+                const gradeSelect = group.querySelector('.grade-select');
+                const sectionSelect = group.querySelector('.section-select');
+                // If the section select already has an option selected (because old input), use it
+                const preSelected = sectionSelect.value || null;
+                if (gradeSelect && sectionSelect) {
+                    // If grade is selected, populate based on it; otherwise try to infer from existing option data-grade-id
+                    if (gradeSelect.value) {
+                        populateSectionOptions(sectionSelect, gradeSelect.value, preSelected);
+                    } else {
+                        // infer grade from existing selected option's data attribute (handle checked/selected)
+                        const existingOpt = sectionSelect.querySelector('option[selected], option:checked');
+                        const dataGrade = existingOpt ? existingOpt.getAttribute('data-grade-id') : null;
+                        if (dataGrade) {
+                            gradeSelect.value = dataGrade;
+                            populateSectionOptions(sectionSelect, dataGrade, preSelected);
+                        }
+                    }
+                }
+            });
+
+            sectionContainer.addEventListener('click', (event) => {
+                const removeButton = event.target.closest('.remove-section');
+                if (!removeButton) {
+                    return;
+                }
+                const group = removeButton.closest('.section-assignment');
+                if (group) {
+                    group.remove();
+                    updateRemoveButtons();
+                }
+            });
+
+            updateRemoveButtons();
+        });
+    </script>
+@endpush

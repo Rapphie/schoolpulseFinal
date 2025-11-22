@@ -430,8 +430,8 @@
         $(document).ready(function() {
             const highlightStudentId = @json($highlightStudentId);
             const typeWeights = {
-                'written-works': 0.2,
-                'performance-tasks': 0.6,
+                'written-works': 0.4,
+                'performance-tasks': 0.4,
                 'quarterly-assessments': 0.2
             };
 

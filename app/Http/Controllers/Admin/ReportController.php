@@ -46,115 +46,7 @@ class ReportController extends Controller
     }
 
 
-    public function attendance(Request $request)
-    {
-        $sections = Section::with('students')->get();
-        $selectedSection = $request->input('section');
-        $selectedMonth = $request->input('month', now()->format('Y-m'));
 
-        $attendanceData = collect();
-
-        if ($selectedSection) {
-            $startDate = Carbon::parse($selectedMonth)->startOfMonth();
-            $endDate = Carbon::parse($selectedMonth)->endOfMonth();
-
-            $section = Section::with(['students' => function ($query) use ($startDate, $endDate) {
-                $query->with(['attendances' => function ($q) use ($startDate, $endDate) {
-                    $q->whereBetween('date', [$startDate, $endDate]);
-                }]);
-            }])->find($selectedSection);
-
-            if ($section) {
-                $attendanceData = $this->processAttendanceData($section, $startDate, $endDate);
-            }
-        }
-
-        return view('admin.reports.attendance', compact(
-            'sections',
-            'selectedSection',
-            'selectedMonth',
-            'attendanceData'
-        ));
-    }
-
-
-    private function processAttendanceData($section, $startDate, $endDate)
-    {
-        $data = collect();
-        $dates = [];
-        $currentDate = $startDate->copy();
-
-        // Generate all dates in the range
-        while ($currentDate->lte($endDate)) {
-            if ($currentDate->isWeekday()) { // Only include weekdays
-                $dates[] = $currentDate->format('Y-m-d');
-            }
-            $currentDate->addDay();
-        }
-
-        foreach ($section->students as $student) {
-            $studentData = [
-                'id' => $student->id,
-                'name' => $student->full_name,
-                'lrn' => $student->lrn,
-                'attendance' => [],
-                'present' => 0,
-                'absent' => 0,
-                'late' => 0,
-                'excused' => 0
-            ];
-
-            // Initialize attendance for each date
-            foreach ($dates as $date) {
-                $studentData['attendance'][$date] = [
-                    'status' => null,
-                    'time_in' => null,
-                    // 'time_out' => null,
-                    'remarks' => null
-                ];
-            }
-
-            // Fill in actual attendance data
-            foreach ($student->attendances as $attendance) {
-                $date = $attendance->date->format('Y-m-d');
-                if (array_key_exists($date, $studentData['attendance'])) {
-                    $studentData['attendance'][$date] = [
-                        'status' => $attendance->status,
-                        'time_in' => $attendance->time_in,
-                        // 'time_out' => $attendance->time_out,
-                        'remarks' => $attendance->remarks
-                    ];
-
-                    // Count statuses
-                    if (isset($studentData[$attendance->status])) {
-                        $studentData[$attendance->status]++;
-                    }
-                }
-            }
-
-            $data->push((object)$studentData);
-        }
-
-        return (object)[
-            'section' => $section,
-            'dates' => $dates,
-            'students' => $data,
-            'startDate' => $startDate,
-            'endDate' => $endDate
-        ];
-    }
-
-
-    public function exportAttendance(Request $request)
-    {
-        $sectionId = $request->input('section');
-        $month = $request->input('month', now()->format('Y-m'));
-
-        return Excel::download(
-            new AttendanceExport($sectionId, $month),
-            'attendance_report_' . now()->format('Y-m-d') . '.xlsx'
-        );
-    }
 
 
     public function grades(Request $request)
@@ -296,17 +188,7 @@ class ReportController extends Controller
     }
 
 
-    public function exportGrades(Request $request)
-    {
-        $sectionId = $request->input('section');
-        $subjectId = $request->input('subject');
-        $gradingPeriod = $request->input('grading_period', 'first');
 
-        return Excel::download(
-            new GradesExport($sectionId, $subjectId, $gradingPeriod),
-            'grades_report_' . now()->format('Y-m-d') . '.xlsx'
-        );
-    }
 
 
     public function leastLearned()

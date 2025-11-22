@@ -9,6 +9,98 @@
     </div>
 
     <div class="row g-4 mb-4">
+        <div class="col-12 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">School Year Management</h5>
+                    <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
+                        data-bs-target="#addSchoolYearModal">
+                        <i data-feather="plus" class="feather-sm me-1"></i> Add School Year
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card h-100 border-0 bg-soft-primary">
+                                <div class="card-body">
+                                    @if ($activeSchoolYear)
+                                        <h6 class="text-primary fw-bold">Current School Year</h6>
+                                        <h3 id="currentSchoolYear">{{ $activeSchoolYear->name }}</h3>
+                                        <p class="mb-2">Status: <span class="badge bg-success">Active</span></p>
+                                        <p class="mb-0">Duration:
+                                            {{ \Carbon\Carbon::parse($activeSchoolYear->start_date)->format('F j, Y') }}
+                                            -
+                                            {{ \Carbon\Carbon::parse($activeSchoolYear->end_date)->format('F j, Y') }}
+                                        </p>
+                                    @else
+                                        <h6>No Active School Year</h6>
+                                    @endif
+
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <h6 class="fw-bold mb-3">School Year Timeline</h6>
+                            <div class="position-relative" id="schoolYearTimeline" style="height: 100px;">
+                                <div class="text-center py-2 d-none">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>School Year</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Status</th>
+                                    <th width="200">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schoolYearTableBody">
+                                @forelse ($schoolYears as $year)
+                                    {{-- The loop here ONLY contains the table row <tr> --}}
+                                    <tr>
+                                        <td>{{ $year->name }}</td>
+                                        <td>{{ \Carbon\Carbon::parse($year->start_date)->format('F j, Y') }}</td>
+                                        <td>{{ \Carbon\Carbon::parse($year->end_date)->format('F j, Y') }}</td>
+                                        <td>
+                                            @if ($year->is_active)
+                                                <span class="badge bg-success">Active</span>
+                                            @else
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <a href="#" data-bs-toggle="modal"
+                                                data-bs-target="#editSchoolYearModal{{ $year->id }}"
+                                                class="btn btn-sm btn-primary">
+                                                Edit
+                                            </a>
+                                            <button class="btn btn-sm btn-danger delete-year-btn" data-bs-toggle="modal"
+                                                data-bs-target="#deleteSchoolYearModal"
+                                                data-year-id="{{ $year->id }}">Delete</button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">No school years found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
         <div class="col-md-6 col-lg-3">
             <div class="card h-100 border-0 shadow-sm hover-lift">
                 <div class="card-body">
@@ -107,7 +199,8 @@
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-info" role="progressbar"
                             style="width: {{ $attendancePercentage ?? 0 }}%"
-                            aria-valuenow="{{ $attendancePercentage ?? 0 }}" aria-valuemin="0" aria-valuemax="100"></div>
+                            aria-valuenow="{{ $attendancePercentage ?? 0 }}" aria-valuemin="0" aria-valuemax="100">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -237,97 +330,7 @@
         </div>
     </div>
 
-    <div class="row g-4 mb-4">
-        <div class="col-12 mb-4">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-bold">School Year Management</h5>
-                    <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
-                        data-bs-target="#addSchoolYearModal">
-                        <i data-feather="plus" class="feather-sm me-1"></i> Add School Year
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-4">
-                        <div class="col-md-4">
-                            <div class="card h-100 border-0 bg-soft-primary">
-                                <div class="card-body">
-                                    @if ($activeSchoolYear)
-                                        <h6 class="text-primary fw-bold">Current School Year</h6>
-                                        <h3 id="currentSchoolYear">{{ $activeSchoolYear->name }}</h3>
-                                        <p class="mb-2">Status: <span class="badge bg-success">Active</span></p>
-                                        <p class="mb-0">Duration:
-                                            {{ \Carbon\Carbon::parse($activeSchoolYear->start_date)->format('F j, Y') }}
-                                            -
-                                            {{ \Carbon\Carbon::parse($activeSchoolYear->end_date)->format('F j, Y') }}
-                                        </p>
-                                    @else
-                                        <h6>No Active School Year</h6>
-                                    @endif
 
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-8">
-                            <h6 class="fw-bold mb-3">School Year Timeline</h6>
-                            <div class="position-relative" id="schoolYearTimeline" style="height: 100px;">
-                                <div class="text-center py-2 d-none">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>School Year</th>
-                                    <th>Start Date</th>
-                                    <th>End Date</th>
-                                    <th>Status</th>
-                                    <th width="200">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="schoolYearTableBody">
-                                @forelse ($schoolYears as $year)
-                                    {{-- The loop here ONLY contains the table row <tr> --}}
-                                    <tr>
-                                        <td>{{ $year->name }}</td>
-                                        <td>{{ \Carbon\Carbon::parse($year->start_date)->format('F j, Y') }}</td>
-                                        <td>{{ \Carbon\Carbon::parse($year->end_date)->format('F j, Y') }}</td>
-                                        <td>
-                                            @if ($year->is_active)
-                                                <span class="badge bg-success">Active</span>
-                                            @else
-                                                <span class="badge bg-secondary">Inactive</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            <a href="#" data-bs-toggle="modal"
-                                                data-bs-target="#editSchoolYearModal{{ $year->id }}"
-                                                class="btn btn-sm btn-primary">
-                                                Edit
-                                            </a>
-                                            <button class="btn btn-sm btn-danger delete-year-btn" data-bs-toggle="modal"
-                                                data-bs-target="#deleteSchoolYearModal"
-                                                data-year-id="{{ $year->id }}">Delete</button>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted">No school years found.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div class="modal fade" id="addSchoolYearModal" tabindex="-1" aria-labelledby="addSchoolYearModalLabel"
         aria-hidden="true">

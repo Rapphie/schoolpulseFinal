@@ -322,7 +322,7 @@
                                             </span>
                                         </td>
                                         <td>
-                                            <a href="{{ route('teacher.least-learned.view', $llc->id) }}"
+                                            <a href="{{ route('teacher.least-learned.show', $llc->id) }}"
                                                 class="btn btn-info btn-sm" title="View Details">
                                                 <i data-feather="eye" class="feather-sm text-white"></i>
                                             </a>

@@ -116,13 +116,13 @@
                                 <span>Grades</span>
                             </a>
                         </li>
-                        <li>
+                        {{-- <li>
                             <a class="dropdown-item d-flex align-items-center"
                                 href="{{ route('admin.reports.least-learned') }}">
                                 <i class="me-2" data-feather="alert-circle"></i>
                                 <span>Least Learned</span>
                             </a>
-                        </li>
+                        </li> --}}
                         <li>
                             <a class="dropdown-item d-flex align-items-center"
                                 href="{{ route('admin.reports.cumulative') }}">
@@ -221,9 +221,8 @@
                         <span>Grades</span>
                     </a>
                 </li> --}}
-                {{--
-                <li class="nav-item mb-3 w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('llc') ? 'active' : 'link-dark' }}"
+                {{-- <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.least-learned.*') ? 'active' : 'link-dark' }}"
                         href="{{ route('teacher.least-learned.index') }}" style="width: 100%;">
                         <i data-feather="bar-chart-2" class="me-2"></i>
                         <span>Least Learned</span>

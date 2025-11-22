@@ -2,112 +2,102 @@
 
 namespace App\Exports;
 
-use App\Models\Section;
+use App\Models\Enrollment;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
-use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class EnrolleesExport implements FromCollection, WithHeadings, WithMapping, WithTitle, ShouldAutoSize, WithStyles
+class EnrolleesExport implements FromCollection, WithMapping, WithHeadings, ShouldAutoSize, WithStyles
 {
-    protected $grade;
+    private ?int $classId;
+    private $gradeLevel;
+    private ?int $schoolYearId;
 
-    public function __construct($grade = null)
+    public function __construct(?int $classId = null, $gradeLevel = null, ?int $schoolYearId = null)
     {
-        $this->grade = $grade;
+        $this->classId = $classId;
+        $this->gradeLevel = $gradeLevel;
+        $this->schoolYearId = $schoolYearId;
     }
 
-    /**
-     * @return \Illuminate\Support\Collection
-     */
-    public function collection()
+    public function collection(): Collection
     {
-        $query = Section::with(['gradeLevel', 'classes.enrollments.student'])
-            ->withCount(['classes as students_count' => function ($q) {
-                $q->join('enrollments', 'enrollments.class_id', '=', 'classes.id')
-                    ->where('enrollments.status', '!=', 'unenrolled');
-            }]);
-
-        if ($this->grade) {
-            $query->whereHas('gradeLevel', function ($q) {
-                $q->where('level', $this->grade);
-            });
-        }
-
-        return $query->get();
+        return Enrollment::query()
+            ->with([
+                'student',
+                'class.section.gradeLevel',
+                'class.teacher.user',
+                'teacher.user',
+                'schoolYear',
+            ])
+            ->when($this->classId, function ($query) {
+                $query->where('class_id', $this->classId);
+            })
+            ->when($this->gradeLevel, function ($query) {
+                $query->whereHas('class.section.gradeLevel', function ($gradeQuery) {
+                    $gradeQuery->where('level', $this->gradeLevel);
+                });
+            })
+            ->when($this->schoolYearId, function ($query) {
+                $query->where('school_year_id', $this->schoolYearId);
+            })
+            ->orderByDesc('school_year_id')
+            ->orderBy('class_id')
+            ->orderBy('student_id')
+            ->get();
     }
 
-    /**
-     * @return array
-     */
     public function headings(): array
     {
         return [
-            'Section ID',
-            'Section Name',
+            'School Year',
             'Grade Level',
-            'Adviser',
-            'Number of Students',
-            'Boys',
-            'Girls',
-            'Created At'
+            'Section',
+            'Class ID',
+            'Student LRN',
+            'Student Name',
+            'Gender',
+            'Enrollment Status',
+            'Enrollment Date',
+            'Adviser / Teacher',
         ];
     }
 
-    /**
-     * @param mixed $row
-     *
-     * @return array
-     */
-    public function map($row): array
+    public function map($enrollment): array
     {
-        // Get all enrolled students for this section
-        $students = collect();
-        foreach ($row->classes as $class) {
-            foreach ($class->enrollments as $enrollment) {
-                if ($enrollment->status != 'unenrolled' && $enrollment->student) {
-                    $students->push($enrollment->student);
-                }
-            }
-        }
-
-        $boyCount = $students->where('gender', 'male')->count();
-        $girlCount = $students->where('gender', 'female')->count();
-
-        // Get class adviser (teacher from the main class)
-        $adviser = $row->classes->first()?->teacher;
+        $section = optional(optional($enrollment->class)->section);
+        $gradeLevel = optional($section->gradeLevel);
+        $schoolYearName = optional($enrollment->schoolYear)->name ?? 'N/A';
+        $gradeLabel = $gradeLevel->name ?? ($gradeLevel && $gradeLevel->level ? 'Grade ' . $gradeLevel->level : 'N/A');
+        $student = $enrollment->student;
+        $teacher = $enrollment->teacher ?? optional($enrollment->class)->teacher;
+        $teacherName = $teacher ? (optional($teacher->user)->full_name ?? 'Teacher #' . $teacher->id) : 'N/A';
+        $enrollmentDate = $enrollment->enrollment_date
+            ? Carbon::parse($enrollment->enrollment_date)
+            : ($enrollment->created_at ? Carbon::parse($enrollment->created_at) : null);
 
         return [
-            $row->id,
-            $row->name,
-            'Grade ' . ($row->gradeLevel ? $row->gradeLevel->level : 'N/A'),
-            $adviser ? $adviser->user->first_name . ' ' . $adviser->user->last_name : 'No Adviser',
-            $row->students_count,
-            $boyCount,
-            $girlCount,
-            $row->created_at->format('M d, Y')
+            $schoolYearName,
+            $gradeLabel,
+            $section->name ?? 'N/A',
+            optional($enrollment->class)->id ?? 'N/A',
+            $student->lrn ?? 'N/A',
+            $student ? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) : 'N/A',
+            $student->gender ?? 'N/A',
+            ucfirst($enrollment->status ?? 'enrolled'),
+            $enrollmentDate ? $enrollmentDate->format('M d, Y') : 'N/A',
+            $teacherName,
         ];
     }
 
-    /**
-     * @return string
-     */
-    public function title(): string
-    {
-        return 'Enrollees Report' . ($this->grade ? ' - Grade ' . $this->grade : '');
-    }
-
-    /**
-     * @param Worksheet $sheet
-     */
     public function styles(Worksheet $sheet)
     {
-        return [
-            // Style the first row as bold text
-            1 => ['font' => ['bold' => true]],
-        ];
+        $highestColumn = $sheet->getHighestColumn();
+        $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
     }
 }

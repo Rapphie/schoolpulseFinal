@@ -564,8 +564,8 @@ class AssessmentController extends Controller
         $students = $class->students()->get();
 
         $weightMap = [
-            'written_works' => 0.20,
-            'performance_tasks' => 0.60,
+            'written_works' => 0.40,
+            'performance_tasks' => 0.40,
             'quarterly_assessments' => 0.20,
         ];
 

@@ -20,6 +20,7 @@ use App\Models\Section;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use App\Exports\EnrolleesExport;
+use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
 
 class EnrollmentController extends Controller
@@ -38,44 +39,48 @@ class EnrollmentController extends Controller
 
 
 
-        return Excel::download(new EnrolleesExport($class->id), "enrollees_SY_{$schoolYear}.xlsx");
+        return Excel::download(
+            new EnrolleesExport($class->id, null, $class->school_year_id),
+            "enrollees_SY_{$schoolYear}.xlsx"
+        );
     }
 
     public function index()
     {
         $currentSchoolYear = SchoolYear::where('is_active', true)->first();
 
-        if (!$currentSchoolYear) {
-            return view('teacher.enrollment.index', ['error' => 'No active school year found.']);
-        }
-
-        $teacher = Auth::user()->teacher;
-        $teacherEnrollments = Enrollment::where('teacher_id', $teacher->id)->with('class.section.gradeLevel', 'student')->get()->groupBy(fn($e) => optional(optional($e->class)->section)->id);
-
-
-
-        $classes = Classes::where('school_year_id', $currentSchoolYear->id)
-            ->with('section.gradeLevel', 'enrollments')
-            ->get()
-            ->sortBy('section.gradeLevel.level');
-
-        $previousSchoolYear = SchoolYear::where('is_active', false)->orderBy('end_date', 'desc')->first();
-
-        // Initialize $studentsToEnroll as an empty collection to prevent the error
+        $teacher = Auth::user()->teacher ?? null;
+        $teacherEnrollments = collect();
+        $classes = collect();
         $studentsToEnroll = collect();
 
-        if ($previousSchoolYear) {
-            $studentsToEnroll = Student::whereDoesntHave('enrollments', function ($query) use ($currentSchoolYear) {
-                $query->where('school_year_id', $currentSchoolYear->id);
-            })->whereHas('enrollments', function ($query) use ($previousSchoolYear) {
-                $query->where('school_year_id', $previousSchoolYear->id);
-            })->get();
+        if ($currentSchoolYear) {
+            $teacherEnrollments = $teacher ? Enrollment::where('teacher_id', $teacher->id)
+                ->with('class.section.gradeLevel', 'student')
+                ->get()
+                ->groupBy(fn($e) => optional(optional($e->class)->section)->id) : collect();
+
+            $classes = Classes::where('school_year_id', $currentSchoolYear->id)
+                ->with('section.gradeLevel', 'enrollments')
+                ->get()
+                ->sortBy('section.gradeLevel.level');
+
+            $previousSchoolYear = SchoolYear::where('is_active', false)->orderBy('end_date', 'desc')->first();
+
+            if ($previousSchoolYear) {
+                $studentsToEnroll = Student::whereDoesntHave('enrollments', function ($query) use ($currentSchoolYear) {
+                    $query->where('school_year_id', $currentSchoolYear->id);
+                })->whereHas('enrollments', function ($query) use ($previousSchoolYear) {
+                    $query->where('school_year_id', $previousSchoolYear->id);
+                })->get();
+            }
         }
 
         return view('teacher.enrollment.index', [
             'classes' => $classes,
             'students' => $studentsToEnroll,
-            'teacherEnrollments' => $teacherEnrollments, // Pass teacherEnrollments to the view
+            'teacherEnrollments' => $teacherEnrollments,
+            'error' => !$currentSchoolYear ? 'No active school year found.' : null,
         ]);
     }
     public function create()
@@ -165,7 +170,7 @@ class EnrollmentController extends Controller
                     'teacher_id' => $teacher->id, // Add this line
                     'status' => 'enrolled',
                 ]);
-                
+                Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, $guardianUser->password));
             });
 
             return redirect()->back()->with('success', 'Student enrolled successfully.');

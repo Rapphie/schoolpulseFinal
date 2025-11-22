@@ -15,25 +15,29 @@ class LLC extends Model
     protected $table = "llc";
 
     protected $fillable = [
-        "subject_id",
-        "section_id",
-        "teacher_id",
-        "school_year_id",
-        "quarter",
-        "total_students",
-        "total_items"
+        'subject_id',
+        'section_id',
+        'teacher_id',
+        'school_year_id',
+        'quarter',
+        'exam_title',
+        'total_students',
+        'total_items',
     ];
     public function class(): BelongsTo
     {
         return $this->belongsTo(Classes::class);
     }
 
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Section::class);
+    }
+
     public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
     }
-
-
 
     public function teacher(): BelongsTo
     {

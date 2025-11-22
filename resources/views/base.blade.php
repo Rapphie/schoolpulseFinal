@@ -450,6 +450,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
+            @if (session('warning'))
+                <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+                    <i data-feather="alert-circle" class="icon-sm me-2"></i>
+                    <span>{{ session('warning') }}</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            @endif
             @if (session('error'))
                 <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center" role="alert">
                     <i data-feather="alert-triangle" class="icon-sm me-2"></i>

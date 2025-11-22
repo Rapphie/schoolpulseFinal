@@ -332,6 +332,7 @@
                     // Remove any existing success alerts
                     const existingAlerts = document.querySelectorAll('.alert-success.temp-alert');
                     existingAlerts.forEach(alert => alert.remove());
+                    
 
                     // Create new alert
                     const successAlert = document.createElement('div');

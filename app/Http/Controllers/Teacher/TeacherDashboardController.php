@@ -12,7 +12,6 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\User;
 use App\Models\Teacher;
-use App\Models\Llc;
 use App\Models\SchoolYear;
 use App\Models\Enrollment;
 use App\Models\Grade;
@@ -558,65 +557,6 @@ class TeacherDashboardController extends Controller
             return redirect()->back()->with('error', 'Unable to load gradebook (exam): ' . $e->getMessage());
         }
     }
-
-    public function leastLearnedCompetencies()
-    {
-        try {
-            // Data for dropdown filters
-            $subjects = Subject::all();
-            $sections = Section::all();
-
-            // **FIX: Query the LLC data**
-            // This query fetches all LLCs, counts their competencies,
-            // and joins the subject and section tables to get their names.
-            $llcs = Llc::withCount('llcItems') // This adds an `llc_items_count` attribute
-                ->join('subjects', 'llc.subject_id', '=', 'subjects.id')
-                ->join('sections', 'llc.section_id', '=', 'sections.id')
-                ->select(
-                    'llc.*', // Selects all columns from the `llc` table
-                    'subjects.name as subject_name',
-                    'sections.name as section_name'
-                )
-                ->orderBy('llc.created_at', 'desc')
-                ->get();
-            $gradeLevels = GradeLevel::all();
-            return view('llc', compact('llcs', 'subjects', 'sections', 'gradeLevels'));
-        } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@leastLearnedCompetencies error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load least learned competencies: ' . $e->getMessage());
-        }
-    }
-    // **FIX: Pass the new $ll
-    public function leastLearnedSubjects()
-    {
-        try {
-            // Data for dropdown filters
-            $subjects = Subject::all();
-            $sections = Section::all();
-
-            // **FIX: Query the LLC data**
-            // This query fetches all LLCs, counts their competencies,
-            // and joins the subject and section tables to get their names.
-            $llcs = Llc::withCount('llcItems') // This adds an `llc_items_count` attribute
-                ->join('subjects', 'llc.subject_id', '=', 'subjects.id')
-                ->join('sections', 'llc.section_id', '=', 'sections.id')
-                ->select(
-                    'llc.*', // Selects all columns from the `llc` table
-                    'subjects.name as subject_name',
-                    'sections.name as section_name'
-                )
-                ->orderBy('llc.created_at', 'desc')
-                ->get();
-
-            // **FIX: Pass the new $llcs variable to the view**
-            return view('teacher.least-learned.subjects', compact('llcs', 'subjects', 'sections'));
-        } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@leastLearnedSubjects error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load least learned subjects: ' . $e->getMessage());
-        }
-    }
-
-
 
     public function takeAttendance()
     {
