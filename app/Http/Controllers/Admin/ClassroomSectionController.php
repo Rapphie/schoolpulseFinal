@@ -237,13 +237,17 @@ class ClassroomSectionController extends Controller
      */
     public function assignClassAdviser(Request $request, Classes $class)
     {
-        $validated = $request->validate([
-            'teacher_id' => 'required|exists:teachers,id',
-        ]);
+        try {
+            $validated = $request->validate([
+                'teacher_id' => 'required|exists:teachers,id',
+            ]);
 
-        $class->update(['teacher_id' => $validated['teacher_id']]);
+            $class->update(['teacher_id' => $validated['teacher_id']]);
 
-        return back()->with('success', 'Adviser assigned successfully.');
+            return back()->with('success', 'Adviser assigned successfully.');
+        } catch (\Throwable $throwable) {
+            return back()->withInput()->with('error', 'Failed to assign adviser: ' . $throwable->getMessage());
+        }
     }
 
     /**
@@ -261,45 +265,17 @@ class ClassroomSectionController extends Controller
             'end_time' => 'required|date_format:H:i|after:start_time',
             'room' => 'nullable|string|max:255',
         ]);
+        try {
+            $validated['class_id'] = $class->id;
 
-        $validated['class_id'] = $class->id;
+            // Conflict checks: ensure no overlapping schedule for this class or for the assigned teacher
+            $days = array_values($validated['day_of_week']);
+            $start = $validated['start_time'];
+            $end = $validated['end_time'];
+            $assignedTeacherId = $validated['teacher_id'];
 
-        // Conflict checks: ensure no overlapping schedule for this class or for the assigned teacher
-        $days = array_values($validated['day_of_week']);
-        $start = $validated['start_time'];
-        $end = $validated['end_time'];
-        $assignedTeacherId = $validated['teacher_id'];
-
-        // Check for conflicts within the same class
-        $classConflicts = $class->schedules()->where(function ($q) use ($days) {
-            foreach ($days as $i => $day) {
-                if ($i === 0) {
-                    $q->whereJsonContains('day_of_week', $day);
-                } else {
-                    $q->orWhereJsonContains('day_of_week', $day);
-                }
-            }
-        })->where(function ($q) use ($start, $end) {
-            // overlap if existing.start < new.end AND existing.end > new.start
-            $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
-        })->first();
-
-        if ($classConflicts) {
-            $conflictDays = $classConflicts->day_of_week;
-            $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
-            $conflictMsg = sprintf(
-                "Schedule conflicts with existing class schedule: %s (%s) %s - %s",
-                optional($classConflicts->subject)->name ?? 'Subject',
-                $conflictLabel,
-                optional($classConflicts->start_time)?->format('g:i A') ?? $classConflicts->start_time,
-                optional($classConflicts->end_time)?->format('g:i A') ?? $classConflicts->end_time
-            );
-            return back()->withInput()->with('error', $conflictMsg);
-        }
-
-        // Check conflicts for the assigned teacher across any class
-        $teacherConflicts = Schedule::where('teacher_id', $assignedTeacherId)
-            ->where(function ($q) use ($days) {
+            // Check for conflicts within the same class
+            $classConflicts = $class->schedules()->where(function ($q) use ($days) {
                 foreach ($days as $i => $day) {
                     if ($i === 0) {
                         $q->whereJsonContains('day_of_week', $day);
@@ -308,26 +284,57 @@ class ClassroomSectionController extends Controller
                     }
                 }
             })->where(function ($q) use ($start, $end) {
+                // overlap if existing.start < new.end AND existing.end > new.start
                 $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
-            })->with('class.section', 'subject')->first();
+            })->first();
 
-        if ($teacherConflicts) {
-            $conflictDays = $teacherConflicts->day_of_week;
-            $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
-            $conflictMsg = sprintf(
-                "Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)",
-                optional($teacherConflicts->subject)->name ?? 'Subject',
-                $conflictLabel,
-                optional($teacherConflicts->start_time)?->format('g:i A') ?? $teacherConflicts->start_time,
-                optional($teacherConflicts->end_time)?->format('g:i A') ?? $teacherConflicts->end_time,
-                optional($teacherConflicts->class->section)->name ?? 'Class'
-            );
-            return back()->withInput()->with('error', $conflictMsg);
+            if ($classConflicts) {
+                $conflictDays = $classConflicts->day_of_week;
+                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
+                $conflictMsg = sprintf(
+                    "Schedule conflicts with existing class schedule: %s (%s) %s - %s",
+                    optional($classConflicts->subject)->name ?? 'Subject',
+                    $conflictLabel,
+                    optional($classConflicts->start_time)?->format('g:i A') ?? $classConflicts->start_time,
+                    optional($classConflicts->end_time)?->format('g:i A') ?? $classConflicts->end_time
+                );
+                return back()->withInput()->with('error', $conflictMsg);
+            }
+
+            // Check conflicts for the assigned teacher across any class
+            $teacherConflicts = Schedule::where('teacher_id', $assignedTeacherId)
+                ->where(function ($q) use ($days) {
+                    foreach ($days as $i => $day) {
+                        if ($i === 0) {
+                            $q->whereJsonContains('day_of_week', $day);
+                        } else {
+                            $q->orWhereJsonContains('day_of_week', $day);
+                        }
+                    }
+                })->where(function ($q) use ($start, $end) {
+                    $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
+                })->with('class.section', 'subject')->first();
+
+            if ($teacherConflicts) {
+                $conflictDays = $teacherConflicts->day_of_week;
+                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
+                $conflictMsg = sprintf(
+                    "Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)",
+                    optional($teacherConflicts->subject)->name ?? 'Subject',
+                    $conflictLabel,
+                    optional($teacherConflicts->start_time)?->format('g:i A') ?? $teacherConflicts->start_time,
+                    optional($teacherConflicts->end_time)?->format('g:i A') ?? $teacherConflicts->end_time,
+                    optional($teacherConflicts->class->section)->name ?? 'Class'
+                );
+                return back()->withInput()->with('error', $conflictMsg);
+            }
+
+            Schedule::create($validated);
+
+            return back()->with('success', 'Schedule entry saved.');
+        } catch (\Throwable $throwable) {
+            return back()->withInput()->with('error', 'Failed to save schedule: ' . $throwable->getMessage());
         }
-
-        Schedule::create($validated);
-
-        return back()->with('success', 'Schedule entry saved.');
     }
 
     /**
@@ -350,19 +357,21 @@ class ClassroomSectionController extends Controller
             'guardian_phone' => 'required|string|max:25',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
-
         try {
             // Optional: prevent over-capacity
             if ($class->enrollments()->count() >= $class->capacity) {
                 return back()->with('error', 'This class has reached its full capacity.');
             }
 
-            DB::transaction(function () use ($validated, $class) {
+            $plainPassword = "12345678";
+            $guardianUser = null;
+
+            DB::transaction(function () use ($validated, $class, $plainPassword, &$guardianUser) {
                 $guardianUser = User::create([
                     'first_name' => $validated['guardian_first_name'],
                     'last_name' => $validated['guardian_last_name'],
                     'email' => $validated['guardian_email'],
-                    'password' => Hash::make(Str::random(12)),
+                    'password' => Hash::make($plainPassword),
                     'role_id' => 3,
                 ]);
 
@@ -391,9 +400,12 @@ class ClassroomSectionController extends Controller
                     'teacher_id' => $class->teacher_id,
                     'status' => $validated['status'] ?? 'enrolled',
                 ]);
-
-                Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, $guardianUser->password));
             });
+
+            // Send email AFTER the DB transaction to avoid sending within a transaction
+            if ($guardianUser) {
+                Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+            }
         } catch (\Throwable $throwable) {
             return back()->with('error', 'Failed to add student: ' . $throwable->getMessage());
         }
@@ -406,78 +418,12 @@ class ClassroomSectionController extends Controller
      */
     public function destroyClass(Classes $class)
     {
-        $class->delete();
-        return redirect()->route('admin.sections.index')->with('success', 'Class deleted successfully.');
-    }
-
-    /**
-     * Enroll a brand-new student directly from the admin section UI.
-     */
-    public function addStudent(Request $request, Section $section)
-    {
-        $class = $this->findActiveClass($section);
-        if (!$class) {
-            return redirect()->route('admin.sections.index')
-                ->with('error', 'No active class found for this section in the current school year.');
-        }
-
-        $validated = $request->validate([
-            'student_id' => 'nullable|string|max:50|unique:students,student_id',
-            'lrn' => 'nullable|string|max:12|unique:students,lrn',
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'gender' => 'required|in:male,female',
-            'birthdate' => 'required|date',
-            'address' => 'nullable|string',
-            'status' => 'nullable|string|max:50',
-            'guardian_first_name' => 'required|string|max:255',
-            'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required|email|max:255|unique:users,email',
-            'guardian_phone' => 'required|string|max:25',
-            'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
-        ]);
-
         try {
-            DB::transaction(function () use ($validated, $class, $section) {
-                $guardianUser = User::create([
-                    'first_name' => $validated['guardian_first_name'],
-                    'last_name' => $validated['guardian_last_name'],
-                    'email' => $validated['guardian_email'],
-                    'password' => Hash::make(Str::random(12)),
-                    'role_id' => 3,
-                ]);
-
-                $guardian = Guardian::create([
-                    'user_id' => $guardianUser->id,
-                    'phone' => $validated['guardian_phone'],
-                    'relationship' => $validated['guardian_relationship'],
-                ]);
-
-                $student = Student::create([
-                    'student_id' => $validated['student_id'] ?? null,
-                    'lrn' => $validated['lrn'] ?? null,
-                    'first_name' => $validated['first_name'],
-                    'last_name' => $validated['last_name'],
-                    'gender' => $validated['gender'],
-                    'birthdate' => $validated['birthdate'],
-                    'address' => $validated['address'] ?? null,
-                    'guardian_id' => $guardian->id,
-                    'enrollment_date' => now(),
-                ]);
-
-                Enrollment::create([
-                    'student_id' => $student->id,
-                    'class_id' => $class->id,
-                    'school_year_id' => $class->school_year_id,
-                    'teacher_id' => $class->teacher_id,
-                    'status' => $validated['status'] ?? 'enrolled',
-                ]);
-            });
+            $class->delete();
+            return redirect()->route('admin.sections.index')->with('success', 'Class deleted successfully.');
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to add student: ' . $throwable->getMessage());
+            return back()->with('error', 'Failed to delete class: ' . $throwable->getMessage());
         }
-
-        return back()->with('success', 'Student enrolled successfully.');
     }
 
     /**
@@ -490,18 +436,21 @@ class ClassroomSectionController extends Controller
             return redirect()->route('admin.sections.index')
                 ->with('error', 'No active class found for this section in the current school year.');
         }
+        try {
+            $enrollment = Enrollment::where('class_id', $class->id)
+                ->where('student_id', $student->id)
+                ->where('school_year_id', $class->school_year_id)
+                ->first();
 
-        $enrollment = Enrollment::where('class_id', $class->id)
-            ->where('student_id', $student->id)
-            ->where('school_year_id', $class->school_year_id)
-            ->first();
+            if ($enrollment) {
+                $enrollment->delete();
+                return back()->with('success', 'Student removed from section.');
+            }
 
-        if ($enrollment) {
-            $enrollment->delete();
-            return back()->with('success', 'Student removed from section.');
+            return back()->with('error', 'Student is not enrolled in this section.');
+        } catch (\Throwable $throwable) {
+            return back()->with('error', 'Failed to remove student: ' . $throwable->getMessage());
         }
-
-        return back()->with('error', 'Student is not enrolled in this section.');
     }
 
     /**

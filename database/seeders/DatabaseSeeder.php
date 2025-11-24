@@ -70,7 +70,7 @@ class DatabaseSeeder extends Seeder
         $guardianUser = User::create([
             'first_name' => 'Kim',
             'last_name' => 'Lee',
-            'email' => 'guardian@gmail.com',
+            'email' => 'panetmo@gmail.com',
             'password' => Hash::make(12345678),
             'role_id' => 3,
         ]);

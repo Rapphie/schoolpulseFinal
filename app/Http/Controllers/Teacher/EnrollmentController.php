@@ -129,8 +129,9 @@ class EnrollmentController extends Controller
         $resolvedClass = $class && $class->exists ? $class : Classes::findOrFail($validated['class_id']);
 
         try {
+            $plainPassword = '12345678';
 
-            DB::transaction(function () use ($validated, $resolvedClass) {
+            DB::transaction(function () use ($validated, $plainPassword, $resolvedClass) {
                 $teacher = optional(Auth::user())->teacher;
                 if (!$teacher) {
                     throw new \RuntimeException('Teacher profile missing for the current user.');
@@ -140,7 +141,7 @@ class EnrollmentController extends Controller
                     'first_name' => $validated['guardian_first_name'],
                     'last_name' => $validated['guardian_last_name'],
                     'email' => $validated['guardian_email'],
-                    'password' => Hash::make(12345678),
+                    'password' => Hash::make($plainPassword),
                     'role_id' => 3,
                 ]);
 
@@ -170,7 +171,9 @@ class EnrollmentController extends Controller
                     'teacher_id' => $teacher->id, // Add this line
                     'status' => 'enrolled',
                 ]);
-                Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, $guardianUser->password));
+                if ($guardianUser) {
+                    Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+                }
             });
 
             return redirect()->back()->with('success', 'Student enrolled successfully.');
@@ -186,32 +189,35 @@ class EnrollmentController extends Controller
             'student_id' => 'required|exists:students,id',
             'class_id' => 'required|exists:classes,id',
         ]);
+        try {
+            $student = Student::findOrFail($request->student_id);
+            $class = Classes::findOrFail($request->class_id);
 
-        $student = Student::find($request->student_id);
-        $class = Classes::find($request->class_id);
+            // Check for an active school year
+            $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+            if (!$currentSchoolYear) {
+                return redirect()->route('teacher.enrollment.index')->with('error', 'No active school year found.');
+            }
 
-        // Check for an active school year
-        $currentSchoolYear = SchoolYear::where('is_active', true)->first();
-        if (!$currentSchoolYear) {
-            return redirect()->route('teacher.enrollment.index')->with('error', 'No active school year found.');
+            // Check if the student is already enrolled in the current school year
+            $isAlreadyEnrolled = $student->enrollments()->where('school_year_id', $currentSchoolYear->id)->exists();
+            if ($isAlreadyEnrolled) {
+                return redirect()->route('teacher.enrollment.index')->with('error', 'Student is already enrolled for the current school year.');
+            }
+
+            // Create the new enrollment record
+            Enrollment::create([
+                'student_id' => $student->id,
+                'class_id' => $class->id,
+                'school_year_id' => $currentSchoolYear->id,
+                'teacher_id' => Auth::user()->teacher->id,
+                'enrollment_date' => now(),
+            ]);
+
+            return redirect()->route('teacher.enrollment.index')->with('success', 'Student enrolled successfully!');
+        } catch (\Throwable $e) {
+            return redirect()->route('teacher.enrollment.index')->with('error', 'Failed to enroll student: ' . $e->getMessage());
         }
-
-        // Check if the student is already enrolled in the current school year
-        $isAlreadyEnrolled = $student->enrollments()->where('school_year_id', $currentSchoolYear->id)->exists();
-        if ($isAlreadyEnrolled) {
-            return redirect()->route('teacher.enrollment.index')->with('error', 'Student is already enrolled for the current school year.');
-        }
-
-        // Create the new enrollment record
-        Enrollment::create([
-            'student_id' => $student->id,
-            'class_id' => $class->id,
-            'school_year_id' => $currentSchoolYear->id,
-            'teacher_id' => Auth::user()->teacher->id, // Add this line
-            'enrollment_date' => now(),
-        ]);
-
-        return redirect()->route('teacher.enrollment.index')->with('success', 'Student enrolled successfully!');
     }
 
     /**
