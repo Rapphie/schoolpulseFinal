@@ -344,7 +344,27 @@
                 </div>
                 <form action="{{ route('teacher.enrollment.store', $class) }}" method="POST">
                     @csrf
+                    <input type="hidden" name="class_id" value="{{ $class->id }}">
                     <div class="modal-body">
+                        @if (session('error'))
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                {{ session('error') }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                            </div>
+                        @endif
+
+                        @if ($errors->any())
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <ul class="mb-0">
+                                    @foreach ($errors->all() as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"
+                                    aria-label="Close"></button>
+                            </div>
+                        @endif
                         <h6 class="mb-3 border-bottom pb-2">Student Information</h6>
                         <div class="row">
                             <div class="col-md-4 mb-3">
@@ -571,4 +591,22 @@
             })();
         </script>
     @endonce
+@endpush
+
+@push('scripts')
+    @if ($errors->any() || session('error'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    var modalEl = document.getElementById('enrollStudentModal');
+                    if (modalEl) {
+                        var modal = new bootstrap.Modal(modalEl);
+                        modal.show();
+                    }
+                } catch (e) {
+                    console.warn('Could not show enroll modal automatically:', e);
+                }
+            });
+        </script>
+    @endif
 @endpush
