@@ -890,10 +890,32 @@ class TeacherDashboardController extends Controller
 
         if ($consecutiveAbsences >= 3) {
             // Check if an email has been sent recently for this student to avoid spamming
-            $lastSent = cache('absent_alert_sent_' . $studentId);
+            $cacheKey = 'absent_alert_sent_' . $studentId;
+            $lastSent = cache($cacheKey);
             if (!$lastSent || now()->diffInHours($lastSent) >= 24) {
-                Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
-                cache(['absent_alert_sent_' . $studentId => now()], now()->addHours(24));
+                try {
+                    // Send to teacher first (if available)
+                    if ($teacher && $teacher->user && !empty($teacher->user->email)) {
+                        Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
+                    }
+
+                    // Also send a copy to the guardian if present and has an email
+                    $guardian = $student->guardian ?? null;
+                    $guardianUser = $guardian?->user;
+                    if ($guardianUser && !empty($guardianUser->email)) {
+                        $guardianEmail = $guardianUser->email;
+                        $teacherEmail = $teacher->user->email ?? null;
+                        // avoid duplicate send if guardian and teacher share the same email
+                        if ($guardianEmail !== $teacherEmail) {
+                            Mail::to($guardianEmail)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
+                        }
+                    }
+                } catch (Throwable $e) {
+                    Log::error('Error sending absent alert: ' . $e->getMessage(), ['student_id' => $studentId, 'exception' => $e]);
+                }
+
+                // Set cache to avoid re-sending within 24 hours
+                cache([$cacheKey => now()], now()->addHours(24));
             }
         }
     }
