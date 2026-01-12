@@ -47,7 +47,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
             $table->string('phone')->nullable();
-            $table->enum('gender', ['male', 'female', 'other'])->nullable();
+            $table->enum('gender', ['male', 'female', 'other']);
             $table->date('date_of_birth')->nullable();
             $table->text('address')->nullable();
             $table->string('qualification')->nullable();
@@ -144,6 +144,8 @@ return new class extends Migration
             $table->enum('gender', ['male', 'female'])->nullable();
             $table->date('birthdate')->nullable();
             $table->text('address')->nullable();
+            $table->string('family_income')->nullable();
+            $table->string('parent_education')->nullable();
             $table->unsignedBigInteger('guardian_id')->nullable();
             $table->date('enrollment_date')->default(now());
             $table->timestamps();
