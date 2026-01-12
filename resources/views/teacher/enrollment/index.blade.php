@@ -54,7 +54,7 @@
                             </div>
                         </div>
 
-                        <div id="enrollment-form-fields" class="d-none">
+                        <div id="enrollment-form-fields" class="{{ old('class_id') ? '' : 'd-none' }}">
                             <h6 class="mt-4 mb-3 border-bottom pb-2">Student Information</h6>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -96,6 +96,52 @@
                                 <textarea class="form-control" id="address" name="address" rows="2">{{ old('address') }}</textarea>
                             </div>
 
+                            <h6 class="mt-4 mb-3 border-bottom pb-2">Additional Information (For Analytics)</h6>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="distance_km" class="form-label">Distance from School (km)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control"
+                                        id="distance_km" name="distance_km" value="{{ old('distance_km') }}"
+                                        placeholder="e.g., 2.5">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="transportation" class="form-label">Mode of Transportation</label>
+                                    <select class="form-select" id="transportation" name="transportation">
+                                        <option value="" {{ old('transportation') == '' ? 'selected' : '' }}>--
+                                            Select --</option>
+                                        <option value="Walk" {{ old('transportation') == 'Walk' ? 'selected' : '' }}>
+                                            Walk</option>
+                                        <option value="Bicycle"
+                                            {{ old('transportation') == 'Bicycle' ? 'selected' : '' }}>Bicycle</option>
+                                        <option value="Motorcycle"
+                                            {{ old('transportation') == 'Motorcycle' ? 'selected' : '' }}>Motorcycle
+                                        </option>
+                                        <option value="Tricycle"
+                                            {{ old('transportation') == 'Tricycle' ? 'selected' : '' }}>Tricycle</option>
+                                        <option value="Jeepney"
+                                            {{ old('transportation') == 'Jeepney' ? 'selected' : '' }}>Jeepney</option>
+                                        <option value="Bus" {{ old('transportation') == 'Bus' ? 'selected' : '' }}>Bus
+                                        </option>
+                                        <option value="Private Vehicle"
+                                            {{ old('transportation') == 'Private Vehicle' ? 'selected' : '' }}>Private
+                                            Vehicle</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="family_income" class="form-label">Socioeconomic Status</label>
+                                    <select class="form-select" id="family_income" name="family_income">
+                                        <option value="" {{ old('family_income') == '' ? 'selected' : '' }}>--
+                                            Select --</option>
+                                        <option value="Low" {{ old('family_income') == 'Low' ? 'selected' : '' }}>Low
+                                        </option>
+                                        <option value="Medium" {{ old('family_income') == 'Medium' ? 'selected' : '' }}>
+                                            Medium</option>
+                                        <option value="High" {{ old('family_income') == 'High' ? 'selected' : '' }}>High
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <h6 class="mt-4 mb-3 border-bottom pb-2">Guardian Information</h6>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -126,9 +172,8 @@
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label for="guardian_relationship" class="form-label">Relationship to Student
-                                    <span
-                                        ="text-danger">*</span></label>
+                                <label for="guardian_relationship" class="form-label">Relationship to Student <span
+                                        class="text-danger">*</span></label>
                                 <select class="form-select" id="guardian_relationship" name="guardian_relationship"
                                     required>
                                     <option value="parent">Parent</option>
@@ -222,7 +267,7 @@
         aria-hidden="true">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
-                <div class="modal-header d-flex justify-between">
+                <div class="modal-header d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="modal-title" id="enrollmentModalLabel">My Enrollments</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

@@ -184,11 +184,20 @@
                     </div>
                     <hr>
                     <div class="mt-2">
-                        <h6 class="font-weight-bold">Recent Activities</h6>
-                        <div class="list-group list-group-flush">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="font-weight-bold mb-0">Recent Activities</h6>
+                            <select class="form-select form-select-sm" id="activityFilter" style="width: auto;">
+                                <option value="all">All Activities</option>
+                                <option value="grade">Grades</option>
+                                <option value="attendance">Attendance</option>
+                                <option value="enrollment">Enrollment</option>
+                            </select>
+                        </div>
+                        <div class="list-group list-group-flush" id="activitiesList">
                             @if (isset($recentActivities) && count($recentActivities) > 0)
                                 @foreach ($recentActivities as $activity)
-                                    <div class="list-group-item list-group-item-action border-0 px-0">
+                                    <div class="list-group-item list-group-item-action border-0 px-0 activity-item"
+                                        data-type="{{ $activity->type ?? 'other' }}">
                                         <div class="d-flex w-100 justify-content-between">
                                             <h6 class="mb-1">{{ $activity->title ?? 'Activity' }}</h6>
                                             <small>{{ isset($activity->created_at) ? $activity->created_at->diffForHumans() : 'Recently' }}</small>
@@ -450,6 +459,41 @@
                         $(this).addClass('today');
                     }
                 });
+
+                // Activity filter functionality
+                const activityFilter = document.getElementById('activityFilter');
+                if (activityFilter) {
+                    activityFilter.addEventListener('change', function() {
+                        const filterValue = this.value;
+                        const activityItems = document.querySelectorAll('.activity-item');
+
+                        activityItems.forEach(function(item) {
+                            const itemType = item.getAttribute('data-type') || 'other';
+                            if (filterValue === 'all' || itemType === filterValue) {
+                                item.style.display = 'block';
+                            } else {
+                                item.style.display = 'none';
+                            }
+                        });
+
+                        // Show message if no activities match filter
+                        const visibleItems = document.querySelectorAll(
+                        '.activity-item[style="display: block"]');
+                        const activitiesList = document.getElementById('activitiesList');
+                        let noResultsMsg = activitiesList.querySelector('.no-filter-results');
+
+                        if (visibleItems.length === 0 && activityItems.length > 0) {
+                            if (!noResultsMsg) {
+                                noResultsMsg = document.createElement('p');
+                                noResultsMsg.className = 'text-center text-muted my-3 no-filter-results';
+                                noResultsMsg.textContent = 'No activities found for this filter.';
+                                activitiesList.appendChild(noResultsMsg);
+                            }
+                        } else if (noResultsMsg) {
+                            noResultsMsg.remove();
+                        }
+                    });
+                }
             });
         </script>
     @endpush

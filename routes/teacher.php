@@ -66,6 +66,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         Route::get('/students', [TeacherDashboardController::class, 'students'])->name('students');
         Route::get('/grades', [TeacherDashboardController::class, 'grades'])->name('grades');
         Route::get('/grades/{class}', [TeacherDashboardController::class, 'showGrades'])->name('grades.show');
+        Route::get('/grades/{class}/student/{student}', [TeacherDashboardController::class, 'studentGrades'])->name('grades.student');
 
         // Section & Subject Queries
         Route::get('/sections-by-grade-level', [TeacherSectionsController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');

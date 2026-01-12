@@ -34,9 +34,13 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
 
         // Class Management
         Route::post('/classes/{class}/assign-adviser', [ClassroomSectionController::class, 'assignClassAdviser'])->name('sections.adviser.assign');
+        Route::delete('/classes/{class}/remove-adviser', [ClassroomSectionController::class, 'removeClassAdviser'])->name('sections.adviser.remove');
+        Route::put('/classes/{class}/update-capacity', [ClassroomSectionController::class, 'updateCapacity'])->name('sections.capacity.update');
         Route::post('/classes/{class}/store-schedule', [ClassroomSectionController::class, 'storeSchedule'])->name('sections.schedule.store');
         // Use the admin ClassroomSectionController to handle enrollments created from the admin class view
         Route::post('/classes/{class}/enroll', [ClassroomSectionController::class, 'enrollStudent'])->name('enrollment.store');
+        Route::get('/students/{student}', [ClassroomSectionController::class, 'showStudent'])->name('students.show');
+        Route::put('/students/{student}', [ClassroomSectionController::class, 'updateStudent'])->name('students.update');
 
         // Settings
         Route::get('settings', [SettingController::class, 'index'])->name('settings.index');
@@ -79,6 +83,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
             Route::get('/', [TeacherController::class, 'index'])->name('index');
             Route::get('/create', [TeacherController::class, 'create'])->name('create');
             Route::post('/', [TeacherController::class, 'store'])->name('store');
+            Route::get('/{teacher}', [TeacherController::class, 'show'])->name('show');
             Route::get('/{teacher}/edit', [TeacherController::class, 'edit'])->name('edit');
             Route::put('/{teacher}', [TeacherController::class, 'update'])->name('update');
             Route::delete('/{teacher}', [TeacherController::class, 'destroy'])->name('destroy');
@@ -93,9 +98,18 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         // Reports
         Route::prefix('reports')->name('reports.')->group(function () {
             Route::get('enrollees', [AdminReportController::class, 'enrollees'])->name('enrollees');
+            Route::get('enrollees/detail/{type}', [AdminReportController::class, 'enrolleesDetail'])
+                ->name('enrollees.detail')
+                ->where('type', 'students|sections|average|largest');
             // Route::get('attendance', [AdminReportController::class, 'attendance'])->name('attendance');
             Route::get('attendance', [AdminReportController::class, 'attendanceReport'])->name('attendance');
+            Route::get('attendance/detail/{type}', [AdminReportController::class, 'attendanceDetail'])
+                ->name('attendance.detail')
+                ->where('type', 'records|present|absent|late');
             Route::get('grades', [AdminReportController::class, 'grades'])->name('grades');
+            Route::get('grades/detail/{type}', [AdminReportController::class, 'gradesDetail'])
+                ->name('grades.detail')
+                ->where('type', 'records|passing|highest|average');
             Route::get('least-learned', [AdminReportController::class, 'leastLearned'])->name('least-learned');
             Route::get('cumulative', [AdminReportController::class, 'cumulative'])->name('cumulative');
 
@@ -104,6 +118,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
                 Route::get('enrollees/export', [AdminReportController::class, 'exportEnrollees'])->name('enrollees');
                 Route::get('attendance', [AdminReportController::class, 'exportAttendance'])->name('attendance');
                 Route::get('grades', [AdminReportController::class, 'exportGrades'])->name('grades');
+                Route::get('cumulative', [AdminReportController::class, 'exportCumulative'])->name('cumulative');
             });
         });
     });

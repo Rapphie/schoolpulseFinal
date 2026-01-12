@@ -116,7 +116,8 @@
                         @foreach ($category['items'] as $item)
                             <span class="badge bg-light text-dark item-mastery-pill me-2 mb-2">Item
                                 {{ $item['item_number'] }} · {{ $item['students_wrong'] }} wrong
-                                ({{ number_format($item['mastery_rate'], 1) }}% mastery)</span>
+                                ({{ number_format($item['mastery_rate'], 1) }}% mastery)
+                            </span>
                         @endforeach
                     </div>
                     <div class="alert {{ $avgWrong > 50 ? 'alert-danger' : 'alert-success' }} mb-0">
@@ -132,7 +133,6 @@
 @endsection
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const ctx = document.getElementById('categoryMasteryChart');

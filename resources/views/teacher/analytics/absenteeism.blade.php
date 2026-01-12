@@ -2,7 +2,218 @@
 
 @section('title', 'Absenteeism Analytics')
 
+@push('styles')
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
+    <style>
+        .risk-high {
+            background-color: #f8d7da !important;
+        }
+
+        .risk-medium {
+            background-color: #fff3cd !important;
+        }
+
+        .risk-low {
+            background-color: #d1e7dd !important;
+        }
+
+        .status-badge {
+            font-size: 0.85rem;
+            padding: 0.4em 0.8em;
+        }
+
+        .table-info-text {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        /* Progress bar styling */
+        .metric-bar {
+            height: 8px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+            overflow: hidden;
+            min-width: 60px;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .metric-cell {
+            min-width: 100px;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6c757d;
+        }
+
+        /* Color coding for metrics */
+        .metric-excellent {
+            color: #198754;
+        }
+
+        .metric-good {
+            color: #20c997;
+        }
+
+        .metric-fair {
+            color: #ffc107;
+        }
+
+        .metric-poor {
+            color: #dc3545;
+        }
+
+        .bar-excellent {
+            background-color: #198754;
+        }
+
+        .bar-good {
+            background-color: #20c997;
+        }
+
+        .bar-fair {
+            background-color: #ffc107;
+        }
+
+        .bar-poor {
+            background-color: #dc3545;
+        }
+
+        /* Student insights badges */
+        .insight-badge {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.75rem;
+            font-weight: 500;
+            border-radius: 0.375rem;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .insight-strength {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .insight-weakness {
+            background-color: #f8d7da;
+            color: #842029;
+        }
+
+        .insight-balanced {
+            background-color: #e2e3e5;
+            color: #41464b;
+        }
+
+        /* Engagement score styling */
+        .engagement-score {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .engagement-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: white;
+        }
+
+        .engagement-high {
+            background: linear-gradient(135deg, #198754, #20c997);
+        }
+
+        .engagement-medium {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+        }
+
+        .engagement-low {
+            background: linear-gradient(135deg, #dc3545, #e35d6a);
+        }
+
+        /* Hide default DataTables search since we have custom one */
+        .dataTables_filter {
+            display: none;
+        }
+
+        /* DataTables styling improvements */
+        .dataTables_wrapper .dataTables_length select {
+            padding: 0.25rem 0.5rem;
+        }
+
+        .dataTables_wrapper .dataTables_info {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        .dataTables_wrapper .dataTables_paginate .paginate_button {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.85rem;
+        }
+    </style>
+@endpush
+
 @section('content')
+    <!-- Filters Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label for="gradeSelector" class="form-label">Grade Level</label>
+                            <select id="gradeSelector" class="form-select">
+                                <option value="">All Grade Levels</option>
+                                @foreach ($gradeLevels as $grade)
+                                    <option value="{{ $grade['id'] }}"
+                                        {{ (int) $selectedGradeLevelId === (int) $grade['id'] ? 'selected' : '' }}>
+                                        {{ $grade['label'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="classSelector" class="form-label">Class/Section</label>
+                            <select id="classSelector" class="form-select" {{ empty($classesForSelect) ? 'disabled' : '' }}>
+                                <option value="">
+                                    {{ empty($classesForSelect) ? 'Select grade level first' : 'All Classes in Grade' }}
+                                </option>
+                                @foreach ($classesForSelect as $class)
+                                    <option value="{{ $class['id'] }}"
+                                        {{ (int) $selectedClassId === (int) $class['id'] ? 'selected' : '' }}>
+                                        {{ $class['label'] }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="classSearch" class="form-label">Search Student</label>
+                            <input type="text" id="classSearch" class="form-control" placeholder="Search by name...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ML Feature Tables Section -->
     @if (isset($featureTables) && $featureTables)
@@ -39,7 +250,7 @@
                                 <button class="nav-link" id="table2-tab" data-bs-toggle="tab"
                                     data-bs-target="#table2-content" type="button" role="tab"
                                     aria-controls="table2-content" aria-selected="false">
-                                    Student Insights
+                                    Student 
                                 </button>
                             </li>
                         </ul>
@@ -52,12 +263,10 @@
                                 <p class="text-muted small mb-3">Focus first on students marked as High risk.</p>
                                 @if (!empty($featureTables['table1']['data']))
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover align-middle">
+                                        <table class="table table-sm table-hover align-middle" id="riskTable1">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
-                                                    <th class="text-center" style="width: 120px;">Attendance</th>
-                                                    <th class="text-center" style="width: 120px;">Performance</th>
                                                     <th class="text-center" style="width: 150px;">Risk Level</th>
                                                 </tr>
                                             </thead>
@@ -66,29 +275,18 @@
                                                     @php
                                                         $riskLabel = $row['Risk_Label'] ?? 'N/A';
                                                         $riskPct = $row['Prob_HighRisk_pct'] ?? 0;
-                                                        $att = $row['Att_Current'] ?? 0;
-                                                        $perf = $row['Perf_Current'] ?? 0;
+                                                        $riskText = $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
+                                                        $riskBadge = match ($riskLabel) {
+                                                            'High' => 'bg-danger',
+                                                            'Mid' => 'bg-warning',
+                                                            default => 'bg-success',
+                                                        };
                                                     @endphp
                                                     <tr>
                                                         <td>
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
                                                         <td class="text-center">
-                                                            {{ number_format($att, 0) }}%
-                                                        </td>
-                                                        <td class="text-center">
-                                                            {{ number_format($perf, 0) }}%
-                                                        </td>
-                                                        <td class="text-center">
-                                                            @php
-                                                                $riskText =
-                                                                    $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
-                                                                $riskBadge = match ($riskLabel) {
-                                                                    'High' => 'bg-danger',
-                                                                    'Mid' => 'bg-warning',
-                                                                    default => 'bg-success',
-                                                                };
-                                                            @endphp
                                                             <span class="badge {{ $riskBadge }} text-white">
                                                                 {{ $riskText }} ({{ number_format($riskPct, 0) }}%)
                                                             </span>
@@ -108,16 +306,15 @@
 
                             <!-- Table 3: Next Month Forecast -->
                             <div class="tab-pane fade" id="table3-content" role="tabpanel" aria-labelledby="table3-tab">
-                                <p class="text-muted small mb-3">Forecast to plan interventions early.</p>
+                                <p class="text-muted small mb-3">Forecast to plan interventions early. Trends are
+                                    calculated from the last 3 months.</p>
                                 @if (!empty($featureTables['table3']['data']))
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover align-middle">
+                                        <table class="table table-sm table-hover align-middle" id="riskTable3">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
-                                                    <th class="text-center" style="width: 100px;">Attendance Trend</th>
-                                                    <th class="text-center" style="width: 100px;">Performance Trend</th>
-                                                    <th class="text-center" style="width: 150px;">Next Month Risk</th>
+                                                    <th class="text-center" style="width: 150px;">Predicted Risk</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -125,29 +322,18 @@
                                                     @php
                                                         $riskLabel = $row['Risk_Label'] ?? 'N/A';
                                                         $riskPct = $row['Prob_HighRisk_pct'] ?? 0;
-                                                        $wAtt = $row['Weighted_Attendance'] ?? 0;
-                                                        $wPerf = $row['Weighted_Performance'] ?? 0;
+                                                        $riskText = $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
+                                                        $riskBadge = match ($riskLabel) {
+                                                            'High' => 'bg-danger',
+                                                            'Mid' => 'bg-warning',
+                                                            default => 'bg-success',
+                                                        };
                                                     @endphp
                                                     <tr>
                                                         <td>
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
                                                         <td class="text-center">
-                                                            {{ number_format($wAtt, 0) }}%
-                                                        </td>
-                                                        <td class="text-center">
-                                                            {{ number_format($wPerf, 0) }}%
-                                                        </td>
-                                                        <td class="text-center">
-                                                            @php
-                                                                $riskText =
-                                                                    $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
-                                                                $riskBadge = match ($riskLabel) {
-                                                                    'High' => 'bg-danger',
-                                                                    'Mid' => 'bg-warning',
-                                                                    default => 'bg-success',
-                                                                };
-                                                            @endphp
                                                             <span class="badge {{ $riskBadge }} text-white">
                                                                 {{ $riskText }} ({{ number_format($riskPct, 0) }}%)
                                                             </span>
@@ -167,33 +353,81 @@
 
                             <!-- Table 2: Student Insights -->
                             <div class="tab-pane fade" id="table2-content" role="tabpanel" aria-labelledby="table2-tab">
-                                <p class="text-muted small mb-3">Quick notes to guide student support.</p>
+                                <p class="text-muted small mb-3">Student engagement overview with academic strengths and
+                                    areas for improvement.</p>
                                 @if (!empty($featureTables['table2']['data']))
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover align-middle">
+                                        <table class="table table-sm table-hover align-middle" id="insightsTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
-                                                    <th class="text-center" style="width: 120px;">Engagement</th>
-                                                    <th>Strength</th>
-                                                    <th>Needs Improvement</th>
+                                                    <th class="text-center" style="width: 140px;">Oral Participation</th>
+                                                    <th style="width: 250px;">Strongest Subject</th>
+                                                    <th style="width: 250px;">Needs Improvement</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @foreach ($featureTables['table2']['data'] as $row)
-                                                    @php $eng = $row['EngagementScore'] ?? 0; @endphp
+                                                    @php
+                                                        $eng = $row['EngagementScore'] ?? 0;
+                                                        $engClass =
+                                                            $eng >= 80 ? 'high' : ($eng >= 60 ? 'medium' : 'low');
+                                                        $engLabel =
+                                                            $eng >= 80 ? 'High' : ($eng >= 60 ? 'Moderate' : 'Low');
+
+                                                        $strength = $row['Strength'] ?? '—';
+                                                        $weakness = $row['Weakness'] ?? '—';
+
+                                                        // Parse strength/weakness to extract subject and score type
+                                                        $isBalancedStrength =
+                                                            strtolower($strength) === 'balanced' || $strength === 'N/A';
+                                                        $isBalancedWeakness =
+                                                            strtolower($weakness) === 'balanced' || $weakness === 'N/A';
+                                                    @endphp
                                                     <tr>
                                                         <td>
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
-                                                        <td class="text-center">
-                                                            {{ number_format($eng, 0) }}%
+                                                        <td>
+                                                            <div class="engagement-score justify-content-center">
+                                                                <div
+                                                                    class="engagement-circle engagement-{{ $engClass }}">
+                                                                    {{ number_format($eng, 0) }}
+                                                                </div>
+                                                                <div class="d-flex flex-column">
+                                                                    <span class="fw-semibold"
+                                                                        style="font-size: 0.85rem;">{{ $engLabel }}</span>
+                                                                    <span class="text-muted"
+                                                                        style="font-size: 0.7rem;">Engagement</span>
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td>
-                                                            {{ $row['Strength'] ?? '—' }}
+                                                            @if ($isBalancedStrength)
+                                                                <span class="insight-badge insight-balanced">
+                                                                    <i class="fas fa-balance-scale me-1"></i> Balanced
+                                                                    across subjects
+                                                                </span>
+                                                            @else
+                                                                <span class="insight-badge insight-strength"
+                                                                    title="{{ $strength }}">
+                                                                    <i class="fas fa-star me-1"></i> {{ $strength }}
+                                                                </span>
+                                                            @endif
                                                         </td>
                                                         <td>
-                                                            {{ $row['Weakness'] ?? '—' }}
+                                                            @if ($isBalancedWeakness)
+                                                                <span class="insight-badge insight-balanced">
+                                                                    <i class="fas fa-balance-scale me-1"></i> No
+                                                                    significant gaps
+                                                                </span>
+                                                            @else
+                                                                <span class="insight-badge insight-weakness"
+                                                                    title="{{ $weakness }}">
+                                                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                                                    {{ $weakness }}
+                                                                </span>
+                                                            @endif
                                                         </td>
                                                     </tr>
                                                 @endforeach
@@ -222,96 +456,136 @@
             </div>
         </div>
     @endif
-    </div>
 @endsection
 
 @push('scripts')
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            // 1. Monthly Attendance Trend Chart
-            const monthlyTrendData = @json($monthlyTrend);
-            const monthlyTrendOptions = {
-                series: [{
-                    name: 'Attendance Rate',
-                    data: Object.values(monthlyTrendData)
-                }],
-                chart: {
-                    height: 350,
-                    type: 'area',
-                    toolbar: {
-                        show: false
-                    }
-                },
-                dataLabels: {
-                    enabled: false
-                },
-                stroke: {
-                    curve: 'smooth'
-                },
-                xaxis: {
-                    type: 'category',
-                    categories: Object.keys(monthlyTrendData)
-                },
-                yaxis: {
-                    min: 0,
-                    max: 100,
-                    labels: {
-                        formatter: function(val) {
-                            return val.toFixed(0) + "%";
-                        }
-                    }
-                },
-                tooltip: {
-                    y: {
-                        formatter: function(val) {
-                            return val.toFixed(2) + "%"
-                        }
+            // DataTables configuration
+            const dataTableOptions = {
+                paging: true,
+                pageLength: 10,
+                lengthMenu: [
+                    [10, 25, 50, -1],
+                    [10, 25, 50, "All"]
+                ],
+                ordering: true,
+                info: true,
+                autoWidth: false,
+                language: {
+                    emptyTable: "No student data available",
+                    info: "Showing _START_ to _END_ of _TOTAL_ students",
+                    infoEmpty: "No students to show",
+                    infoFiltered: "(filtered from _MAX_ total students)",
+                    lengthMenu: "Show _MENU_ students",
+                    paginate: {
+                        first: "First",
+                        last: "Last",
+                        next: "Next",
+                        previous: "Previous"
                     }
                 }
             };
-            const monthlyTrendChart = new ApexCharts(document.querySelector("#monthlyTrendChart"),
-                monthlyTrendOptions);
-            monthlyTrendChart.render();
 
+            // Initialize DataTables for each table
+            let table1, table2, table3;
 
-            // 2. Absences by Subject Chart
-            const subjectAbsenceData = @json($absencesBySubject);
-            const subjectAbsenceOptions = {
-                series: Object.values(subjectAbsenceData),
-                chart: {
-                    height: 350,
-                    type: 'donut',
-                },
-                labels: Object.keys(subjectAbsenceData),
-                responsive: [{
-                    breakpoint: 480,
-                    options: {
-                        chart: {
-                            width: 200
+            // Table 1: Current Month Risk - sort by risk (column 1) descending
+            if (document.getElementById('riskTable1')) {
+                table1 = $('#riskTable1').DataTable({
+                    ...dataTableOptions,
+                    order: [
+                        [1, 'desc']
+                    ], // Sort by Risk Level descending (now column 1)
+                    columnDefs: [{
+                            orderable: true,
+                            targets: [0, 1]
                         },
-                        legend: {
-                            position: 'bottom'
+                        {
+                            // Extract numeric percent from the badge for sorting
+                            type: 'num',
+                            targets: [1],
+                            render: function(data, type, row) {
+                                if (type === 'sort' || type === 'type') {
+                                    const match = $(data).text().match(/(\d+)/);
+                                    return match ? parseInt(match[1]) : 0;
+                                }
+                                return data;
+                            }
                         }
-                    }
-                }]
-            };
-            const subjectAbsenceChart = new ApexCharts(document.querySelector("#subjectAbsenceChart"),
-                subjectAbsenceOptions);
-            subjectAbsenceChart.render();
+                    ]
+                });
+            }
 
-            // 3. Grade/Class selector and search filter
+            // Table 3: Next Month Forecast - sort by predicted risk descending
+            if (document.getElementById('riskTable3')) {
+                table3 = $('#riskTable3').DataTable({
+                    ...dataTableOptions,
+                    order: [
+                        [1, 'desc']
+                    ], // Sort by Predicted Risk descending (now column 1)
+                    columnDefs: [{
+                            orderable: true,
+                            targets: [0, 1]
+                        },
+                        {
+                            // Extract numeric percent from the badge for sorting
+                            type: 'num',
+                            targets: [1],
+                            render: function(data, type, row) {
+                                if (type === 'sort' || type === 'type') {
+                                    const match = $(data).text().match(/(\d+)/);
+                                    return match ? parseInt(match[1]) : 0;
+                                }
+                                return data;
+                            }
+                        }
+                    ]
+                });
+            }
+
+            // Table 2: Student Insights - sort by engagement score descending
+            if (document.getElementById('insightsTable')) {
+                table2 = $('#insightsTable').DataTable({
+                    ...dataTableOptions,
+                    order: [
+                        [1, 'desc']
+                    ], // Sort by Engagement Score descending
+                    columnDefs: [{
+                            orderable: true,
+                            targets: [0, 1]
+                        },
+                        {
+                            orderable: false,
+                            targets: [2, 3]
+                        }, // Don't sort by strength/weakness
+                        {
+                            type: 'num',
+                            targets: [1],
+                            render: function(data, type, row) {
+                                if (type === 'sort' || type === 'type') {
+                                    const match = $(data).find('.engagement-circle').text().match(
+                                        /(\d+)/);
+                                    return match ? parseInt(match[1]) : 0;
+                                }
+                                return data;
+                            }
+                        }
+                    ]
+                });
+            }
+
+            // Grade/Class selector and search filter
             const gradeSelector = document.getElementById('gradeSelector');
             const classSelector = document.getElementById('classSelector');
             const searchInput = document.getElementById('classSearch');
-            const panels = document.querySelectorAll('.class-panel');
-            const classesEndpoint = "{{ route('teacher.analytics.classes-by-grade') }}";
-            const initialClassOptions = @json($classesForSelect ?? []);
-            const initialSelectedClassId = @json($selectedClassId);
+            const classesEndpoint = "{{ route('analytics.classes-by-grade') }}";
 
             function populateClassOptions(options, selectedId = null) {
                 if (!classSelector) return;
                 const safeOptions = Array.isArray(options) ? options : [];
                 classSelector.innerHTML = '';
+
                 const defaultOption = document.createElement('option');
                 defaultOption.value = '';
                 defaultOption.textContent = safeOptions.length ? 'All Classes in Grade' :
@@ -325,10 +599,13 @@
                     classSelector.appendChild(optionEl);
                 });
 
-                classSelector.value = selectedId ? String(selectedId) : '';
+                if (selectedId) {
+                    classSelector.value = String(selectedId);
+                }
+                classSelector.disabled = safeOptions.length === 0;
             }
 
-            function updateUrlParams(gradeId, classId) {
+            function navigateWithFilters(gradeId, classId) {
                 const url = new URL(window.location.href);
                 if (gradeId) {
                     url.searchParams.set('grade_level_id', gradeId);
@@ -340,56 +617,64 @@
                 } else {
                     url.searchParams.delete('class_id');
                 }
-                window.history.replaceState({}, '', url);
+                window.location.href = url.toString();
             }
 
-            function applyClassFilter() {
-                const selectedGrade = gradeSelector ? gradeSelector.value : '';
-                const selectedClass = classSelector ? classSelector.value : '';
-                panels.forEach(panel => {
-                    const panelGrade = panel.getAttribute('data-grade-id') || '';
-                    const panelClass = panel.getAttribute('data-class-id') || '';
-                    const gradeMatch = !selectedGrade || selectedGrade === panelGrade;
-                    const classMatch = !selectedClass || selectedClass === panelClass;
-                    panel.style.display = gradeMatch && classMatch ? '' : 'none';
-                });
-                if (searchInput) searchInput.value = '';
-                applySearchFilter();
-                updateUrlParams(selectedGrade, selectedClass);
-            }
-
+            // Custom search that works with DataTables
             function applySearchFilter() {
-                const term = (searchInput ? searchInput.value : '').toLowerCase();
-                panels.forEach(panel => {
-                    if (panel.style.display === 'none') return;
-                    panel.querySelectorAll('tbody tr').forEach(tr => {
-                        const name = (tr.querySelector('.student-name')?.textContent || '')
-                            .toLowerCase();
-                        const lrn = (tr.querySelector('.student-lrn')?.textContent || '')
-                            .toLowerCase();
-                        const match = !term || name.includes(term) || lrn.includes(term);
-                        tr.style.display = match ? '' : 'none';
-                    });
-                });
+                const term = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+                // Apply search to all DataTables
+                if (table1) table1.search(term).draw();
+                if (table2) table2.search(term).draw();
+                if (table3) table3.search(term).draw();
             }
 
             function loadClassesForGrade(gradeId) {
                 if (!classSelector) return;
-                classSelector.disabled = true;
-                populateClassOptions([]);
 
                 if (!gradeId) {
+                    populateClassOptions([]);
                     return;
                 }
 
-                fetch(`${classesEndpoint}?grade_level_id=${encodeURIComponent(gradeId)}`)
-                    .then(response => response.json())
+                classSelector.disabled = true;
+                classSelector.innerHTML = '<option value="">Loading...</option>';
+
+                const url = `${classesEndpoint}?grade_level_id=${encodeURIComponent(gradeId)}`;
+                console.log('Fetching classes from:', url);
+
+                // Get CSRF token from meta tag
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrfToken || ''
+                        },
+                        credentials: 'same-origin'
+                    })
+                    .then(response => {
+                        console.log('Response status:', response.status);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
+                        console.log('Classes data received:', data);
                         const options = data.classes || [];
                         populateClassOptions(options);
-                        classSelector.disabled = options.length === 0;
+                        // Always enable if we got a valid response, even if empty
+                        // (user should be able to select "All Classes in Grade")
+                        if (options.length > 0) {
+                            classSelector.disabled = false;
+                        }
                     })
-                    .catch(() => {
+                    .catch(error => {
+                        console.error('Error fetching classes:', error);
                         populateClassOptions([]);
                     });
             }
@@ -397,36 +682,44 @@
             if (gradeSelector) {
                 gradeSelector.addEventListener('change', () => {
                     const gradeId = gradeSelector.value;
-                    if (classSelector) {
-                        classSelector.value = '';
-                    }
-                    updateUrlParams(gradeId, '');
+                    // Load sections for this grade (don't navigate yet - let user pick a section)
                     loadClassesForGrade(gradeId);
-                    applyClassFilter();
+
+                    // Update URL without navigating (for bookmarking purposes)
+                    const url = new URL(window.location.href);
+                    if (gradeId) {
+                        url.searchParams.set('grade_level_id', gradeId);
+                    } else {
+                        url.searchParams.delete('grade_level_id');
+                    }
+                    url.searchParams.delete('class_id');
+                    window.history.replaceState({}, '', url.toString());
                 });
             }
 
             if (classSelector) {
                 classSelector.addEventListener('change', () => {
-                    applyClassFilter();
+                    const gradeId = gradeSelector ? gradeSelector.value : '';
+                    const classId = classSelector.value;
+                    // Navigate to reload data with the selected class filter
+                    navigateWithFilters(gradeId, classId);
                 });
             }
 
             if (searchInput) {
-                searchInput.addEventListener('keyup', applySearchFilter);
+                // Use debounce for better performance
+                let searchTimeout;
+                searchInput.addEventListener('keyup', () => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(applySearchFilter, 300);
+                });
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(applySearchFilter, 300);
+                });
             }
 
-            if (classSelector) {
-                if (gradeSelector && gradeSelector.value) {
-                    populateClassOptions(initialClassOptions, initialSelectedClassId);
-                    classSelector.disabled = initialClassOptions.length === 0;
-                } else {
-                    populateClassOptions([]);
-                    classSelector.disabled = true;
-                }
-            }
-
-            applyClassFilter();
+            // Server already rendered the correct options - no need to repopulate on load
         });
     </script>
 @endpush

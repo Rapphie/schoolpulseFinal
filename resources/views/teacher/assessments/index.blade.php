@@ -157,8 +157,8 @@
         <div class="col-12">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('teacher.dashboard') }}">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a href="{{ route('teacher.assessments.list') }}">My Classes</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('teacher.assessments.list') }}">Grades</a></li>
+                    <li class="breadcrumb-item">My Classes</li>
                     <li class="breadcrumb-item active" aria-current="page">Grade Management</li>
                 </ol>
             </nav>

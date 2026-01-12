@@ -1,281 +1,531 @@
 @extends('base')
 
-@section('title', 'Least Learned Competencies')
+@section('title', 'Least Learned Competencies - Item Analysis')
 
 @push('styles')
     <style>
-        .llc-card {
-            box-shadow: 0 0.15rem 0.5rem rgba(58, 59, 69, 0.15);
+        /* Excel-like Spreadsheet Styling */
+        .llc-spreadsheet-container {
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .llc-spreadsheet {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .llc-spreadsheet th,
+        .llc-spreadsheet td {
+            border: 1px solid #dee2e6;
+            padding: 0;
+            text-align: center;
+            min-width: 50px;
+            height: 36px;
+        }
+
+        .llc-spreadsheet thead th {
+            background: linear-gradient(180deg, #4e73df 0%, #3a5bc7 100%);
+            color: #fff;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            padding: 8px 4px;
+        }
+
+        .llc-spreadsheet thead th.item-header {
+            min-width: 80px;
+            font-size: 12px;
+        }
+
+        .llc-spreadsheet thead th.category-header {
+            background: #1cc88a;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .llc-spreadsheet tbody td {
+            background: #fff;
+        }
+
+        .llc-spreadsheet tbody td.item-number-cell {
+            background: linear-gradient(180deg, #4e73df 0%, #3a5bc7 100%);
+            color: #fff;
+            font-weight: 600;
+            text-align: center;
+            padding: 8px 12px;
+            white-space: nowrap;
+            min-width: 80px;
+        }
+
+        .llc-spreadsheet tbody td.category-cell {
+            background: #e8f4f8;
+            font-weight: 500;
+            font-size: 12px;
+            text-align: left;
+            padding: 8px 12px;
+            min-width: 150px;
+        }
+
+        .llc-spreadsheet tbody td.input-cell {
+            min-width: 120px;
+        }
+
+        .llc-spreadsheet tbody tr:hover td {
+            background: #f0f4ff;
+        }
+
+        .llc-spreadsheet tbody tr:hover td.item-number-cell {
+            background: linear-gradient(180deg, #5a7fe0 0%, #4a6bd0 100%);
+        }
+
+        .llc-spreadsheet tbody tr:hover td.mastery-high {
+            background: #c3e6cb !important;
+        }
+
+        .llc-spreadsheet tbody tr:hover td.mastery-medium {
+            background: #ffeeba !important;
+        }
+
+        .llc-spreadsheet tbody tr:hover td.mastery-low {
+            background: #f5c6cb !important;
+        }
+
+        /* Input cells styling */
+        .llc-spreadsheet .item-input {
+            width: 100%;
+            height: 100%;
             border: none;
+            text-align: center;
+            font-size: 13px;
+            padding: 8px 4px;
+            background: transparent;
         }
 
-        .card-step-header {
+        .llc-spreadsheet .item-input:focus {
+            outline: 2px solid #4e73df;
+            background: #e8f0fe;
+        }
+
+        .llc-spreadsheet .item-input::-webkit-inner-spin-button,
+        .llc-spreadsheet .item-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Mastery rate cells */
+        .llc-spreadsheet td.mastery-cell {
             font-weight: 600;
-            color: #0d6efd;
+            font-size: 12px;
         }
 
-        .item-input-group {
-            display: flex;
+        .llc-spreadsheet td.mastery-high {
+            background: #d4edda !important;
+            color: #155724;
+        }
+
+        .llc-spreadsheet td.mastery-medium {
+            background: #fff3cd !important;
+            color: #856404;
+        }
+
+        .llc-spreadsheet td.mastery-low {
+            background: #f8d7da !important;
+            color: #721c24;
+        }
+
+        /* Summary row */
+        .llc-spreadsheet tfoot td {
+            background: #f8f9fc;
+            font-weight: 600;
+            padding: 10px 12px;
+        }
+
+        .llc-spreadsheet tfoot td.summary-label {
+            text-align: left;
+            padding-left: 12px;
+            background: #e9ecef;
+        }
+
+        .llc-spreadsheet tfoot tr.category-summary-row td {
+            background: #e8f4f8;
+            border-top: 2px solid #1cc88a;
+        }
+
+        .llc-spreadsheet tfoot tr.category-summary-row td:first-child {
+            background: #1cc88a;
+            color: #fff;
+        }
+
+        /* Card styling */
+        .llc-card {
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+            border: none;
+            border-radius: 12px;
+        }
+
+        .llc-card .card-header {
+            background: #fff;
+            border-bottom: 1px solid #e3e6f0;
+            padding: 16px 20px;
+        }
+
+        /* Category builder */
+        .category-tag {
+            display: inline-flex;
             align-items: center;
-            margin-bottom: 10px;
+            background: #e8f4f8;
+            border: 1px solid #bee5eb;
+            border-radius: 20px;
+            padding: 6px 12px;
+            margin: 4px;
+            font-size: 13px;
         }
 
-        .item-input-group label {
-            flex: 0 0 75px;
-            margin-right: 8px;
+        .category-tag .tag-name {
             font-weight: 600;
+            margin-right: 8px;
         }
 
-        .item-input-group .form-control {
+        .category-tag .tag-range {
+            color: #6c757d;
+            margin-right: 8px;
+        }
+
+        .category-tag .tag-remove {
+            background: none;
+            border: none;
+            color: #dc3545;
+            padding: 0 4px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        /* Quick stats */
+        .quick-stat {
+            background: #f8f9fc;
+            border-radius: 8px;
+            padding: 16px;
             text-align: center;
         }
 
-        #categoriesListItems .list-group-item {
-            background-color: #f8f9fa;
+        .quick-stat .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.2;
         }
 
-        #categoriesListItems .list-group-item:hover {
-            background-color: #eef2ff;
+        .quick-stat .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .analysis-insight.bad {
-            background-color: #fde2e1;
-            color: #c53030;
+        .quick-stat.stat-danger .stat-value {
+            color: #e74a3b;
         }
 
-        .analysis-insight.good {
-            background-color: #d1fae5;
-            color: #065f46;
+        .quick-stat.stat-success .stat-value {
+            color: #1cc88a;
         }
 
+        .quick-stat.stat-warning .stat-value {
+            color: #f6c23e;
+        }
+
+        /* Least learned list */
+        .least-learned-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #fef2f2;
+            border-left: 4px solid #e74a3b;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .least-learned-item .item-info {
+            font-weight: 600;
+        }
+
+        .least-learned-item .item-mastery {
+            background: #e74a3b;
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* History table */
         .llc-history-table th,
         .llc-history-table td {
             vertical-align: middle;
+        }
+
+        /* Instructions */
+        .instruction-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .instruction-step .step-number {
+            background: #4e73df;
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .instruction-step .step-text {
+            font-size: 13px;
+            color: #5a5c69;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+
+            .llc-spreadsheet th.item-header,
+            .llc-spreadsheet td {
+                min-width: 45px;
+            }
         }
     </style>
 @endpush
 
 @section('content')
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 text-gray-800 mb-1">Least Learned Competencies</h1>
-            <p class="text-muted mb-0">Track exam items by category, surface least mastered skills, and plan targeted
-                remediation.</p>
-        </div>
-        <a href="{{ route('teacher.least-learned.index') }}" class="btn btn-outline-secondary btn-sm">
-            <i data-feather="refresh-ccw" class="me-1"></i>Refresh
-        </a>
-    </div>
 
     @if (session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
+            <i data-feather="check-circle" class="me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
     @if (session('error'))
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            {{ session('error') }}
+            <i data-feather="alert-circle" class="me-2"></i>{{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
 
-    <form id="leastLearnedForm" method="POST" action="{{ route('teacher.least-learned.store') }}">
-        @csrf
-        <input type="hidden" name="categories_payload" id="categories_payload" value="{{ old('categories_payload') }}">
-        @error('categories_payload')
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                {{ $message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        @enderror
-
-        <div class="card llc-card mb-4" id="examDefinitionCard">
-            <div class="card-header bg-white">
-                <span class="card-step-header">Step 1 · Define Exam Context</span>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label">Quarter</label>
-                        <select name="quarter" id="quarter" class="form-select" required>
+    {{-- Setup Section --}}
+    <div class="card llc-card mb-4" id="setupCard">
+        <div class="card-header">
+            <h5 class="mb-0"><i data-feather="settings" class="me-2"></i>Assessment Setup</h5>
+        </div>
+        <div class="card-body">
+            <form id="setupForm">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Quarter</label>
+                        <select id="quarter" class="form-select" required>
                             @foreach ($quarters as $value => $label)
-                                <option value="{{ $value }}" {{ old('quarter', 1) == $value ? 'selected' : '' }}>
-                                    {{ $label }}
-                                </option>
+                                <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
                         </select>
-                        @error('quarter')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Grade Level</label>
-                        <select name="grade_level_id" id="grade_level_id" class="form-select" required>
-                            <option value="">Select grade level</option>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Grade Level</label>
+                        <select id="grade_level_id" class="form-select" required>
+                            <option value="">Select...</option>
                             @foreach ($gradeLevels as $level)
-                                <option value="{{ $level->id }}"
-                                    {{ (int) old('grade_level_id') === (int) $level->id ? 'selected' : '' }}>
-                                    {{ $level->name }}
-                                </option>
+                                <option value="{{ $level->id }}">{{ $level->name }}</option>
                             @endforeach
                         </select>
-                        @error('grade_level_id')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Section</label>
-                        <select name="section_id" id="section_id" class="form-select" required disabled>
-                            <option value="">Select a grade level first</option>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Section</label>
+                        <select id="section_id" class="form-select" required disabled>
+                            <option value="">Select grade first</option>
                         </select>
-                        @error('section_id')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Subject</label>
-                        <select name="subject_id" id="subject_id" class="form-select" required disabled>
-                            <option value="">Select a section first</option>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Subject</label>
+                        <select id="subject_id" class="form-select" required disabled>
+                            <option value="">Select section first</option>
                         </select>
-                        @error('subject_id')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Total Students</label>
+                        <input type="number" id="totalStudents" class="form-control" min="1" max="100"
+                            value="30" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Total Items</label>
+                        <input type="number" id="totalItems" class="form-control" min="1" max="100"
+                            value="20" required>
                     </div>
                 </div>
 
-                <div class="row g-3 mt-1">
+                <div class="row g-3 mb-4">
                     <div class="col-md-4">
-                        <label class="form-label">Assessment Name (optional)</label>
-                        <input type="text" class="form-control" id="exam_title" name="exam_title"
-                            placeholder="e.g., Q1 Summative Test" value="{{ old('exam_title') }}">
-                        @error('exam_title')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Total Students Examined</label>
-                        <input type="number" class="form-control" id="studentCount" name="total_students" min="1"
-                            max="200" value="{{ old('total_students', 30) }}" required>
-                        @error('total_students')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Total Items in Exam</label>
-                        <input type="number" class="form-control" id="totalItems" name="total_items" min="1"
-                            max="200" value="{{ old('total_items', 20) }}" required>
-                        @error('total_items')
-                            <div class="text-danger small">{{ $message }}</div>
-                        @enderror
+                        <label class="form-label fw-semibold">Assessment Name (optional)</label>
+                        <input type="text" id="examTitle" class="form-control"
+                            placeholder="e.g., 1st Periodic Test, Quiz 1">
                     </div>
                 </div>
 
-                <div class="mt-4 text-end">
-                    <button type="button" class="btn btn-primary" id="startItemInputBtn" disabled>
-                        Proceed to Category Mapping
-                        <i data-feather="arrow-right-circle" class="ms-1"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="card llc-card mb-4" id="categoryBuilderCard">
-            <div class="card-header bg-white">
-                <span class="card-step-header">Step 2 · Map Items to Competency Categories</span>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info" id="noCategoriesMessage">
-                    No categories defined yet. Add the competency strands covered by the exam and mapped item ranges.
-                </div>
-                <ul class="list-group mb-3" id="categoriesListItems"></ul>
-
-                <div class="card border">
-                    <div class="card-body">
-                        <div class="row g-3 align-items-end">
-                            <div class="col-md-4">
-                                <label class="form-label">Category Name</label>
-                                <input type="text" class="form-control" id="categoryName"
-                                    placeholder="e.g., Number Sense">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">Start Item #</label>
-                                <input type="number" class="form-control" id="itemStart" min="1">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label">End Item #</label>
-                                <input type="number" class="form-control" id="itemEnd" min="1">
-                            </div>
-                            <div class="col-md-2 d-grid">
-                                <button type="button" class="btn btn-outline-primary" id="addCategoryBtn">
-                                    <i data-feather="plus"></i> Add
-                                </button>
-                            </div>
+                {{-- Category Builder --}}
+                <div class="border rounded p-3 bg-light mb-3">
+                    <h6 class="mb-3"><i data-feather="layers" class="me-1"></i>Map Competency Categories to Items</h6>
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small">Competency/Category Name</label>
+                            <input type="text" id="categoryName" class="form-control form-control-sm"
+                                placeholder="e.g., Number Sense, Reading Comprehension">
                         </div>
-                        <div id="categoryInputErrorContainer" class="mt-3"></div>
+                        <div class="col-md-2">
+                            <label class="form-label small">From Item #</label>
+                            <input type="number" id="itemStart" class="form-control form-control-sm" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">To Item #</label>
+                            <input type="number" id="itemEnd" class="form-control form-control-sm" min="1">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" id="addCategoryBtn" class="btn btn-primary btn-sm w-100">
+                                <i data-feather="plus" class="me-1"></i>Add
+                            </button>
+                        </div>
+                    </div>
+                    <div id="categoriesContainer">
+                        <p class="text-muted small mb-0" id="noCategoriesMsg">
+                            <i data-feather="info" class="me-1"></i>No categories added yet. Add categories to map test
+                            items to competencies.
+                        </p>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <div class="card llc-card mb-4" id="categoryInputCard" style="display: none;">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <span class="card-step-header">Step 3 · Record Wrong Responses</span>
-                <span class="text-muted" id="currentItemRange"></span>
-            </div>
-            <div class="card-body">
-                <p class="mb-3">Enter the number of students who got each item wrong (max:
-                    <strong id="maxStudentsAllowed">0</strong>). Use the navigation buttons to switch between categories.
-                </p>
-                <h5 id="currentCategoryTitle" class="mb-3"></h5>
-                <div id="itemInputsContainer" class="row"></div>
-                <div class="d-flex justify-content-between mt-4">
-                    <button class="btn btn-outline-secondary" type="button" id="prevCategoryBtn"
-                        style="display:none;">Previous Category</button>
-                    <button class="btn btn-outline-primary" type="button" id="nextCategoryBtn"
-                        style="display:none;">Next Category</button>
-                    <button class="btn btn-primary" type="button" id="analyzeItemsButton" style="display:none;">
-                        Analyze Performance
+                <div class="text-end">
+                    <button type="button" id="generateSpreadsheetBtn" class="btn btn-success" disabled>
+                        <i data-feather="grid" class="me-1"></i>Generate Spreadsheet
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
+    </div>
 
-        <div class="card llc-card mb-4" id="analysisReportCard" style="display: none;">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <span class="card-step-header">Step 4 · Review Insights & Save</span>
-                <button class="btn btn-sm btn-outline-secondary" type="button" id="resetWizardButton">
-                    Start New Analysis
+    {{-- Spreadsheet Section --}}
+    <div class="card llc-card mb-4" id="spreadsheetCard" style="display: none;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1"><i data-feather="edit-3" class="me-2"></i>Item Analysis Spreadsheet</h5>
+                <small class="text-muted">Enter the number of students who got each item <strong>WRONG</strong>. Press Tab
+                    to move between cells.</small>
+            </div>
+            <div>
+                <button type="button" id="backToSetupBtn" class="btn btn-outline-secondary btn-sm me-2">
+                    <i data-feather="arrow-left" class="me-1"></i>Back to Setup
+                </button>
+                <button type="button" id="clearAllBtn" class="btn btn-outline-danger btn-sm">
+                    <i data-feather="trash-2" class="me-1"></i>Clear All
                 </button>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-lg-6">
-                        <h5 class="mb-3">Performance by Category (<span id="reportExamName"></span>)</h5>
-                        <canvas id="categoryChart"></canvas>
+        </div>
+        <div class="card-body p-0">
+            <div class="llc-spreadsheet-container" style="max-height: 500px; overflow: auto;">
+                <table class="llc-spreadsheet" id="analysisSpreadsheet">
+                    <thead id="spreadsheetHead"></thead>
+                    <tbody id="spreadsheetBody"></tbody>
+                    <tfoot id="spreadsheetFoot"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- Analysis Results --}}
+    <div class="card llc-card mb-4" id="resultsCard" style="display: none;">
+        <div class="card-header">
+            <h5 class="mb-0"><i data-feather="pie-chart" class="me-2"></i>Analysis Results</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="quick-stat stat-primary">
+                        <div class="stat-value" id="statTotalItems">0</div>
+                        <div class="stat-label">Total Items</div>
                     </div>
-                    <div class="col-lg-6">
-                        <h5 class="mb-3">Actionable Insights</h5>
-                        <ul id="leastLearnedCategoriesList" class="list-group mb-3"></ul>
-                        <button type="button" class="btn btn-success" id="saveAnalysisButton">
-                            <i data-feather="save" class="me-1"></i>Save Result to Records
-                        </button>
+                </div>
+                <div class="col-md-3">
+                    <div class="quick-stat stat-success">
+                        <div class="stat-value" id="statMasteredItems">0</div>
+                        <div class="stat-label">Mastered Items (≥75%)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="quick-stat stat-danger">
+                        <div class="stat-value" id="statLeastLearned">0</div>
+                        <div class="stat-label">Least Learned (&lt;75%)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="quick-stat stat-warning">
+                        <div class="stat-value" id="statOverallMastery">0%</div>
+                        <div class="stat-label">Overall Mastery</div>
                     </div>
                 </div>
             </div>
-        </div>
-    </form>
 
+            <div class="row">
+                <div class="col-lg-6">
+                    <h6 class="mb-3"><i data-feather="alert-triangle" class="me-1 text-danger"></i>Least Learned Items
+                        (Need Remediation)</h6>
+                    <div id="leastLearnedList">
+                        <p class="text-muted">No items flagged yet. Enter data in the spreadsheet above.</p>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <h6 class="mb-3"><i data-feather="bar-chart" class="me-1"></i>Mastery by Category</h6>
+                    <div style="height: 300px;">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-4 pt-4 border-top">
+                <form id="saveAnalysisForm" method="POST" action="{{ route('teacher.least-learned.store') }}">
+                    @csrf
+                    <input type="hidden" name="quarter" id="hiddenQuarter">
+                    <input type="hidden" name="grade_level_id" id="hiddenGradeLevel">
+                    <input type="hidden" name="section_id" id="hiddenSection">
+                    <input type="hidden" name="subject_id" id="hiddenSubject">
+                    <input type="hidden" name="total_students" id="hiddenTotalStudents">
+                    <input type="hidden" name="total_items" id="hiddenTotalItems">
+                    <input type="hidden" name="exam_title" id="hiddenExamTitle">
+                    <input type="hidden" name="categories_payload" id="hiddenCategoriesPayload">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i data-feather="save" class="me-2"></i>Save Item Analysis Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{-- History Section --}}
     <div class="card llc-card">
-        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
-                <h5 class="mb-0">Saved Least Learned Analyses</h5>
-                <small class="text-muted">Filter by section, subject, or quarter to find previous interventions.</small>
+                <h5 class="mb-0"><i data-feather="clock" class="me-2"></i>Previous Analyses</h5>
+                <small class="text-muted">View and review your saved item analysis reports.</small>
             </div>
             <form method="GET" action="{{ route('teacher.least-learned.index') }}" class="row g-2 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label mb-0">Section</label>
+                <div class="col-auto">
                     <select name="filter_section" class="form-select form-select-sm">
                         <option value="">All sections</option>
                         @foreach ($sections as $section)
@@ -289,8 +539,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label mb-0">Subject</label>
+                <div class="col-auto">
                     <select name="filter_subject" class="form-select form-select-sm">
                         <option value="">All subjects</option>
                         @foreach ($subjects as $subject)
@@ -301,8 +550,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label mb-0">Quarter</label>
+                <div class="col-auto">
                     <select name="filter_quarter" class="form-select form-select-sm">
                         <option value="">All quarters</option>
                         @foreach ($quarters as $value => $label)
@@ -313,7 +561,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-1 d-grid">
+                <div class="col-auto">
                     <button type="submit" class="btn btn-primary btn-sm">Filter</button>
                 </div>
             </form>
@@ -359,9 +607,10 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No least learned analyses recorded
-                                    yet.
-                                    Run your first analysis above.</td>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i data-feather="inbox" class="mb-2" style="width: 48px; height: 48px;"></i>
+                                    <p class="mb-0">No item analysis reports saved yet.</p>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -378,364 +627,486 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const examDefinitionCard = document.getElementById('examDefinitionCard');
-            const categoryBuilderCard = document.getElementById('categoryBuilderCard');
-            const categoryInputCard = document.getElementById('categoryInputCard');
-            const analysisReportCard = document.getElementById('analysisReportCard');
+            // DOM Elements
+            const setupCard = document.getElementById('setupCard');
+            const spreadsheetCard = document.getElementById('spreadsheetCard');
+            const resultsCard = document.getElementById('resultsCard');
 
             const gradeLevelSelect = document.getElementById('grade_level_id');
             const sectionSelect = document.getElementById('section_id');
             const subjectSelect = document.getElementById('subject_id');
-            const categoriesPayloadInput = document.getElementById('categories_payload');
+            const totalStudentsInput = document.getElementById('totalStudents');
+            const totalItemsInput = document.getElementById('totalItems');
+            const examTitleInput = document.getElementById('examTitle');
+            const quarterSelect = document.getElementById('quarter');
 
-            const examTitleInput = document.getElementById('exam_title');
-            const startItemInputBtn = document.getElementById('startItemInputBtn');
+            const categoryNameInput = document.getElementById('categoryName');
+            const itemStartInput = document.getElementById('itemStart');
+            const itemEndInput = document.getElementById('itemEnd');
             const addCategoryBtn = document.getElementById('addCategoryBtn');
-            const categoriesListItems = document.getElementById('categoriesListItems');
-            const noCategoriesMessage = document.getElementById('noCategoriesMessage');
-            const categoryInputErrorContainer = document.getElementById('categoryInputErrorContainer');
+            const categoriesContainer = document.getElementById('categoriesContainer');
+            const noCategoriesMsg = document.getElementById('noCategoriesMsg');
+            const generateSpreadsheetBtn = document.getElementById('generateSpreadsheetBtn');
 
-            const currentCategoryTitle = document.getElementById('currentCategoryTitle');
-            const currentItemRange = document.getElementById('currentItemRange');
-            const maxStudentsAllowed = document.getElementById('maxStudentsAllowed');
-            const itemInputsContainer = document.getElementById('itemInputsContainer');
-            const prevCategoryBtn = document.getElementById('prevCategoryBtn');
-            const nextCategoryBtn = document.getElementById('nextCategoryBtn');
-            const analyzeItemsButton = document.getElementById('analyzeItemsButton');
-            const saveAnalysisButton = document.getElementById('saveAnalysisButton');
-            const resetWizardButton = document.getElementById('resetWizardButton');
-
-            const categoryChartCanvas = document.getElementById('categoryChart');
-            const leastLearnedCategoriesList = document.getElementById('leastLearnedCategoriesList');
-            const reportExamNameSpan = document.getElementById('reportExamName');
-
-            const insightSuggestions = {
-                'Vocabulary': 'Strengthen contextual clues practice and daily word journals.',
-                'Grammar': 'Run short, targeted drills on recurring mistakes.',
-                'Reading Comprehension': 'Model think-aloud strategies and provide guiding questions.',
-                'Problem Solving': 'Break multi-step problems into scaffolded parts.',
-                'Number Sense': 'Use manipulatives and quick checks for misconceptions.',
-                'Geometry': 'Integrate sketching and labeling routines before computation.',
-                'Scientific Method': 'Let students design simple investigations to apply each step.',
-            };
+            const spreadsheetHead = document.getElementById('spreadsheetHead');
+            const spreadsheetBody = document.getElementById('spreadsheetBody');
+            const spreadsheetFoot = document.getElementById('spreadsheetFoot');
+            const backToSetupBtn = document.getElementById('backToSetupBtn');
+            const clearAllBtn = document.getElementById('clearAllBtn');
 
             const sectionsEndpoint = "{{ route('teacher.sections.by-grade-level') }}";
             const subjectsEndpointTemplate =
                 "{{ route('teacher.subjects.by-section', ['section' => '__SECTION__']) }}";
-            const initialGradeId = '{{ old('grade_level_id') }}';
-            let pendingSectionId = '{{ old('section_id') }}';
-            let pendingSubjectId = '{{ old('subject_id') }}';
 
-            let categoriesData = [];
-            let itemWrongCounts = {};
-            let currentCategoryIndex = 0;
-            let categoryChartInstance = null;
-            let analysisCompleted = false;
+            let categories = [];
+            let itemData = {}; // { itemNumber: wrongCount }
+            let chartInstance = null;
 
-            function resetWizard() {
-                examDefinitionCard.style.display = 'block';
-                categoryBuilderCard.style.display = 'block';
-                categoryInputCard.style.display = 'none';
-                analysisReportCard.style.display = 'none';
-                categoriesData = [];
-                itemWrongCounts = {};
-                currentCategoryIndex = 0;
-                analysisCompleted = false;
-                categoriesListItems.innerHTML = '';
-                categoriesPayloadInput.value = '';
-                document.getElementById('categoryName').value = '';
-                document.getElementById('itemStart').value = '';
-                document.getElementById('itemEnd').value = '';
-                noCategoriesMessage.classList.remove('d-none');
-                startItemInputBtn.disabled = true;
-                leastLearnedCategoriesList.innerHTML = '';
-                if (categoryChartInstance) {
-                    categoryChartInstance.destroy();
-                    categoryChartInstance = null;
-                }
-            }
-
-            resetWizardButton.addEventListener('click', function() {
-                resetWizard();
-                document.getElementById('leastLearnedForm').reset();
-                subjectSelect.disabled = true;
-                subjectSelect.innerHTML = '<option value="">Select a section first</option>';
+            // Grade level change - load sections
+            gradeLevelSelect.addEventListener('change', function() {
+                const gradeId = this.value;
+                sectionSelect.innerHTML = '<option value="">Loading...</option>';
                 sectionSelect.disabled = true;
-                sectionSelect.innerHTML = '<option value="">Select a grade level first</option>';
+                subjectSelect.innerHTML = '<option value="">Select section first</option>';
+                subjectSelect.disabled = true;
+
+                if (!gradeId) {
+                    sectionSelect.innerHTML = '<option value="">Select grade first</option>';
+                    return;
+                }
+
+                fetch(`${sectionsEndpoint}?grade_level=${gradeId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        const classes = data.allClasses || [];
+                        const uniqueSections = [];
+                        const seen = new Set();
+
+                        classes.forEach(cls => {
+                            const section = cls.section;
+                            if (section && !seen.has(section.id)) {
+                                seen.add(section.id);
+                                uniqueSections.push(section);
+                            }
+                        });
+
+                        if (uniqueSections.length === 0) {
+                            sectionSelect.innerHTML = '<option value="">No sections found</option>';
+                            return;
+                        }
+
+                        sectionSelect.innerHTML = '<option value="">Select section</option>';
+                        uniqueSections.forEach(section => {
+                            const opt = document.createElement('option');
+                            opt.value = section.id;
+                            opt.textContent = section.name;
+                            sectionSelect.appendChild(opt);
+                        });
+                        sectionSelect.disabled = false;
+                    })
+                    .catch(() => {
+                        sectionSelect.innerHTML = '<option value="">Error loading sections</option>';
+                    });
             });
 
-            function showError(message) {
-                categoryInputErrorContainer.innerHTML = `
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        ${message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>`;
-            }
+            // Section change - load subjects
+            sectionSelect.addEventListener('change', function() {
+                const sectionId = this.value;
+                subjectSelect.innerHTML = '<option value="">Loading...</option>';
+                subjectSelect.disabled = true;
 
-            function renderCategoriesList() {
-                categoriesListItems.innerHTML = '';
-                if (categoriesData.length === 0) {
-                    noCategoriesMessage.classList.remove('d-none');
-                    startItemInputBtn.disabled = true;
+                if (!sectionId) {
+                    subjectSelect.innerHTML = '<option value="">Select section first</option>';
                     return;
                 }
 
-                noCategoriesMessage.classList.add('d-none');
+                const url = subjectsEndpointTemplate.replace('__SECTION__', sectionId);
+                fetch(url)
+                    .then(r => r.json())
+                    .then(subjects => {
+                        if (!Array.isArray(subjects) || subjects.length === 0) {
+                            subjectSelect.innerHTML = '<option value="">No subjects found</option>';
+                            return;
+                        }
 
-                categoriesData
-                    .sort((a, b) => a.start - b.start)
-                    .forEach((cat, index) => {
-                        const li = document.createElement('li');
-                        li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                        li.innerHTML = `
-                            <span><strong>${cat.name}</strong> · Items ${cat.start}-${cat.end}</span>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-index="${index}">
-                                <i data-feather="trash-2"></i>
-                            </button>`;
-                        li.querySelector('button').addEventListener('click', () => {
-                            categoriesData.splice(index, 1);
-                            renderCategoriesList();
-                            checkAllItemsMapped();
+                        subjectSelect.innerHTML = '<option value="">Select subject</option>';
+                        subjects.forEach(subject => {
+                            const opt = document.createElement('option');
+                            opt.value = subject.id;
+                            opt.textContent = subject.name;
+                            subjectSelect.appendChild(opt);
                         });
-                        categoriesListItems.appendChild(li);
+                        subjectSelect.disabled = false;
+                    })
+                    .catch(() => {
+                        subjectSelect.innerHTML = '<option value="">Error loading subjects</option>';
                     });
-                feather.replace();
-                checkAllItemsMapped();
-            }
+            });
 
-            function checkAllItemsMapped() {
-                const totalItems = parseInt(document.getElementById('totalItems').value, 10) || 0;
-                if (!totalItems || categoriesData.length === 0) {
-                    startItemInputBtn.disabled = true;
-                    return;
-                }
-
-                const coverage = new Set();
-                categoriesData.forEach(cat => {
-                    for (let i = cat.start; i <= cat.end; i++) {
-                        coverage.add(i);
-                    }
-                });
-
-                startItemInputBtn.disabled = coverage.size !== totalItems;
-            }
-
+            // Add category
             addCategoryBtn.addEventListener('click', function() {
-                const name = document.getElementById('categoryName').value.trim();
-                const start = parseInt(document.getElementById('itemStart').value, 10);
-                const end = parseInt(document.getElementById('itemEnd').value, 10);
-                const totalItems = parseInt(document.getElementById('totalItems').value, 10) || 0;
+                const name = categoryNameInput.value.trim();
+                const start = parseInt(itemStartInput.value) || 0;
+                const end = parseInt(itemEndInput.value) || 0;
+                const totalItems = parseInt(totalItemsInput.value) || 0;
 
                 if (!name) {
-                    showError('Please provide a category name.');
+                    alert('Please enter a category name.');
                     return;
                 }
-                if (!start || start < 1) {
-                    showError('Start item must be 1 or higher.');
-                    return;
-                }
-                if (!end || end < start) {
-                    showError('End item must be greater than or equal to start item.');
+                if (start < 1 || end < start) {
+                    alert('Please enter a valid item range.');
                     return;
                 }
                 if (end > totalItems) {
-                    showError('Item range exceeds total number of exam items.');
+                    alert(`Item range exceeds total items (${totalItems}).`);
                     return;
                 }
-                const overlapping = categoriesData.some(cat =>
+
+                // Check overlap
+                const overlaps = categories.some(cat =>
                     (start >= cat.start && start <= cat.end) ||
                     (end >= cat.start && end <= cat.end) ||
                     (cat.start >= start && cat.start <= end)
                 );
-                if (overlapping) {
-                    showError('Item range overlaps with an existing category.');
+
+                if (overlaps) {
+                    alert('Item range overlaps with an existing category.');
                     return;
                 }
 
-                categoriesData.push({
+                categories.push({
                     name,
                     start,
                     end
                 });
-                document.getElementById('categoryName').value = '';
-                document.getElementById('itemStart').value = '';
-                document.getElementById('itemEnd').value = '';
-                categoryInputErrorContainer.innerHTML = '';
-                renderCategoriesList();
+                renderCategories();
+
+                categoryNameInput.value = '';
+                itemStartInput.value = '';
+                itemEndInput.value = '';
+                categoryNameInput.focus();
             });
 
-            startItemInputBtn.addEventListener('click', function() {
-                if (categoriesData.length === 0) {
-                    showError('Please add at least one category.');
+            function renderCategories() {
+                if (categories.length === 0) {
+                    categoriesContainer.innerHTML =
+                        '<p class="text-muted small mb-0" id="noCategoriesMsg"><i data-feather="info" class="me-1"></i>No categories added yet.</p>';
+                    generateSpreadsheetBtn.disabled = true;
+                    feather.replace();
                     return;
                 }
-                itemWrongCounts = {};
-                const totalItems = parseInt(document.getElementById('totalItems').value, 10) || 0;
+
+                const totalItems = parseInt(totalItemsInput.value) || 0;
+                let coveredItems = 0;
+                categories.forEach(cat => {
+                    coveredItems += (cat.end - cat.start + 1);
+                });
+
+                let html = '<div class="d-flex flex-wrap">';
+                categories.forEach((cat, idx) => {
+                    html += `
+                        <div class="category-tag">
+                            <span class="tag-name">${cat.name}</span>
+                            <span class="tag-range">Items ${cat.start}-${cat.end}</span>
+                            <button type="button" class="tag-remove" data-idx="${idx}">&times;</button>
+                        </div>`;
+                });
+                html += '</div>';
+
+                if (coveredItems < totalItems) {
+                    html +=
+                        `<p class="text-warning small mt-2 mb-0"><i data-feather="alert-circle" class="me-1"></i>${totalItems - coveredItems} items not yet mapped to categories.</p>`;
+                } else if (coveredItems === totalItems) {
+                    html +=
+                        `<p class="text-success small mt-2 mb-0"><i data-feather="check-circle" class="me-1"></i>All ${totalItems} items are mapped to categories.</p>`;
+                }
+
+                categoriesContainer.innerHTML = html;
+                feather.replace();
+
+                // Enable generate button if all items are covered
+                generateSpreadsheetBtn.disabled = coveredItems !== totalItems ||
+                    !gradeLevelSelect.value ||
+                    !sectionSelect.value ||
+                    !subjectSelect.value;
+
+                // Remove category
+                categoriesContainer.querySelectorAll('.tag-remove').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        categories.splice(parseInt(this.dataset.idx), 1);
+                        renderCategories();
+                    });
+                });
+            }
+
+            // Check form validity
+            function checkFormValidity() {
+                const totalItems = parseInt(totalItemsInput.value) || 0;
+                let coveredItems = 0;
+                categories.forEach(cat => {
+                    coveredItems += (cat.end - cat.start + 1);
+                });
+
+                generateSpreadsheetBtn.disabled = coveredItems !== totalItems ||
+                    !gradeLevelSelect.value ||
+                    !sectionSelect.value ||
+                    !subjectSelect.value;
+            }
+
+            gradeLevelSelect.addEventListener('change', checkFormValidity);
+            sectionSelect.addEventListener('change', checkFormValidity);
+            subjectSelect.addEventListener('change', checkFormValidity);
+            totalItemsInput.addEventListener('change', function() {
+                // Reset categories if total items change
+                categories = [];
+                renderCategories();
+            });
+
+            // Generate spreadsheet
+            generateSpreadsheetBtn.addEventListener('click', function() {
+                const totalItems = parseInt(totalItemsInput.value) || 0;
+                const totalStudents = parseInt(totalStudentsInput.value) || 1;
+
+                // Initialize item data
+                itemData = {};
                 for (let i = 1; i <= totalItems; i++) {
-                    itemWrongCounts[i] = 0;
+                    itemData[i] = 0;
                 }
-                currentCategoryIndex = 0;
-                analysisCompleted = false;
-                displayCurrentCategoryInputs();
-                examDefinitionCard.style.display = 'none';
-                categoryBuilderCard.scrollIntoView({
-                    behavior: 'smooth'
+
+                // Sort categories by start
+                categories.sort((a, b) => a.start - b.start);
+
+                // Build header row (vertical layout: Item # | Category | Students Wrong | Mastery Rate)
+                let headerHtml = `<tr>
+                    <th style="min-width: 80px;">Item #</th>
+                    <th style="min-width: 180px;">Competency/Category</th>
+                    <th style="min-width: 140px;">Students Wrong</th>
+                    <th style="min-width: 120px;">Mastery Rate</th>
+                </tr>`;
+                spreadsheetHead.innerHTML = headerHtml;
+
+                // Build body rows - one row per item (vertical layout)
+                let bodyHtml = '';
+                for (let i = 1; i <= totalItems; i++) {
+                    const category = getCategoryForItem(i);
+                    bodyHtml += `
+                        <tr data-item-row="${i}">
+                            <td class="item-number-cell">Item ${i}</td>
+                            <td class="category-cell">${category}</td>
+                            <td class="input-cell">
+                                <input type="number" class="item-input" data-item="${i}"
+                                       min="0" max="${totalStudents}" value="0"
+                                       tabindex="${i}" placeholder="0">
+                            </td>
+                            <td class="mastery-cell mastery-high" data-mastery-item="${i}">100%</td>
+                        </tr>`;
+                }
+                spreadsheetBody.innerHTML = bodyHtml;
+
+                // Footer - category summary rows
+                let footHtml = '';
+                categories.forEach(cat => {
+                    footHtml += `
+                        <tr class="category-summary-row">
+                            <td class="summary-label" colspan="2">
+                                <strong>${cat.name}</strong>
+                                <span class="text-white-50 ms-2">(Items ${cat.start}-${cat.end})</span>
+                            </td>
+                            <td>—</td>
+                            <td class="mastery-cell mastery-high" data-category-mastery="${cat.name}">100%</td>
+                        </tr>`;
                 });
-                categoryInputCard.style.display = 'block';
+                // Overall summary row
+                footHtml += `
+                    <tr style="background: #343a40;">
+                        <td colspan="2" style="background: #343a40; color: #fff; font-weight: 700;">OVERALL MASTERY</td>
+                        <td style="background: #343a40; color: #fff;">—</td>
+                        <td class="mastery-cell" id="overallMasteryCell" style="background: #343a40; color: #fff; font-weight: 700;">100%</td>
+                    </tr>`;
+                spreadsheetFoot.innerHTML = footHtml;
+
+                // Show spreadsheet, hide setup
+                setupCard.style.display = 'none';
+                spreadsheetCard.style.display = 'block';
+                resultsCard.style.display = 'block';
+
+                // Add input listeners
+                spreadsheetBody.querySelectorAll('.item-input').forEach(input => {
+                    input.addEventListener('input', handleInputChange);
+                    input.addEventListener('change', handleInputChange);
+                });
+
+                updateAnalysis();
+                feather.replace();
             });
 
-            function displayCurrentCategoryInputs() {
-                const currentCategory = categoriesData[currentCategoryIndex];
-                if (!currentCategory) {
-                    return;
-                }
-                currentCategoryTitle.textContent = currentCategory.name;
-                currentItemRange.textContent = `Items ${currentCategory.start}-${currentCategory.end}`;
-                maxStudentsAllowed.textContent = document.getElementById('studentCount').value;
-                itemInputsContainer.innerHTML = '';
+            function handleInputChange(e) {
+                const input = e.target;
+                const itemNum = parseInt(input.dataset.item);
+                let value = parseInt(input.value) || 0;
+                const maxStudents = parseInt(totalStudentsInput.value) || 1;
 
-                const itemsCount = currentCategory.end - currentCategory.start + 1;
-                const rows = itemsCount <= 30 ? 5 : 10;
-                const cols = Math.ceil(itemsCount / rows);
+                // Clamp value
+                if (value < 0) value = 0;
+                if (value > maxStudents) value = maxStudents;
+                input.value = value;
 
-                for (let r = 0; r < rows; r++) {
-                    const rowDiv = document.createElement('div');
-                    rowDiv.className = 'row';
-                    for (let c = 0; c < cols; c++) {
-                        const itemIndex = currentCategory.start + c * rows + r;
-                        if (itemIndex > currentCategory.end) break;
+                itemData[itemNum] = value;
+                updateAnalysis();
+            }
 
-                        const colDiv = document.createElement('div');
-                        colDiv.className = 'col-6 col-sm-4 col-md-3 col-lg-2 mb-3';
-                        const group = document.createElement('div');
-                        group.className = 'item-input-group';
-                        const label = document.createElement('label');
-                        label.textContent = `Item ${itemIndex}`;
-                        const input = document.createElement('input');
-                        input.type = 'number';
-                        input.className = 'form-control item-wrong-input';
-                        input.min = '0';
-                        input.max = document.getElementById('studentCount').value;
-                        input.value = itemWrongCounts[itemIndex] || 0;
-                        input.dataset.itemId = itemIndex;
-                        group.appendChild(label);
-                        group.appendChild(input);
-                        colDiv.appendChild(group);
-                        rowDiv.appendChild(colDiv);
+            function updateAnalysis() {
+                const totalStudents = parseInt(totalStudentsInput.value) || 1;
+                const totalItems = parseInt(totalItemsInput.value) || 1;
+
+                let totalCorrect = 0;
+                let masteredCount = 0;
+                let leastLearnedItems = [];
+
+                // Update individual item mastery
+                Object.entries(itemData).forEach(([item, wrongCount]) => {
+                    const itemNum = parseInt(item);
+                    const correct = totalStudents - wrongCount;
+                    const mastery = (correct / totalStudents) * 100;
+                    totalCorrect += correct;
+
+                    const cell = document.querySelector(`[data-mastery-item="${itemNum}"]`);
+                    if (cell) {
+                        cell.textContent = mastery.toFixed(0) + '%';
+                        cell.className = 'mastery-cell ';
+                        if (mastery >= 75) {
+                            cell.classList.add('mastery-high');
+                            masteredCount++;
+                        } else if (mastery >= 50) {
+                            cell.classList.add('mastery-medium');
+                            leastLearnedItems.push({
+                                item: itemNum,
+                                mastery,
+                                category: getCategoryForItem(itemNum)
+                            });
+                        } else {
+                            cell.classList.add('mastery-low');
+                            leastLearnedItems.push({
+                                item: itemNum,
+                                mastery,
+                                category: getCategoryForItem(itemNum)
+                            });
+                        }
                     }
-                    itemInputsContainer.appendChild(rowDiv);
-                }
-                updateNavigationButtons();
-            }
-
-            function updateNavigationButtons() {
-                prevCategoryBtn.style.display = currentCategoryIndex > 0 ? 'inline-block' : 'none';
-                nextCategoryBtn.style.display = currentCategoryIndex < categoriesData.length - 1 ? 'inline-block' :
-                    'none';
-                analyzeItemsButton.style.display = currentCategoryIndex === categoriesData.length - 1 ?
-                    'inline-block' : 'none';
-            }
-
-            function persistCurrentInputs() {
-                itemInputsContainer.querySelectorAll('.item-wrong-input').forEach(input => {
-                    const itemId = parseInt(input.dataset.itemId, 10);
-                    let value = parseInt(input.value, 10);
-                    const limit = parseInt(document.getElementById('studentCount').value, 10) || 0;
-                    if (isNaN(value) || value < 0) value = 0;
-                    if (value > limit) value = limit;
-                    itemWrongCounts[itemId] = value;
                 });
-            }
 
-            prevCategoryBtn.addEventListener('click', function() {
-                persistCurrentInputs();
-                currentCategoryIndex--;
-                displayCurrentCategoryInputs();
-            });
-
-            nextCategoryBtn.addEventListener('click', function() {
-                persistCurrentInputs();
-                currentCategoryIndex++;
-                displayCurrentCategoryInputs();
-            });
-
-            analyzeItemsButton.addEventListener('click', function() {
-                persistCurrentInputs();
-                buildAnalysis();
-            });
-
-            saveAnalysisButton.addEventListener('click', function() {
-                if (!analysisCompleted) {
-                    alert('Please analyze the data before saving.');
-                    return;
-                }
-                const payload = categoriesData.map(cat => {
-                    const items = {};
+                // Update category mastery
+                const categoryMastery = {};
+                categories.forEach(cat => {
+                    let catCorrect = 0;
+                    let catItems = 0;
                     for (let i = cat.start; i <= cat.end; i++) {
-                        items[i] = itemWrongCounts[i] || 0;
+                        catCorrect += totalStudents - (itemData[i] || 0);
+                        catItems++;
                     }
-                    return {
-                        name: cat.name,
-                        start: cat.start,
-                        end: cat.end,
-                        items
-                    };
-                });
-                categoriesPayloadInput.value = JSON.stringify(payload);
-                document.getElementById('leastLearnedForm').submit();
-            });
+                    const mastery = (catCorrect / (catItems * totalStudents)) * 100;
+                    categoryMastery[cat.name] = mastery;
 
-            function buildAnalysis() {
-                const studentCount = parseInt(document.getElementById('studentCount').value, 10) || 1;
-                const examTitle = examTitleInput.value.trim() || 'Assessment';
-                const results = categoriesData.map(cat => {
-                    let totalWrong = 0;
-                    const items = {};
-                    for (let i = cat.start; i <= cat.end; i++) {
-                        const wrong = itemWrongCounts[i] || 0;
-                        totalWrong += wrong;
-                        items[`Item ${i}`] = wrong;
+                    const cell = document.querySelector(`[data-category-mastery="${cat.name}"]`);
+                    if (cell) {
+                        cell.textContent = mastery.toFixed(1) + '%';
+                        cell.className = 'mastery-cell ';
+                        if (mastery >= 75) {
+                            cell.classList.add('mastery-high');
+                        } else if (mastery >= 50) {
+                            cell.classList.add('mastery-medium');
+                        } else {
+                            cell.classList.add('mastery-low');
+                        }
                     }
-                    const totalPossible = (cat.end - cat.start + 1) * studentCount;
-                    const avgWrong = (totalWrong / totalPossible) * 100;
-                    return {
-                        name: cat.name,
-                        totalWrong,
-                        totalPossible,
-                        avgWrongPercentage: avgWrong,
-                        items,
-                    };
                 });
 
-                const labels = results.map(res => res.name);
-                const dataValues = results.map(res => res.avgWrongPercentage.toFixed(2));
-                const colors = results.map(res => res.avgWrongPercentage > 50 ? 'rgba(231,74,59,0.8)' :
-                    'rgba(28,200,138,0.8)');
-
-                if (categoryChartInstance) {
-                    categoryChartInstance.destroy();
+                // Update overall mastery cell in footer
+                const overallMasteryCell = document.getElementById('overallMasteryCell');
+                if (overallMasteryCell) {
+                    overallMasteryCell.textContent = overallMastery.toFixed(1) + '%';
                 }
-                categoryChartInstance = new Chart(categoryChartCanvas.getContext('2d'), {
+
+                // Update stats
+                const overallMastery = (totalCorrect / (totalStudents * totalItems)) * 100;
+                document.getElementById('statTotalItems').textContent = totalItems;
+                document.getElementById('statMasteredItems').textContent = masteredCount;
+                document.getElementById('statLeastLearned').textContent = totalItems - masteredCount;
+                document.getElementById('statOverallMastery').textContent = overallMastery.toFixed(1) + '%';
+
+                // Update least learned list
+                const leastLearnedList = document.getElementById('leastLearnedList');
+                leastLearnedItems.sort((a, b) => a.mastery - b.mastery);
+
+                if (leastLearnedItems.length === 0) {
+                    leastLearnedList.innerHTML =
+                        '<p class="text-success"><i data-feather="check-circle" class="me-1"></i>Great! All items have ≥75% mastery.</p>';
+                } else {
+                    let html = '';
+                    leastLearnedItems.slice(0, 10).forEach(item => {
+                        html += `
+                            <div class="least-learned-item">
+                                <div class="item-info">
+                                    <strong>Item ${item.item}</strong>
+                                    <span class="text-muted">(${item.category})</span>
+                                </div>
+                                <span class="item-mastery">${item.mastery.toFixed(0)}% mastery</span>
+                            </div>`;
+                    });
+                    if (leastLearnedItems.length > 10) {
+                        html +=
+                            `<p class="text-muted small">+ ${leastLearnedItems.length - 10} more items below 75%</p>`;
+                    }
+                    leastLearnedList.innerHTML = html;
+                }
+
+                // Update chart
+                updateChart(categoryMastery);
+                feather.replace();
+            }
+
+            function getCategoryForItem(itemNum) {
+                for (const cat of categories) {
+                    if (itemNum >= cat.start && itemNum <= cat.end) {
+                        return cat.name;
+                    }
+                }
+                return 'Unknown';
+            }
+
+            function updateChart(categoryMastery) {
+                const ctx = document.getElementById('categoryChart');
+                const labels = Object.keys(categoryMastery);
+                const data = Object.values(categoryMastery).map(v => v.toFixed(1));
+                const colors = data.map(v => parseFloat(v) >= 75 ? 'rgba(28, 200, 138, 0.8)' :
+                    parseFloat(v) >= 50 ? 'rgba(246, 194, 62, 0.8)' : 'rgba(231, 74, 59, 0.8)');
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                chartInstance = new Chart(ctx.getContext('2d'), {
                     type: 'bar',
                     data: {
                         labels,
                         datasets: [{
-                            label: 'Avg. % of students who got items wrong',
-                            data: dataValues,
+                            label: 'Mastery Rate (%)',
+                            data,
                             backgroundColor: colors,
-                            borderColor: colors.map(color => color.replace('0.8', '1')),
-                            borderWidth: 1,
+                            borderColor: colors.map(c => c.replace('0.8', '1')),
+                            borderWidth: 1
                         }]
                     },
                     options: {
-                        maintainAspectRatio: false,
                         responsive: true,
+                        maintainAspectRatio: false,
                         scales: {
                             y: {
                                 beginAtZero: true,
                                 max: 100,
                                 ticks: {
-                                    callback: value => `${value}%`
+                                    callback: v => v + '%'
                                 }
                             }
                         },
@@ -745,157 +1116,64 @@
                             },
                             tooltip: {
                                 callbacks: {
-                                    label: ctx => `${ctx.raw}% of students struggled`
+                                    label: ctx => `${ctx.raw}% mastery`
                                 }
                             }
                         }
                     }
                 });
-
-                leastLearnedCategoriesList.innerHTML = '';
-                let flaggedCount = 0;
-                results.sort((a, b) => b.avgWrongPercentage - a.avgWrongPercentage)
-                    .forEach(res => {
-                        if (res.avgWrongPercentage > 50) {
-                            flaggedCount++;
-                            const li = document.createElement('li');
-                            li.className = 'list-group-item analysis-insight bad mb-2';
-                            const suggestion = insightSuggestions[res.name] ||
-                                'Review lesson logs and reteach using varied modalities.';
-                            li.innerHTML = `
-                                <strong>${res.name}</strong> · ${res.avgWrongPercentage.toFixed(1)}% of responses incorrect
-                                <div class="small mt-1 text-muted">${Object.entries(res.items).map(([item, wrong]) => `${item}: ${wrong} wrong`).join(' · ')}</div>
-                                <div class="mt-2"><strong>Next Step:</strong> ${suggestion}</div>`;
-                            leastLearnedCategoriesList.appendChild(li);
-                        }
-                    });
-                if (flaggedCount === 0) {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item analysis-insight good';
-                    li.textContent = 'Great work! All categories show less than 50% incorrect responses.';
-                    leastLearnedCategoriesList.appendChild(li);
-                }
-
-                reportExamNameSpan.textContent = examTitle;
-                analysisCompleted = true;
-                analysisReportCard.style.display = 'block';
-                categoryInputCard.style.display = 'none';
-                analysisReportCard.scrollIntoView({
-                    behavior: 'smooth'
-                });
             }
 
-            gradeLevelSelect.addEventListener('change', function() {
-                const gradeLevelId = this.value;
-                sectionSelect.innerHTML = '<option value="">Loading sections...</option>';
-                sectionSelect.disabled = true;
-                subjectSelect.innerHTML = '<option value="">Select a section first</option>';
-                subjectSelect.disabled = true;
-                if (!gradeLevelId) {
-                    sectionSelect.innerHTML = '<option value="">Select a grade level first</option>';
-                    return;
-                }
-                fetch(`${sectionsEndpoint}?grade_level=${gradeLevelId}`)
-                    .then(resp => resp.json())
-                    .then(data => {
-                        const classes = data.allClasses || [];
-                        const uniqueSections = [];
-                        const seen = new Set();
-                        classes.forEach(cls => {
-                            const section = cls.section;
-                            if (section && !seen.has(section.id)) {
-                                seen.add(section.id);
-                                uniqueSections.push(section);
-                            }
-                        });
-                        if (uniqueSections.length === 0) {
-                            sectionSelect.innerHTML = '<option value="">No sections found</option>';
-                            return;
-                        }
-                        sectionSelect.innerHTML = '<option value="">Select a section</option>';
-                        uniqueSections.forEach(section => {
-                            const option = document.createElement('option');
-                            option.value = section.id;
-                            const gradeLabel = section.grade_level && section.grade_level.name ?
-                                ` (${section.grade_level.name})` : '';
-                            option.textContent = `${section.name}${gradeLabel}`;
-                            sectionSelect.appendChild(option);
-                        });
-                        sectionSelect.disabled = false;
-                        if (pendingSectionId) {
-                            sectionSelect.value = pendingSectionId;
-                            pendingSectionId = '';
-                            sectionSelect.dispatchEvent(new Event('change'));
-                        }
-                    })
-                    .catch(() => {
-                        sectionSelect.innerHTML = '<option value="">Unable to load sections</option>';
-                    });
+            // Back to setup
+            backToSetupBtn.addEventListener('click', function() {
+                setupCard.style.display = 'block';
+                spreadsheetCard.style.display = 'none';
+                resultsCard.style.display = 'none';
             });
 
-            sectionSelect.addEventListener('change', function() {
-                const sectionId = this.value;
-                subjectSelect.innerHTML = '<option value="">Loading subjects...</option>';
-                subjectSelect.disabled = true;
-                if (!sectionId) {
-                    subjectSelect.innerHTML = '<option value="">Select a section first</option>';
-                    return;
-                }
-                const url = subjectsEndpointTemplate.replace('__SECTION__', sectionId);
-                fetch(url)
-                    .then(resp => resp.json())
-                    .then(subjects => {
-                        if (!Array.isArray(subjects) || subjects.length === 0) {
-                            subjectSelect.innerHTML = '<option value="">No subjects assigned</option>';
-                            return;
-                        }
-                        subjectSelect.innerHTML = '<option value="">Select a subject</option>';
-                        subjects.forEach(subject => {
-                            const option = document.createElement('option');
-                            option.value = subject.id;
-                            option.textContent = subject.name;
-                            subjectSelect.appendChild(option);
-                        });
-                        subjectSelect.disabled = false;
-                        if (pendingSubjectId) {
-                            subjectSelect.value = pendingSubjectId;
-                            pendingSubjectId = '';
-                        }
-                    })
-                    .catch(() => {
-                        subjectSelect.innerHTML = '<option value="">Unable to load subjects</option>';
-                    });
-            });
-
-            // Hydrate previous selections
-            (function hydrateForm() {
-                if (initialGradeId) {
-                    gradeLevelSelect.value = initialGradeId;
-                    gradeLevelSelect.dispatchEvent(new Event('change'));
-                }
-
-                const payload = categoriesPayloadInput.value;
-                if (payload) {
-                    try {
-                        const parsed = JSON.parse(payload);
-                        categoriesData = parsed.map(cat => ({
-                            name: cat.name,
-                            start: cat.start,
-                            end: cat.end
-                        }));
-                        itemWrongCounts = {};
-                        parsed.forEach(cat => {
-                            Object.entries(cat.items || {}).forEach(([item, wrong]) => {
-                                itemWrongCounts[parseInt(item, 10)] = wrong;
-                            });
-                        });
-                        renderCategoriesList();
-                    } catch (error) {
-                        console.warn('Unable to hydrate categories payload', error);
+            // Clear all
+            clearAllBtn.addEventListener('click', function() {
+                if (confirm('Clear all entered data?')) {
+                    const totalItems = parseInt(totalItemsInput.value) || 0;
+                    for (let i = 1; i <= totalItems; i++) {
+                        itemData[i] = 0;
                     }
+                    spreadsheetBody.querySelectorAll('.item-input').forEach(input => {
+                        input.value = 0;
+                    });
+                    updateAnalysis();
                 }
-            })();
+            });
 
+            // Save form
+            document.getElementById('saveAnalysisForm').addEventListener('submit', function(e) {
+                // Populate hidden fields
+                document.getElementById('hiddenQuarter').value = quarterSelect.value;
+                document.getElementById('hiddenGradeLevel').value = gradeLevelSelect.value;
+                document.getElementById('hiddenSection').value = sectionSelect.value;
+                document.getElementById('hiddenSubject').value = subjectSelect.value;
+                document.getElementById('hiddenTotalStudents').value = totalStudentsInput.value;
+                document.getElementById('hiddenTotalItems').value = totalItemsInput.value;
+                document.getElementById('hiddenExamTitle').value = examTitleInput.value;
+
+                // Build categories payload
+                const payload = categories.map(cat => {
+                    const items = {};
+                    for (let i = cat.start; i <= cat.end; i++) {
+                        items[i] = itemData[i] || 0;
+                    }
+                    return {
+                        name: cat.name,
+                        start: cat.start,
+                        end: cat.end,
+                        items
+                    };
+                });
+
+                document.getElementById('hiddenCategoriesPayload').value = JSON.stringify(payload);
+            });
+
+            // Initialize feather icons
             if (window.feather) {
                 feather.replace();
             }

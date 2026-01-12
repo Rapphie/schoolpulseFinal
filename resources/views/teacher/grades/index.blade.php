@@ -1,12 +1,15 @@
 @extends('base')
 
-@section('title', 'My Classes for Grades')
+@section('title', 'Grades - Report Card')
 
 @section('content')
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ route('teacher.assessments.list') }}">Grades</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Report Card</li>
+        </ol>
+    </nav>
     <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">My Classes</h6>
-        </div>
         <div class="card-body">
             @if (isset($error))
                 <div class="alert alert-danger">{{ $error }}</div>
@@ -46,9 +49,6 @@
 @endsection
 
 @push('scripts')
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script>
         $(document).ready(function() {
             $('#classesTable').DataTable();
