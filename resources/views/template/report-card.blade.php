@@ -102,7 +102,7 @@
                     <p class="font-bold text-sm">Department of Education</p>
                     <p class="text-sm">REGION XI</p>
                     <p class="text-sm"> PANABO CITY</p>
-                    <p class="font-bold text-sm">STA. CRUZ ELEM. SCHOOL</p>
+                    <p class="font-bold text-sm">TAGUROT ELEM. SCHOOL</p>
                 </div>
 
                 <table class="text-xs">
