@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
             'password.force-change' => \App\Http\Middleware\ForcePasswordChange::class,
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'enrollment.enabled' => \App\Http\Middleware\CheckTeacherEnrollment::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

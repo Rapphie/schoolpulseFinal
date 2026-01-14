@@ -27,3 +27,4 @@ GEMINI.md
 /python/.venv
 /docs
 /.github
+python/utils/__pycache__
