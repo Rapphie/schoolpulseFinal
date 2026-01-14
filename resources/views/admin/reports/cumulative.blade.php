@@ -2,6 +2,32 @@
 
 @section('title', 'Cumulative Analytics')
 
+@push('styles')
+    <style>
+        .card-clickable {
+            display: block;
+            transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .card-clickable:hover {
+            transform: translateY(-3px);
+        }
+
+        .card-clickable:hover .card {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .card-clickable .card-footer-link {
+            opacity: 0.7;
+            transition: opacity 0.15s ease-in-out;
+        }
+
+        .card-clickable:hover .card-footer-link {
+            opacity: 1;
+        }
+    </style>
+@endpush
+
 @section('content')
     @php
         $summaryDefaults = [
@@ -140,31 +166,83 @@
                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                 Updating...
             </div>
+            <div>
+                <a href="{{ route('admin.reports.export.cumulative', ['school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                    class="btn btn-outline-primary" id="cumulativeExportBtn">
+                    <i data-feather="download" class="me-1"></i> Export
+                </a>
+            </div>
         </div>
     </div>
 
+    @php
+        $cardLinks = [
+            'students' => [
+                'route' => 'admin.reports.enrollees.detail',
+                'type' => 'students',
+                'color' => 'primary',
+                'linkText' => 'View Students →',
+            ],
+            'classes' => [
+                'route' => 'admin.reports.enrollees.detail',
+                'type' => 'sections',
+                'color' => 'secondary',
+                'linkText' => 'View Classes →',
+            ],
+            'attendance_rate' => [
+                'route' => 'admin.reports.attendance.detail',
+                'type' => 'present',
+                'color' => 'success',
+                'linkText' => 'View Attendance →',
+            ],
+            'average_grade' => [
+                'route' => 'admin.reports.grades.detail',
+                'type' => 'average',
+                'color' => 'warning',
+                'linkText' => 'View Grades →',
+            ],
+        ];
+    @endphp
+
     <div class="row g-3 mb-4">
         @foreach ($summaryCardsData as $key => $card)
+            @php
+                $linkInfo = $cardLinks[$key] ?? null;
+                $precision = $card['precision'] ?? 0;
+                $value = $card['value'] ?? 0;
+                $suffix = $card['suffix'] ?? '';
+                $formatted = $precision > 0 ? number_format((float) $value, $precision) : number_format((int) $value);
+            @endphp
             <div class="col-md-3 col-sm-6">
-                <div class="card shadow-sm h-100 {{ $summaryCardStyles[$key] ?? 'border-left-info' }}"
-                    data-summary-card="{{ $key }}">
-                    <div class="card-body">
-                        <div class="text-xs fw-bold text-uppercase mb-1 text-muted">{{ $card['label'] }}</div>
-                        @php
-                            $precision = $card['precision'] ?? 0;
-                            $value = $card['value'] ?? 0;
-                            $suffix = $card['suffix'] ?? '';
-                            $formatted =
-                                $precision > 0
-                                    ? number_format((float) $value, $precision)
-                                    : number_format((int) $value);
-                        @endphp
-                        <div class="h4 mb-0 font-weight-bold text-gray-800 summary-value">
-                            {{ $formatted }}{{ $suffix }}
+                @if ($linkInfo)
+                    <a href="{{ route($linkInfo['route'], ['type' => $linkInfo['type'], 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                        class="text-decoration-none card-clickable" data-card-key="{{ $key }}">
+                        <div class="card shadow-sm h-100 {{ $summaryCardStyles[$key] ?? 'border-left-info' }}"
+                            data-summary-card="{{ $key }}">
+                            <div class="card-body">
+                                <div class="text-xs fw-bold text-uppercase mb-1 text-muted">{{ $card['label'] }}</div>
+                                <div class="h4 mb-0 font-weight-bold text-gray-800 summary-value">
+                                    {{ $formatted }}{{ $suffix }}
+                                </div>
+                                <small class="text-muted">Reflects current filters</small>
+                                <div class="card-footer-link mt-2">
+                                    <span class="text-{{ $linkInfo['color'] }} small">{{ $linkInfo['linkText'] }}</span>
+                                </div>
+                            </div>
                         </div>
-                        <small class="text-muted">Reflects current filters</small>
+                    </a>
+                @else
+                    <div class="card shadow-sm h-100 {{ $summaryCardStyles[$key] ?? 'border-left-info' }}"
+                        data-summary-card="{{ $key }}">
+                        <div class="card-body">
+                            <div class="text-xs fw-bold text-uppercase mb-1 text-muted">{{ $card['label'] }}</div>
+                            <div class="h4 mb-0 font-weight-bold text-gray-800 summary-value">
+                                {{ $formatted }}{{ $suffix }}
+                            </div>
+                            <small class="text-muted">Reflects current filters</small>
+                        </div>
                     </div>
-                </div>
+                @endif
             </div>
         @endforeach
     </div>
@@ -481,6 +559,7 @@
             const classHelper = document.getElementById('cumulativeClassHelper');
             const loader = document.getElementById('cumulativeLoader');
             const viewingYearName = document.getElementById('cumulativeViewingYearName');
+            const exportBtn = document.getElementById('cumulativeExportBtn');
             const initialClassValue = classSelect && classSelect.dataset ?
                 (classSelect.dataset.selectedClass || '') :
                 '';
@@ -514,8 +593,18 @@
                 gradeDistribution: null,
             };
 
+            // Card link routes
+            const cardRoutes = {
+                students: "{{ route('admin.reports.enrollees.detail', ['type' => 'students']) }}",
+                classes: "{{ route('admin.reports.enrollees.detail', ['type' => 'sections']) }}",
+                attendance_rate: "{{ route('admin.reports.attendance.detail', ['type' => 'present']) }}",
+                average_grade: "{{ route('admin.reports.grades.detail', ['type' => 'average']) }}",
+            };
+            const exportBaseUrl = "{{ route('admin.reports.export.cumulative') }}";
+
             populateClassSelect(initialClassValue);
             updateSummaryCards();
+            updateCardLinks();
             updateEnrollmentSnapshot();
             updateAttendanceSummary();
             updateGradesSummary();
@@ -616,6 +705,7 @@
 
                     populateClassSelect();
                     updateSummaryCards();
+                    updateCardLinks();
                     updateEnrollmentSnapshot();
                     updateAttendanceSummary();
                     updateGradesSummary();
@@ -658,6 +748,34 @@
                     const data = cards[key];
                     card.textContent = formatValue(data.value, data.precision, data.suffix || '');
                 });
+            }
+
+            function updateCardLinks() {
+                const params = new URLSearchParams();
+                if (schoolYearSelect.value) {
+                    params.set('school_year_id', schoolYearSelect.value);
+                }
+                if (gradeSelect.value) {
+                    params.set('grade_level_id', gradeSelect.value);
+                }
+                if (classSelect.value) {
+                    params.set('class_id', classSelect.value);
+                }
+                const queryString = params.toString();
+
+                // Update card links
+                Object.keys(cardRoutes).forEach((key) => {
+                    const link = document.querySelector(`a[data-card-key="${key}"]`);
+                    if (link) {
+                        const baseUrl = cardRoutes[key];
+                        link.href = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+                    }
+                });
+
+                // Update export button
+                if (exportBtn) {
+                    exportBtn.href = queryString ? `${exportBaseUrl}?${queryString}` : exportBaseUrl;
+                }
             }
 
             function updateEnrollmentSnapshot() {

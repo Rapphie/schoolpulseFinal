@@ -56,44 +56,71 @@
 
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-primary shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Enrollees</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalStudentsCount">
-                        {{ number_format($totalStudents) }}</div>
-                    <small class="text-muted">Across selected filters</small>
+            <a href="{{ route('admin.reports.enrollees.detail', ['type' => 'students', 'school_year_id' => $currentSchoolYear?->id, 'grade' => $selectedGrade]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardStudents" data-type="students">
+                <div class="card border-left-primary shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Enrollees</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalStudentsCount">
+                            {{ number_format($totalStudents) }}</div>
+                        <small class="text-muted">Across selected filters</small>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-primary"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-success shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Sections Tracked</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalSectionsCount">
-                        {{ number_format($totalSections) }}</div>
-                    <small class="text-muted">Unique classes in scope</small>
+            <a href="{{ route('admin.reports.enrollees.detail', ['type' => 'sections', 'school_year_id' => $currentSchoolYear?->id, 'grade' => $selectedGrade]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardSections" data-type="sections">
+                <div class="card border-left-success shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Sections</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalSectionsCount">
+                            {{ number_format($totalSections) }}</div>
+                        <small class="text-muted">Active sections in the selected s.y.</small>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-success"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-info shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Average / Section</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="averagePerSection">
-                        {{ number_format($averagePerSection, 1) }}</div>
-                    <small class="text-muted">Students per section</small>
+            <a href="{{ route('admin.reports.enrollees.detail', ['type' => 'average', 'school_year_id' => $currentSchoolYear?->id, 'grade' => $selectedGrade]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardAverage" data-type="average">
+                <div class="card border-left-info shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Average / Section</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="averagePerSection">
+                            {{ number_format($averagePerSection, 1) }}</div>
+                        <small class="text-muted">Students per section</small>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-info"><i data-feather="arrow-right" class="feather-sm"></i> View Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-warning shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Largest Section</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="largestSection">
-                        {{ number_format($largestSection) }}</div>
-                    <small class="text-muted">Peak headcount</small>
+            <a href="{{ route('admin.reports.enrollees.detail', ['type' => 'largest', 'school_year_id' => $currentSchoolYear?->id, 'grade' => $selectedGrade]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardLargest" data-type="largest">
+                <div class="card border-left-warning shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Largest Section</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="largestSection">
+                            {{ number_format($largestSection) }}</div>
+                        <small class="text-muted">Peak headcount</small>
+                    </div>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-warning"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
@@ -207,6 +234,33 @@
     </div>
 @endsection
 
+@push('styles')
+    <style>
+        .card-clickable {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .card-clickable:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .card-link-wrapper:hover .card-footer small {
+            text-decoration: underline;
+        }
+
+        .card-clickable .card-footer {
+            opacity: 0.7;
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        .card-clickable:hover .card-footer {
+            opacity: 1;
+        }
+    </style>
+@endpush
+
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -254,6 +308,7 @@
 
             function handleFilterChange() {
                 updateExportLink();
+                updateCardLinks();
                 fetchAnalytics();
             }
 
@@ -510,6 +565,27 @@
                     params.append('grade', gradeFilter.value);
                 }
                 exportLink.href = params.toString() ? `${exportUrl}?${params.toString()}` : exportUrl;
+            }
+
+            function updateCardLinks() {
+                const detailBaseUrl = "{{ route('admin.reports.enrollees.detail', ['type' => '__TYPE__']) }}";
+                const cardLinks = document.querySelectorAll('.card-link-wrapper');
+
+                cardLinks.forEach(link => {
+                    const type = link.dataset.type;
+                    if (!type) return;
+
+                    const params = new URLSearchParams();
+                    if (schoolYearSelect.value) {
+                        params.append('school_year_id', schoolYearSelect.value);
+                    }
+                    if (gradeFilter.value) {
+                        params.append('grade', gradeFilter.value);
+                    }
+
+                    const baseUrl = detailBaseUrl.replace('__TYPE__', type);
+                    link.href = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+                });
             }
         });
     </script>

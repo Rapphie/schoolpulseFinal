@@ -100,6 +100,13 @@
                     {{ $selectedGradeLevelId ? 'Showing classes for the selected grade level.' : 'Select a grade level to enable the class filter.' }}
                 </small>
             </div>
+            <div>
+                <label class="form-label small text-muted mb-1">&nbsp;</label>
+                <a class="btn btn-outline-primary d-block" id="attendanceExportLink"
+                    href="{{ route('admin.reports.export.attendance', ['school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}">
+                    <i data-feather="download"></i> Export
+                </a>
+            </div>
             <div class="text-muted small d-none" id="attendanceLoader">
                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                 Updating...
@@ -109,69 +116,103 @@
 
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-success shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Attendance Rate</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceRateValue">
-                        {{ number_format($summary['present_rate'], 1) }}%
+            <a href="{{ route('admin.reports.attendance.detail', ['type' => 'present', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardAttendanceRate" data-type="present">
+                <div class="card border-left-success shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Attendance Rate</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceRateValue">
+                            {{ number_format($summary['present_rate'], 1) }}%
+                        </div>
+                        <small class="text-muted">Present ÷ total sessions</small>
                     </div>
-                    <small class="text-muted">Present ÷ total sessions</small>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-success"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-primary shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Sessions Logged</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceSessionsValue">
-                        {{ number_format($summary['total_records']) }}
+            <a href="{{ route('admin.reports.attendance.detail', ['type' => 'records', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardSessions" data-type="records">
+                <div class="card border-left-primary shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Sessions Logged</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceSessionsValue">
+                            {{ number_format($summary['total_records']) }}
+                        </div>
+                        <small class="text-muted">Across current filters</small>
                     </div>
-                    <small class="text-muted">Across current filters</small>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-primary"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-info shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Present</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendancePresentValue">
-                        {{ number_format($summary['present']) }}
+            <a href="{{ route('admin.reports.attendance.detail', ['type' => 'present', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardPresent" data-type="present">
+                <div class="card border-left-info shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Present</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendancePresentValue">
+                            {{ number_format($summary['present']) }}
+                        </div>
+                        <small class="text-muted">{{ number_format($summary['present_rate'], 1) }}% of sessions</small>
                     </div>
-                    <small class="text-muted">{{ number_format($summary['present_rate'], 1) }}% of sessions</small>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-info"><i data-feather="arrow-right" class="feather-sm"></i> View Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-danger shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Absences</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceAbsentValue">
-                        {{ number_format($summary['absent']) }}
+            <a href="{{ route('admin.reports.attendance.detail', ['type' => 'absent', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardAbsent" data-type="absent">
+                <div class="card border-left-danger shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Absences</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceAbsentValue">
+                            {{ number_format($summary['absent']) }}
+                        </div>
+                        <small class="text-muted">{{ number_format($summary['absence_rate'], 1) }}% of sessions</small>
                     </div>
-                    <small class="text-muted">{{ number_format($summary['absence_rate'], 1) }}% of sessions</small>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-danger"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
     <div class="row g-3 mb-4">
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Late Arrivals</div>
-                            <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceLateValue">
-                                {{ number_format($summary['late']) }}
+            <a href="{{ route('admin.reports.attendance.detail', ['type' => 'late', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-link-wrapper" id="cardLate" data-type="late">
+                <div class="card shadow-sm h-100 card-clickable">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Late Arrivals</div>
+                                <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceLateValue">
+                                    {{ number_format($summary['late']) }}
+                                </div>
                             </div>
+                            <span class="badge bg-warning text-dark" id="attendanceLateRate">
+                                {{ number_format($summary['late_rate'], 1) }}%
+                            </span>
                         </div>
-                        <span class="badge bg-warning text-dark" id="attendanceLateRate">
-                            {{ number_format($summary['late_rate'], 1) }}%
-                        </span>
+                        <p class="mb-0 text-muted small">Share of sessions tagged as late across the selected scope.</p>
                     </div>
-                    <p class="mb-0 text-muted small">Share of sessions tagged as late across the selected scope.</p>
+                    <div class="card-footer bg-transparent border-0 text-center py-2">
+                        <small class="text-warning"><i data-feather="arrow-right" class="feather-sm"></i> View
+                            Details</small>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
@@ -188,7 +229,8 @@
                     <div class="d-flex gap-3 flex-wrap">
                         <div>
                             <div class="text-muted text-uppercase small">Present</div>
-                            <div class="h5 mb-0" id="todayPresentValue">{{ number_format($todaySnapshotData['present']) }}
+                            <div class="h5 mb-0" id="todayPresentValue">
+                                {{ number_format($todaySnapshotData['present']) }}
                             </div>
                         </div>
                         <div>
@@ -458,6 +500,8 @@
                     rebuildStatusChart();
                     rebuildDailyChart();
                     toggleDailyChart(state.dailySparkline);
+                    updateCardLinks();
+                    updateExportLink();
                 } catch (error) {
                     console.error(error);
                     alert('Unable to refresh attendance analytics. Please try again.');
@@ -690,6 +734,80 @@
                     },
                 });
             }
+
+            function updateCardLinks() {
+                const detailBaseUrl = "{{ route('admin.reports.attendance.detail', ['type' => '__TYPE__']) }}";
+                const cardLinks = document.querySelectorAll('.card-link-wrapper');
+
+                cardLinks.forEach(link => {
+                    const type = link.dataset.type;
+                    if (!type) return;
+
+                    const params = new URLSearchParams();
+                    if (schoolYearSelect.value) {
+                        params.append('school_year_id', schoolYearSelect.value);
+                    }
+                    if (gradeSelect.value) {
+                        params.append('grade_level_id', gradeSelect.value);
+                    }
+                    if (gradeSelect.value && classSelect.value) {
+                        params.append('class_id', classSelect.value);
+                    }
+
+                    const baseUrl = detailBaseUrl.replace('__TYPE__', type);
+                    link.href = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+                });
+            }
+
+            function updateExportLink() {
+                const exportLink = document.getElementById('attendanceExportLink');
+                if (!exportLink) return;
+
+                const exportBaseUrl = "{{ route('admin.reports.export.attendance') }}";
+                const params = new URLSearchParams();
+                if (schoolYearSelect.value) {
+                    params.append('school_year_id', schoolYearSelect.value);
+                }
+                if (gradeSelect.value) {
+                    params.append('grade_level_id', gradeSelect.value);
+                }
+                if (gradeSelect.value && classSelect.value) {
+                    params.append('class_id', classSelect.value);
+                }
+
+                exportLink.href = params.toString() ? `${exportBaseUrl}?${params.toString()}` : exportBaseUrl;
+            }
+
+            // Initial updates
+            updateCardLinks();
+            updateExportLink();
         });
     </script>
+@endpush
+
+@push('styles')
+    <style>
+        .card-clickable {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .card-clickable:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .card-link-wrapper:hover .card-footer small {
+            text-decoration: underline;
+        }
+
+        .card-clickable .card-footer {
+            opacity: 0.7;
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        .card-clickable:hover .card-footer {
+            opacity: 1;
+        }
+    </style>
 @endpush

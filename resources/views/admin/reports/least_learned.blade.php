@@ -199,84 +199,83 @@
 @endsection
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-        feather.replace();
+            feather.replace();
 
-        @if ($llcItems->count() > 0 && $llcData)
-            // Initialize Chart with real data
-            const ctx = document.getElementById('llcChart').getContext('2d');
+            @if ($llcItems->count() > 0 && $llcData)
+                // Initialize Chart with real data
+                const ctx = document.getElementById('llcChart').getContext('2d');
 
-            const labels = @json($llcItems->pluck('category_name'));
-            const studentsWrong = @json($llcItems->pluck('students_wrong'));
-            const totalStudents = {{ $llcData->total_students }};
+                const labels = @json($llcItems->pluck('category_name'));
+                const studentsWrong = @json($llcItems->pluck('students_wrong'));
+                const totalStudents = {{ $llcData->total_students }};
 
-            // Calculate mastery rates
-            const masteryRates = studentsWrong.map(wrong => {
-                return ((totalStudents - wrong) / totalStudents * 100).toFixed(1);
-            });
+                // Calculate mastery rates
+                const masteryRates = studentsWrong.map(wrong => {
+                    return ((totalStudents - wrong) / totalStudents * 100).toFixed(1);
+                });
 
-            // Determine colors based on mastery rate
-            const backgroundColors = masteryRates.map(rate => {
-                if (rate >= 75) return 'rgba(28, 200, 138, 0.8)';
-                if (rate >= 50) return 'rgba(246, 194, 62, 0.8)';
-                return 'rgba(231, 74, 59, 0.8)';
-            });
+                // Determine colors based on mastery rate
+                const backgroundColors = masteryRates.map(rate => {
+                    if (rate >= 75) return 'rgba(28, 200, 138, 0.8)';
+                    if (rate >= 50) return 'rgba(246, 194, 62, 0.8)';
+                    return 'rgba(231, 74, 59, 0.8)';
+                });
 
-            const borderColors = masteryRates.map(rate => {
-                if (rate >= 75) return 'rgb(28, 200, 138)';
-                if (rate >= 50) return 'rgb(246, 194, 62)';
-                return 'rgb(231, 74, 59)';
-            });
+                const borderColors = masteryRates.map(rate => {
+                    if (rate >= 75) return 'rgb(28, 200, 138)';
+                    if (rate >= 50) return 'rgb(246, 194, 62)';
+                    return 'rgb(231, 74, 59)';
+                });
 
-            const llcChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Mastery Rate (%)',
-                        data: masteryRates,
-                        backgroundColor: backgroundColors,
-                        borderColor: borderColors,
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            title: {
-                                display: true,
-                                text: 'Mastery Rate (%)'
-                            }
-                        },
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Category'
-                            }
-                        }
+                const llcChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Mastery Rate (%)',
+                            data: masteryRates,
+                            backgroundColor: backgroundColors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
                     },
-                    plugins: {
-                        legend: {
-                            display: false
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Mastery Rate (%)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Category'
+                                }
+                            }
                         },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.raw + '% mastery rate';
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.raw + '% mastery rate';
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            });
-        @endif
-        alert('Exporting report...');
+                });
+            @endif
+            alert('Exporting report...');
         });
     </script>
 @endpush

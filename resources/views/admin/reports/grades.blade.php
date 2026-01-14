@@ -2,6 +2,32 @@
 
 @section('title', 'Grades Analytics')
 
+@push('styles')
+    <style>
+        .card-clickable {
+            display: block;
+            transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .card-clickable:hover {
+            transform: translateY(-3px);
+        }
+
+        .card-clickable:hover .card {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .card-clickable .card-footer-link {
+            opacity: 0.7;
+            transition: opacity 0.15s ease-in-out;
+        }
+
+        .card-clickable:hover .card-footer-link {
+            opacity: 1;
+        }
+    </style>
+@endpush
+
 @section('content')
     @php
         $summaryData = array_merge(
@@ -82,53 +108,83 @@
                 <span class="spinner-border spinner-border-sm me-1" role="status"></span>
                 Updating...
             </div>
+            <div>
+                <a href="{{ route('admin.reports.export.grades', ['school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                    class="btn btn-outline-primary" id="gradesExportBtn">
+                    <i data-feather="download" class="me-1"></i> Export
+                </a>
+            </div>
         </div>
     </div>
 
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-primary shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Grade</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesAverageValue">
-                        {{ number_format($summaryData['average'], 1) }}
+            <a href="{{ route('admin.reports.grades.detail', ['type' => 'average', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-clickable" id="cardAverageLink">
+                <div class="card border-left-primary shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Grade</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesAverageValue">
+                            {{ number_format($summaryData['average'], 1) }}
+                        </div>
+                        <small class="text-muted">Across selected scope</small>
+                        <div class="card-footer-link mt-2">
+                            <span class="text-primary small">View Subject Analysis →</span>
+                        </div>
                     </div>
-                    <small class="text-muted">Across selected scope</small>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-success shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Passing Rate</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesPassingRate">
-                        {{ number_format($summaryData['passing_rate'], 1) }}%
+            <a href="{{ route('admin.reports.grades.detail', ['type' => 'passing', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-clickable" id="cardPassingLink">
+                <div class="card border-left-success shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Passing Rate</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesPassingRate">
+                            {{ number_format($summaryData['passing_rate'], 1) }}%
+                        </div>
+                        <small class="text-muted">Grades ≥ 75</small>
+                        <div class="card-footer-link mt-2">
+                            <span class="text-success small">View Passing Records →</span>
+                        </div>
                     </div>
-                    <small class="text-muted">Grades ≥ 75</small>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-info shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Highest Grade</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesHighestValue">
-                        {{ number_format($summaryData['highest'], 1) }}
+            <a href="{{ route('admin.reports.grades.detail', ['type' => 'highest', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-clickable" id="cardHighestLink">
+                <div class="card border-left-info shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Highest Grade</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesHighestValue">
+                            {{ number_format($summaryData['highest'], 1) }}
+                        </div>
+                        <small class="text-muted">Best score recorded</small>
+                        <div class="card-footer-link mt-2">
+                            <span class="text-info small">View Top Performers →</span>
+                        </div>
                     </div>
-                    <small class="text-muted">Best score recorded</small>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-3 col-sm-6">
-            <div class="card border-left-warning shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Records Evaluated</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesRecordsValue">
-                        {{ number_format($summaryData['records']) }}
+            <a href="{{ route('admin.reports.grades.detail', ['type' => 'records', 'school_year_id' => $currentSchoolYear?->id, 'grade_level_id' => $selectedGradeLevelId, 'class_id' => $selectedClassId]) }}"
+                class="text-decoration-none card-clickable" id="cardRecordsLink">
+                <div class="card border-left-warning shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Records Evaluated</div>
+                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesRecordsValue">
+                            {{ number_format($summaryData['records']) }}
+                        </div>
+                        <small class="text-muted">Total grade entries</small>
+                        <div class="card-footer-link mt-2">
+                            <span class="text-warning small">View All Records →</span>
+                        </div>
                     </div>
-                    <small class="text-muted">Total grade entries</small>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
@@ -330,6 +386,13 @@
             const studentLeaderboardBody = document.getElementById('studentLeaderboardBody');
             const classLeaderboardBody = document.getElementById('classLeaderboardBody');
 
+            // Card links and export button
+            const cardAverageLink = document.getElementById('cardAverageLink');
+            const cardPassingLink = document.getElementById('cardPassingLink');
+            const cardHighestLink = document.getElementById('cardHighestLink');
+            const cardRecordsLink = document.getElementById('cardRecordsLink');
+            const exportBtn = document.getElementById('gradesExportBtn');
+
             const initialClassSelection = classSelect?.dataset?.selectedClass || '';
 
             const charts = {
@@ -343,6 +406,7 @@
             rebuildGradeLevelChart();
             populateClassSelect(initialClassSelection);
             updateSummaryCards();
+            updateCardLinks();
             renderDistributionList(state.gradeDistribution);
             renderGradeLevelList(state.gradeLevelBreakdown);
             renderSubjectLeaderboard(state.subjectLeaderboard);
@@ -396,6 +460,7 @@
 
                         populateClassSelect(classSelect.value);
                         updateSummaryCards();
+                        updateCardLinks();
                         renderDistributionList(state.gradeDistribution);
                         renderGradeLevelList(state.gradeLevelBreakdown);
                         renderSubjectLeaderboard(state.subjectLeaderboard);
@@ -458,6 +523,43 @@
                 recordsValue.textContent = new Intl.NumberFormat().format(state.summary.records || 0);
             }
 
+            function updateCardLinks() {
+                const params = new URLSearchParams();
+                if (schoolYearSelect.value) {
+                    params.set('school_year_id', schoolYearSelect.value);
+                }
+                if (gradeSelect.value) {
+                    params.set('grade_level_id', gradeSelect.value);
+                }
+                if (classSelect.value) {
+                    params.set('class_id', classSelect.value);
+                }
+                const queryString = params.toString();
+
+                const detailBaseUrl = "{{ route('admin.reports.grades.detail', ['type' => '__TYPE__']) }}";
+                const exportBaseUrl = "{{ route('admin.reports.export.grades') }}";
+
+                if (cardAverageLink) {
+                    const url = detailBaseUrl.replace('__TYPE__', 'average');
+                    cardAverageLink.href = queryString ? `${url}?${queryString}` : url;
+                }
+                if (cardPassingLink) {
+                    const url = detailBaseUrl.replace('__TYPE__', 'passing');
+                    cardPassingLink.href = queryString ? `${url}?${queryString}` : url;
+                }
+                if (cardHighestLink) {
+                    const url = detailBaseUrl.replace('__TYPE__', 'highest');
+                    cardHighestLink.href = queryString ? `${url}?${queryString}` : url;
+                }
+                if (cardRecordsLink) {
+                    const url = detailBaseUrl.replace('__TYPE__', 'records');
+                    cardRecordsLink.href = queryString ? `${url}?${queryString}` : url;
+                }
+                if (exportBtn) {
+                    exportBtn.href = queryString ? `${exportBaseUrl}?${queryString}` : exportBaseUrl;
+                }
+            }
+
             function renderDistributionList(list) {
                 if (!list.length) {
                     distributionList.innerHTML =
@@ -476,7 +578,7 @@
             function renderGradeLevelList(list) {
                 if (!list.length) {
                     gradeLevelList.innerHTML =
-                    '<p class="text-muted text-center mb-0">No grade level data yet.</p>';
+                        '<p class="text-muted text-center mb-0">No grade level data yet.</p>';
                     return;
                 }
 
@@ -588,11 +690,9 @@
                 }
 
                 const labels = state.gradeDistribution.length ?
-                    state.gradeDistribution.map((item) => item.label) :
-                    ['No data'];
+                    state.gradeDistribution.map((item) => item.label) : ['No data'];
                 const dataPoints = state.gradeDistribution.length ?
-                    state.gradeDistribution.map((item) => item.total || 0) :
-                    [0];
+                    state.gradeDistribution.map((item) => item.total || 0) : [0];
 
                 charts.distribution = new Chart(canvas, {
                     type: 'doughnut',
@@ -632,11 +732,9 @@
                 }
 
                 const labels = state.gradeLevelBreakdown.length ?
-                    state.gradeLevelBreakdown.map((item) => item.label) :
-                    ['No data'];
+                    state.gradeLevelBreakdown.map((item) => item.label) : ['No data'];
                 const dataPoints = state.gradeLevelBreakdown.length ?
-                    state.gradeLevelBreakdown.map((item) => item.average || 0) :
-                    [0];
+                    state.gradeLevelBreakdown.map((item) => item.average || 0) : [0];
 
                 charts.gradeLevel = new Chart(canvas, {
                     type: 'bar',
