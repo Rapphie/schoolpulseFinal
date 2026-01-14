@@ -242,21 +242,19 @@
                 /* Keep consistent spacing */
             }
 
-            /* Ensure hamburger is always visible and properly positioned on mobile */
+            /* Ensure hamburger is inside the top-bar on mobile */
             .hamburger {
-                position: fixed;
-                left: 10px;
-                top: 10px;
+                position: relative;
                 z-index: 1070;
                 display: flex !important;
-                /* Always show hamburger */
+                /* Keep visual style but flow inside the top-bar */
                 background-color: rgba(13, 110, 253, 0.7);
-                /* Make it more visible */
                 width: 40px;
                 height: 40px;
                 border-radius: 4px;
                 align-items: center;
                 justify-content: center;
+                margin-right: 0.5rem;
             }
 
             /* Move hamburger when sidebar is open */
