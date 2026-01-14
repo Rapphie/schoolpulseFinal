@@ -114,9 +114,9 @@ class CheckAbsencesTest extends TestCase
         $method->setAccessible(true);
         $method->invoke($controller, $student->id, $teacher->id);
 
-        Mail::assertSent(AbsentAlertMail::class, 2);
-        Mail::assertSent(AbsentAlertMail::class, fn(AbsentAlertMail $mail) => $mail->hasTo($teacherEmail));
-        Mail::assertSent(AbsentAlertMail::class, fn(AbsentAlertMail $mail) => $mail->hasTo($guardianEmail));
+        Mail::assertQueued(AbsentAlertMail::class, 2);
+        Mail::assertQueued(AbsentAlertMail::class, fn(AbsentAlertMail $mail) => $mail->hasTo($teacherEmail));
+        Mail::assertQueued(AbsentAlertMail::class, fn(AbsentAlertMail $mail) => $mail->hasTo($guardianEmail));
 
         $this->assertNotNull(cache($cacheKey));
         Log::shouldNotHaveReceived('error');
