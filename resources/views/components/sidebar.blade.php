@@ -56,12 +56,12 @@
                 </li>
                 <li class="nav-item mb-3 dropdown position-static w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.schedule.*') || request()->routeIs('admin.sections.*') ? 'active' : 'link-dark' }} dropdown-toggle"
-                        href="#" id="subjectsDropdown" role="button" data-bs-toggle="dropdown"
+                        href="#" id="sectionsDropdown" role="button" data-bs-toggle="dropdown"
                         aria-expanded="false" style="width: 100%;">
                         <i data-feather="grid" class="me-2"></i>
                         <span>Sections</span>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="SectionsDropdown">
+                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="sectionsDropdown">
                         <li>
                             <a class="dropdown-item d-flex align-items-center"
                                 href="{{ route('admin.schedules.index') }}" style="width: 100%;">
@@ -92,7 +92,7 @@
                         href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown"
                         aria-expanded="false" style="width: 100%;">
                         <i data-feather="pie-chart" class="me-2"></i>
-                        <span>Reports&Analytics</span>
+                        <span>Reports</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="reportsDropdown">
                         <li>
@@ -180,6 +180,14 @@
                     </a>
                 </li> --}}
 
+                <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.students*') ? 'active' : 'link-dark' }}"
+                        href="{{ route('teacher.students.index') }}" style="width: 100%;">
+                        <i data-feather="users" class="me-2"></i>
+                        <span>Student Profiles</span>
+                    </a>
+                </li>
+
                 @if ($teacher_enrollment_enabled)
                     <li class="nav-item mb-3 w-100">
                         <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.enrollment*') ? 'active' : 'link-dark' }}"
@@ -190,7 +198,7 @@
                     </li>
                 @endif
                 <li class="nav-item mb-3 dropdown position-static w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.assessments.*') || request()->routeIs('teacher.grades*') ? 'active' : 'link-dark' }} dropdown-toggle"
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.assessments.*') || request()->routeIs('teacher.grades*') || request()->routeIs('teacher.oral-participation.*') ? 'active' : 'link-dark' }} dropdown-toggle"
                         href="#" id="gradebookDropdown" role="button" data-bs-toggle="dropdown"
                         aria-expanded="false" style="width: 100%;">
                         <i data-feather="book" class="me-2"></i>
@@ -203,6 +211,13 @@
                                 href="{{ route('teacher.assessments.list') }}">
                                 <i data-feather="edit-3" class="me-1"></i>
                                 <span>Grade Management</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center"
+                                href="{{ route('teacher.oral-participation.list') }}">
+                                <i data-feather="message-circle" class="me-1"></i>
+                                <span>Oral Participation</span>
                             </a>
                         </li>
                         <li>
@@ -229,7 +244,7 @@
                     </a>
                 </li> --}}
                 <li class="nav-item mb-3 w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.analytics.*') ? 'active' : 'link-dark' }}"
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('teacher.analytics.*') || request()->routeIs('analytics.*') ? 'active' : 'link-dark' }}"
                         href="{{ route('teacher.analytics.absenteeism') }}" style="width: 100%;">
                         <i data-feather="pie-chart" class="me-2"></i>
                         <span>Absenteeism</span>
@@ -267,10 +282,6 @@
                         </li>
                     </ul>
                 </li>
-                <li>
-            </ul>
-            </li>
-
             </ul>
         @endif
     </div>

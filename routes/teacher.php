@@ -7,6 +7,8 @@ use App\Http\Controllers\Teacher\LeastLearnedController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
 use App\Http\Controllers\Teacher\EnrollmentController;
 use App\Http\Controllers\Teacher\AssessmentController;
+use App\Http\Controllers\Teacher\OralParticipationController;
+use App\Http\Controllers\Teacher\StudentController;
 use App\Http\Controllers\TeacherSectionsController;
 use App\Http\Controllers\ReportCardController;
 use Illuminate\Support\Facades\Route;
@@ -27,16 +29,26 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         // Dashboard
         Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
 
-        // Enrollment Management
-        Route::get('/enrollment', [EnrollmentController::class, 'index'])->name('enrollment.index');
-        Route::get('/enrollment/export-all', [EnrollmentController::class, 'exportAll'])->name('enrollment.exportAll');
-        Route::get('enrollment/export', [EnrollmentController::class, 'export'])->name('enrollment.export');
-        Route::get('enrollment/class/{class}', [EnrollmentController::class, 'getEnrollmentsByClass'])->name('enrollment.class');
-        Route::post('enrollment/store-past-student', [EnrollmentController::class, 'storePastStudent'])->name('enrollment.storePastStudent');
-        Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
-        Route::post('/enrollment', [EnrollmentController::class, 'store'])->name('enrollment.store');
-        // Student update
-        Route::put('/students/{student}', [EnrollmentController::class, 'updateStudent'])->name('students.update');
+        // Student Profile Management (separate from enrollment)
+        Route::prefix('students')->name('students.')->group(function () {
+            Route::get('/', [StudentController::class, 'index'])->name('index');
+            Route::get('/create', [StudentController::class, 'create'])->name('create');
+            Route::post('/', [StudentController::class, 'store'])->name('store');
+            Route::get('/{student}', [StudentController::class, 'show'])->name('show');
+            Route::get('/{student}/edit', [StudentController::class, 'edit'])->name('edit');
+            Route::put('/{student}', [StudentController::class, 'update'])->name('update');
+        });
+
+        // Enrollment Management (protected by enrollment.enabled middleware)
+        Route::middleware(['enrollment.enabled'])->group(function () {
+            Route::get('/enrollment', [EnrollmentController::class, 'index'])->name('enrollment.index');
+            Route::get('/enrollment/export-all', [EnrollmentController::class, 'exportAll'])->name('enrollment.exportAll');
+            Route::get('enrollment/export', [EnrollmentController::class, 'export'])->name('enrollment.export');
+            Route::get('enrollment/class/{class}', [EnrollmentController::class, 'getEnrollmentsByClass'])->name('enrollment.class');
+            Route::post('enrollment/store-past-student', [EnrollmentController::class, 'storePastStudent'])->name('enrollment.storePastStudent');
+            Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
+            Route::post('/enrollment', [EnrollmentController::class, 'store'])->name('enrollment.store');
+        });
 
         // Assessment Management
         Route::prefix('classes/assessments')->name('assessments.')->group(function () {
@@ -52,6 +64,17 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::delete('/{class}/{assessment}', [AssessmentController::class, 'destroy'])->name('destroy');
         });
 
+        // Oral Participation Management
+        Route::prefix('oral-participation')->name('oral-participation.')->group(function () {
+            Route::get('/', [OralParticipationController::class, 'list'])->name('list');
+            Route::get('/sections', [OralParticipationController::class, 'getSectionsByGradeLevel'])->name('sections');
+            Route::get('/{class}', [OralParticipationController::class, 'index'])->name('index');
+            Route::get('/{class}/students', [OralParticipationController::class, 'getStudentsWithScores'])->name('students');
+            Route::post('/{class}/save-scores', [OralParticipationController::class, 'saveScores'])->name('saveScores');
+            Route::post('/{class}/quick-save', [OralParticipationController::class, 'quickSave'])->name('quickSave');
+            Route::post('/{class}/update-max-score', [OralParticipationController::class, 'updateMaxScore'])->name('updateMaxScore');
+        });
+
         // Class Management
         Route::get('/classes/{section?}', [TeacherDashboardController::class, 'classes'])->name('classes');
         Route::get('/classes/view/{class}', [TeacherDashboardController::class, 'viewClass'])->name('classes.view');
@@ -63,7 +86,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
 
         // Schedules & Students
         Route::get('/schedules', [TeacherDashboardController::class, 'loggedTeacherSchedules'])->name('schedules.index');
-        Route::get('/students', [TeacherDashboardController::class, 'students'])->name('students');
+        Route::get('/students-overview', [TeacherDashboardController::class, 'students'])->name('students-overview');
         Route::get('/grades', [TeacherDashboardController::class, 'grades'])->name('grades');
         Route::get('/grades/{class}', [TeacherDashboardController::class, 'showGrades'])->name('grades.show');
         Route::get('/grades/{class}/student/{student}', [TeacherDashboardController::class, 'studentGrades'])->name('grades.student');
