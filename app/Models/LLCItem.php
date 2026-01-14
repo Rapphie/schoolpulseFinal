@@ -24,6 +24,6 @@ class LLCItem extends Model
 
     public function llc(): BelongsTo
     {
-        return $this->belongsTo(LLC::class);
+        return $this->belongsTo(LLC::class, 'llc_id');
     }
 }

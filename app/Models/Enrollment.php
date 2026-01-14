@@ -10,8 +10,13 @@ class Enrollment extends Model
         'student_id',
         'class_id',
         'school_year_id',
+        'student_profile_id',
         'enrollment_date',
         'status',
+    ];
+
+    protected $casts = [
+        'enrollment_date' => 'date',
     ];
 
     public function student()
@@ -31,5 +36,13 @@ class Enrollment extends Model
     public function schoolYear()
     {
         return $this->belongsTo(SchoolYear::class, 'school_year_id');
+    }
+
+    /**
+     * The student profile this enrollment is linked to.
+     */
+    public function studentProfile()
+    {
+        return $this->belongsTo(StudentProfile::class);
     }
 }

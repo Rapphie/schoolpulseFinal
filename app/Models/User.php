@@ -101,6 +101,8 @@ class User extends Authenticatable
 
     public function hasRole(string $role): bool
     {
-        return $this->role->name == $role;
+        // Support multiple roles separated by pipe (e.g., "teacher|admin")
+        $roles = explode('|', $role);
+        return in_array($this->role->name, $roles);
     }
 }

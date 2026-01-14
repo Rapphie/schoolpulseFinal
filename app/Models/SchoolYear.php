@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,6 +13,12 @@ class SchoolYear extends Model
         'start_date',
         'end_date',
         'is_active',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -37,8 +44,6 @@ class SchoolYear extends Model
                 static::where('id', '!=', $schoolYear->id)->update(['is_active' => false]);
             }
         });
-
-        
     }
 
     /*
@@ -49,6 +54,22 @@ class SchoolYear extends Model
     | Define the relationships for the SchoolYear model.
     |
     */
+
+    /**
+     * Get all of the quarters for the SchoolYear.
+     */
+    public function quarters()
+    {
+        return $this->hasMany(SchoolYearQuarter::class)->orderBy('quarter');
+    }
+
+    /**
+     * Get the current quarter for this school year.
+     */
+    public function currentQuarter()
+    {
+        return $this->quarters()->current()->first();
+    }
 
     /**
      * Get all of the classes for the SchoolYear.
@@ -101,5 +122,120 @@ class SchoolYear extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helper Methods
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Check if a date range overlaps with any existing school years.
+     *
+     * @param  string|Carbon  $startDate
+     * @param  string|Carbon  $endDate
+     * @param  int|null  $excludeId  ID to exclude (for updates)
+     * @return static|null  Returns the overlapping school year if found, null otherwise
+     */
+    public static function findOverlapping($startDate, $endDate, ?int $excludeId = null): ?self
+    {
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        return static::query()
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->where(function ($query) use ($start, $end) {
+                // Case 1: New start_date falls within existing range
+                $query->where(function ($q) use ($start, $end) {
+                    $q->where('start_date', '<=', $start)
+                        ->where('end_date', '>=', $start);
+                })
+                    // Case 2: New end_date falls within existing range
+                    ->orWhere(function ($q) use ($start, $end) {
+                        $q->where('start_date', '<=', $end)
+                            ->where('end_date', '>=', $end);
+                    })
+                    // Case 3: New range completely contains existing range
+                    ->orWhere(function ($q) use ($start, $end) {
+                        $q->where('start_date', '>=', $start)
+                            ->where('end_date', '<=', $end);
+                    });
+            })
+            ->first();
+    }
+
+    /**
+     * Check if this school year has any related data (enrollments, grades, etc.)
+     *
+     * @return bool
+     */
+    public function hasRelatedData(): bool
+    {
+        return $this->enrollments()->exists()
+            || $this->grades()->exists()
+            || $this->attendances()->exists()
+            || $this->classes()->exists();
+    }
+
+    /**
+     * Get the previous school year (by end date).
+     *
+     * @return static|null
+     */
+    public static function previous(): ?self
+    {
+        $active = static::active()->first();
+
+        if (!$active) {
+            return static::orderBy('end_date', 'desc')->first();
+        }
+
+        return static::where('id', '!=', $active->id)
+            ->where('end_date', '<', $active->start_date)
+            ->orderBy('end_date', 'desc')
+            ->first();
+    }
+
+    /**
+     * Check if current date falls within this school year.
+     *
+     * @return bool
+     */
+    public function isCurrent(): bool
+    {
+        $today = Carbon::today();
+        return $today->between($this->start_date, $this->end_date);
+    }
+
+    /**
+     * Get the current quarter for the active school year.
+     * This is a convenience method for use throughout the app.
+     *
+     * @return SchoolYearQuarter|null
+     */
+    public static function getCurrentQuarter(): ?SchoolYearQuarter
+    {
+        $activeSchoolYear = static::active()->first();
+        if (!$activeSchoolYear) {
+            return null;
+        }
+
+        return $activeSchoolYear->quarters()
+            ->where('start_date', '<=', Carbon::today())
+            ->where('end_date', '>=', Carbon::today())
+            ->first();
+    }
+
+    /**
+     * Check if a specific quarter is locked.
+     *
+     * @param int $quarterNumber 1-4
+     * @return bool
+     */
+    public function isQuarterLocked(int $quarterNumber): bool
+    {
+        $quarter = $this->quarters()->where('quarter', $quarterNumber)->first();
+        return $quarter ? $quarter->is_locked : false;
     }
 }

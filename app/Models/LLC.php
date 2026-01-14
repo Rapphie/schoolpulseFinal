@@ -51,6 +51,6 @@ class LLC extends Model
 
     public function llcItems(): HasMany
     {
-        return $this->hasMany(LLCItem::class);
+        return $this->hasMany(LLCItem::class, 'llc_id');
     }
 }
