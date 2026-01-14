@@ -7,6 +7,8 @@ use App\Models\Section;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Models\Grade;
+use App\Models\Classes;
+use App\Models\GradeLevel;
 use App\Models\Student;
 use App\Models\Attendance;
 use App\Models\Subject;
@@ -16,6 +18,7 @@ use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use PhpParser\Node\Stmt\TryCatch;
 
 class AdminController extends Controller
@@ -45,8 +48,8 @@ class AdminController extends Controller
         $user->temporary_password = $tempPassword;
         $user->temporary_password_expires_at = $expiresAt;
         $user->save();
-        \Illuminate\Support\Facades\Mail::to($user->email)->send(new \App\Mail\TemporaryPasswordMail($user, $tempPassword, $expiresAt));
-        return back()->with('success', 'Temporary password sent to user email.');
+        \Illuminate\Support\Facades\Mail::to($user->email)->queue(new \App\Mail\TemporaryPasswordMail($user, $tempPassword, $expiresAt));
+        return back()->with('success', 'Temporary password sent to user email.');;
     }
     public function storeTeacher(Request $request)
     {
@@ -172,9 +175,19 @@ class AdminController extends Controller
      */
     public function sections()
     {
-        $sections = Section::all();
+        $activeSchoolYear = SchoolYear::active()->first();
+
+        $classes = collect();
+        if ($activeSchoolYear) {
+            $classes = Classes::with(['section.gradeLevel', 'teacher.user', 'enrollments'])
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->get();
+        }
+
         $teachers = Teacher::all();
-        return view('admin.sections.index', compact('sections', 'teachers'));
+        $gradeLevels = GradeLevel::orderBy('level')->get();
+
+        return view('admin.sections.index', compact('classes', 'teachers', 'gradeLevels'));
     }
 
     /**
@@ -340,6 +353,64 @@ class AdminController extends Controller
     {
         return view('profile');
     }
+
+    /**
+     * Display the user's profile page.
+     */
+    public function profile()
+    {
+        $user = auth()->user();
+        return view('profile', compact('user'));
+    }
+
+    /**
+     * Update the user's profile information.
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
+
+        $user->first_name = $validated['first_name'];
+        $user->last_name = $validated['last_name'];
+        $user->email = $validated['email'];
+
+        if ($request->hasFile('profile_picture')) {
+            // Delete old profile picture if it exists
+            if ($user->profile_picture && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->profile_picture)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
+            }
+            $user->profile_picture = $request->file('profile_picture')->store('profile_pictures', 'public');
+        }
+
+        $user->save();
+
+        return redirect()->route('profile')->with('success', 'Profile updated successfully.');
+    }
+
+    /**
+     * Update the user's password.
+     */
+    public function updatePassword(Request $request)
+    {
+        $validated = $request->validate([
+            'current_password' => 'required|current_password',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = auth()->user();
+        $user->password = \Illuminate\Support\Facades\Hash::make($validated['password']);
+        $user->save();
+
+        return redirect()->route('profile')->with('success', 'Password updated successfully.');
+    }
+
     public function test()
     {
         $users = User::all();

@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\GradeLevelController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminReportController;
+use App\Http\Controllers\Admin\SchoolYearQuarterController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,6 +33,16 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         Route::put('/school-year/{id}', [AdminDashboardController::class, 'updateSchoolYear'])->name('school-year.update');
         Route::delete('/school-year/{id}', [AdminDashboardController::class, 'deleteSchoolYear'])->name('school-year.delete');
 
+        // School Year Quarters
+        Route::prefix('school-year/{schoolYear}/quarters')->name('school-year.quarters.')->group(function () {
+            Route::get('/', [SchoolYearQuarterController::class, 'index'])->name('index');
+            Route::post('/', [SchoolYearQuarterController::class, 'store'])->name('store');
+            Route::put('/{quarter}', [SchoolYearQuarterController::class, 'update'])->name('update');
+            Route::delete('/{quarter}', [SchoolYearQuarterController::class, 'destroy'])->name('destroy');
+            Route::post('/{quarter}/toggle-lock', [SchoolYearQuarterController::class, 'toggleLock'])->name('toggle-lock');
+            Route::post('/auto-generate', [SchoolYearQuarterController::class, 'autoGenerate'])->name('auto-generate');
+        });
+
         // Class Management
         Route::post('/classes/{class}/assign-adviser', [ClassroomSectionController::class, 'assignClassAdviser'])->name('sections.adviser.assign');
         Route::delete('/classes/{class}/remove-adviser', [ClassroomSectionController::class, 'removeClassAdviser'])->name('sections.adviser.remove');
@@ -40,6 +51,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         // Use the admin ClassroomSectionController to handle enrollments created from the admin class view
         Route::post('/classes/{class}/enroll', [ClassroomSectionController::class, 'enrollStudent'])->name('enrollment.store');
         Route::get('/students/{student}', [ClassroomSectionController::class, 'showStudent'])->name('students.show');
+        Route::get('/students/{student}/edit', [ClassroomSectionController::class, 'editStudent'])->name('students.edit');
         Route::put('/students/{student}', [ClassroomSectionController::class, 'updateStudent'])->name('students.update');
 
         // Settings
