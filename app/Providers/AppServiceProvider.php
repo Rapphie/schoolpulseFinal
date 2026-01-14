@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Setting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -13,7 +14,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Only register Telescope when explicitly enabled
+        if ($this->app->environment('local') && config('telescope.enabled')) {
+            $this->app->register(\App\Providers\TelescopeServiceProvider::class);
+        }
     }
 
     /**
@@ -22,10 +26,18 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         View::composer('components.sidebar', function ($view) {
-            $teacher_enrollment = Setting::where('key', 'teacher_enrollment')->first();
-            $school_year = Setting::where('key', 'school_year')->first();
-            $view->with('teacher_enrollment_enabled', $teacher_enrollment ? $teacher_enrollment->value : false);
-            $view->with('school_year', $school_year ? $school_year->value : null);
+            // Cache settings for 5 minutes to reduce database queries on every page load
+            $settings = Cache::remember('sidebar_settings', 300, function () {
+                return Setting::whereIn('key', ['teacher_enrollment', 'school_year'])
+                    ->pluck('value', 'key');
+            });
+
+            // Cast to boolean - handles string '1'/'0', boolean true/false, and integer 1/0
+            $enrollmentEnabled = isset($settings['teacher_enrollment'])
+                && filter_var($settings['teacher_enrollment'], FILTER_VALIDATE_BOOLEAN);
+
+            $view->with('teacher_enrollment_enabled', $enrollmentEnabled);
+            $view->with('school_year', $settings['school_year'] ?? null);
         });
     }
 }
