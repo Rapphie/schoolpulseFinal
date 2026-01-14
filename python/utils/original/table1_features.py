@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from .data_fetcher import fetch_demographics, fetch_attendance, fetch_scores
 
 DAILY_MAX_SCORE = 310
 
@@ -14,12 +13,13 @@ def prob_label(p):
 
 def build_table1_predictions(model, best_features, label_encoders, config):
 
-    demographics = fetch_demographics()
-    attendance = fetch_attendance()
-    scores = fetch_scores()
+    demographics = pd.read_excel("data/expanded_demographics.xlsx")
+    attendance = pd.read_excel("data/expanded_monthly_attendance.xlsx")
+    scores = pd.read_csv("data/expanded_raw_scores_modified.csv")
 
-    # Standardization (strip handled in fetcher but good to keep if needed)
-    # demographics.columns etc are already clean from fetcher.
+    demographics.columns = demographics.columns.str.strip()
+    attendance.columns = attendance.columns.str.strip()
+    scores.columns = scores.columns.str.strip()
 
     scores["Date"] = pd.to_datetime(scores["Date"], errors="coerce")
     scores["Score"] = pd.to_numeric(scores["Score"], errors="coerce")
@@ -37,31 +37,20 @@ def build_table1_predictions(model, best_features, label_encoders, config):
     )
 
     # ===============================
-    # CURRENT MID-MONTH (Latest Available Data)
+    # CURRENT MID-MONTH
     # ===============================
-    # Map months to numbers for sorting
-    month_map = {
-        'January':1,'February':2,'March':3,'April':4,'May':5,'June':6,
-        'July':7,'August':8,'September':9,'October':10,'November':11,'December':12
-    }
-    attendance["Month_Num"] = attendance["Month"].map(month_map)
+    MID_MONTH_DAYS = config["MID_MONTH_DAYS"]
+    mid_rows = attendance[attendance["Total_School_Days"] == MID_MONTH_DAYS]
 
-    if attendance.empty:
-         raise ValueError("No attendance data found in database")
+    if mid_rows.empty:
+        raise ValueError("No mid-month attendance data found")
 
-    # Sort by Year and Month to find the latest available period
-    latest_mid = attendance.sort_values(
-        ["Year", "Month_Num"], ascending=False
+    latest_mid = mid_rows.sort_values(
+        ["Year", "Month"], ascending=False
     ).iloc[0]
 
     cur_year = int(latest_mid["Year"])
     cur_month = latest_mid["Month"]
-
-    # We use all rows matching this latest year/month as our "current" snapshot
-    mid_rows = attendance[
-        (attendance["Year"] == cur_year) &
-        (attendance["Month"] == cur_month)
-    ]
 
     pred_rows = []
 
@@ -148,3 +137,4 @@ def build_table1_predictions(model, best_features, label_encoders, config):
     return pred_df[final_cols].sort_values(
         "Prob_HighRisk_EndMonth", ascending=False
     )
+

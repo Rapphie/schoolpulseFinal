@@ -10,7 +10,6 @@ class PredictionClient
 
     public function __construct(?string $baseUrl = null)
     {
-        // Default to local dev server; can be moved to config later
         $this->baseUrl = $baseUrl ?: 'http://127.0.0.1:8001';
     }
 
@@ -23,10 +22,18 @@ class PredictionClient
             ]);
             if ($resp->successful()) {
                 $data = $resp->json();
-                return $data['predictions'] ?? [];
+                $predictions = $data['predictions'] ?? [];
+
+                // Python returns [{prediction_confidence: 0..1, risk_label: ...}, ...]
+                // The rest of the PHP app expects a 0..100 percentage per student.
+                return array_map(function ($item) {
+                    if (!is_array($item) || !isset($item['prediction_confidence'])) {
+                        return null;
+                    }
+                    return round(((float) $item['prediction_confidence']) * 100, 1);
+                }, $predictions);
             }
         } catch (\Throwable $e) {
-
         }
         return [];
     }
@@ -39,9 +46,32 @@ class PredictionClient
             ]);
             if ($resp->successful()) {
                 $data = $resp->json();
-                return isset($data['prediction_confidence']) ? (float)$data['prediction_confidence'] : null;
+                return isset($data['prediction_confidence'])
+                    ? round(((float) $data['prediction_confidence']) * 100, 1)
+                    : null;
             }
         } catch (\Throwable $e) {
+        }
+        return null;
+    }
+
+    /**
+     * Fetch the feature tables (Table 1, 2, 3) from the Python API.
+     *
+     * @return array|null
+     */
+    public function getFeatureTables(): ?array
+    {
+        try {
+            $resp = Http::timeout(15)->get(rtrim($this->baseUrl, '/') . '/features/tables');
+            if ($resp->successful()) {
+                $data = $resp->json();
+                if ($data['success'] ?? false) {
+                    return $data;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Log error if needed
         }
         return null;
     }

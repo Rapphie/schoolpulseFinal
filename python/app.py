@@ -136,40 +136,115 @@ def get_feature_tables():
                 )
 
                 attendance["Month_Num"] = attendance["Month"].map(month_map)
+
+                # Also compute monthly performance aggregates
+                perf_month = (
+                    scores.dropna(subset=["Date"])
+                    .groupby(["Student_ID", "Year", "Month"], as_index=False)
+                    .agg(Perf_Month=("Daily_Percent", "mean"))
+                )
+
+                # Sort attendance by year and month
+                attendance_sorted = attendance.sort_values(["Student_ID", "Year", "Month_Num"])
+
                 latest_mid = attendance.sort_values(["Year", "Month_Num"], ascending=False).iloc[0]
                 cur_year = int(latest_mid["Year"])
                 cur_month = latest_mid["Month"]
-
-                mid_rows = attendance[
-                    (attendance["Year"] == cur_year) & (attendance["Month"] == cur_month)
-                ]
+                cur_month_num = month_map[cur_month]
 
                 pred_rows = []
                 for sid in demographics["Student_ID"].unique():
-                    row = mid_rows[
-                        (mid_rows["Student_ID"] == sid) &
-                        (mid_rows["Year"] == cur_year) &
-                        (mid_rows["Month"] == cur_month)
-                    ]
-                    if row.empty:
+                    # Get all attendance records for this student, sorted by time
+                    student_att = attendance_sorted[attendance_sorted["Student_ID"] == sid].reset_index(drop=True)
+
+                    if student_att.empty:
                         continue
 
-                    present = row.iloc[0]["Present"]
-                    total = row.iloc[0]["Total_School_Days"]
-                    att_current = round((present / total) * 100, 1) if total > 0 else 0
+                    # Find the current month row
+                    cur_idx = student_att[
+                        (student_att["Year"] == cur_year) &
+                        (student_att["Month"] == cur_month)
+                    ].index
 
-                    student_scores = daily_agg[
-                        (daily_agg["Student_ID"] == sid) &
-                        (daily_agg["Year"] == cur_year) &
-                        (daily_agg["Month"] == cur_month)
+                    if len(cur_idx) == 0:
+                        continue
+
+                    cur_idx = cur_idx[0]
+                    cur_row = student_att.iloc[cur_idx]
+
+                    # Helper to calculate attendance percentage
+                    def calc_att(row):
+                        if row is None or row["Total_School_Days"] == 0:
+                            return 0
+                        return round((row["Present"] / row["Total_School_Days"]) * 100, 1)
+
+                    # Current month attendance
+                    att_current = calc_att(cur_row)
+
+                    # Past 1 month attendance (if exists)
+                    att_past1 = calc_att(student_att.iloc[cur_idx - 1]) if cur_idx >= 1 else att_current
+
+                    # Past 2 months attendance (if exists)
+                    att_past2 = calc_att(student_att.iloc[cur_idx - 2]) if cur_idx >= 2 else att_past1
+
+                    # Get performance for current month
+                    cur_perf_row = perf_month[
+                        (perf_month["Student_ID"] == sid) &
+                        (perf_month["Year"] == cur_year) &
+                        (perf_month["Month"] == cur_month)
                     ]
-                    perf_current = round(student_scores["Daily_Perf"].mean(), 2) if not student_scores.empty else 0
+                    perf_current = round(cur_perf_row["Perf_Month"].iloc[0], 2) if not cur_perf_row.empty else 0
+
+                    # Get past 1 month performance
+                    past1_year, past1_month_num = (cur_year, cur_month_num - 1) if cur_month_num > 1 else (cur_year - 1, 12)
+                    past1_month = list(month_map.keys())[past1_month_num - 1]
+                    past1_perf_row = perf_month[
+                        (perf_month["Student_ID"] == sid) &
+                        (perf_month["Year"] == past1_year) &
+                        (perf_month["Month"] == past1_month)
+                    ]
+                    perf_past1 = round(past1_perf_row["Perf_Month"].iloc[0], 2) if not past1_perf_row.empty else perf_current
+
+                    # Get past 2 months performance
+                    past2_year, past2_month_num = (past1_year, past1_month_num - 1) if past1_month_num > 1 else (past1_year - 1, 12)
+                    past2_month = list(month_map.keys())[past2_month_num - 1]
+                    past2_perf_row = perf_month[
+                        (perf_month["Student_ID"] == sid) &
+                        (perf_month["Year"] == past2_year) &
+                        (perf_month["Month"] == past2_month)
+                    ]
+                    perf_past2 = round(past2_perf_row["Perf_Month"].iloc[0], 2) if not past2_perf_row.empty else perf_past1
+
+                    # Calculate derived features based on the formulas
+                    # Weighted_Attendance = (Att_Current + Att_Past1 + Att_Past2) / 3
+                    weighted_attendance = (att_current + att_past1 + att_past2) / 3
+
+                    # Weighted_Performance = (Perf_Current + Perf_Past1 + Perf_Past2) / 3
+                    weighted_performance = (perf_current + perf_past1 + perf_past2) / 3
+
+                    # Weighted_Current = 0.4 * Weighted_Attendance + 0.6 * Weighted_Performance
+                    weighted_current = 0.4 * weighted_attendance + 0.6 * weighted_performance
+
+                    # Performance_Trend = Perf_Current - (Perf_Past1 + Perf_Past2) / 2
+                    performance_trend = perf_current - (perf_past1 + perf_past2) / 2
+
+                    # Weighted_Trend = Weighted_Current - 0.4 * ((Att_Past1 + Att_Past2) / 2) + 0.6 * ((Perf_Past1 + Perf_Past2) / 2)
+                    weighted_trend = weighted_current - (0.4 * ((att_past1 + att_past2) / 2) + 0.6 * ((perf_past1 + perf_past2) / 2))
 
                     demo = demographics[demographics["Student_ID"] == sid].iloc[0].to_dict()
                     pred_rows.append({
                         "Student_ID": sid,
                         "Att_Current_mid": att_current,
                         "Perf_Current_mid": perf_current,
+                        # Add the computed features with model's expected names
+                        "Att_Current": att_current,
+                        "Perf_Current": perf_current,
+                        "Perf_Past1": perf_past1,
+                        "Weighted_Attendance": weighted_attendance,
+                        "Weighted_Performance": weighted_performance,
+                        "Weighted_Current": weighted_current,
+                        "Performance_Trend": performance_trend,
+                        "Weighted_Trend": weighted_trend,
                         **demo
                     })
 
@@ -228,48 +303,64 @@ def get_feature_tables():
         # TABLE 2: Engagement & Strengths/Weaknesses
         # (No ML prediction, just analysis)
         # =========================================
-        scores["Score"] = pd.to_numeric(scores["Score"], errors="coerce").fillna(0)
-        scores["Total_Score"] = pd.to_numeric(scores["Total_Score"], errors="coerce").fillna(1)
 
-        score_type_agg = (
-            scores.groupby(["Student_ID", "Subject", "Score_Type"], as_index=False)
-            .agg({"Score": "sum", "Total_Score": "sum"})
-        )
-        score_type_agg["Score_Pct"] = (score_type_agg["Score"] / score_type_agg["Total_Score"] * 100).round(1)
-
-        def find_strength_weakness(group):
-            if group["Score_Pct"].nunique() <= 1:
-                return pd.Series({"Strength": "Balanced", "Weakness": "Balanced"})
-            max_row = group.loc[group["Score_Pct"].idxmax()]
-            min_row = group.loc[group["Score_Pct"].idxmin()]
-            return pd.Series({
-                "Strength": f"{max_row['Subject']} – {max_row['Score_Type']} ({max_row['Score_Pct']}%)",
-                "Weakness": f"{min_row['Subject']} – {min_row['Score_Type']} ({min_row['Score_Pct']}%)"
-            })
-
-        strength_weakness = score_type_agg.groupby("Student_ID", group_keys=False).apply(find_strength_weakness).reset_index()
-        performance = score_type_agg.groupby("Student_ID", as_index=False).agg(PerformancePercentage=("Score_Pct", "mean")).round(1)
-
-        if not attendance.empty and {"Present", "Total_School_Days"}.issubset(attendance.columns):
-            att_pct = attendance.copy()
-            att_pct["AttendancePercentage"] = (att_pct["Present"] / att_pct["Total_School_Days"] * 100).round(1)
-            att_summary = att_pct.groupby("Student_ID", as_index=False).agg(AttendancePercentage=("AttendancePercentage", "mean"))
+        # Handle empty scores case
+        if scores.empty:
+            # No scores data - create table2 with just demographics and default values
+            table2 = demographics[["Student_ID", "Name"]].copy()
+            table2["PerformancePercentage"] = 0
+            table2["AttendancePercentage"] = 0
+            table2["EngagementScore"] = 0
+            table2["Strength"] = "N/A"
+            table2["Weakness"] = "N/A"
+            table2_result = table2.to_dict(orient="records")
         else:
-            att_summary = pd.DataFrame({"Student_ID": demographics["Student_ID"], "AttendancePercentage": 0})
+            scores["Score"] = pd.to_numeric(scores["Score"], errors="coerce").fillna(0)
+            scores["Total_Score"] = pd.to_numeric(scores["Total_Score"], errors="coerce").fillna(1)
 
-        table2 = (
-            demographics[["Student_ID", "Name"]]
-            .merge(performance, on="Student_ID", how="left")
-            .merge(att_summary, on="Student_ID", how="left")
-            .merge(strength_weakness, on="Student_ID", how="left")
-        )
-        table2["PerformancePercentage"] = table2["PerformancePercentage"].fillna(0)
-        table2["AttendancePercentage"] = table2["AttendancePercentage"].fillna(0)
-        table2["EngagementScore"] = (table2["PerformancePercentage"] * 0.6 + table2["AttendancePercentage"] * 0.4).round(1)
-        table2["Strength"] = table2["Strength"].fillna("N/A")
-        table2["Weakness"] = table2["Weakness"].fillna("N/A")
+            score_type_agg = (
+                scores.groupby(["Student_ID", "Subject", "Score_Type"], as_index=False)
+                .agg({"Score": "sum", "Total_Score": "sum"})
+            )
+            score_type_agg["Score_Pct"] = (score_type_agg["Score"] / score_type_agg["Total_Score"] * 100).round(1)
 
-        table2_result = table2.to_dict(orient="records")
+            def find_strength_weakness(group):
+                student_id = group["Student_ID"].iloc[0]
+                if group["Score_Pct"].nunique() <= 1:
+                    return {"Student_ID": student_id, "Strength": "Balanced", "Weakness": "Balanced"}
+                max_row = group.loc[group["Score_Pct"].idxmax()]
+                min_row = group.loc[group["Score_Pct"].idxmin()]
+                return {
+                    "Student_ID": student_id,
+                    "Strength": f"{max_row['Subject']} – {max_row['Score_Type']} ({max_row['Score_Pct']}%)",
+                    "Weakness": f"{min_row['Subject']} – {min_row['Score_Type']} ({min_row['Score_Pct']}%)"
+                }
+
+            # Build strength/weakness DataFrame by iterating over groups
+            sw_records = [find_strength_weakness(g) for _, g in score_type_agg.groupby("Student_ID")]
+            strength_weakness = pd.DataFrame(sw_records) if sw_records else pd.DataFrame(columns=["Student_ID", "Strength", "Weakness"])
+            performance = score_type_agg.groupby("Student_ID", as_index=False).agg(PerformancePercentage=("Score_Pct", "mean")).round(1)
+
+            if not attendance.empty and {"Present", "Total_School_Days"}.issubset(attendance.columns):
+                att_pct = attendance.copy()
+                att_pct["AttendancePercentage"] = (att_pct["Present"] / att_pct["Total_School_Days"] * 100).round(1)
+                att_summary = att_pct.groupby("Student_ID", as_index=False).agg(AttendancePercentage=("AttendancePercentage", "mean"))
+            else:
+                att_summary = pd.DataFrame({"Student_ID": demographics["Student_ID"], "AttendancePercentage": 0})
+
+            table2 = (
+                demographics[["Student_ID", "Name"]]
+                .merge(performance, on="Student_ID", how="left")
+                .merge(att_summary, on="Student_ID", how="left")
+                .merge(strength_weakness, on="Student_ID", how="left")
+            )
+            table2["PerformancePercentage"] = table2["PerformancePercentage"].fillna(0)
+            table2["AttendancePercentage"] = table2["AttendancePercentage"].fillna(0)
+            table2["EngagementScore"] = (table2["PerformancePercentage"] * 0.6 + table2["AttendancePercentage"] * 0.4).round(1)
+            table2["Strength"] = table2["Strength"].fillna("N/A")
+            table2["Weakness"] = table2["Weakness"].fillna("N/A")
+
+            table2_result = table2.to_dict(orient="records")
 
         # =========================================
         # TABLE 3: Next Month Prediction
@@ -277,7 +368,7 @@ def get_feature_tables():
         # =========================================
         table3_result = []
 
-        if TABLE3_MODEL_LOADED and not attendance.empty:
+        if TABLE3_MODEL_LOADED and not attendance.empty and not scores.empty:
             try:
                 attendance["Month_Num"] = attendance["Month"].map(month_map)
                 scores["Pct"] = (scores["Score"] / scores["Total_Score"]) * 100
@@ -301,21 +392,51 @@ def get_feature_tables():
                         def safe_att(row):
                             return (row["Present"] / row["Total_School_Days"]) * 100 if row["Total_School_Days"] > 0 else 0
 
+                        # Current values
+                        att_current = round(safe_att(cur), 1)
+                        perf_current = cur["Perf_Current"]
+
+                        # Past 1 month (use current if not available)
+                        att_past1 = round(safe_att(g.iloc[i-1]), 1) if i-1 >= 0 else att_current
+                        perf_past1 = g.iloc[i-1]["Perf_Current"] if i-1 >= 0 else perf_current
+
+                        # Past 2 months (use past1 if not available)
+                        att_past2 = round(safe_att(g.iloc[i-2]), 1) if i-2 >= 0 else att_past1
+                        perf_past2 = g.iloc[i-2]["Perf_Current"] if i-2 >= 0 else perf_past1
+
+                        # Weighted averages based on formulas
+                        # Weighted_Attendance = (Att_Current + Att_Past1 + Att_Past2) / 3
+                        weighted_attendance = (att_current + att_past1 + att_past2) / 3
+
+                        # Weighted_Performance = (Perf_Current + Perf_Past1 + Perf_Past2) / 3
+                        weighted_performance = (perf_current + perf_past1 + perf_past2) / 3
+
+                        # Weighted_Current = 0.4 * Weighted_Attendance + 0.6 * Weighted_Performance
+                        weighted_current = 0.4 * weighted_attendance + 0.6 * weighted_performance
+
+                        # Performance_Trend = Perf_Current - (Perf_Past1 + Perf_Past2) / 2
+                        performance_trend = perf_current - (perf_past1 + perf_past2) / 2
+
+                        # Weighted_Trend = Weighted_Current - (0.4 * ((Att_Past1 + Att_Past2) / 2) + 0.6 * ((Perf_Past1 + Perf_Past2) / 2))
+                        weighted_trend = weighted_current - (0.4 * ((att_past1 + att_past2) / 2) + 0.6 * ((perf_past1 + perf_past2) / 2))
+
                         r = {
                             "Student_ID": sid,
-                            "Att_Current": round(safe_att(cur), 1),
-                            "Perf_Current": cur["Perf_Current"],
-                            "Att_Past1": round(safe_att(g.iloc[i-1]), 1) if i-1 >= 0 else 0,
-                            "Perf_Past1": g.iloc[i-1]["Perf_Current"] if i-1 >= 0 else 0,
-                            "Att_Past2": round(safe_att(g.iloc[i-2]), 1) if i-2 >= 0 else 0,
-                            "Perf_Past2": g.iloc[i-2]["Perf_Current"] if i-2 >= 0 else 0,
+                            "Att_Current": att_current,
+                            "Perf_Current": perf_current,
+                            "Att_Past1": att_past1,
+                            "Perf_Past1": perf_past1,
+                            "Att_Past2": att_past2,
+                            "Perf_Past2": perf_past2,
+                            "Weighted_Attendance": weighted_attendance,
+                            "Weighted_Performance": weighted_performance,
+                            "Weighted_Current": weighted_current,
+                            "Performance_Trend": performance_trend,
+                            "Weighted_Trend": weighted_trend,
                             "Month_Num": cur["Month_Num"],
                             "Month": cur["Month"],
                             "Year": cur["Year"]
                         }
-                        r["Weighted_Attendance"] = np.mean([r["Att_Current"], r["Att_Past1"], r["Att_Past2"]])
-                        r["Weighted_Performance"] = np.mean([r["Perf_Current"], r["Perf_Past1"], r["Perf_Past2"]])
-                        r["Weighted_Current"] = 0.4 * r["Weighted_Attendance"] + 0.6 * r["Weighted_Performance"]
                         rows.append(r)
 
                 feat_df = pd.DataFrame(rows).merge(demographics, on="Student_ID", how="left")
@@ -366,6 +487,8 @@ def get_feature_tables():
                             "Weighted_Attendance": round(row.get("Weighted_Attendance", 0), 1),
                             "Weighted_Performance": round(row.get("Weighted_Performance", 0), 1),
                             "Weighted_Current": round(row.get("Weighted_Current", 0), 1),
+                            "Performance_Trend": round(row.get("Performance_Trend", 0), 1),
+                            "Weighted_Trend": round(row.get("Weighted_Trend", 0), 1),
                             "Prob_HighRisk_pct": row.get("Prob_HighRisk_NextMonth_pct", 0),
                             "Risk_Label": row.get("Risk_Label", "N/A")
                         })
