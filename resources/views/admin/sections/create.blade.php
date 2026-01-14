@@ -30,16 +30,17 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="grade_level">Grade Level <span class="text-danger">*</span></label>
-                            <select class="form-control @error('grade_level') is-invalid @enderror" id="grade_level"
-                                name="grade_level" required>
+                            <label for="grade_level_id">Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-control @error('grade_level_id') is-invalid @enderror" id="grade_level_id"
+                                name="grade_level_id" required>
                                 <option value="">Select Grade Level</option>
-                                @for ($i = 7; $i <= 12; $i++)
-                                    <option value="{{ $i }}" {{ old('grade_level') == $i ? 'selected' : '' }}>
-                                        Grade {{ $i }}</option>
-                                @endfor
+                                @foreach ($gradeLevels as $gradeLevel)
+                                    <option value="{{ $gradeLevel->id }}"
+                                        {{ old('grade_level_id') == $gradeLevel->id ? 'selected' : '' }}>
+                                        {{ $gradeLevel->name }}</option>
+                                @endforeach
                             </select>
-                            @error('grade_level')
+                            @error('grade_level_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>

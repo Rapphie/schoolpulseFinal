@@ -11,6 +11,7 @@ use App\Models\Section;
 use App\Models\Classes;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
+use App\Models\GradeLevel;
 use App\Mail\WelcomeEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,8 +46,37 @@ class TeacherController extends Controller
 
         $sections = Section::all();
         $subjects = Subject::all();
+        $gradeLevels = GradeLevel::orderBy('level')->get();
 
-        return view('admin.teachers.index', compact('teachers', 'subjects', 'sections'));
+        return view('admin.teachers.index', compact('teachers', 'subjects', 'sections', 'gradeLevels'));
+    }
+
+    /**
+     * Display the specified teacher (read-only profile view).
+     */
+    public function show(User $teacher)
+    {
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+
+        $advisoryClasses = collect();
+        $scheduledSubjects = collect();
+
+        $teacherModel = $teacher->teacher;
+        if ($teacherModel && $activeSchoolYear) {
+            $advisoryClasses = Classes::with(['section.gradeLevel'])
+                ->where('teacher_id', $teacherModel->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->get();
+
+            $scheduledSubjects = Schedule::where('teacher_id', $teacherModel->id)
+                ->with('class.section', 'subject')
+                ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                    $query->where('school_year_id', $activeSchoolYear->id);
+                })
+                ->get();
+        }
+
+        return view('admin.teachers.show', compact('teacher', 'advisoryClasses', 'scheduledSubjects'));
     }
 
     /**
@@ -78,12 +108,12 @@ class TeacherController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'nullable|string|max:20',
             'gender' => 'required|in:male,female,other',
-            'date_of_birth' => 'required|date',
-            'address' => 'required|string',
-            'qualification' => 'required|string',
-            'status' => 'required|string',
+            'date_of_birth' => 'nullable|date',
+            'address' => 'nullable|string',
+            'qualification' => 'nullable|string',
+            'status' => 'nullable|string',
             'section_ids' => 'nullable|array',
-            'section_ids.*' => 'integer|exists:sections,id',
+            'section_ids.*' => 'nullable|integer|exists:sections,id',
         ]);
 
         $sectionIds = collect($validated['section_ids'] ?? [])
@@ -92,6 +122,51 @@ class TeacherController extends Controller
             ->values();
 
         unset($validated['section_ids']);
+
+        // Pre-validate advisory assignments before creating the teacher
+        $advisoryErrors = [];
+        if ($sectionIds->isNotEmpty()) {
+            foreach ($sectionIds as $index => $sectionId) {
+                $section = Section::with('gradeLevel')->find($sectionId);
+                if (!$section) {
+                    continue;
+                }
+
+                $gradeLevel = $section->gradeLevel;
+                $gradeValue = optional($gradeLevel)->level;
+                // Grade levels 4, 5, 6 allow multi-section teachers
+                // All other grades (1-3, 7+) should have 1:1 teacher-to-section ratio
+                $isRestrictedGrade = !is_null($gradeValue) && !in_array($gradeValue, [4, 5, 6]);
+
+                if ($isRestrictedGrade) {
+                    // Check if this section already has an adviser
+                    $existingClass = Classes::where('section_id', $section->id)
+                        ->where('school_year_id', $activeSchoolYear->id)
+                        ->whereNotNull('teacher_id')
+                        ->with('teacher.user')
+                        ->first();
+
+                    if ($existingClass && $existingClass->teacher_id) {
+                        $existingTeacher = $existingClass->teacher;
+                        $existingUser = optional($existingTeacher)->user;
+                        $existingTeacherName = $existingUser
+                            ? trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? ''))
+                            : 'another teacher';
+
+                        $gradeLabel = optional($gradeLevel)->name ?? 'Grade ' . $gradeValue;
+                        $advisoryErrors["section_ids.{$index}"] = "{$gradeLabel} - {$section->name} is already handled by {$existingTeacherName}.";
+                    }
+                }
+            }
+        }
+
+        if (!empty($advisoryErrors)) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors($advisoryErrors)
+                ->with('error', 'Some advisory sections are already assigned to other teachers. Please review your selections.');
+        }
+
         DB::beginTransaction();
         try {
             $password = strtolower($validated['first_name']) . strtolower(substr($validated['last_name'], 0, 1)) . date('Y');
@@ -132,7 +207,9 @@ class TeacherController extends Controller
 
                     $gradeLevel = $section->gradeLevel;
                     $gradeValue = optional($gradeLevel)->level;
-                    $isRestrictedGrade = !is_null($gradeValue) && $gradeValue >= 1 && $gradeValue <= 3;
+                    // Grade levels 4, 5, 6 allow multi-section teachers
+                    // All other grades (1-3, 7+) should have 1:1 teacher-to-section ratio
+                    $isRestrictedGrade = !is_null($gradeValue) && !in_array($gradeValue, [4, 5, 6]);
 
                     if ($isRestrictedGrade && $class->teacher_id && $class->teacher_id !== $teacher->id) {
                         $existingTeacher = Teacher::with('user')->find($class->teacher_id);
@@ -155,12 +232,37 @@ class TeacherController extends Controller
                         return;
                     }
 
+                    // For restricted grades, also check if this teacher is already assigned to another section in the same grade
+                    if ($isRestrictedGrade) {
+                        $existingAdvisory = Classes::where('teacher_id', $teacher->id)
+                            ->where('school_year_id', $activeSchoolYear->id)
+                            ->whereHas('section', function ($query) use ($gradeValue) {
+                                $query->whereHas('gradeLevel', function ($q) use ($gradeValue) {
+                                    $q->where('level', $gradeValue);
+                                });
+                            })
+                            ->where('id', '!=', $class->id)
+                            ->first();
+
+                        if ($existingAdvisory) {
+                            $existingSection = $existingAdvisory->section;
+                            $gradeLabel = optional($gradeLevel)->name ?? 'Grade ' . $gradeValue;
+
+                            $conflicts->push([
+                                'section' => $section->name,
+                                'grade' => $gradeLabel,
+                                'teacher' => 'Teacher already assigned to ' . optional($existingSection)->name,
+                            ]);
+                            return;
+                        }
+                    }
+
                     $class->update(['teacher_id' => $teacher->id]);
                 });
             }
 
 
-            Mail::to($user->email)->send(new WelcomeEmail($user, $password));
+            Mail::to($user->email)->queue(new WelcomeEmail($user, $password));
             DB::commit();
             $redirect = redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher created successfully.');
@@ -183,17 +285,6 @@ class TeacherController extends Controller
     }
 
     /**
-     * Display the specified teacher.
-     */
-    public function show(User $teacher)
-    {
-        // $this->authorize('view', $teacher);
-
-        $teacher->load(['subjects', 'sections', 'classes']);
-        return view('admin.teachers.show', compact('teacher'));
-    }
-
-    /**
      * Show the form for editing the specified teacher.
      */
     public function edit(User $teacher)
@@ -202,16 +293,16 @@ class TeacherController extends Controller
 
         $advisoryClasses = collect();
         $scheduledSubjects = collect();
-        $teacher_id = $teacher->teacher;
+        $teacherId = optional($teacher->teacher)->id;
 
-        if ($activeSchoolYear) {
-            $advisoryClasses = Classes::where('teacher_id', $teacher_id)
+        if ($activeSchoolYear && $teacherId) {
+            $advisoryClasses = Classes::where('teacher_id', $teacherId)
                 ->where('school_year_id', $activeSchoolYear->id)
                 ->with('section.gradeLevel')
                 ->get();
 
             // Get the schedule entries for this teacher for the active year
-            $scheduledSubjects = Schedule::where('teacher_id', $teacher_id)
+            $scheduledSubjects = Schedule::where('teacher_id', $teacherId)
                 ->with('class.section', 'subject')
                 ->whereHas('class', function ($query) use ($activeSchoolYear) {
                     $query->where('school_year_id', $activeSchoolYear->id);
@@ -243,8 +334,11 @@ class TeacherController extends Controller
             'date_of_birth' => 'nullable|date',
             'address' => 'nullable|string',
             'qualification' => 'nullable|string',
+            'status' => 'nullable|in:active,on-leave,inactive',
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
+
+        DB::beginTransaction();
         try {
             // Handle file upload
             if ($request->hasFile('profile_picture')) {
@@ -265,13 +359,30 @@ class TeacherController extends Controller
 
             $validated['is_active'] = $request->has('is_active');
 
-            // Update the teacher record
-            $teacher->update($validated);
+            // Separate user and teacher fields
+            $userFields = ['first_name', 'last_name', 'email', 'password', 'profile_picture', 'is_active'];
+            $teacherFields = ['phone', 'gender', 'date_of_birth', 'address', 'qualification', 'status'];
 
-            return redirect()->route('admin.teachers.index', $teacher)
+            $userData = array_intersect_key($validated, array_flip($userFields));
+            $teacherData = array_intersect_key($validated, array_flip($teacherFields));
+
+            // Update the user record
+            $teacher->update($userData);
+
+            // Update the teacher record if it exists
+            if ($teacher->teacher) {
+                $teacher->teacher->update($teacherData);
+            }
+
+            DB::commit();
+
+            return redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher updated successfully.');
         } catch (\Throwable $th) {
-            return redirect()->back()->with('error', "Failed to update teacher" . $th->getMessage());
+            DB::rollBack();
+            return redirect()->back()
+                ->withInput()
+                ->with('error', "Failed to update teacher: " . $th->getMessage());
         }
     }
 

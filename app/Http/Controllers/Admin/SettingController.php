@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class SettingController extends Controller
 {
@@ -19,13 +20,16 @@ class SettingController extends Controller
     {
         Setting::updateOrCreate(
             ['key' => 'teacher_enrollment'],
-            ['value' => $request->has('teacher_enrollment')]
+            ['value' => $request->has('teacher_enrollment') ? '1' : '0']
         );
 
         Setting::updateOrCreate(
             ['key' => 'school_year'],
             ['value' => $request->input('school_year')]
         );
+
+        // Clear the sidebar settings cache so changes take effect immediately
+        Cache::forget('sidebar_settings');
 
         return back()->with('success', 'Settings updated successfully.');
     }

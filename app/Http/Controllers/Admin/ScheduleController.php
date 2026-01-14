@@ -174,17 +174,42 @@ class ScheduleController extends Controller
     public function update(Request $request, Schedule $schedule)
     {
         try {
-            $request->validate([
-                'section_id' => 'required|exists:sections,id',
-                'subject_id' => 'required|exists:subjects,id',
-                'teacher_id' => 'required|exists:teachers,id',
-                'day_of_week' => 'required|array',
-                'start_time' => 'required|date_format:H:i',
-                'end_time' => 'required|date_format:H:i|after:start_time',
-                'room' => 'nullable|string',
-            ]);
+            // Load grade level to check if this is a Grade 1, 2, or 3 section
+            $schedule->load('class.section.gradeLevel');
+            $gradeValue = optional($schedule->class->section->gradeLevel)->level;
+            $isLowerGrade = !is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]);
 
-            $schedule->update($request->all());
+            // For Grade 1, 2, 3: teacher cannot be changed
+            if ($isLowerGrade) {
+                $request->validate([
+                    'section_id' => 'required|exists:sections,id',
+                    'subject_id' => 'required|exists:subjects,id',
+                    'day_of_week' => 'required|array',
+                    'start_time' => 'required|date_format:H:i',
+                    'end_time' => 'required|date_format:H:i|after:start_time',
+                    'room' => 'nullable|string',
+                ]);
+
+                // Only update schedule details, keep the teacher as the adviser
+                $schedule->update([
+                    'day_of_week' => $request->day_of_week,
+                    'start_time' => $request->start_time,
+                    'end_time' => $request->end_time,
+                    'room' => $request->room,
+                ]);
+            } else {
+                $request->validate([
+                    'section_id' => 'required|exists:sections,id',
+                    'subject_id' => 'required|exists:subjects,id',
+                    'teacher_id' => 'required|exists:teachers,id',
+                    'day_of_week' => 'required|array',
+                    'start_time' => 'required|date_format:H:i',
+                    'end_time' => 'required|date_format:H:i|after:start_time',
+                    'room' => 'nullable|string',
+                ]);
+
+                $schedule->update($request->all());
+            }
 
             return redirect()->route('admin.schedules.index')->with('success', 'Schedule updated successfully.');
         } catch (ValidationException $e) {
@@ -201,6 +226,14 @@ class ScheduleController extends Controller
     public function destroy(Schedule $schedule)
     {
         try {
+            // For Grade 1, 2, 3: Deleting schedules is not allowed
+            $schedule->load('class.section.gradeLevel');
+            $gradeValue = optional($schedule->class->section->gradeLevel)->level;
+
+            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+                return redirect()->back()->with('error', 'For Grade 1, 2, and 3, schedules cannot be deleted. They are automatically managed based on the adviser.');
+            }
+
             $classId = $schedule->class_id;
             $schedule->delete();
 

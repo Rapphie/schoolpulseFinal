@@ -8,6 +8,234 @@
         </div>
     </div>
 
+    {{-- School Year Warnings Section --}}
+    @php
+        $warnings = [];
+        $today = \Carbon\Carbon::today();
+
+        // Check if no school year exists
+        if ($schoolYears->isEmpty()) {
+            $warnings[] = [
+                'type' => 'danger',
+                'icon' => 'alert-circle',
+                'title' => 'No School Year Setup',
+                'message' => 'There are no school years configured in the system. Please add a school year to begin.',
+                'action' => 'addSchoolYearModal',
+                'actionText' => 'Add School Year',
+            ];
+        } else {
+            // Check if no active school year
+            if (!$activeSchoolYear || !$activeSchoolYear->is_active) {
+                $warnings[] = [
+                    'type' => 'warning',
+                    'icon' => 'alert-triangle',
+                    'title' => 'No Active School Year',
+                    'message' =>
+                        'No school year is currently set as active. Please activate a school year to enable full system functionality.',
+                    'action' => null,
+                    'actionText' => null,
+                ];
+            } elseif ($activeSchoolYear) {
+                // Check if active school year is not within current date range
+                $isWithinDateRange = $today->between($activeSchoolYear->start_date, $activeSchoolYear->end_date);
+
+                if (!$isWithinDateRange) {
+                    if ($today->lt($activeSchoolYear->start_date)) {
+                        $daysUntilStart = $today->diffInDays($activeSchoolYear->start_date);
+                        $warnings[] = [
+                            'type' => 'info',
+                            'icon' => 'clock',
+                            'title' => 'School Year Not Yet Started',
+                            'message' =>
+                                "The active school year \"{$activeSchoolYear->name}\" hasn't started yet. It begins on " .
+                                $activeSchoolYear->start_date->format('F j, Y') .
+                                " ({$daysUntilStart} days from now).",
+                            'action' => null,
+                            'actionText' => null,
+                        ];
+                    } else {
+                        $daysPastEnd = $today->diffInDays($activeSchoolYear->end_date);
+                        $warnings[] = [
+                            'type' => 'danger',
+                            'icon' => 'alert-octagon',
+                            'title' => 'School Year Has Ended',
+                            'message' =>
+                                "The active school year \"{$activeSchoolYear->name}\" ended on " .
+                                $activeSchoolYear->end_date->format('F j, Y') .
+                                " ({$daysPastEnd} days ago). Please set up a new school year or update the current one.",
+                            'action' => 'addSchoolYearModal',
+                            'actionText' => 'Add New School Year',
+                        ];
+                    }
+                } else {
+                    // Check if school year is ending soon (within 30 days)
+                    $daysUntilEnd = $today->diffInDays($activeSchoolYear->end_date, false);
+                    if ($daysUntilEnd >= 0 && $daysUntilEnd <= 30) {
+                        $warnings[] = [
+                            'type' => 'warning',
+                            'icon' => 'calendar',
+                            'title' => 'School Year Ending Soon',
+                            'message' =>
+                                "The current school year \"{$activeSchoolYear->name}\" will end on " .
+                                $activeSchoolYear->end_date->format('F j, Y') .
+                                ". Only {$daysUntilEnd} days remaining. Consider preparing for the next school year.",
+                            'action' => 'addSchoolYearModal',
+                            'actionText' => 'Prepare Next School Year',
+                        ];
+                    }
+                }
+
+                // Check if no quarters are set up
+                $quartersCount = $activeSchoolYear->quarters()->count();
+                if ($quartersCount === 0) {
+                    $warnings[] = [
+                        'type' => 'warning',
+                        'icon' => 'layers',
+                        'title' => 'No Quarters Configured',
+                        'message' => "The active school year \"{$activeSchoolYear->name}\" has no quarters set up. Quarter configuration is required for grade management.",
+                        'action' => 'quartersModal' . $activeSchoolYear->id,
+                        'actionText' => 'Set Up Quarters',
+                    ];
+                } else {
+                    // Check current quarter status
+                    $currentQuarter = $activeSchoolYear
+                        ->quarters()
+                        ->where('start_date', '<=', $today)
+                        ->where('end_date', '>=', $today)
+                        ->first();
+
+                    if ($currentQuarter) {
+                        // Check if quarter is ending soon (within 14 days)
+                        $quarterDaysRemaining = $currentQuarter->daysRemaining();
+                        if ($quarterDaysRemaining >= 0 && $quarterDaysRemaining <= 14) {
+                            $warnings[] = [
+                                'type' => 'warning',
+                                'icon' => 'clock',
+                                'title' => 'Quarter Ending Soon',
+                                'message' =>
+                                    "{$currentQuarter->name} will end on " .
+                                    $currentQuarter->end_date->format('F j, Y') .
+                                    ". Only {$quarterDaysRemaining} days remaining. Ensure all grades are submitted before the deadline.",
+                                'action' => null,
+                                'actionText' => null,
+                            ];
+                        }
+
+                        // Check if grade submission deadline is approaching
+                        if ($currentQuarter->grade_submission_deadline) {
+                            $daysUntilDeadline = $currentQuarter->daysUntilDeadline();
+                            if ($daysUntilDeadline !== null && $daysUntilDeadline >= 0 && $daysUntilDeadline <= 7) {
+                                $warnings[] = [
+                                    'type' => 'warning',
+                                    'icon' => 'edit-3',
+                                    'title' => 'Grade Submission Deadline Approaching',
+                                    'message' =>
+                                        "The grade submission deadline for {$currentQuarter->name} is on " .
+                                        $currentQuarter->grade_submission_deadline->format('F j, Y') .
+                                        ". Only {$daysUntilDeadline} days remaining.",
+                                    'action' => null,
+                                    'actionText' => null,
+                                ];
+                            } elseif ($daysUntilDeadline !== null && $daysUntilDeadline < 0) {
+                                $daysPassed = abs($daysUntilDeadline);
+                                $warnings[] = [
+                                    'type' => 'danger',
+                                    'icon' => 'alert-circle',
+                                    'title' => 'Grade Submission Deadline Passed',
+                                    'message' =>
+                                        "The grade submission deadline for {$currentQuarter->name} was " .
+                                        $currentQuarter->grade_submission_deadline->format('F j, Y') .
+                                        " ({$daysPassed} days ago).",
+                                    'action' => null,
+                                    'actionText' => null,
+                                ];
+                            }
+                        }
+                    } else {
+                        // No current quarter - check if we're between quarters or before/after all quarters
+                $nextQuarter = $activeSchoolYear
+                    ->quarters()
+                    ->where('start_date', '>', $today)
+                    ->orderBy('start_date', 'asc')
+                    ->first();
+
+                $lastQuarter = $activeSchoolYear
+                    ->quarters()
+                    ->where('end_date', '<', $today)
+                    ->orderBy('end_date', 'desc')
+                    ->first();
+
+                if ($nextQuarter && $lastQuarter) {
+                    // Between quarters
+                    $daysUntilNextQuarter = $today->diffInDays($nextQuarter->start_date);
+                    $warnings[] = [
+                        'type' => 'info',
+                        'icon' => 'pause-circle',
+                        'title' => 'Between Quarters',
+                        'message' =>
+                            "{$lastQuarter->name} has ended. {$nextQuarter->name} will begin on " .
+                            $nextQuarter->start_date->format('F j, Y') .
+                            " ({$daysUntilNextQuarter} days from now).",
+                        'action' => null,
+                        'actionText' => null,
+                    ];
+                } elseif ($lastQuarter && !$nextQuarter) {
+                    // All quarters have ended
+                    $warnings[] = [
+                        'type' => 'warning',
+                        'icon' => 'check-square',
+                        'title' => 'All Quarters Completed',
+                        'message' =>
+                            "All quarters for the current school year have ended. The last quarter ({$lastQuarter->name}) ended on " .
+                            $lastQuarter->end_date->format('F j, Y') .
+                            '.',
+                        'action' => null,
+                        'actionText' => null,
+                    ];
+                }
+            }
+
+            // Check if quarters are incomplete (less than 4)
+            if ($quartersCount > 0 && $quartersCount < 4) {
+                $warnings[] = [
+                    'type' => 'info',
+                    'icon' => 'info',
+                    'title' => 'Incomplete Quarter Setup',
+                    'message' => "Only {$quartersCount} out of 4 quarters are configured for the current school year. Consider adding the remaining quarters.",
+                    'action' => 'quartersModal' . $activeSchoolYear->id,
+                    'actionText' => 'Manage Quarters',
+                        ];
+                    }
+                }
+            }
+        }
+    @endphp
+
+    @if (count($warnings) > 0)
+        <div class="row mb-4">
+            <div class="col-12">
+                @foreach ($warnings as $warning)
+                    <div class="alert alert-{{ $warning['type'] }} alert-dismissible fade show d-flex align-items-start shadow-sm mb-3"
+                        role="alert">
+                        <i data-feather="{{ $warning['icon'] }}" class="me-3 flex-shrink-0"
+                            style="width: 24px; height: 24px;"></i>
+                        <div class="flex-grow-1">
+                            <strong>{{ $warning['title'] }}</strong>
+                            <p class="mb-0 mt-1">{{ $warning['message'] }}</p>
+                        </div>
+                        @if ($warning['action'])
+                            <button type="button" class="btn btn-sm btn-{{ $warning['type'] }} ms-3 flex-shrink-0"
+                                data-bs-toggle="modal" data-bs-target="#{{ $warning['action'] }}">
+                                {{ $warning['actionText'] }}
+                            </button>
+                        @endif
+                        <button type="button" class="btn-close ms-2" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <div class="row g-4 mb-4">
         <div class="col-12 mb-4">
             <div class="card border-0 shadow-sm">
@@ -27,11 +255,37 @@
                                         <h6 class="text-primary fw-bold">Current School Year</h6>
                                         <h3 id="currentSchoolYear">{{ $activeSchoolYear->name }}</h3>
                                         <p class="mb-2">Status: <span class="badge bg-success">Active</span></p>
-                                        <p class="mb-0">Duration:
+                                        <p class="mb-2">Duration:
                                             {{ \Carbon\Carbon::parse($activeSchoolYear->start_date)->format('F j, Y') }}
                                             -
                                             {{ \Carbon\Carbon::parse($activeSchoolYear->end_date)->format('F j, Y') }}
                                         </p>
+                                        @php
+                                            $currentQuarter = $activeSchoolYear
+                                                ->quarters()
+                                                ->where('start_date', '<=', now())
+                                                ->where('end_date', '>=', now())
+                                                ->first();
+                                        @endphp
+                                        @if ($currentQuarter)
+                                            <p class="mb-0">
+                                                <span class="badge bg-primary">{{ $currentQuarter->name }}</span>
+                                                @if ($currentQuarter->daysRemaining() <= 14 && $currentQuarter->daysRemaining() >= 0)
+                                                    <small
+                                                        class="text-warning ms-1">({{ $currentQuarter->daysRemaining() }}
+                                                        days left)</small>
+                                                @endif
+                                            </p>
+                                        @elseif ($activeSchoolYear->quarters()->count() === 0)
+                                            <p class="mb-0">
+                                                <button type="button" class="btn btn-sm btn-warning text-white"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#quartersModal{{ $activeSchoolYear->id }}">
+                                                    <i data-feather="alert-circle" class="feather-sm me-1"></i> Set Up
+                                                    Quarters
+                                                </button>
+                                            </p>
+                                        @endif
                                     @else
                                         <h6>No Active School Year</h6>
                                     @endif
@@ -52,14 +306,15 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle" id="schoolYearsTable">
                             <thead class="table-light">
                                 <tr>
                                     <th>School Year</th>
                                     <th>Start Date</th>
                                     <th>End Date</th>
+                                    <th>Quarters</th>
                                     <th>Status</th>
-                                    <th width="200">Action</th>
+                                    <th width="250">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="schoolYearTableBody">
@@ -70,6 +325,25 @@
                                         <td>{{ \Carbon\Carbon::parse($year->start_date)->format('F j, Y') }}</td>
                                         <td>{{ \Carbon\Carbon::parse($year->end_date)->format('F j, Y') }}</td>
                                         <td>
+                                            @php
+                                                $quartersQuery = $year->quarters();
+                                                $quarterCount = $quartersQuery->count();
+                                                $currentQuarter = $quartersQuery
+                                                    ->where('start_date', '<=', now())
+                                                    ->where('end_date', '>=', now())
+                                                    ->first();
+                                            @endphp
+                                            @if ($currentQuarter)
+                                                <span class="badge bg-success">{{ $currentQuarter->quarter }}/4</span>
+                                            @elseif ($quarterCount === 4)
+                                                <span class="badge bg-success">4/4</span>
+                                            @elseif ($quarterCount > 0)
+                                                <span class="badge bg-warning">{{ $quarterCount }}/4</span>
+                                            @else
+                                                <span class="badge bg-secondary">Not Set</span>
+                                            @endif
+                                        </td>
+                                        <td>
                                             @if ($year->is_active)
                                                 <span class="badge bg-success">Active</span>
                                             @else
@@ -77,6 +351,7 @@
                                             @endif
                                         </td>
                                         <td>
+
                                             <a href="#" data-bs-toggle="modal"
                                                 data-bs-target="#editSchoolYearModal{{ $year->id }}"
                                                 class="btn btn-sm btn-primary">
@@ -85,11 +360,15 @@
                                             <button class="btn btn-sm btn-danger delete-year-btn" data-bs-toggle="modal"
                                                 data-bs-target="#deleteSchoolYearModal"
                                                 data-year-id="{{ $year->id }}">Delete</button>
+                                            <button class="btn btn-sm btn-secondary" data-bs-toggle="modal"
+                                                data-bs-target="#quartersModal{{ $year->id }}" title="Manage Quarters">
+                                                Quarters
+                                            </button>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center text-muted">No school years found.</td>
+                                        <td colspan="6" class="text-center text-muted">No school years found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -118,10 +397,13 @@
                     @if (isset($recentEnrolledStudents) && $recentEnrolledStudents > 0)
                         <small class="text-success"><i data-feather="arrow-up" class="feather-sm"></i>
                             +{{ $recentEnrolledStudents }} this year</small>
+                    @else
+                        <small class="text-muted">Total enrolled students</small>
                     @endif
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-primary" role="progressbar" style="width: 100%" aria-valuenow="100"
-                            aria-valuemin="0" aria-valuemax="100"></div>
+                            aria-valuemin="0" aria-valuemax="100" aria-label="Enrolled students"
+                            aria-valuetext="{{ number_format($enrolledStudents) }} students"></div>
                     </div>
                 </div>
             </div>
@@ -146,7 +428,8 @@
                     <small class="text-muted">Active teachers</small>
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-success" role="progressbar" style="width: 100%" aria-valuenow="100"
-                            aria-valuemin="0" aria-valuemax="100"></div>
+                            aria-valuemin="0" aria-valuemax="100" aria-label="Teaching staff"
+                            aria-valuetext="{{ number_format($teacherCount) }} teachers"></div>
                     </div>
                 </div>
             </div>
@@ -171,7 +454,8 @@
                     <small class="text-muted">Across all grade levels</small>
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-warning" role="progressbar" style="width: 100%" aria-valuenow="100"
-                            aria-valuemin="0" aria-valuemax="100"></div>
+                            aria-valuemin="0" aria-valuemax="100" aria-label="Active classes"
+                            aria-valuetext="{{ number_format($sectionCount) }} classes"></div>
                     </div>
                 </div>
             </div>
@@ -199,7 +483,9 @@
                     <div class="progress mt-3" style="height: 4px;">
                         <div class="progress-bar bg-info" role="progressbar"
                             style="width: {{ $attendancePercentage ?? 0 }}%"
-                            aria-valuenow="{{ $attendancePercentage ?? 0 }}" aria-valuemin="0" aria-valuemax="100">
+                            aria-valuenow="{{ $attendancePercentage ?? 0 }}" aria-valuemin="0" aria-valuemax="100"
+                            aria-label="Today's attendance rate"
+                            aria-valuetext="{{ number_format($attendancePercentage ?? 0, 1) }} percent">
                         </div>
                     </div>
                 </div>
@@ -233,16 +519,16 @@
                                 <span class="small">Active</span>
                             </div>
                             <div class="d-flex align-items-center">
-                                <div class="bg-success rounded-circle me-1" style="width: 10px; height: 10px;"></div>
-                                <span class="small">Alumni</span>
-                            </div>
-                            <div class="d-flex align-items-center">
                                 <div class="bg-warning rounded-circle me-1" style="width: 10px; height: 10px;"></div>
                                 <span class="small">Transferee</span>
                             </div>
                             <div class="d-flex align-items-center">
+                                <div class="bg-success rounded-circle me-1" style="width: 10px; height: 10px;"></div>
+                                <span class="small">Graduated</span>
+                            </div>
+                            <div class="d-flex align-items-center">
                                 <div class="bg-danger rounded-circle me-1" style="width: 10px; height: 10px;"></div>
-                                <span class="small">Inactive</span>
+                                <span class="small">Dropped</span>
                             </div>
                         </div>
                     </div>
@@ -330,11 +616,72 @@
         </div>
     </div>
 
+    <!-- Recent Activities Section -->
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">Recent Activities</h5>
+                    <div class="d-flex align-items-center">
+                        <label for="activityTypeFilter" class="visually-hidden">Filter activities by type</label>
+                        <select class="form-select form-select-sm" id="activityTypeFilter" style="width: auto;"
+                            aria-label="Filter activities by type" title="Filter activities by type">
+                            <option value="all">All Activities</option>
+                            <option value="Enrollment">Enrollments</option>
+                            <option value="Assessment">Assessments</option>
+                            <option value="Absence">Absences</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="activitiesTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($recentActivities ?? [] as $activity)
+                                    <tr class="activity-row" data-type="{{ $activity['type'] ?? 'Other' }}">
+                                        <td>
+                                            @php
+                                                $type = $activity['type'] ?? 'Other';
+                                                $badgeClass = match ($type) {
+                                                    'Enrollment' => 'bg-primary',
+                                                    'Assessment' => 'bg-info',
+                                                    'Absence' => 'bg-warning text-dark',
+                                                    default => 'bg-secondary',
+                                                };
+                                            @endphp
+                                            <span class="badge {{ $badgeClass }}">{{ $type }}</span>
+                                        </td>
+                                        <td>{{ $activity['description'] ?? 'No description' }}</td>
+                                        <td>
+                                            <small class="text-muted">
+                                                {{ isset($activity['created_at']) ? $activity['created_at']->diffForHumans() : 'Recently' }}
+                                            </small>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">No recent activities found.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 
     <div class="modal fade" id="addSchoolYearModal" tabindex="-1" aria-labelledby="addSchoolYearModalLabel"
         aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="addSchoolYearModalLabel">Add School Year</h5>
@@ -346,15 +693,38 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="start_date" class="form-label">Start Date</label>
-                                <input type="date" class="form-control" id="start_date" name="start_date" required>
+                                <div class="input-group">
+                                    <input type="date" class="form-control @error('start_date') is-invalid @enderror"
+                                        id="start_date" name="start_date" value="{{ old('start_date') }}" required>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                        onclick="document.getElementById('start_date').value = new Date().toISOString().split('T')[0]"
+                                        title="Set to today">
+                                        <i data-feather="calendar" class="feather-sm"></i> Today
+                                    </button>
+                                </div>
+                                @error('start_date')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
                             </div>
                             <div class="col-md-6">
                                 <label for="end_date" class="form-label">End Date</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date" required>
+                                <div class="input-group">
+                                    <input type="date" class="form-control @error('end_date') is-invalid @enderror"
+                                        id="end_date" name="end_date" value="{{ old('end_date') }}" required>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                        onclick="document.getElementById('end_date').value = new Date().toISOString().split('T')[0]"
+                                        title="Set to today">
+                                        <i data-feather="calendar" class="feather-sm"></i> Today
+                                    </button>
+                                </div>
+                                @error('end_date')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
                             </div>
                         </div>
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="isCurrentYear" name="is_active">
+                            <input class="form-check-input" type="checkbox" id="isCurrentYear" name="is_active"
+                                value="1" {{ old('is_active') ? 'checked' : '' }}>
                             <label class="form-check-label" for="isCurrentYear">
                                 Set as current school year
                             </label>
@@ -373,7 +743,7 @@
     @foreach ($schoolYears as $year)
         <div class="modal fade text-left" id="editSchoolYearModal{{ $year->id }}" tabindex="-1" role="dialog"
             aria-labelledby="editSchoolYearModalLabel{{ $year->id }}" aria-hidden="true">
-            <div class="modal-dialog" role="document">
+            <div class="modal-dialog modal-lg" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="editSchoolYearModalLabel{{ $year->id }}">Edit School Year</h5>
@@ -386,13 +756,29 @@
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="editStartDate{{ $year->id }}" class="form-label">Start Date</label>
-                                    <input type="date" name="start_date" class="form-control"
-                                        value="{{ $year->start_date }}" id="editStartDate{{ $year->id }}" required>
+                                    <div class="input-group">
+                                        <input type="date" name="start_date" class="form-control"
+                                            value="{{ \Carbon\Carbon::parse($year->start_date)->format('Y-m-d') }}"
+                                            id="editStartDate{{ $year->id }}" required>
+                                        <button type="button" class="btn btn-outline-secondary"
+                                            onclick="document.getElementById('editStartDate{{ $year->id }}').value = new Date().toISOString().split('T')[0]"
+                                            title="Set to today">
+                                            <i data-feather="calendar" class="feather-sm"></i> Today
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="editEndDate{{ $year->id }}" class="form-label">End Date</label>
-                                    <input type="date" name="end_date" class="form-control"
-                                        value="{{ $year->end_date }}" id="editEndDate{{ $year->id }}" required>
+                                    <div class="input-group">
+                                        <input type="date" name="end_date" class="form-control"
+                                            value="{{ \Carbon\Carbon::parse($year->end_date)->format('Y-m-d') }}"
+                                            id="editEndDate{{ $year->id }}" required>
+                                        <button type="button" class="btn btn-outline-secondary"
+                                            onclick="document.getElementById('editEndDate{{ $year->id }}').value = new Date().toISOString().split('T')[0]"
+                                            title="Set to today">
+                                            <i data-feather="calendar" class="feather-sm"></i> Today
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-check mb-3">
@@ -412,7 +798,252 @@
                 </div>
             </div>
         </div>
+
+        {{-- Quarters Modal for this school year --}}
+        <div class="modal fade" id="quartersModal{{ $year->id }}" tabindex="-1"
+            aria-labelledby="quartersModalLabel{{ $year->id }}" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title" id="quartersModalLabel{{ $year->id }}">Manage Quarters</h5>
+                            <small class="text-muted">{{ $year->name }}
+                                ({{ \Carbon\Carbon::parse($year->start_date)->format('M d, Y') }} -
+                                {{ \Carbon\Carbon::parse($year->end_date)->format('M d, Y') }})</small>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        @php
+                            $quarters = $year->quarters()->orderBy('quarter')->get();
+                            $quarterNames = \App\Models\SchoolYearQuarter::QUARTER_NAMES;
+                        @endphp
+
+                        {{-- Current Quarter Info --}}
+                        @php $activeQuarter = $quarters->first(fn($q) => $q->isCurrent()); @endphp
+                        @if ($activeQuarter)
+                            <div class="alert alert-info py-2 d-flex align-items-center mb-3">
+                                <i data-feather="info" class="feather-sm me-2"></i>
+                                <small>
+                                    <strong>Current:</strong> {{ $activeQuarter->name }}
+                                    @if ($activeQuarter->daysRemaining() >= 0)
+                                        ({{ $activeQuarter->daysRemaining() }} days left)
+                                    @endif
+                                </small>
+                            </div>
+                        @endif
+
+                        {{-- Quarter Cards --}}
+                        @if ($quarters->count() > 0)
+                            <div class="row g-3">
+                                @foreach ($quarters as $quarter)
+                                    <div class="col-md-6">
+                                        <div
+                                            class="card h-100 {{ $quarter->isCurrent() ? 'border-primary border-2' : '' }}">
+                                            <div
+                                                class="card-header py-2 d-flex justify-content-between align-items-center {{ $quarter->isCurrent() ? 'bg-primary text-white' : 'bg-light' }}">
+                                                <strong>{{ $quarter->name }}</strong>
+                                                <span
+                                                    class="badge {{ $quarter->status_badge_class }}">{{ $quarter->status }}</span>
+                                            </div>
+                                            <div class="card-body py-2">
+                                                <div class="row small">
+                                                    <div class="col-6">
+                                                        <span class="text-muted">Start:</span><br>
+                                                        {{ \Carbon\Carbon::parse($quarter->start_date)->format('M d, Y') }}
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <span class="text-muted">End:</span><br>
+                                                        {{ \Carbon\Carbon::parse($quarter->end_date)->format('M d, Y') }}
+                                                    </div>
+                                                </div>
+                                                @if ($quarter->grade_submission_deadline)
+                                                    <div class="small mt-2">
+                                                        <span class="text-muted">Grade Deadline:</span>
+                                                        <span
+                                                            class="{{ $quarter->isSubmissionDeadlinePassed() ? 'text-danger' : '' }}">
+                                                            {{ \Carbon\Carbon::parse($quarter->grade_submission_deadline)->format('M d, Y') }}
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div class="card-footer bg-transparent py-2 d-flex gap-1">
+                                                <button type="button"
+                                                    class="btn btn-sm btn-outline-primary flex-grow-1 edit-quarter-btn"
+                                                    data-quarter-id="{{ $quarter->id }}"
+                                                    data-school-year-id="{{ $year->id }}"
+                                                    data-quarter-name="{{ $quarter->name }}"
+                                                    data-start-date="{{ \Carbon\Carbon::parse($quarter->start_date)->format('Y-m-d') }}"
+                                                    data-end-date="{{ \Carbon\Carbon::parse($quarter->end_date)->format('Y-m-d') }}"
+                                                    data-deadline="{{ $quarter->grade_submission_deadline ? \Carbon\Carbon::parse($quarter->grade_submission_deadline)->format('Y-m-d') : '' }}"
+                                                    data-is-locked="{{ $quarter->is_locked ? '1' : '0' }}">
+                                                    <i data-feather="edit-2" class="feather-sm"></i>
+                                                </button>
+                                                <form
+                                                    action="{{ route('admin.school-year.quarters.toggle-lock', [$year, $quarter]) }}"
+                                                    method="POST" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit"
+                                                        class="btn btn-sm {{ $quarter->is_locked ? 'btn-warning' : 'btn-outline-secondary' }}"
+                                                        title="{{ $quarter->is_locked ? 'Unlock' : 'Lock' }}">
+                                                        <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}"
+                                                            class="feather-sm"></i>
+                                                    </button>
+                                                </form>
+                                                <form
+                                                    action="{{ route('admin.school-year.quarters.destroy', [$year, $quarter]) }}"
+                                                    method="POST" class="d-inline"
+                                                    onsubmit="return confirm('Delete this quarter?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                        <i data-feather="trash-2" class="feather-sm"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="text-center py-4">
+                                <i data-feather="calendar" style="width: 40px; height: 40px;"
+                                    class="text-muted mb-2"></i>
+                                <p class="text-muted mb-0">No quarters configured yet.</p>
+                            </div>
+                        @endif
+
+                        {{-- Add Quarter Form (collapsible) --}}
+                        @if ($quarters->count() < 4)
+                            <hr class="my-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong class="small">Add Quarter</strong>
+                                @if ($quarters->count() === 0)
+                                    <form action="{{ route('admin.school-year.quarters.auto-generate', $year) }}"
+                                        method="POST" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            onclick="return confirm('Auto-generate all 4 quarters with equal duration?')">
+                                            <i data-feather="zap" class="feather-sm me-1"></i> Auto-Generate
+                                        </button>
+                                    </form>
+                                @endif
+                            </div>
+                            <form action="{{ route('admin.school-year.quarters.store', $year) }}" method="POST">
+                                @csrf
+                                <div class="row g-2">
+                                    <div class="col-md-3">
+                                        <select class="form-select form-select-sm" name="quarter" required>
+                                            <option value="">Quarter</option>
+                                            @foreach ($quarterNames as $num => $name)
+                                                @if (!$quarters->contains('quarter', $num))
+                                                    <option value="{{ $num }}">Q{{ $num }}</option>
+                                                @endif
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="input-group input-group-sm">
+                                            <input type="date" class="form-control form-control-sm" name="start_date"
+                                                id="quarterStartDate{{ $year->id }}"
+                                                min="{{ \Carbon\Carbon::parse($year->start_date)->format('Y-m-d') }}"
+                                                max="{{ \Carbon\Carbon::parse($year->end_date)->format('Y-m-d') }}"
+                                                placeholder="Start" required>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                onclick="document.getElementById('quarterStartDate{{ $year->id }}').value = new Date().toISOString().split('T')[0]"
+                                                title="Set to today">Today</button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="input-group input-group-sm">
+                                            <input type="date" class="form-control form-control-sm" name="end_date"
+                                                id="quarterEndDate{{ $year->id }}"
+                                                min="{{ \Carbon\Carbon::parse($year->start_date)->format('Y-m-d') }}"
+                                                max="{{ \Carbon\Carbon::parse($year->end_date)->format('Y-m-d') }}"
+                                                placeholder="End" required>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                onclick="document.getElementById('quarterEndDate{{ $year->id }}').value = new Date().toISOString().split('T')[0]"
+                                                title="Set to today">Today</button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" class="btn btn-sm btn-primary w-100">
+                                            <i data-feather="plus" class="feather-sm"></i> Add
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        @endif
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     @endforeach
+
+    {{-- Edit Quarter Modal (shared) --}}
+    <div class="modal fade" id="editQuarterModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="editQuarterForm" method="POST" action="">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit <span id="editQuarterName">Quarter</span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Start Date</label>
+                            <div class="input-group">
+                                <input type="date" class="form-control" name="start_date" id="editQuarterStartDate"
+                                    required>
+                                <button type="button" class="btn btn-outline-secondary"
+                                    onclick="document.getElementById('editQuarterStartDate').value = new Date().toISOString().split('T')[0]"
+                                    title="Set to today">Today</button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">End Date</label>
+                            <div class="input-group">
+                                <input type="date" class="form-control" name="end_date" id="editQuarterEndDate"
+                                    required>
+                                <button type="button" class="btn btn-outline-secondary"
+                                    onclick="document.getElementById('editQuarterEndDate').value = new Date().toISOString().split('T')[0]"
+                                    title="Set to today">Today</button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Grade Submission Deadline <small
+                                    class="text-muted">(optional)</small></label>
+                            <div class="input-group">
+                                <input type="date" class="form-control" name="grade_submission_deadline"
+                                    id="editQuarterDeadline">
+                                <button type="button" class="btn btn-outline-secondary"
+                                    onclick="document.getElementById('editQuarterDeadline').value = new Date().toISOString().split('T')[0]"
+                                    title="Set to today">Today</button>
+                                <button class="btn btn-outline-secondary" type="button" id="editQuarterClearDeadline"
+                                    title="Clear deadline">Clear</button>
+                            </div>
+                            <small class="text-muted">Teachers must submit grades before this date.</small>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_locked" id="editQuarterLocked">
+                            <label class="form-check-label" for="editQuarterLocked">
+                                Lock quarter (prevents grade/attendance modifications)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
 
     <div class="modal fade" id="deleteSchoolYearModal" tabindex="-1" aria-hidden="true">
@@ -473,9 +1104,22 @@
 @endpush
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
+    <script type="module">
         document.addEventListener('DOMContentLoaded', function() {
+            // Check if Chart.js is loaded
+            if (typeof window.Chart === 'undefined') {
+                console.error('Chart.js is not loaded. Make sure "npm run dev" is running and app.js is loaded.');
+                return;
+            }
+            const Chart = window.Chart;
+            const bootstrap = window.bootstrap;
+
+            // Auto-open Add School Year modal if there are validation errors for the add form
+            @if ($errors->any() && old('start_date') && !old('_method'))
+                const addModal = new bootstrap.Modal(document.getElementById('addSchoolYearModal'));
+                addModal.show();
+            @endif
+
             // Initialize tooltips
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
@@ -487,18 +1131,124 @@
                 feather.replace();
             }
 
-            // Get school years from backend
-            const schoolYears = [
-                @foreach ($schoolYears as $year)
-                    {
-                        id: {{ $year->id }},
-                        name: '{{ $year->name }}',
-                        startDate: '{{ $year->start_date }}',
-                        endDate: '{{ $year->end_date }}',
-                        isCurrent: {{ $year->is_active ? 'true' : 'false' }}
-                    },
-                @endforeach
-            ];
+            // Initialize DataTables for tables (uses local assets referenced in base.blade.php)
+            if (typeof jQuery !== 'undefined' && typeof jQuery().DataTable === 'function') {
+                try {
+                    // Only initialize DataTables if table has valid data rows (not just empty message)
+                    const schoolYearsTable = $('#schoolYearsTable');
+                    const hasValidRows = schoolYearsTable.find('tbody tr td').length > 1 ||
+                        (schoolYearsTable.find('tbody tr td').length === 1 &&
+                            !schoolYearsTable.find('tbody tr td[colspan]').length);
+
+                    if (hasValidRows && schoolYearsTable.find('tbody tr').length > 0 &&
+                        !schoolYearsTable.find('tbody tr td[colspan="6"]').length) {
+                        schoolYearsTable.DataTable({
+                            responsive: true,
+                            lengthChange: true,
+                            pageLength: 10,
+                            columnDefs: [{
+                                orderable: false,
+                                targets: -1
+                            }],
+                            language: {
+                                search: "_INPUT_",
+                                searchPlaceholder: "Search records"
+                            }
+                        });
+                    }
+
+                    // Only initialize DataTables if table has valid data rows (not just empty message)
+                    const activitiesTable = $('#activitiesTable');
+                    if (activitiesTable.find('tbody tr').length > 0 &&
+                        !activitiesTable.find('tbody tr td[colspan]').length) {
+                        activitiesTable.DataTable({
+                            responsive: true,
+                            lengthChange: false,
+                            pageLength: 5,
+                            ordering: true,
+                            columnDefs: [{
+                                orderable: false,
+                                targets: 2
+                            }],
+                            language: {
+                                search: "_INPUT_",
+                                searchPlaceholder: "Search activities"
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn('DataTables initialization failed:', e);
+                }
+            } else {
+                console.warn('DataTables not loaded. Skipping table enhancements.');
+            }
+
+            // Activity type filter functionality
+            const activityFilter = document.getElementById('activityTypeFilter');
+            if (activityFilter) {
+                activityFilter.addEventListener('change', function() {
+                    const filterValue = this.value;
+                    const activityRows = document.querySelectorAll('.activity-row');
+                    let visibleCount = 0;
+
+                    activityRows.forEach(function(row) {
+                        const rowType = row.getAttribute('data-type') || 'Other';
+                        if (filterValue === 'all' || rowType === filterValue) {
+                            row.style.display = '';
+                            visibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+
+                    // Show message if no activities match filter
+                    const tbody = document.querySelector('#activitiesTable tbody');
+                    let noResultsRow = tbody.querySelector('.no-filter-results');
+
+                    if (visibleCount === 0 && activityRows.length > 0) {
+                        if (!noResultsRow) {
+                            noResultsRow = document.createElement('tr');
+                            noResultsRow.className = 'no-filter-results';
+                            noResultsRow.innerHTML =
+                                '<td colspan="3" class="text-center text-muted">No activities found for this filter.</td>';
+                            tbody.appendChild(noResultsRow);
+                        }
+                    } else if (noResultsRow) {
+                        noResultsRow.remove();
+                    }
+                });
+            }
+
+            // Prepare school years + quarters data for the timeline (PHP -> JSON)
+            @php
+                $jsSchoolYears = collect($schoolYears)
+                    ->map(function ($year) {
+                        return [
+                            'id' => $year->id,
+                            'name' => $year->name,
+                            'startDate' => \Carbon\Carbon::parse($year->start_date)->format('Y-m-d'),
+                            'endDate' => \Carbon\Carbon::parse($year->end_date)->format('Y-m-d'),
+                            'isCurrent' => (bool) $year->is_active,
+                            'quarters' => $year
+                                ->quarters()
+                                ->orderBy('quarter')
+                                ->get()
+                                ->map(function ($q) {
+                                    return [
+                                        'quarter' => $q->quarter,
+                                        'name' => $q->name,
+                                        'startDate' => \Carbon\Carbon::parse($q->start_date)->format('Y-m-d'),
+                                        'endDate' => \Carbon\Carbon::parse($q->end_date)->format('Y-m-d'),
+                                        'isLocked' => (bool) $q->is_locked,
+                                    ];
+                                })
+                                ->toArray(),
+                        ];
+                    })
+                    ->toArray();
+            @endphp
+
+            const schoolYears = {!! json_encode($jsSchoolYears) !!};
 
             // This is the new function that creates the visual timeline.
             function initSchoolYearTimeline() {
@@ -521,11 +1271,11 @@
 
                     let barStyle = 'background: #6c757d;'; // Default gray for past years
                     let progressIndicatorHTML = '';
-                    let eventDotsHTML = '';
+                    let quartersHTML = '';
 
                     // Style the current year and calculate progress
+                    const totalDuration = endDate.getTime() - startDate.getTime();
                     if (year.isCurrent) {
-                        const totalDuration = endDate.getTime() - startDate.getTime();
                         const elapsedDuration = currentDate.getTime() - startDate.getTime();
                         const progressPercentage = Math.max(0, Math.min(100, (elapsedDuration /
                             totalDuration) * 100));
@@ -539,28 +1289,31 @@
                             <div style="width: 18px; height: 18px; background-color: white; border: 4px solid #e63946; border-radius: 50%; box-shadow: 0 0 12px rgba(230, 57, 70, 0.8);"></div>
                         </div>
                     `;
-
-                        // Add sample event dots for the current year
-                        eventDotsHTML = `
-                        <span class="event-dot" style="left: 80%; top: -15px;" title="Midterm Exams"></span>
-                        <span class="event-dot" style="left: 88%; top: -15px;" title="School Fair"></span>
-                        <span class="event-dot" style="left: 95%; top: -15px;" title="Final Exams"></span>
-                    `;
                     } else if (startDate > currentDate) {
                         barStyle = 'background: #a9cfff;'; // Light blue for future years
                     }
 
-                    // Add placeholder dots for past years to match the image
-                    if (year.name === '2023-2024') {
-                        eventDotsHTML =
-                            `
-                        <span class="event-dot" style="left: 20%; bottom: -15px;"></span> <span class="event-dot" style="left: 45%; bottom: -15px;"></span>
-                        <span class="event-dot" style="left: 55%; bottom: -15px;"></span> <span class="event-dot" style="left: 85%; bottom: -15px;"></span>`;
-                    } else if (year.name === '2024-2025') {
-                        eventDotsHTML =
-                            `
-                        <span class="event-dot" style="left: 40%; bottom: -15px;"></span> <span class="event-dot" style="left: 65%; bottom: -15px;"></span>
-                        <span class="event-dot" style="left: 75%; bottom: -15px;"></span> <span class="event-dot" style="left: 90%; bottom: -15px;"></span>`;
+                    // Render quarter segments if available
+                    if (Array.isArray(year.quarters) && year.quarters.length > 0) {
+                        year.quarters.forEach(q => {
+                            const qStart = new Date(q.startDate);
+                            const qEnd = new Date(q.endDate);
+                            const leftPct = ((qStart.getTime() - startDate.getTime()) /
+                                totalDuration) * 100;
+                            const widthPct = ((qEnd.getTime() - qStart.getTime()) / totalDuration) *
+                                100;
+                            const isCurrentQuarter = (currentDate >= qStart && currentDate <= qEnd);
+
+                            // Quarter segment styling
+                            const segmentBg = isCurrentQuarter ?
+                                'linear-gradient(90deg, rgba(13,110,253,0.25), rgba(13,110,253,0.15))' :
+                                'rgba(255,255,255,0.06)';
+
+                            quartersHTML += `
+                                <div class="quarter-segment position-absolute" style="left: ${leftPct}%; width: ${widthPct}%; top: 0; height: 100%; border-radius: 6px; background: ${segmentBg};"></div>
+                                <span class="event-dot" style="left: ${leftPct + widthPct / 2}%; top: -12px;" title="${q.name}"></span>
+                            `;
+                        });
                     }
 
                     // Build the HTML for this year segment
@@ -568,7 +1321,7 @@
                     <div class="flex-grow-1 position-relative px-2">
                         <div class="timeline-bar position-relative" style="height: 12px; border-radius: 6px; ${barStyle}">
                             ${progressIndicatorHTML}
-                            ${eventDotsHTML}
+                            ${quartersHTML}
                         </div>
                         <div class="text-center text-muted small mt-2">${year.name}</div>
                     </div>
@@ -641,30 +1394,20 @@
                     try {
                         const response = await fetch(`{{ route('admin.chart-data') }}`);
                         if (!response.ok) {
-                            throw new Error('Network response was not ok');
+                            throw new Error(`HTTP error! status: ${response.status}`);
                         }
-                        // Some environments may accidentally wrap JSON in markdown fences. Clean it defensively.
-                        let raw = await response.text();
-                        let cleaned = raw.trim();
-                        if (cleaned.startsWith('```')) {
-                        // Remove opening fence (``` or ```json) and closing fence
-                        cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
-                    }
-                    let data;
-                    try {
-                        data = JSON.parse(cleaned);
-                    } catch (parseErr) {
-                        throw new Error('Invalid JSON from server: ' + parseErr.message);
-                    }
-                    updateEnrollmentChart(data.enrollmentTrends);
-                    updateClassDistributionChart(data.classDistributionChart);
-                    if (attendanceTrendChartEl && data.attendanceTrend) {
-                        updateAttendanceTrendChart(data.attendanceTrend);
-                    }
-                } catch (error) {
-                    console.error('Error fetching chart data:', error);
-                    enrollmentChartEl.innerHTML =
-                        `<div class="text-center py-5 text-danger">Failed to load chart data. ${error.message}</div>`;
+
+                        const data = await response.json();
+
+                        updateEnrollmentChart(data.enrollmentTrends);
+                        updateClassDistributionChart(data.classDistributionChart);
+                        if (attendanceTrendChartEl && data.attendanceTrend) {
+                            updateAttendanceTrendChart(data.attendanceTrend);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching chart data:', error);
+                        enrollmentChartEl.innerHTML =
+                            `<div class="text-center py-5 text-danger">Failed to load chart data. ${error.message}</div>`;
                         classDistributionChartEl.innerHTML =
                             '<div class="text-center py-5 text-danger">Failed to load chart data.</div>';
                     }
@@ -683,37 +1426,45 @@
 
                     const ctx = canvas.getContext('2d');
 
-                    const years = [...new Set(enrollmentTrends.map(item => item.enrollment_year))].sort();
+                    // Get unique school years in order (using school_year_id for sorting)
+                    const schoolYearMap = new Map();
+                    enrollmentTrends.forEach(item => {
+                        if (!schoolYearMap.has(item.school_year_id)) {
+                            schoolYearMap.set(item.school_year_id, item.school_year_name);
+                        }
+                    });
+                    const sortedSchoolYearIds = [...schoolYearMap.keys()].sort((a, b) => a - b);
+                    const schoolYears = sortedSchoolYearIds.map(id => schoolYearMap.get(id));
+
                     const statuses = [...new Set(enrollmentTrends.map(item => item.status))].sort();
 
                     const datasets = statuses.map(status => {
-                        const data = years.map(year => {
-                            const trend = enrollmentTrends.find(item => item.enrollment_year ===
-                                year && item.status === status);
+                        const data = sortedSchoolYearIds.map(schoolYearId => {
+                            const trend = enrollmentTrends.find(item => item.school_year_id ===
+                                schoolYearId && item.status === status);
                             return trend ? trend.count : 0;
                         });
 
                         let backgroundColor, borderColor;
                         switch (status) {
-                            case 'active':
-                                backgroundColor =
-                                    'rgba(13, 110, 253, 0.1)'; // Lighter fill for line chart
+                            case 'enrolled':
+                                backgroundColor = 'rgba(13, 110, 253, 0.2)';
                                 borderColor = 'rgba(13, 110, 253, 1)';
                                 break;
-                            case 'alumni':
-                                backgroundColor = 'rgba(25, 135, 84, 0.1)';
+                            case 'graduated':
+                                backgroundColor = 'rgba(25, 135, 84, 0.2)';
                                 borderColor = 'rgba(25, 135, 84, 1)';
                                 break;
-                            case 'transferee':
-                                backgroundColor = 'rgba(255, 193, 7, 0.1)';
+                            case 'transferred':
+                                backgroundColor = 'rgba(255, 193, 7, 0.2)';
                                 borderColor = 'rgba(255, 193, 7, 1)';
                                 break;
-                            case 'inactive':
-                                backgroundColor = 'rgba(220, 53, 69, 0.1)';
+                            case 'unenrolled':
+                                backgroundColor = 'rgba(220, 53, 69, 0.2)';
                                 borderColor = 'rgba(220, 53, 69, 1)';
                                 break;
                             default:
-                                backgroundColor = 'rgba(108, 117, 125, 0.1)';
+                                backgroundColor = 'rgba(108, 117, 125, 0.2)';
                                 borderColor = 'rgba(108, 117, 125, 1)';
                         }
 
@@ -729,9 +1480,9 @@
                     });
 
                     enrollmentChart = new Chart(ctx, {
-                        type: 'line', // **CHANGE**: The chart type is now 'line'
+                        type: 'line',
                         data: {
-                            labels: years,
+                            labels: schoolYears,
                             datasets: datasets
                         },
                         options: {
@@ -775,7 +1526,10 @@
                     }
                     classDistributionChartEl.innerHTML = '';
 
-                    classDistributionChart = new Chart(classDistributionChartEl, {
+                    const canvas = document.createElement('canvas');
+                    classDistributionChartEl.appendChild(canvas);
+
+                    classDistributionChart = new Chart(canvas, {
                         type: 'doughnut',
                         data: {
                             labels: chartData.labels,
@@ -812,7 +1566,6 @@
                         }
                     });
                 };
-
                 const updateAttendanceTrendChart = (attendanceData) => {
                     if (attendanceTrendChart) {
                         attendanceTrendChart.destroy();
@@ -894,6 +1647,54 @@
             initSchoolYearManagement();
             initDashboardCharts();
             initSchoolYearTimeline(); // Call the new timeline function
+
+            // Edit Quarter Modal Handler
+            document.querySelectorAll('.edit-quarter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const quarterId = this.dataset.quarterId;
+                    const schoolYearId = this.dataset.schoolYearId;
+                    const quarterName = this.dataset.quarterName;
+                    const startDate = this.dataset.startDate;
+                    const endDate = this.dataset.endDate;
+                    const deadline = this.dataset.deadline;
+                    const isLocked = this.dataset.isLocked === '1';
+
+                    // Update modal title
+                    document.getElementById('editQuarterName').textContent = quarterName;
+
+                    // Set form action
+                    document.getElementById('editQuarterForm').action =
+                        `/admin/school-year/${schoolYearId}/quarters/${quarterId}`;
+
+                    // Populate fields
+                    document.getElementById('editQuarterStartDate').value = startDate;
+                    document.getElementById('editQuarterEndDate').value = endDate;
+                    document.getElementById('editQuarterDeadline').value = deadline || '';
+                    document.getElementById('editQuarterLocked').checked = isLocked;
+
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('editQuarterModal'));
+                    modal.show();
+                });
+            });
+
+            // Clear grade submission deadline button
+            const clearDeadlineBtn = document.getElementById('editQuarterClearDeadline');
+            if (clearDeadlineBtn) {
+                clearDeadlineBtn.addEventListener('click', function() {
+                    const input = document.getElementById('editQuarterDeadline');
+                    if (input) input.value = '';
+                });
+            }
+
+            // Re-initialize feather icons when quarter modals are shown
+            document.querySelectorAll('[id^="quartersModal"]').forEach(modal => {
+                modal.addEventListener('shown.bs.modal', function() {
+                    if (typeof feather !== 'undefined') {
+                        feather.replace();
+                    }
+                });
+            });
         });
     </script>
 @endpush

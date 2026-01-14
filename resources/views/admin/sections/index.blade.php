@@ -1,6 +1,6 @@
 @extends('base')
 
-@section('title', 'Classes')
+@section('title', 'Class')
 
 @section('content')
     <div class="container-fluid">
@@ -27,9 +27,9 @@
         @else
             <ul class="nav nav-tabs" id="gradeLevelTabs" role="tablist">
                 @php
-                    $gradeLevels = $classes->pluck('section.gradeLevel.level')->filter()->unique()->sort()->values();
+                    $tabGradeLevels = $classes->pluck('section.gradeLevel.level')->filter()->unique()->sort()->values();
                 @endphp
-                @foreach ($gradeLevels as $gradeLevel)
+                @foreach ($tabGradeLevels as $gradeLevel)
                     <li class="nav-item" role="presentation">
                         <button class="nav-link {{ $loop->first ? 'active' : '' }}" id="grade-{{ $gradeLevel }}-tab"
                             data-bs-toggle="tab" data-bs-target="#grade-{{ $gradeLevel }}-pane" type="button"
@@ -40,7 +40,7 @@
             </ul>
 
             <div class="tab-content" id="gradeLevelTabsContent">
-                @foreach ($gradeLevels as $gradeLevel)
+                @foreach ($tabGradeLevels as $gradeLevel)
                     @php
                         // Filter the main $classes collection for the current grade level in the loop
                         $classesInGrade = $classes->filter(function ($class) use ($gradeLevel) {
@@ -52,12 +52,12 @@
                         <div class="card card-body border-top-0">
                             @if ($classesInGrade->isNotEmpty())
                                 <div class="table-responsive">
-                                    <table class="table table-hover" width="100%">
+                                    <table class="table table-hover js-datatable" width="100%">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>Section Name</th>
                                                 <th>Adviser</th>
-                                                <th class="text-center">Enrollment</th>
+                                                <th class="text-center">Enrolled</th>
                                                 <th class="text-center">Actions</th>
                                             </tr>
                                         </thead>
@@ -108,22 +108,16 @@
                                 value="{{ old('name') }}" required>
                         </div>
                         <div class="mb-3">
-                            <label for="grade_level_display" class="form-label">Grade Level <span
+                            <label for="grade_level_id" class="form-label">Grade Level <span
                                     class="text-danger">*</span></label>
-                            @php
-                                $modalDefaultGrade =
-                                    $classes
-                                        ->pluck('section.gradeLevel.level')
-                                        ->filter()
-                                        ->unique()
-                                        ->sort()
-                                        ->values()
-                                        ->first() ?? 1;
-                            @endphp
-                            <input type="text" class="form-control" id="grade_level_display"
-                                value="Grade {{ $modalDefaultGrade }}" disabled>
-                            <input type="hidden" id="grade_level_id" name="grade_level_id"
-                                value="{{ $modalDefaultGrade }}">
+                            <select class="form-select" id="grade_level_id" name="grade_level_id" required>
+                                @foreach ($gradeLevels as $level)
+                                    <option value="{{ $level->id }}"
+                                        {{ old('grade_level_id') == $level->id ? 'selected' : '' }}>
+                                        Grade {{ $level->level }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label for="teacher_id" class="form-label">Adviser</label>
@@ -170,23 +164,30 @@
                     const textMatch = text.match(/Grade\s*(\d+)/i);
                     if (textMatch && textMatch[1]) return parseInt(textMatch[1], 10);
                 }
-                return 1;
+                return null;
             }
 
-            function setGradeInputs(grade) {
-                const hidden = document.getElementById('grade_level_id');
-                const display = document.getElementById('grade_level_display');
-                if (hidden) hidden.value = grade;
-                if (display) display.value = `Grade ${grade}`;
+            function setGradeDropdown(gradeLevel) {
+                const dropdown = document.getElementById('grade_level_id');
+                if (!dropdown || !gradeLevel) return;
+
+                // Find the option that matches the grade level
+                for (let option of dropdown.options) {
+                    const optionText = option.textContent.toLowerCase();
+                    if (optionText.includes('grade ' + gradeLevel) || optionText === 'grade ' + gradeLevel) {
+                        dropdown.value = option.value;
+                        break;
+                    }
+                }
             }
 
             // Initialize on load
-            setGradeInputs(getActiveGrade());
+            setGradeDropdown(getActiveGrade());
 
             // Update when a tab is shown
             document.querySelectorAll('#gradeLevelTabs .nav-link').forEach(function(el) {
                 el.addEventListener('shown.bs.tab', function() {
-                    setGradeInputs(getActiveGrade());
+                    setGradeDropdown(getActiveGrade());
                 });
             });
 
@@ -194,7 +195,28 @@
             const modal = document.getElementById('addClassModal');
             if (modal) {
                 modal.addEventListener('shown.bs.modal', function() {
-                    setGradeInputs(getActiveGrade());
+                    setGradeDropdown(getActiveGrade());
+                });
+            }
+
+            // Initialize DataTables for each grade table
+            if (window.jQuery && $.fn.DataTable) {
+                document.querySelectorAll('table.js-datatable').forEach(function(tableEl) {
+                    if (!$.fn.DataTable.isDataTable(tableEl)) {
+                        $(tableEl).DataTable();
+                    }
+                });
+
+                // Fix column sizing when switching tabs (tables inside hidden panes)
+                document.querySelectorAll('#gradeLevelTabs .nav-link').forEach(function(tabEl) {
+                    tabEl.addEventListener('shown.bs.tab', function() {
+                        const targetSelector = tabEl.getAttribute('data-bs-target');
+                        const pane = targetSelector ? document.querySelector(targetSelector) : null;
+                        const tableEl = pane ? pane.querySelector('table.js-datatable') : null;
+                        if (tableEl && $.fn.DataTable.isDataTable(tableEl)) {
+                            $(tableEl).DataTable().columns.adjust();
+                        }
+                    });
                 });
             }
         });

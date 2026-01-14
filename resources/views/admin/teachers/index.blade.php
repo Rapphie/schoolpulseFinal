@@ -2,7 +2,7 @@
 
 @section('title', 'Manage Teachers')
 
-@section('internal-css')
+@push('styles')
     <style>
         .advisory-orb {
             display: inline-flex;
@@ -26,17 +26,6 @@
         #teachersTable {
             border-collapse: separate;
             border-spacing: 0;
-        }
-
-        #teachersTable thead th {
-            background-color: #f8f9fc;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.8rem;
-            letter-spacing: 0.05em;
-            color: #4e73df;
-            border-bottom: 2px solid #e3e6f0;
-            vertical-align: middle;
         }
 
         #teachersTable tbody td {
@@ -375,7 +364,8 @@
             animation-delay: 0.3s;
         }
     </style>
-@endsection
+@endpush
+
 @section('content')
 
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -401,12 +391,15 @@
         <div class="col-md-3">
             <select class="form-select" id="gradeLevelFilter">
                 <option value="">All Grade Levels</option>
-                <option>Grade 1</option>
-                <option>Grade 2</option>
-                <option>Grade 3</option>
-                <option>Grade 4</option>
-                <option>Grade 5</option>
-                <option>Grade 6</option>
+                @foreach ($gradeLevels ?? [] as $gradeLevel)
+                    @php
+                        $gradeLevelNumber = null;
+                        if (preg_match('/\d+/', (string) $gradeLevel->name, $m)) {
+                            $gradeLevelNumber = $m[0];
+                        }
+                    @endphp
+                    <option value="{{ $gradeLevelNumber ?? $gradeLevel->name }}">{{ $gradeLevel->name }}</option>
+                @endforeach
             </select>
         </div>
         <div class="col-md-3">
@@ -427,7 +420,8 @@
                         <tr>
                             <th>Profile</th>
                             <th>Name</th>
-                            <th>Advisories</th>
+                            <th>Grade Level</th>
+                            <th>Section</th>
                             <th>Contact</th>
                             <th>Subjects</th>
                             <th>Status</th>
@@ -439,42 +433,69 @@
                             @if ($teacher->user)
                                 <tr>
                                     <td class="align-middle">
-                                        <img src="{{ $teacher->user->profile_picture ? asset('storage/' . $teacher->user->profile_picture) : asset('images/user-placeholder.png') }}"
-                                            class="rounded-circle" style="width: 40px; height: 40px;" alt="Teacher">
+                                        @php
+                                            $profilePath =
+                                                $teacher->user->profile_picture ?: $teacher->profile_picture ?? null;
+                                            if ($profilePath && preg_match('/^https?:\/\//i', $profilePath)) {
+                                                $profileUrl = $profilePath;
+                                            } elseif ($profilePath) {
+                                                $normalized = ltrim($profilePath, '/');
+                                                $profileUrl = str_starts_with($normalized, 'storage/')
+                                                    ? asset($normalized)
+                                                    : asset('storage/' . $normalized);
+                                            } else {
+                                                $profileUrl = asset('images/user-placeholder.png');
+                                            }
+                                        @endphp
+                                        <img src="{{ $profileUrl }}" class="rounded-circle"
+                                            style="width: 40px; height: 40px;" alt="Teacher">
                                     </td>
                                     <td class="align-middle">
-                                        <span class="fw-bold">{{ $teacher->user->full_name }}</span>
+                                        <span class="fw-bold">{{ $teacher->user->last_name }}, {{$teacher->user->first_name  }}</span>
                                     </td>
                                     <td class="align-middle">
-                                        @if ($teacher->classes->isNotEmpty())
+                                        @if ($teacher->advisory_grade_levels->isNotEmpty())
                                             @php
-                                                $advisories = $teacher->classes->map(function ($class) {
-                                                    return optional($class->section->gradeLevel)->name .
-                                                        '-' .
-                                                        optional($class->section)->name;
-                                                });
-                                                $advisoryText = $advisories->implode(', ');
-                                                $advisoryList =
-                                                    '<ul>' .
-                                                    $advisories
-                                                        ->map(fn($val) => '<li>' . e($val) . '</li>')
+                                                $gradeLevelList =
+                                                    '<ul class=\"list-unstyled mb-0\">' .
+                                                    $teacher->advisory_grade_levels
+                                                        ->map(fn($val) => '<li><strong>' . e($val) . '</strong></li>')
                                                         ->implode('') .
                                                     '</ul>';
                                             @endphp
                                             <div class="advisory-orb" data-bs-toggle="popover" data-bs-trigger="hover"
-                                                data-bs-html="true" data-bs-content="{{ $advisoryList }}"
-                                                title="Advisory Classes">
-                                                {{ $advisoryText }}
+                                                data-bs-html="true" data-bs-content="{{ $gradeLevelList }}"
+                                                title="Advisory Grade Levels">
+                                                {{ $teacher->advisory_grade_level_summary }}
+                                            </div>
+                                        @else
+                                            <span class="badge bg-secondary">No Advisory</span>
+                                        @endif
+                                    </td>
+                                    <td class="align-middle">
+                                        @if ($teacher->advisory_sections->isNotEmpty())
+                                            @php
+                                                $sectionList =
+                                                    '<ul class=\"list-unstyled mb-0\">' .
+                                                    $teacher->advisory_sections_with_grade
+                                                        ->map(fn($val) => '<li><strong>' . e($val) . '</strong></li>')
+                                                        ->implode('') .
+                                                    '</ul>';
+                                            @endphp
+                                            <div class="advisory-orb" data-bs-toggle="popover" data-bs-trigger="hover"
+                                                data-bs-html="true" data-bs-content="{{ $sectionList }}"
+                                                title="Advisory Sections">
+                                                {{ $teacher->advisory_section_summary }}
                                             </div>
                                         @else
                                             <span class="badge bg-secondary">No Advisory</span>
                                         @endif
                                     </td>
                                     <td>
-                                        <div class="d-flex justify-content-center"><i data-feather="mail"
+                                        <div class="d-flex justify-content-start"><i data-feather="mail"
                                                 class="feather-sm me-1"></i> {{ $teacher->user->email }}
                                         </div>
-                                        <div class="d-flex justify-content-center"><i data-feather="phone"
+                                        <div class="d-flex justify-content-start"><i data-feather="phone"
                                                 class="feather-sm me-1"></i>
                                             {{ $teacher->phone ?? 'N/A' }}</div>
                                     </td>
@@ -492,13 +513,18 @@
                                     <td class="align-middle">
                                         <div class="d-flex gap-2">
 
+                                            <a href="{{ route('admin.teachers.show', $teacher->user) }}"
+                                                class="btn btn-sm btn-outline-primary" title="View">
+                                                <i data-feather="eye"></i>
+                                            </a>
+
                                             <a href="{{ route('admin.teachers.edit', $teacher->user) }}"
                                                 class="btn btn-sm btn-outline-success" title="Edit">
                                                 <i data-feather="edit-2"></i>
                                             </a>
                                             <form action="{{ route('admin.teachers.destroy', $teacher->id) }}"
                                                 method="POST" class="mx-1"
-                                                onsubmit="return confirm('Are you sure you want to delete this subject?');">
+                                                onsubmit="return confirm('Are you sure you want to delete this teacher?');">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-danger btn-sm"
@@ -512,7 +538,7 @@
                             @endif
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center">No teachers found.</td>
+                                <td colspan="8" class="text-center">No teachers found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -604,8 +630,6 @@
 
 
 @push('scripts')
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize DataTable with better configuration for list view
@@ -616,35 +640,39 @@
                 ], // Sort by name column (index 1)
                 columnDefs: [{
                         orderable: false,
-                        targets: [0, 6]
+                        targets: [0, 7]
                     }, // Disable sorting for profile image and actions columns
                     {
-                        width: "10%",
+                        width: "8%",
                         targets: 0
                     }, // Profile column width
                     {
-                        width: "15%",
+                        width: "14%",
                         targets: 1
                     }, // Name column width
                     {
-                        width: "15%",
+                        width: "12%",
                         targets: 2
-                    }, // Position column width
+                    }, // Grade level column width
+                    {
+                        width: "12%",
+                        targets: 3
+                    }, // Section column width
                     {
                         width: "20%",
-                        targets: 3
+                        targets: 4
                     }, // Contact column width
                     {
-                        width: "15%",
-                        targets: 4
+                        width: "17%",
+                        targets: 5
                     }, // Subjects column width
                     {
-                        width: "10%",
-                        targets: 5
+                        width: "9%",
+                        targets: 6
                     }, // Status column width
                     {
-                        width: "15%",
-                        targets: 6
+                        width: "8%",
+                        targets: 7
                     } // Actions column width
                 ],
                 language: {
@@ -670,7 +698,7 @@
             // Connect the status filter
             $('#statusFilter').on('change', function() {
                 let value = $(this).val();
-                $('#teachersTable').DataTable().column(5).search(value).draw();
+                $('#teachersTable').DataTable().column(6).search(value).draw();
             });
 
             // Initialize tooltips
@@ -684,30 +712,6 @@
             var popoverList = popoverTriggerList.map(function(popoverTriggerEl) {
                 return new bootstrap.Popover(popoverTriggerEl)
             })
-
-            // Initialize message modal functionality
-            $('.btn-message').on('click', function() {
-                const email = $(this).data('email');
-                // Prefill email in message modal if exists
-                if (email && $('#messageForm #recipient').length) {
-                    $('#messageForm #recipient').val(email);
-                }
-                $('#messageModal').modal('show');
-            });
-
-            // Handle delete button click
-            $('.deleteTeacherBtn').on('click', function() {
-                const teacherId = $(this).data('teacher-id');
-                $('#deleteTeacherForm').attr('action', `/admin/teachers/destroy=${teacherId}`);
-            });
         });
-
-        function editTeacher(teacherId) {
-            $('#editTeacherModal').modal('show');
-        }
-
-        function viewTeacher(teacherId) {
-            alert('View teacher details for ID: ' + teacherId);
-        }
     </script>
 @endpush

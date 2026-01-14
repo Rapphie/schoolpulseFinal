@@ -55,7 +55,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($subjects as $subject)
+                        @foreach ($subjects as $subject)
                             <tr>
                                 <td>{{ $subject->id }}</td>
                                 <td>{{ $subject->name }}</td>
@@ -100,11 +100,7 @@
                                     </div>
                                 </td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center">No subjects found.</td>
-                            </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                 </table>
             </div>
@@ -276,9 +272,7 @@
 @endsection
 
 @push('scripts')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" />
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    >
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             let subjectIndex = 1; // Start index for new rows, since 0 is already in the HTML

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Classes;
+use App\Models\Grade;
 use App\Models\Enrollment;
+use App\Models\Attendance;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
 use App\Models\SchoolYear;
@@ -21,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use App\Services\StudentProfileService;
 
 class ClassroomSectionController extends Controller
 {
@@ -74,6 +77,27 @@ class ClassroomSectionController extends Controller
         ]);
 
         $activeSchoolYear = $this->getActiveSchoolYear();
+
+        // Teacher assignment rule: A teacher can only be an adviser to one section regardless of grade level
+        if (!empty($validated['teacher_id'])) {
+            $teacherId = $validated['teacher_id'];
+
+            // Check if this teacher is already assigned as adviser to any section
+            $existingAdvisory = Classes::where('teacher_id', $teacherId)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->with('section.gradeLevel')
+                ->first();
+
+            if ($existingAdvisory) {
+                $existingSectionName = optional($existingAdvisory->section)->name ?? 'another section';
+                $existingGradeLabel = optional($existingAdvisory->section->gradeLevel)->name ?? 'Unknown Grade';
+                return back()->withInput()->with(
+                    'error',
+                    "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
+                        "Teachers can only be an adviser to one section."
+                );
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -171,8 +195,32 @@ class ClassroomSectionController extends Controller
 
         $class = $this->findActiveClass($section);
         if ($class) {
+            // Teacher assignment rule: Check if teacher is being changed
+            $newTeacherId = $validated['teacher_id'] ?? $class->teacher_id;
+
+            if ($newTeacherId && $newTeacherId != $class->teacher_id) {
+                $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+
+                // Check if this teacher is already assigned as adviser to any other section
+                $existingAdvisory = Classes::where('teacher_id', $newTeacherId)
+                    ->where('school_year_id', $activeSchoolYear->id)
+                    ->where('id', '!=', $class->id)
+                    ->with('section.gradeLevel')
+                    ->first();
+
+                if ($existingAdvisory) {
+                    $existingSectionName = optional($existingAdvisory->section)->name ?? 'another section';
+                    $existingGradeLabel = optional($existingAdvisory->section->gradeLevel)->name ?? 'Unknown Grade';
+                    return back()->withInput()->with(
+                        'error',
+                        "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
+                            "Teachers can only be an adviser to one section."
+                    );
+                }
+            }
+
             $class->update([
-                'teacher_id' => $validated['teacher_id'] ?? $class->teacher_id,
+                'teacher_id' => $newTeacherId,
                 'capacity' => $validated['capacity'] ?? $class->capacity,
             ]);
         }
@@ -242,7 +290,60 @@ class ClassroomSectionController extends Controller
                 'teacher_id' => 'required|exists:teachers,id',
             ]);
 
+            // Load the section and grade level for restriction check and auto-schedule creation
+            $class->load('section.gradeLevel');
+            $gradeLevel = $class->section->gradeLevel ?? null;
+            $gradeValue = optional($gradeLevel)->level;
+
+            $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+            $teacherId = $validated['teacher_id'];
+
+            // Check if this teacher is already assigned as adviser to any other section
+            $existingAdvisory = Classes::where('teacher_id', $teacherId)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->where('id', '!=', $class->id)
+                ->with('section.gradeLevel')
+                ->first();
+
+            if ($existingAdvisory) {
+                $existingSectionName = optional($existingAdvisory->section)->name ?? 'another section';
+                $existingGradeLabel = optional($existingAdvisory->section->gradeLevel)->name ?? 'Unknown Grade';
+                return back()->withInput()->with(
+                    'error',
+                    "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
+                        "Teachers can only be an adviser to one section."
+                );
+            }
+
             $class->update(['teacher_id' => $validated['teacher_id']]);
+
+            // For Grade 1, 2, 3: Auto-create schedules for all subjects assigned to the adviser
+            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+                $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
+
+                foreach ($subjects as $subject) {
+                    // Check if schedule already exists for this subject in this class
+                    $existingSchedule = Schedule::where('class_id', $class->id)
+                        ->where('subject_id', $subject->id)
+                        ->first();
+
+                    if (!$existingSchedule) {
+                        // Create a default schedule with the adviser as teacher (placeholder times to be edited later)
+                        Schedule::create([
+                            'class_id' => $class->id,
+                            'subject_id' => $subject->id,
+                            'teacher_id' => $teacherId,
+                            'day_of_week' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+                            'start_time' => '00:00',
+                            'end_time' => '00:00',
+                            'room' => null,
+                        ]);
+                    } else {
+                        // Update existing schedule to use the new adviser
+                        $existingSchedule->update(['teacher_id' => $teacherId]);
+                    }
+                }
+            }
 
             return back()->with('success', 'Adviser assigned successfully.');
         } catch (\Throwable $throwable) {
@@ -251,10 +352,67 @@ class ClassroomSectionController extends Controller
     }
 
     /**
+     * Remove the adviser from a class.
+     */
+    public function removeClassAdviser(Classes $class)
+    {
+        try {
+            // For Grade 1, 2, 3: Remove all schedules when adviser is unassigned
+            $class->load('section.gradeLevel');
+            $gradeValue = optional($class->section->gradeLevel)->level;
+
+            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+                // Delete all schedules for this class
+                Schedule::where('class_id', $class->id)->delete();
+            }
+
+            $class->update(['teacher_id' => null]);
+
+            return back()->with('success', 'Adviser removed successfully.');
+        } catch (\Throwable $throwable) {
+            return back()->with('error', 'Failed to remove adviser: ' . $throwable->getMessage());
+        }
+    }
+
+    /**
+     * Update the capacity of a class.
+     */
+    public function updateCapacity(Request $request, Classes $class)
+    {
+        try {
+            $validated = $request->validate([
+                'capacity' => 'required|integer|min:1',
+            ]);
+
+            // Ensure capacity is not less than current enrollment
+            $currentEnrollment = $class->enrollments()->count();
+            if ($validated['capacity'] < $currentEnrollment) {
+                return back()->withInput()->with(
+                    'error',
+                    "Capacity cannot be less than current enrollment ({$currentEnrollment} students)."
+                );
+            }
+
+            $class->update(['capacity' => $validated['capacity']]);
+
+            return back()->with('success', 'Capacity updated successfully.');
+        } catch (\Throwable $throwable) {
+            return back()->withInput()->with('error', 'Failed to update capacity: ' . $throwable->getMessage());
+        }
+    }
+
+    /**
      * Store a schedule entry for a class.
      */
     public function storeSchedule(Request $request, Classes $class)
     {
+        // For Grade 1, 2, 3: Adding schedules is not allowed (auto-created when adviser is assigned)
+        $class->load('section.gradeLevel');
+        $gradeValue = optional($class->section->gradeLevel)->level;
+
+        if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            return back()->with('error', 'For Grade 1, 2, and 3, schedules are automatically managed. You cannot manually add schedules.');
+        }
 
         $validated = $request->validate([
             'subject_id' => 'required|exists:subjects,id',
@@ -351,6 +509,11 @@ class ClassroomSectionController extends Controller
             'birthdate' => 'required|date',
             'address' => 'nullable|string',
             'status' => 'nullable|string|max:50',
+            // ML Feature fields
+            'distance_km' => 'nullable|numeric|min:0|max:100',
+            'transportation' => 'nullable|string|max:50',
+            'family_income' => 'nullable|string|in:Low,Medium,High',
+            // Guardian fields
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
             'guardian_email' => 'required|email|max:255|unique:users,email',
@@ -360,7 +523,7 @@ class ClassroomSectionController extends Controller
         try {
             // Optional: prevent over-capacity
             if ($class->enrollments()->count() >= $class->capacity) {
-                return back()->with('error', 'This class has reached its full capacity.');
+                return back()->with('error', 'This class has reached its full capacity.')->with('error_form', 'enroll');
             }
 
             $plainPassword = "12345678";
@@ -382,18 +545,23 @@ class ClassroomSectionController extends Controller
                 ]);
 
                 $student = Student::create([
-                    'student_id' => $validated['student_id'] ?? null,
+                    'student_id' => Student::generateStudentId(),
                     'lrn' => $validated['lrn'] ?? null,
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
                     'gender' => $validated['gender'],
                     'birthdate' => $validated['birthdate'],
                     'address' => $validated['address'] ?? null,
+                    'distance_km' => $validated['distance_km'] ?? null,
+                    'transportation' => $validated['transportation'] ?? null,
+                    'family_income' => $validated['family_income'] ?? null,
                     'guardian_id' => $guardian->id,
                     'enrollment_date' => now(),
                 ]);
 
-                Enrollment::create([
+                // Create enrollment with linked student profile
+                $profileService = new StudentProfileService();
+                $profileService->createEnrollmentWithProfile([
                     'student_id' => $student->id,
                     'class_id' => $class->id,
                     'school_year_id' => $class->school_year_id,
@@ -404,13 +572,157 @@ class ClassroomSectionController extends Controller
 
             // Send email AFTER the DB transaction to avoid sending within a transaction
             if ($guardianUser) {
-                Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+                Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
             }
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to add student: ' . $throwable->getMessage());
+            return back()->with('error', 'Failed to add student: ' . $throwable->getMessage())->with('error_form', 'enroll');
         }
 
         return back()->with('success', 'Student enrolled successfully.');
+    }
+
+    /**
+     * Show a student's profile page for admins.
+     */
+    public function showStudent(Student $student)
+    {
+        $student->load([
+            'guardian.user',
+            'enrollments.schoolYear',
+            'enrollments.class.section.gradeLevel',
+            'enrollments.class.teacher.user',
+            'profiles.schoolYear',
+            'profiles.gradeLevel',
+            'profiles.enrollments.class.section',
+        ]);
+
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeEnrollment = null;
+        $activeProfile = null;
+        $attendanceSummary = null;
+        $gradeSummary = null;
+
+        if ($activeSchoolYear) {
+            $activeEnrollment = $student->enrollments
+                ->firstWhere('school_year_id', $activeSchoolYear->id);
+
+            $activeProfile = $student->profiles
+                ->firstWhere('school_year_id', $activeSchoolYear->id);
+
+            $attendanceSummary = Attendance::query()
+                ->where('student_id', $student->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->selectRaw("status, COUNT(*) as total")
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $gradeSummary = Grade::query()
+                ->where('student_id', $student->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->selectRaw('AVG(grade) as avg_grade, COUNT(*) as grade_count')
+                ->first();
+        }
+
+        // Grade level history from profiles (distinct by academic year)
+        $gradeHistory = $student->profiles
+            ->sortByDesc('school_year_id')
+            ->values();
+
+        return view('admin.students.show', compact(
+            'student',
+            'activeSchoolYear',
+            'activeEnrollment',
+            'activeProfile',
+            'attendanceSummary',
+            'gradeSummary',
+            'gradeHistory'
+        ));
+    }
+
+    /**
+     * Show form to edit a student's details for admins.
+     */
+    public function editStudent(Student $student)
+    {
+        $student->load(['guardian.user']);
+
+        return view('admin.students.edit', compact('student'));
+    }
+
+    /**
+     * Update an existing student's details (and guardian) from the admin manage view.
+     */
+    public function updateStudent(Request $request, Student $student)
+    {
+        $guardian = $student->guardian;
+        $guardianUser = $guardian?->user;
+
+        $validated = $request->validate([
+            'lrn' => 'nullable|string|max:12|unique:students,lrn,' . $student->id,
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'gender' => 'required|in:male,female',
+            'birthdate' => 'required|date',
+            'address' => 'nullable|string',
+            'distance_km' => 'nullable|numeric|min:0|max:100',
+            'transportation' => 'nullable|string|max:50',
+            'family_income' => 'nullable|string|in:Low,Medium,High',
+            'guardian_first_name' => 'required|string|max:255',
+            'guardian_last_name' => 'required|string|max:255',
+            'guardian_email' => 'required|email|max:255' . ($guardianUser ? '|unique:users,email,' . $guardianUser->id : '|unique:users,email'),
+            'guardian_phone' => 'required|string|max:25',
+            'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $student, $guardian, $guardianUser) {
+                if ($guardianUser) {
+                    $guardianUser->update([
+                        'first_name' => $validated['guardian_first_name'],
+                        'last_name' => $validated['guardian_last_name'],
+                        'email' => $validated['guardian_email'],
+                    ]);
+                } else {
+                    $guardianUser = User::create([
+                        'first_name' => $validated['guardian_first_name'],
+                        'last_name' => $validated['guardian_last_name'],
+                        'email' => $validated['guardian_email'],
+                        'password' => Hash::make(12345678),
+                        'role_id' => 3,
+                    ]);
+                }
+
+                if ($guardian) {
+                    $guardian->update([
+                        'phone' => $validated['guardian_phone'],
+                        'relationship' => $validated['guardian_relationship'],
+                    ]);
+                } else {
+                    $guardian = Guardian::create([
+                        'user_id' => $guardianUser->id,
+                        'phone' => $validated['guardian_phone'],
+                        'relationship' => $validated['guardian_relationship'],
+                    ]);
+                }
+
+                $student->update([
+                    'lrn' => $validated['lrn'] ?? $student->lrn,
+                    'first_name' => $validated['first_name'],
+                    'last_name' => $validated['last_name'],
+                    'gender' => $validated['gender'],
+                    'birthdate' => $validated['birthdate'],
+                    'address' => $validated['address'] ?? $student->address,
+                    'distance_km' => $validated['distance_km'] ?? $student->distance_km,
+                    'transportation' => $validated['transportation'] ?? $student->transportation,
+                    'family_income' => $validated['family_income'] ?? $student->family_income,
+                    'guardian_id' => $guardian->id,
+                ]);
+            });
+        } catch (\Throwable $throwable) {
+            return back()->withInput()->with('edit_student_id', $student->id)->with('error', 'Failed to update student: ' . $throwable->getMessage());
+        }
+
+        return back()->with('success', 'Student updated successfully.');
     }
 
     /**

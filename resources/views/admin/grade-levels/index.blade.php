@@ -19,20 +19,20 @@
 
         <div class="card shadow mb-4">
             <div class="card-body">
-                <table class="table table-hover">
+                <table id="grade-levels-table" class="table table-hover table-striped">
                     <thead class="table-light">
                         <tr>
-                            <th>Level</th>
+                            <th class="dt-head-left">Level</th>
                             <th>Name</th>
-                            <th class="text-center">Actions</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach ($gradeLevels as $grade)
                             <tr>
-                                <td>{{ $grade->level }}</td>
+                                <td class="dt-body-left">{{ $grade->level }}</td>
                                 <td>{{ $grade->name }}</td>
-                                <td class="text-center">
+                                <td>
                                     <button class="btn btn-sm btn-outline-primary edit-btn" data-bs-toggle="modal"
                                         data-bs-target="#editGradeLevelModal" data-id="{{ $grade->id }}"
                                         data-name="{{ $grade->name }}" data-level="{{ $grade->level }}">
@@ -171,6 +171,11 @@
                     event.target.closest('.input-group').remove();
                 }
             });
+
+            // Initialize DataTables for the grade levels table
+            if (window.jQuery && $.fn.DataTable) {
+                $('#grade-levels-table').DataTable();
+            }
         });
     </script>
 @endpush
