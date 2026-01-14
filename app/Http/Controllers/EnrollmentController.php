@@ -9,6 +9,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\Classes;
 use Illuminate\Http\Request;
+use App\Services\StudentProfileService;
 
 class EnrollmentController extends Controller
 {
@@ -53,10 +54,12 @@ class EnrollmentController extends Controller
             return redirect()->back()->with('error', 'Student is already enrolled for this school year.');
         }
 
-        // Create new enrollment
-        Enrollment::create([
+        // Create new enrollment with linked student profile
+        $classId = $section->classes()->where('school_year_id', $schoolYear->id)->first()->id;
+        $profileService = new StudentProfileService();
+        $profileService->createEnrollmentWithProfile([
             'student_id' => $student->id,
-            'class_id' => $section->classes()->where('school_year_id', $schoolYear->id)->first()->id, // This might need adjustment
+            'class_id' => $classId,
             'school_year_id' => $schoolYear->id,
             'status' => 'enrolled',
         ]);

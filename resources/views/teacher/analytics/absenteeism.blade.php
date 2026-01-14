@@ -169,6 +169,30 @@
             padding: 0.25rem 0.5rem;
             font-size: 0.85rem;
         }
+
+        /* Risk filter tabs styling */
+        .nav-pills .nav-link {
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+            margin-right: 0.25rem;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: white;
+        }
+
+        .nav-pills .nav-link:hover:not(.active) {
+            background-color: #f8f9fa;
+        }
+
+        .nav-pills .nav-link .badge {
+            font-size: 0.7rem;
+            padding: 0.2em 0.5em;
+        }
     </style>
 @endpush
 
@@ -243,14 +267,14 @@
                                 <button class="nav-link" id="table3-tab" data-bs-toggle="tab"
                                     data-bs-target="#table3-content" type="button" role="tab"
                                     aria-controls="table3-content" aria-selected="false">
-                                    Next Month Forecast
+                                    Next Month Risk
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="table2-tab" data-bs-toggle="tab"
                                     data-bs-target="#table2-content" type="button" role="tab"
                                     aria-controls="table2-content" aria-selected="false">
-                                    Student 
+                                    Student Engagement
                                 </button>
                             </li>
                         </ul>
@@ -262,6 +286,34 @@
                                 aria-labelledby="table1-tab">
                                 <p class="text-muted small mb-3">Focus first on students marked as High risk.</p>
                                 @if (!empty($featureTables['table1']['data']))
+                                    <!-- Risk Level Filter Tabs -->
+                                    <ul class="nav nav-pills mb-3" id="table1RiskFilter" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active btn-sm" id="table1-all-tab"
+                                                data-risk-filter="all" data-table-target="riskTable1" type="button">
+                                                All <span class="badge bg-secondary ms-1" id="table1-count-all">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link btn-sm" id="table1-high-tab" data-risk-filter="high"
+                                                data-table-target="riskTable1" type="button">
+                                                High <span class="badge bg-danger ms-1" id="table1-count-high">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link btn-sm" id="table1-medium-tab"
+                                                data-risk-filter="medium" data-table-target="riskTable1" type="button">
+                                                Medium <span class="badge bg-warning ms-1"
+                                                    id="table1-count-medium">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link btn-sm" id="table1-low-tab" data-risk-filter="low"
+                                                data-table-target="riskTable1" type="button">
+                                                Low <span class="badge bg-success ms-1" id="table1-count-low">0</span>
+                                            </button>
+                                        </li>
+                                    </ul>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-hover align-middle" id="riskTable1">
                                             <thead class="table-light">
@@ -276,13 +328,16 @@
                                                         $riskLabel = $row['Risk_Label'] ?? 'N/A';
                                                         $riskPct = $row['Prob_HighRisk_pct'] ?? 0;
                                                         $riskText = $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
+                                                        $riskCategory = strtolower(
+                                                            $riskLabel === 'Mid' ? 'medium' : $riskLabel,
+                                                        );
                                                         $riskBadge = match ($riskLabel) {
                                                             'High' => 'bg-danger',
                                                             'Mid' => 'bg-warning',
                                                             default => 'bg-success',
                                                         };
                                                     @endphp
-                                                    <tr>
+                                                    <tr data-risk-level="{{ $riskCategory }}">
                                                         <td>
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
@@ -309,6 +364,34 @@
                                 <p class="text-muted small mb-3">Forecast to plan interventions early. Trends are
                                     calculated from the last 3 months.</p>
                                 @if (!empty($featureTables['table3']['data']))
+                                    <!-- Risk Level Filter Tabs -->
+                                    <ul class="nav nav-pills mb-3" id="table3RiskFilter" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active btn-sm" id="table3-all-tab"
+                                                data-risk-filter="all" data-table-target="riskTable3" type="button">
+                                                All <span class="badge bg-secondary ms-1" id="table3-count-all">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link btn-sm" id="table3-high-tab" data-risk-filter="high"
+                                                data-table-target="riskTable3" type="button">
+                                                High <span class="badge bg-danger ms-1" id="table3-count-high">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link btn-sm" id="table3-medium-tab"
+                                                data-risk-filter="medium" data-table-target="riskTable3" type="button">
+                                                Medium <span class="badge bg-warning ms-1"
+                                                    id="table3-count-medium">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link btn-sm" id="table3-low-tab" data-risk-filter="low"
+                                                data-table-target="riskTable3" type="button">
+                                                Low <span class="badge bg-success ms-1" id="table3-count-low">0</span>
+                                            </button>
+                                        </li>
+                                    </ul>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-hover align-middle" id="riskTable3">
                                             <thead class="table-light">
@@ -323,13 +406,16 @@
                                                         $riskLabel = $row['Risk_Label'] ?? 'N/A';
                                                         $riskPct = $row['Prob_HighRisk_pct'] ?? 0;
                                                         $riskText = $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
+                                                        $riskCategory = strtolower(
+                                                            $riskLabel === 'Mid' ? 'medium' : $riskLabel,
+                                                        );
                                                         $riskBadge = match ($riskLabel) {
                                                             'High' => 'bg-danger',
                                                             'Mid' => 'bg-warning',
                                                             default => 'bg-success',
                                                         };
                                                     @endphp
-                                                    <tr>
+                                                    <tr data-risk-level="{{ $riskCategory }}">
                                                         <td>
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
@@ -361,7 +447,7 @@
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
-                                                    <th class="text-center" style="width: 140px;">Oral Participation</th>
+                                                    <th class="text-center" style="width: 140px;">Engagement Score</th>
                                                     <th style="width: 250px;">Strongest Subject</th>
                                                     <th style="width: 250px;">Needs Improvement</th>
                                                 </tr>
@@ -543,6 +629,87 @@
                     ]
                 });
             }
+
+            // Risk level filter functionality
+            function updateRiskCounts(tableId, prefix) {
+                const table = tableId === 'riskTable1' ? table1 : table3;
+                if (!table) return;
+
+                let counts = {
+                    all: 0,
+                    high: 0,
+                    medium: 0,
+                    low: 0
+                };
+
+                // Count all rows (not just visible ones)
+                table.rows().every(function() {
+                    const row = this.node();
+                    const riskLevel = $(row).data('risk-level');
+                    counts.all++;
+                    if (riskLevel === 'high') counts.high++;
+                    else if (riskLevel === 'medium') counts.medium++;
+                    else if (riskLevel === 'low') counts.low++;
+                });
+
+                // Update badge counts
+                $(`#${prefix}-count-all`).text(counts.all);
+                $(`#${prefix}-count-high`).text(counts.high);
+                $(`#${prefix}-count-medium`).text(counts.medium);
+                $(`#${prefix}-count-low`).text(counts.low);
+            }
+
+            function applyRiskFilter(tableId, riskLevel) {
+                const table = tableId === 'riskTable1' ? table1 : table3;
+                if (!table) return;
+
+                // Clear any existing custom filter
+                $.fn.dataTable.ext.search.pop();
+
+                if (riskLevel !== 'all') {
+                    // Add custom filter
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        if (settings.nTable.id !== tableId) return true;
+                        const row = table.row(dataIndex).node();
+                        return $(row).data('risk-level') === riskLevel;
+                    });
+                }
+
+                table.draw();
+
+                // Remove the filter after drawing (so it doesn't affect other tables)
+                if (riskLevel !== 'all') {
+                    $.fn.dataTable.ext.search.pop();
+                }
+            }
+
+            // Initialize risk filter tabs
+            function initRiskFilterTabs() {
+                // Table 1 filter buttons
+                $('#table1RiskFilter .nav-link').on('click', function() {
+                    const riskFilter = $(this).data('risk-filter');
+                    $('#table1RiskFilter .nav-link').removeClass('active');
+                    $(this).addClass('active');
+                    applyRiskFilter('riskTable1', riskFilter);
+                });
+
+                // Table 3 filter buttons
+                $('#table3RiskFilter .nav-link').on('click', function() {
+                    const riskFilter = $(this).data('risk-filter');
+                    $('#table3RiskFilter .nav-link').removeClass('active');
+                    $(this).addClass('active');
+                    applyRiskFilter('riskTable3', riskFilter);
+                });
+
+                // Update counts after tables are initialized
+                setTimeout(() => {
+                    updateRiskCounts('riskTable1', 'table1');
+                    updateRiskCounts('riskTable3', 'table3');
+                }, 100);
+            }
+
+            // Initialize risk filter tabs after DataTables
+            initRiskFilterTabs();
 
             // Table 2: Student Insights - sort by engagement score descending
             if (document.getElementById('insightsTable')) {

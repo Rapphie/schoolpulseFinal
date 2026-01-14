@@ -7,6 +7,8 @@
         $isAdviser = $isAdviser ?? $teacher && (int) $class->teacher_id === (int) $teacher->id;
         $subjects = $subjects ?? collect();
         $assignableTeachers = $assignableTeachers ?? collect();
+        $gradeLevel = $class->section->gradeLevel->level ?? null;
+        $isLowerGrade = !is_null($gradeLevel) && in_array($gradeLevel, [1, 2, 3]);
     @endphp
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -69,12 +71,12 @@
         <div class="card shadow mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Enrolled Students</h6>
-                @if ($isAdviser)
+                {{-- @if ($isAdviser)
                     <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
                         data-bs-target="#enrollStudentModal">
                         <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
                     </button>
-                @endif
+                @endif --}}
             </div>
             <div class="card-body">
                 @if ($class->enrollments->isNotEmpty())
@@ -86,6 +88,9 @@
                                     <th>Name</th>
                                     <th>Gender</th>
                                     <th>Guardian</th>
+                                    @if ($isAdviser)
+                                        <th class="text-center">Actions</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
@@ -97,6 +102,20 @@
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
                                         <td>{{ $enrollment->student->guardian->user->first_name ?? 'N/A' }}
                                             {{ $enrollment->student->guardian->user->last_name ?? '' }}</td>
+                                        @if ($isAdviser)
+                                            <td class="text-center">
+                                                <div class="btn-group" role="group">
+                                                    <a href="{{ route('teacher.students.show', $enrollment->student) }}"
+                                                        class="btn btn-sm btn-outline-secondary">
+                                                        View
+                                                    </a>
+                                                    <a href="{{ route('teacher.students.edit', $enrollment->student) }}"
+                                                        class="btn btn-sm btn-outline-primary">
+                                                        Edit
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        @endif
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -113,7 +132,9 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Class Schedule</h6>
                 @if ($isAdviser)
-                    <span class="badge bg-info text-dark">Adviser Controls</span>
+                    @if ($isLowerGrade)
+                        <span class="badge bg-info text-dark">Adviser Controls</span>
+                    @endif
                 @endif
             </div>
             <div class="card-body">
@@ -142,8 +163,23 @@
                                             <td>{{ $schedule?->day_names_label ?? 'Not Set' }}</td>
                                             <td>
                                                 @if ($schedule)
-                                                    {{ $schedule->start_time?->format('g:i A') }} -
-                                                    {{ $schedule->end_time?->format('g:i A') }}
+                                                    @php
+                                                        $startTimeDisplay =
+                                                            $schedule->start_time &&
+                                                            $schedule->start_time->format('H:i') !== '00:00'
+                                                                ? $schedule->start_time->format('g:i A')
+                                                                : null;
+                                                        $endTimeDisplay =
+                                                            $schedule->end_time &&
+                                                            $schedule->end_time->format('H:i') !== '00:00'
+                                                                ? $schedule->end_time->format('g:i A')
+                                                                : null;
+                                                    @endphp
+                                                    @if ($startTimeDisplay && $endTimeDisplay)
+                                                        {{ $startTimeDisplay }} - {{ $endTimeDisplay }}
+                                                    @else
+                                                        <span class="text-muted">Not Set</span>
+                                                    @endif
                                                 @else
                                                     <span class="text-muted">Not Set</span>
                                                 @endif
@@ -170,25 +206,34 @@
                                                             data-start-time="{{ $schedule?->start_time?->format('H:i') }}"
                                                             data-end-time="{{ $schedule?->end_time?->format('H:i') }}"
                                                             data-teacher-id="{{ $schedule?->teacher_id ?? '' }}"
-                                                            data-room="{{ $schedule?->room ?? '' }}">
+                                                            data-room="{{ $schedule?->room ?? '' }}"
+                                                            data-is-lower-grade="{{ $isLowerGrade ? 'true' : 'false' }}">
                                                             Edit
                                                         </button>
 
-                                                        <form
-                                                            action="{{ route('teacher.classes.schedule.destroy', ['class' => $class, 'schedule' => $schedule->id]) }}"
-                                                            method="POST" class="m-0"
-                                                            onsubmit="return confirm('This action cannot be undone. Confirm to delete Schedule?');">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button class="btn btn-sm btn-outline-danger">Remove</button>
-                                                        </form>
+                                                        @if (!$isLowerGrade)
+                                                            <form
+                                                                action="{{ route('teacher.classes.schedule.destroy', ['class' => $class, 'schedule' => $schedule->id]) }}"
+                                                                method="POST" class="m-0"
+                                                                onsubmit="return confirm('This action cannot be undone. Confirm to delete Schedule?');">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button
+                                                                    class="btn btn-sm btn-outline-danger">Remove</button>
+                                                            </form>
+                                                        @endif
                                                     @else
-                                                        <button class="btn btn-sm btn-primary assign-schedule-btn"
-                                                            data-bs-toggle="modal" data-bs-target="#manageScheduleModal"
-                                                            data-subject-id="{{ $subject->id }}"
-                                                            data-subject-name="{{ $subject->name }}">
-                                                            Assign Schedule
-                                                        </button>
+                                                        @if (!$isLowerGrade)
+                                                            <button class="btn btn-sm btn-primary assign-schedule-btn"
+                                                                data-bs-toggle="modal" data-bs-target="#manageScheduleModal"
+                                                                data-subject-id="{{ $subject->id }}"
+                                                                data-subject-name="{{ $subject->name }}">
+                                                                Assign Schedule
+                                                            </button>
+                                                        @else
+                                                            <span class="text-muted"><em>Auto-assigned to
+                                                                    adviser</em></span>
+                                                        @endif
                                                     @endif
                                                 </div>
                                             </td>
@@ -406,6 +451,51 @@
                             <textarea class="form-control" id="address" name="address" rows="2">{{ old('address') }}</textarea>
                         </div>
 
+                        <h6 class="mt-4 mb-3 border-bottom pb-2">Additional Information (For Analytics)</h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="distance_km" class="form-label">Distance from School (km)</label>
+                                <input type="number" step="0.01" min="0" class="form-control"
+                                    id="distance_km" name="distance_km" value="{{ old('distance_km') }}"
+                                    placeholder="e.g., 2.5">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="transportation" class="form-label">Mode of Transportation</label>
+                                <select class="form-select" id="transportation" name="transportation">
+                                    <option value="" {{ old('transportation') == '' ? 'selected' : '' }}>-- Select
+                                        --</option>
+                                    <option value="Walk" {{ old('transportation') == 'Walk' ? 'selected' : '' }}>Walk
+                                    </option>
+                                    <option value="Bicycle" {{ old('transportation') == 'Bicycle' ? 'selected' : '' }}>
+                                        Bicycle</option>
+                                    <option value="Motorcycle"
+                                        {{ old('transportation') == 'Motorcycle' ? 'selected' : '' }}>Motorcycle</option>
+                                    <option value="Tricycle" {{ old('transportation') == 'Tricycle' ? 'selected' : '' }}>
+                                        Tricycle</option>
+                                    <option value="Jeepney" {{ old('transportation') == 'Jeepney' ? 'selected' : '' }}>
+                                        Jeepney</option>
+                                    <option value="Bus" {{ old('transportation') == 'Bus' ? 'selected' : '' }}>Bus
+                                    </option>
+                                    <option value="Private Vehicle"
+                                        {{ old('transportation') == 'Private Vehicle' ? 'selected' : '' }}>Private Vehicle
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="family_income" class="form-label">Socioeconomic Status</label>
+                                <select class="form-select" id="family_income" name="family_income">
+                                    <option value="" {{ old('family_income') == '' ? 'selected' : '' }}>-- Select --
+                                    </option>
+                                    <option value="Low" {{ old('family_income') == 'Low' ? 'selected' : '' }}>Low
+                                    </option>
+                                    <option value="Medium" {{ old('family_income') == 'Medium' ? 'selected' : '' }}>Medium
+                                    </option>
+                                    <option value="High" {{ old('family_income') == 'High' ? 'selected' : '' }}>High
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
                         <h6 class="mt-4 mb-3 border-bottom pb-2">Guardian Information</h6>
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -460,80 +550,132 @@
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                const modal = document.getElementById('manageScheduleModal');
-                if (!modal) {
-                    return;
-                }
+                const scheduleModal = document.getElementById('manageScheduleModal');
+                if (scheduleModal) {
+                    const form = document.getElementById('manageScheduleForm');
+                    const scheduleIdField = document.getElementById('schedule_id');
+                    const subjectIdField = document.getElementById('schedule_subject_id');
+                    const subjectNameField = document.getElementById('schedule_subject_name');
+                    const teacherSelect = document.getElementById('schedule_teacher_id');
+                    const roomInput = document.getElementById('schedule_room');
+                    const startInput = document.getElementById('schedule_start_time');
+                    const endInput = document.getElementById('schedule_end_time');
+                    const dayCheckboxes = scheduleModal.querySelectorAll('.schedule-day-checkbox');
+                    const modalTitle = document.getElementById('manageScheduleModalLabel');
 
-                const form = document.getElementById('manageScheduleForm');
-                const scheduleIdField = document.getElementById('schedule_id');
-                const subjectIdField = document.getElementById('schedule_subject_id');
-                const subjectNameField = document.getElementById('schedule_subject_name');
-                const teacherSelect = document.getElementById('schedule_teacher_id');
-                const roomInput = document.getElementById('schedule_room');
-                const startInput = document.getElementById('schedule_start_time');
-                const endInput = document.getElementById('schedule_end_time');
-                const dayCheckboxes = modal.querySelectorAll('.schedule-day-checkbox');
-                const modalTitle = document.getElementById('manageScheduleModalLabel');
+                    const defaultDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
-                const defaultDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+                    const setDefaultDays = () => {
+                        dayCheckboxes.forEach((checkbox) => {
+                            checkbox.checked = defaultDays.includes(checkbox.value);
+                        });
+                    };
 
-                const setDefaultDays = () => {
-                    dayCheckboxes.forEach((checkbox) => {
-                        checkbox.checked = defaultDays.includes(checkbox.value);
-                    });
-                };
-
-                setDefaultDays();
-
-                document.querySelectorAll('.edit-schedule-btn, .assign-schedule-btn').forEach((button) => {
-                    button.addEventListener('click', () => {
-                        const subjectId = button.getAttribute('data-subject-id') || '';
-                        const subjectName = button.getAttribute('data-subject-name') || '';
-                        const scheduleId = button.getAttribute('data-schedule-id') || '';
-                        const dayData = button.getAttribute('data-days') || '';
-                        const teacherId = button.getAttribute('data-teacher-id') || '';
-                        const startTime = button.getAttribute('data-start-time') || '';
-                        const endTime = button.getAttribute('data-end-time') || '';
-                        const room = button.getAttribute('data-room') || '';
-
-                        scheduleIdField.value = scheduleId;
-                        subjectIdField.value = subjectId;
-                        subjectNameField.value = subjectName;
-
-                        const teacherOptionExists = Array.from(teacherSelect.options).some((opt) => opt
-                            .value === teacherId);
-                        teacherSelect.value = teacherOptionExists ? teacherId : '';
-
-                        roomInput.value = room;
-                        startInput.value = startTime;
-                        endInput.value = endTime;
-
-                        modalTitle.textContent = scheduleId ? 'Update Schedule' : 'Assign Schedule';
-
-                        setDefaultDays();
-
-                        if (dayData) {
-                            const days = dayData
-                                .split(',')
-                                .map((day) => day.trim().toLowerCase())
-                                .filter((day) => day !== '');
-
-                            dayCheckboxes.forEach((checkbox) => {
-                                checkbox.checked = days.includes(checkbox.value);
-                            });
-                        }
-                    });
-                });
-
-                modal.addEventListener('hidden.bs.modal', () => {
-                    form.reset();
-                    scheduleIdField.value = '';
-                    subjectIdField.value = '';
-                    subjectNameField.value = '';
-                    modalTitle.textContent = 'Assign Schedule';
                     setDefaultDays();
-                });
+
+                    document.querySelectorAll('.edit-schedule-btn, .assign-schedule-btn').forEach((button) => {
+                        button.addEventListener('click', () => {
+                            const subjectId = button.getAttribute('data-subject-id') || '';
+                            const subjectName = button.getAttribute('data-subject-name') || '';
+                            const scheduleId = button.getAttribute('data-schedule-id') || '';
+                            const dayData = button.getAttribute('data-days') || '';
+                            const teacherId = button.getAttribute('data-teacher-id') || '';
+                            const startTime = button.getAttribute('data-start-time') || '';
+                            const endTime = button.getAttribute('data-end-time') || '';
+                            const room = button.getAttribute('data-room') || '';
+                            const isLowerGrade = button.getAttribute('data-is-lower-grade') === 'true';
+
+                            if (scheduleIdField) scheduleIdField.value = scheduleId;
+                            if (subjectIdField) subjectIdField.value = subjectId;
+                            if (subjectNameField) subjectNameField.value = subjectName;
+
+                            if (teacherSelect) {
+                                const teacherOptionExists = Array.from(teacherSelect.options).some((
+                                    opt) => opt.value === teacherId);
+                                teacherSelect.value = teacherOptionExists ? teacherId : '';
+
+                                // For Grade 1, 2, 3: disable teacher selection
+                                if (isLowerGrade) {
+                                    teacherSelect.setAttribute('disabled', 'disabled');
+                                    // Add hidden input to maintain teacher_id value
+                                    let hiddenTeacher = form.querySelector(
+                                        'input[name="teacher_id"][type="hidden"]');
+                                    if (!hiddenTeacher) {
+                                        hiddenTeacher = document.createElement('input');
+                                        hiddenTeacher.type = 'hidden';
+                                        hiddenTeacher.name = 'teacher_id';
+                                        hiddenTeacher.id = 'schedule_teacher_id_hidden';
+                                        form.appendChild(hiddenTeacher);
+                                    }
+                                    hiddenTeacher.value = teacherId || '';
+
+                                    // Add restriction note
+                                    let teacherNote = scheduleModal.querySelector(
+                                        '#teacher-restriction-note');
+                                    if (!teacherNote) {
+                                        teacherNote = document.createElement('small');
+                                        teacherNote.id = 'teacher-restriction-note';
+                                        teacherNote.className = 'text-muted d-block';
+                                        teacherNote.textContent =
+                                            'Teacher is locked to the class adviser for Grade 1-3.';
+                                        teacherSelect.parentNode.appendChild(teacherNote);
+                                    }
+                                } else {
+                                    teacherSelect.removeAttribute('disabled');
+                                    const hiddenTeacher = form.querySelector(
+                                        'input[name="teacher_id"][type="hidden"]');
+                                    if (hiddenTeacher) hiddenTeacher.remove();
+                                    const teacherNote = scheduleModal.querySelector(
+                                        '#teacher-restriction-note');
+                                    if (teacherNote) teacherNote.remove();
+                                }
+                            }
+
+                            if (roomInput) roomInput.value = room;
+                            if (startInput) startInput.value = startTime;
+                            if (endInput) endInput.value = endTime;
+
+                            if (modalTitle) {
+                                modalTitle.textContent = scheduleId ? 'Update Schedule' :
+                                    'Assign Schedule';
+                            }
+
+                            setDefaultDays();
+
+                            if (dayData) {
+                                const days = dayData
+                                    .split(',')
+                                    .map((day) => day.trim().toLowerCase())
+                                    .filter((day) => day !== '');
+
+                                dayCheckboxes.forEach((checkbox) => {
+                                    checkbox.checked = days.includes(checkbox.value);
+                                });
+                            }
+                        });
+                    });
+
+                    scheduleModal.addEventListener('hidden.bs.modal', () => {
+                        if (form) {
+                            form.reset();
+                        }
+                        if (scheduleIdField) scheduleIdField.value = '';
+                        if (subjectIdField) subjectIdField.value = '';
+                        // Re-enable teacher select and clean up
+                        if (teacherSelect) {
+                            teacherSelect.removeAttribute('disabled');
+                        }
+                        const hiddenTeacher = form?.querySelector('input[name="teacher_id"][type="hidden"]');
+                        if (hiddenTeacher) hiddenTeacher.remove();
+                        const teacherNote = scheduleModal.querySelector('#teacher-restriction-note');
+                        if (teacherNote) teacherNote.remove();
+                        if (subjectNameField) subjectNameField.value = '';
+                        if (modalTitle) {
+                            modalTitle.textContent = 'Assign Schedule';
+                        }
+                        setDefaultDays();
+                    });
+                }
             });
         </script>
     @endpush

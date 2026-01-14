@@ -134,6 +134,28 @@
             background-color: white;
         }
 
+        .oral-participation-cell {
+            background-color: #d4edda !important;
+            cursor: not-allowed;
+        }
+
+        .oral-participation-cell input {
+            background-color: #d4edda !important;
+            cursor: not-allowed;
+            color: #155724;
+        }
+
+        .oral-participation-header {
+            background-color: #28a745 !important;
+            color: white !important;
+        }
+
+        .oral-participation-link {
+            font-size: 8px;
+            display: block;
+            color: #155724;
+        }
+
         .student-highlight {
             animation: studentHighlightFade 0.8s ease-in-out alternate;
             animation-iteration-count: 6;
@@ -193,6 +215,20 @@
             <p>There are no students enrolled in this class yet.</p>
         </div>
     @else
+        <!-- Oral Participation Info Banner -->
+        <div class="alert alert-success d-flex align-items-center mb-3" role="alert">
+            <i class="fas fa-comments me-3 fs-4"></i>
+            <div class="flex-grow-1">
+                <strong>Oral Participation:</strong> The first Performance Task column (marked "OP") is linked to Oral
+                Participation.
+                Scores are automatically synced from the Oral Participation page.
+            </div>
+            <a href="{{ route('teacher.oral-participation.list', $class) }}@if ($selectedSubject) ?subject_id={{ $selectedSubject->id }} @endif"
+                class="btn btn-success btn-sm ms-3">
+                <i class="fas fa-external-link-alt me-1"></i> Manage Oral Participation
+            </a>
+        </div>
+
         <!-- Quarter Tabs -->
         <div class="card shadow">
             <div class="card-header p-0">
@@ -229,16 +265,12 @@
                                     <thead class="sticky-top">
                                         @php
                                             $quarterAssessments = $assessments->get($quarter, collect());
-                                            $types = [
-                                                'written_works' => 'WRITTEN WORKS (20%)',
-                                                'performance_tasks' => 'PERFORMANCE TASKS (60%)',
-                                                'quarterly_assessments' => 'QUARTERLY ASSESSMENT (20%)',
-                                            ];
-                                            $typeWeights = [
-                                                'written_works' => 20,
-                                                'performance_tasks' => 60,
-                                                'quarterly_assessments' => 20,
-                                            ];
+                                            // Build types array with labels and percentages from controller data
+                                            $types = [];
+                                            foreach ($assessmentTypeLabels as $typeKey => $label) {
+                                                $weight = ($assessmentTypeWeights[$typeKey] ?? 0) * 100;
+                                                $types[$typeKey] = $label . ' (' . number_format($weight, 0) . '%)';
+                                            }
                                             $limitedAssessments = [];
                                         @endphp
 
@@ -268,9 +300,19 @@
                                                     $typeAssessments = $limitedAssessments[$type] ?? collect();
                                                 @endphp
                                                 @foreach ($typeAssessments as $index => $assessment)
-                                                    <th class="assessment-header position-relative"
-                                                        title="{{ $assessment->name }}">
-                                                        {{ $index + 1 }}
+                                                    @php
+                                                        // Performance Task 1 (index 0) is Oral Participation
+                                                        $isOralParticipation =
+                                                            $type === 'performance_tasks' && $index === 0;
+                                                    @endphp
+                                                    <th class="assessment-header position-relative {{ $isOralParticipation ? 'oral-participation-header' : '' }}"
+                                                        title="{{ $isOralParticipation ? 'Oral Participation (linked)' : $assessment->name }}">
+                                                        @if ($isOralParticipation)
+                                                            <span
+                                                                title="Oral Participation - Edit in Oral Participation page">OP</span>
+                                                        @else
+                                                            {{ $index + 1 }}
+                                                        @endif
                                                     </th>
                                                 @endforeach
                                                 <th class="assessment-header">Total</th>
@@ -283,9 +325,9 @@
                                             @foreach ($types as $type => $label)
                                                 @php
                                                     $typeAssessments = $limitedAssessments[$type] ?? collect();
-                                                    $typeWeight = $typeWeights[$type];
+                                                    $typeWeight = ($assessmentTypeWeights[$type] ?? 0) * 100;
                                                 @endphp
-                                                @foreach ($typeAssessments as $assessment)
+                                                @foreach ($typeAssessments as $index => $assessment)
                                                     @php
                                                         $maxScoreDisplay =
                                                             fmod($assessment->max_score, 1) === 0.0
@@ -302,14 +344,23 @@
                                                                     ),
                                                                     '.',
                                                                 );
+                                                        // Performance Task 1 (index 0) is Oral Participation
+                                                        $isOralParticipation =
+                                                            $type === 'performance_tasks' && $index === 0;
                                                     @endphp
-                                                    <th class="highest-score-row">
-                                                        <input type="number" class="max-score-input"
-                                                            data-assessment-id="{{ $assessment->id }}"
-                                                            value="{{ $assessment->max_score !== null ? $maxScoreDisplay : '' }}"
-                                                            max="1000"
-                                                            style="width: 30px; border: none; background: transparent; text-align: center; font-weight: bold;"
-                                                            placeholder="--">
+                                                    <th
+                                                        class="highest-score-row {{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
+                                                        @if ($isOralParticipation)
+                                                            <span style="font-size: 10px;"
+                                                                title="Edit in Oral Participation page">{{ $assessment->max_score ?? 10 }}</span>
+                                                        @else
+                                                            <input type="number" class="max-score-input"
+                                                                data-assessment-id="{{ $assessment->id }}"
+                                                                value="{{ $assessment->max_score !== null ? $maxScoreDisplay : '' }}"
+                                                                max="1000"
+                                                                style="width: 30px; border: none; background: transparent; text-align: center; font-weight: bold;"
+                                                                placeholder="--">
+                                                        @endif
                                                     </th>
                                                 @endforeach
                                                 <th class="highest-score-row">Total</th>
@@ -338,10 +389,12 @@
                                                     {{-- Individual Assessment Columns --}}
                                                     @foreach ($typeAssessments as $index => $assessment)
                                                         @php
-                                                            $studentScore = collect($studentTypeData)->firstWhere(
-                                                                'assessment.id',
-                                                                $assessment->id,
-                                                            );
+                                                            $studentScore = collect($studentTypeData)->first(function (
+                                                                $item,
+                                                            ) use ($assessment) {
+                                                                return isset($item['assessment']) &&
+                                                                    $item['assessment']->id === $assessment->id;
+                                                            });
                                                             $scoreValue = $studentScore['score'] ?? '';
                                                             if (
                                                                 $scoreValue !== '' &&
@@ -349,8 +402,12 @@
                                                             ) {
                                                                 $scoreValue = number_format($scoreValue, 0);
                                                             }
+                                                            // Performance Task 1 (index 0) is Oral Participation
+                                                            $isOralParticipation =
+                                                                $type === 'performance_tasks' && $index === 0;
                                                         @endphp
-                                                        <td>
+                                                        <td
+                                                            class="{{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
                                                             <input type="number"
                                                                 class="grade-input {{ str_replace('_', '-', $type) }}-score"
                                                                 data-quarter="{{ $quarter }}"
@@ -358,7 +415,10 @@
                                                                 data-index="{{ $index }}"
                                                                 data-assessment-id="{{ $assessment->id }}"
                                                                 data-max-score="{{ $assessment->max_score }}"
-                                                                value="{{ $scoreValue }}">
+                                                                data-is-oral-participation="{{ $isOralParticipation ? '1' : '0' }}"
+                                                                value="{{ $scoreValue }}"
+                                                                {{ $isOralParticipation ? 'readonly' : '' }}
+                                                                title="{{ $isOralParticipation ? 'Oral Participation - Edit in Oral Participation page' : '' }}">
                                                         </td>
                                                     @endforeach
 
@@ -429,10 +489,11 @@
     <script>
         $(document).ready(function() {
             const highlightStudentId = @json($highlightStudentId);
+            // Convert PHP weights (with underscores) to JS format (with dashes)
             const typeWeights = {
-                'written-works': 0.4,
-                'performance-tasks': 0.4,
-                'quarterly-assessments': 0.2
+                @foreach ($assessmentTypeWeights as $type => $weight)
+                    '{{ str_replace('_', '-', $type) }}': {{ $weight }},
+                @endforeach
             };
 
             initializeAssessmentInputsState();
@@ -573,8 +634,80 @@
                     numericValue.toFixed(2).replace(/\.0+$/, '').replace(/0+$/, '');
             }
 
+            /**
+             * DepEd Transmutation Table
+             * Converts raw/initial grades (0-100%) to transmuted grades (60-100)
+             * Based on DepEd Order No. 8, s. 2015
+             */
+            function transmuteGrade(rawGrade) {
+                if (rawGrade === null || rawGrade === undefined || Number.isNaN(rawGrade)) {
+                    return null;
+                }
+
+                // Clamp between 0 and 100
+                rawGrade = Math.max(0, Math.min(100, rawGrade));
+
+                // DepEd Transmutation Table thresholds
+                const transmutationTable = [
+                    [100.00, 100],
+                    [98.40, 99],
+                    [96.80, 98],
+                    [95.20, 97],
+                    [93.60, 96],
+                    [92.00, 95],
+                    [90.40, 94],
+                    [88.80, 93],
+                    [87.20, 92],
+                    [85.60, 91],
+                    [84.00, 90],
+                    [82.40, 89],
+                    [80.80, 88],
+                    [79.20, 87],
+                    [77.60, 86],
+                    [76.00, 85],
+                    [74.40, 84],
+                    [72.80, 83],
+                    [71.20, 82],
+                    [69.60, 81],
+                    [68.00, 80],
+                    [66.40, 79],
+                    [64.80, 78],
+                    [63.20, 77],
+                    [61.60, 76],
+                    [60.00, 75],
+                    [56.00, 74],
+                    [52.00, 73],
+                    [48.00, 72],
+                    [44.00, 71],
+                    [40.00, 70],
+                    [36.00, 69],
+                    [32.00, 68],
+                    [28.00, 67],
+                    [24.00, 66],
+                    [20.00, 65],
+                    [16.00, 64],
+                    [12.00, 63],
+                    [8.00, 62],
+                    [4.00, 61],
+                    [0.00, 60]
+                ];
+
+                for (const [threshold, transmuted] of transmutationTable) {
+                    if (rawGrade >= threshold) {
+                        return transmuted;
+                    }
+                }
+
+                return 60; // Minimum transmuted grade
+            }
+
             function calculateQuarterGrades($row, quarter) {
-                const types = ['written-works', 'performance-tasks', 'quarterly-assessments'];
+                // Dynamically get types from PHP data
+                const types = [
+                    @foreach (array_keys($assessmentTypeWeights) as $type)
+                        '{{ str_replace('_', '-', $type) }}',
+                    @endforeach
+                ];
                 let quarterGrade = 0;
                 let quarterHasScores = false;
 
@@ -616,10 +749,14 @@
                     }
                 });
 
-                // Quarter grade equals the sum of weighted component scores
+                // Apply DepEd transmutation to the quarter grade (initial grade -> transmuted grade)
+                const transmutedQuarterGrade = quarterHasScores ? transmuteGrade(quarterGrade) : 0;
+
+                // Quarter grade displays the transmuted grade per DepEd guidelines
                 $row.find(`.quarter-grade[data-quarter="${quarter}"]`)
-                    .text(quarterGrade.toFixed(2))
+                    .text(quarterHasScores ? transmutedQuarterGrade : '--')
                     .attr('data-has-grade', quarterHasScores ? '1' : '0')
+                    .attr('data-raw-grade', quarterGrade.toFixed(2))
                     .data('has-grade', quarterHasScores ? 1 : 0);
 
                 const studentId = $row.data('student-id');
@@ -646,8 +783,8 @@
                     const numericGrade = parseFloat(gradeText);
                     const hasGradeFlag = $gradeCell.attr('data-has-grade');
                     const hasGrade = (hasGradeFlag === '1') && !Number.isNaN(numericGrade);
-                    $finalRow.find(`.final-quarter-grade[data-quarter="${quarter}"]`).text(hasGrade ? numericGrade
-                        .toFixed(2) : '--');
+                    $finalRow.find(`.final-quarter-grade[data-quarter="${quarter}"]`).text(hasGrade ? numericGrade :
+                        '--');
 
                     if (hasGrade) {
                         total += numericGrade;
@@ -655,8 +792,10 @@
                     }
                 }
 
-                const finalGrade = countedQuarters > 0 ? (total / countedQuarters) : null;
-                $finalRow.find('.final-grade').text(finalGrade !== null ? finalGrade.toFixed(2) : '--');
+                // Per DepEd guidelines: Final Grade = (Q1 + Q2 + Q3 + Q4) / 4
+                // Always divide by 4 regardless of how many quarters have grades
+                const finalGrade = countedQuarters > 0 ? Math.round(total / 4) : null;
+                $finalRow.find('.final-grade').text(finalGrade !== null ? finalGrade : '--');
             }
 
             function refreshFinalGradesTable() {

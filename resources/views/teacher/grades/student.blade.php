@@ -17,12 +17,12 @@
             <i data-feather="arrow-left" class="feather-sm"></i> Back to Class
         </a>
         <a href="{{ route('teacher.assessments.index', ['class' => $class->id, 'highlight_student' => $student->id]) }}"
-            class="btn btn-warning">
+            class="btn btn-warning text-white">
             <i data-feather="edit-2" class="feather-sm text-white"></i> Edit Grades
         </a>
         <a href="{{ route('teacher.report-card.show', ['studentId' => $student->id]) }}" class="btn btn-primary"
             target="_blank">
-            <i data-feather="download" class="feather-sm"></i> Download Report Card
+            <i data-feather="download" class="feather-sm"></i> Download Report Card(.docx)
         </a>
     </div>
 
@@ -417,6 +417,76 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    {{-- Grade Level History Section --}}
+    <div class="card shadow mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i data-feather="bookmark" class="feather-sm me-2"></i>Grade Level History
+            </h6>
+            <span class="badge bg-secondary">{{ $gradeHistory->count() }} School Year(s)</span>
+        </div>
+        <div class="card-body">
+            @if ($gradeHistory->isNotEmpty())
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" width="100%">
+                        <thead class="table-light">
+                            <tr>
+                                <th>School Year</th>
+                                <th>Grade Level</th>
+                                <th>Section</th>
+                                <th>Final Average</th>
+                                <th>Status</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($gradeHistory as $profile)
+                                <tr @if ($profile->school_year_id === ($activeSchoolYear->id ?? null)) class="table-primary" @endif>
+                                    <td>
+                                        {{ $profile->schoolYear->name ?? 'N/A' }}
+                                        @if ($profile->school_year_id === ($activeSchoolYear->id ?? null))
+                                            <span class="badge bg-success ms-1">Current</span>
+                                        @endif
+                                    </td>
+                                    <td><strong>{{ $profile->gradeLevel->name ?? 'N/A' }}</strong></td>
+                                    <td>{{ $student->enrollments->firstWhere('school_year_id', $profile->school_year_id)?->class?->section?->name ?? 'N/A' }}
+                                    </td>
+                                    <td>
+                                        @if ($profile->final_average)
+                                            <span
+                                                class="fw-bold {{ $profile->final_average >= 75 ? 'text-success' : 'text-danger' }}">
+                                                {{ number_format($profile->final_average, 2) }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted">--</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @php
+                                            $statusColors = [
+                                                'active' => 'primary',
+                                                'promoted' => 'success',
+                                                'retained' => 'warning',
+                                                'transferred' => 'info',
+                                                'dropped' => 'danger',
+                                                'graduated' => 'success',
+                                            ];
+                                            $color = $statusColors[$profile->status] ?? 'secondary';
+                                        @endphp
+                                        <span class="badge bg-{{ $color }}">{{ ucfirst($profile->status) }}</span>
+                                    </td>
+                                    <td>{{ $profile->remarks ?? '-' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <p class="text-muted mb-0">No grade level history found. Profile will be created upon enrollment.</p>
+            @endif
         </div>
     </div>
 @endsection

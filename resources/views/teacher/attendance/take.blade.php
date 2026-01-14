@@ -13,13 +13,20 @@
                     <form id="classSelectionForm">
                         <div class="mb-3">
                             <label for="quarter" class="form-label">Quarter <span class="text-danger">*</span></label>
-                            <select class="form-select" id="quarter" name="quarter" required>
-                                <option value="">Select Quarter</option>
-                                <option value="1st Quarter">1st Quarter</option>
-                                <option value="2nd Quarter">2nd Quarter</option>
-                                <option value="3rd Quarter">3rd Quarter</option>
-                                <option value="4th Quarter">4th Quarter</option>
-                            </select>
+                            @if ($activeQuarter)
+                                <input type="text" class="form-control" value="{{ $activeQuarter->name }}" readonly
+                                    disabled>
+                                <input type="hidden" id="quarter" name="quarter" value="{{ $activeQuarter->name }}"
+                                    required>
+                                <small class="form-text text-muted">Current active quarter is automatically
+                                    selected.</small>
+                            @else
+                                <div class="alert alert-warning py-2 mb-0">
+                                    <small><i class="fa fa-exclamation-triangle me-1"></i> No active quarter found. Please
+                                        contact the administrator.</small>
+                                </div>
+                                <input type="hidden" id="quarter" name="quarter" value="" required>
+                            @endif
                         </div>
                         <div class="mb-3">
                             <!-- Grade level selection removed: only section and quarter are selectable -->
@@ -490,7 +497,7 @@
                 const quarter = $('#quarter').val();
 
                 if (!quarter) {
-                    alert('Please select a quarter');
+                    alert('No active quarter available. Please contact the administrator.');
                     return;
                 }
 

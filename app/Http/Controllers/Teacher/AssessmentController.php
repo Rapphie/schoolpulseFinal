@@ -11,6 +11,7 @@ use App\Models\SchoolYear;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\Student;
+use App\Services\GradeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -20,6 +21,18 @@ class AssessmentController extends Controller
         'written_works' => 10,
         'performance_tasks' => 10,
         'quarterly_assessments' => 1,
+    ];
+
+    private const ASSESSMENT_TYPE_WEIGHTS = [
+        'written_works' => 0.20,
+        'performance_tasks' => 0.60,
+        'quarterly_assessments' => 0.20,
+    ];
+
+    private const ASSESSMENT_TYPE_LABELS = [
+        'written_works' => 'WRITTEN WORKS',
+        'performance_tasks' => 'PERFORMANCE TASKS',
+        'quarterly_assessments' => 'QUARTERLY ASSESSMENT',
     ];
 
     /**
@@ -113,6 +126,8 @@ class AssessmentController extends Controller
             'assessments' => $assessments,
             'highlightStudentId' => $highlightStudentId,
             'fixedAssessmentCounts' => self::DEFAULT_ASSESSMENT_COUNTS,
+            'assessmentTypeWeights' => self::ASSESSMENT_TYPE_WEIGHTS,
+            'assessmentTypeLabels' => self::ASSESSMENT_TYPE_LABELS,
         ]);
     }
     public function create(Classes $class)
@@ -563,20 +578,10 @@ class AssessmentController extends Controller
         $grouped = $assessments->groupBy('type');
         $students = $class->students()->get();
 
-        $weightMap = [
-            'written_works' => 0.40,
-            'performance_tasks' => 0.40,
-            'quarterly_assessments' => 0.20,
-        ];
-
         foreach ($students as $student) {
-            $typePercentages = [
-                'written_works' => 0.0,
-                'performance_tasks' => 0.0,
-                'quarterly_assessments' => 0.0,
-            ];
+            $typePercentages = array_fill_keys(array_keys(self::ASSESSMENT_TYPE_WEIGHTS), 0.0);
 
-            foreach ($weightMap as $type => $weight) {
+            foreach (self::ASSESSMENT_TYPE_WEIGHTS as $type => $weight) {
                 $typeAssessments = $grouped->get($type, collect());
                 $totalScore = 0.0;
                 $totalMax = 0.0;
@@ -592,11 +597,13 @@ class AssessmentController extends Controller
                 $typePercentages[$type] = $totalMax > 0 ? ($totalScore / $totalMax) * 100.0 : 0.0;
             }
 
-            $quarterGrade = (
-                $typePercentages['written_works'] * $weightMap['written_works'] +
-                $typePercentages['performance_tasks'] * $weightMap['performance_tasks'] +
-                $typePercentages['quarterly_assessments'] * $weightMap['quarterly_assessments']
-            );
+            $initialGrade = 0.0;
+            foreach (self::ASSESSMENT_TYPE_WEIGHTS as $type => $weight) {
+                $initialGrade += $typePercentages[$type] * $weight;
+            }
+
+            // Apply DepEd transmutation to convert initial grade to transmuted grade
+            $transmutedGrade = GradeService::transmute($initialGrade);
 
             Grade::updateOrCreate(
                 [
@@ -607,7 +614,7 @@ class AssessmentController extends Controller
                     'school_year_id' => $schoolYearId,
                 ],
                 [
-                    'grade' => round($quarterGrade, 2),
+                    'grade' => $transmutedGrade,
                 ]
             );
         }

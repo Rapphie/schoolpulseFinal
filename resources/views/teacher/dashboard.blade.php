@@ -38,7 +38,8 @@
                     </div>
                 </div>
                 <div class="card-footer bg-light p-2">
-                    <a href="{{ route('teacher.students') }}" class="btn btn-sm btn-success w-100">View All Students</a>
+                    <a href="{{ route('teacher.students.index') }}" class="btn btn-sm btn-success w-100">View All
+                        Students</a>
                 </div>
             </div>
         </div>
@@ -478,7 +479,7 @@
 
                         // Show message if no activities match filter
                         const visibleItems = document.querySelectorAll(
-                        '.activity-item[style="display: block"]');
+                            '.activity-item[style="display: block"]');
                         const activitiesList = document.getElementById('activitiesList');
                         let noResultsMsg = activitiesList.querySelector('.no-filter-results');
 

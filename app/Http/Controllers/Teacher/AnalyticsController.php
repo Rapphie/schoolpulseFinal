@@ -184,11 +184,26 @@ class AnalyticsController extends Controller
                 continue;
             }
 
-            // Build batch of feature vectors in the expected order
+            // Build batch of feature vectors in the expected order (compute in batch to avoid N+1)
+            $studentIds = $students->pluck('id')->toArray();
+            $featureMap = $featuresService->computeBatchFeaturesForStudents($studentIds, $syId, $refDate);
+
+            // Persist snapshots for later inspection / offline use
+            try {
+                $modelVersion = env('FEATURE_MODEL_VERSION', null);
+                $featuresService->persistSnapshots($featureMap, $syId, $modelVersion);
+            } catch (\Throwable $e) {
+                // non-fatal: log warning but avoid breaking analytics page
+                \Illuminate\Support\Facades\Log::warning('Failed to persist feature snapshots', [
+                    'class_id' => $class->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             $batch = [];
             $featureCache = [];
             foreach ($students as $stu) {
-                $vec = $featuresService->computeFeaturesVector($stu->id, $syId, $refDate);
+                $vec = $featureMap[$stu->id] ?? ['ordered' => array_fill(0, 12, 0.0), 'named' => []];
                 $batch[] = $vec['ordered'];
                 $featureCache[$stu->id] = $vec['named'];
             }
@@ -297,6 +312,32 @@ class AnalyticsController extends Controller
                 ->count(),
         ];
 
+        // --- Fetch Feature Tables from Python API ---
+        $featureTables = $predictClient->getFeatureTables();
+
+        // Filter feature tables to only include students from the selected classes (grade/section filter)
+        if ($featureTables) {
+            // Get student IDs enrolled in the filtered classes
+            $filteredStudentIds = Student::whereHas('enrollments', function ($q) use ($classIds, $syId) {
+                $q->whereIn('class_id', $classIds)->where('school_year_id', $syId);
+            })->pluck('id')->map(fn($id) => (int) $id)->toArray();
+
+            // Use Student_ID returned by the Python API (more reliable than name matching)
+            $filteredStudentIdSet = array_fill_keys($filteredStudentIds, true);
+
+            // Filter each table to only show students from selected classes
+            foreach (['table1', 'table2', 'table3'] as $tableKey) {
+                if (!empty($featureTables[$tableKey]['data'])) {
+                    $featureTables[$tableKey]['data'] = array_values(
+                        array_filter($featureTables[$tableKey]['data'], function ($row) use ($filteredStudentIdSet) {
+                            $sid = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
+                            return $sid && isset($filteredStudentIdSet[$sid]);
+                        })
+                    );
+                }
+            }
+        }
+
         return view('teacher.analytics.absenteeism', compact(
             'monthlyTrend',
             'absencesBySubject',
@@ -313,7 +354,8 @@ class AnalyticsController extends Controller
             'riskSummary',
             'highRiskThreshold',
             'gradeLevels',
-            'selectedGradeLevelId'
+            'selectedGradeLevelId',
+            'featureTables'
         ));
     }
 
@@ -355,11 +397,10 @@ class AnalyticsController extends Controller
     private function getAccessibleClassIds(SchoolYear $activeSchoolYear, ?Teacher $teacher)
     {
         if ($teacher) {
-            return Schedule::where('teacher_id', $teacher->id)
-                ->whereHas('class', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })
-                ->pluck('class_id')
+            // Return only advisory classes for teachers (where teacher_id = this teacher)
+            return Classes::where('teacher_id', $teacher->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->pluck('id')
                 ->unique()
                 ->values();
         }

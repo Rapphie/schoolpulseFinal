@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\Grade;
 use App\Models\Attendance;
 use App\Models\SchoolYear;
+use App\Services\GradeService;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpWord\TemplateProcessor;
 
@@ -135,30 +136,20 @@ class ReportCardOutputController extends Controller
                 ->get()
                 ->groupBy('subject_id');
 
+            // Use GradeService to process grades with proper DepEd transmutation and calculations
+            $processedGrades = GradeService::processGradesForReportCard($rawGrades);
             $gradesData = [];
-            $finalGrades = [];
-            foreach ($rawGrades as $subjectId => $collection) {
-                $subjectName = optional($collection->first()->subject)->name ?? 'Subject';
-                // Map quarters (normalize quarter field like 'Q1', '1', 'Quarter 1')
-                $quarters = [1 => null, 2 => null, 3 => null, 4 => null];
-                foreach ($collection as $g) {
-                    // Prefer quarter_int if present, else parse digits
-                    $qi = $g->quarter_int ?? (int)preg_replace('/[^0-9]/', '', $g->quarter) ?: null;
-                    if ($qi && $qi >= 1 && $qi <= 4) {
-                        $quarters[$qi] = $g->grade;
-                    }
-                }
-                $existingGrades = array_filter($quarters, fn($val) => $val !== null);
-                $final = count($existingGrades) ? round(array_sum($existingGrades) / count($existingGrades), 2) : null;
-                $finalGrades[] = $final ?? 0;
+
+            // Format grades for the template (convert nulls to empty strings for docx template)
+            foreach ($processedGrades['gradesData'] as $gradeRow) {
                 $gradesData[] = [
-                    'subject_name' => $subjectName,
-                    'q1' => $quarters[1] ?? '',
-                    'q2' => $quarters[2] ?? '',
-                    'q3' => $quarters[3] ?? '',
-                    'q4' => $quarters[4] ?? '',
-                    'final_grade' => $final ?? '',
-                    'remarks' => ($final !== null && $final >= 75) ? 'Passed' : (($final !== null) ? 'Failed' : ''),
+                    'subject_name' => $gradeRow['subject_name'],
+                    'q1' => $gradeRow['q1'] !== null ? (int) $gradeRow['q1'] : '',
+                    'q2' => $gradeRow['q2'] !== null ? (int) $gradeRow['q2'] : '',
+                    'q3' => $gradeRow['q3'] !== null ? (int) $gradeRow['q3'] : '',
+                    'q4' => $gradeRow['q4'] !== null ? (int) $gradeRow['q4'] : '',
+                    'final_grade' => $gradeRow['final_grade'] !== null ? (int) $gradeRow['final_grade'] : '',
+                    'remarks' => $gradeRow['remarks'],
                 ];
             }
 
@@ -167,7 +158,9 @@ class ReportCardOutputController extends Controller
                 $templateProcessor->cloneRowAndSetValues('subject_name', $gradesData);
             }
 
-            $generalAverage = count($finalGrades) ? round(array_sum($finalGrades) / count($finalGrades), 2) : '';
+            $generalAverage = $processedGrades['generalAverage'] !== null
+                ? (int) $processedGrades['generalAverage']
+                : '';
             $templateProcessor->setValue('general_average', $generalAverage);
             $templateProcessor->setValue('final_remarks', ($generalAverage !== '' && $generalAverage >= 75) ? 'Passed' : (($generalAverage !== '') ? 'Failed' : ''));
 

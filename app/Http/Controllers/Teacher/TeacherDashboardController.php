@@ -15,6 +15,7 @@ use App\Models\Teacher;
 use App\Models\SchoolYear;
 use App\Models\Enrollment;
 use App\Models\Grade;
+use App\Services\GradeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -290,7 +291,11 @@ class TeacherDashboardController extends Controller
                 abort(403, 'Only the adviser can manage schedules for this class.');
             }
 
-            $class->loadMissing('section');
+            $class->loadMissing('section.gradeLevel');
+
+            // For Grade 1, 2, 3: Only allow editing existing schedules (no new ones), and teacher cannot be changed
+            $gradeValue = optional($class->section->gradeLevel)->level;
+            $isLowerGrade = !is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]);
 
             $validated = $request->validate([
                 'schedule_id' => 'nullable|exists:schedules,id',
@@ -302,6 +307,13 @@ class TeacherDashboardController extends Controller
                 'end_time' => 'required|date_format:H:i|after:start_time',
                 'room' => 'nullable|string|max:255',
             ]);
+
+            // For lower grades: Prevent adding new schedules (only editing allowed)
+            if ($isLowerGrade && empty($validated['schedule_id'])) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'For Grade 1, 2, and 3, schedules are automatically managed. You cannot manually add new schedules.');
+            }
 
             $section = $class->section;
             $gradeLevelId = $section?->grade_level_id;
@@ -320,9 +332,15 @@ class TeacherDashboardController extends Controller
                     ->with('error', 'Selected subject does not belong to this class grade level.');
             }
 
+            // For lower grades: Teacher must remain the class adviser (ignore teacher_id from request)
+            $teacherIdToUse = $validated['teacher_id'];
+            if ($isLowerGrade) {
+                $teacherIdToUse = $class->teacher_id;
+            }
+
             $payload = [
                 'subject_id' => $validated['subject_id'],
-                'teacher_id' => $validated['teacher_id'],
+                'teacher_id' => $teacherIdToUse,
                 'day_of_week' => json_encode(array_values($validated['day_of_week'])),
                 'start_time' => $validated['start_time'],
                 'end_time' => $validated['end_time'],
@@ -333,7 +351,7 @@ class TeacherDashboardController extends Controller
             $days = array_values($validated['day_of_week']);
             $start = $validated['start_time'];
             $end = $validated['end_time'];
-            $assignedTeacherId = $validated['teacher_id'];
+            $assignedTeacherId = $teacherIdToUse;
             $scheduleIdToExclude = $validated['schedule_id'] ?? null;
 
             // Build day-matching query for reuse
@@ -441,6 +459,14 @@ class TeacherDashboardController extends Controller
                 abort(404, 'Schedule not found for this class.');
             }
 
+            // For Grade 1, 2, 3: Deleting schedules is not allowed
+            $class->loadMissing('section.gradeLevel');
+            $gradeValue = optional($class->section->gradeLevel)->level;
+
+            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+                return redirect()->back()->with('error', 'For Grade 1, 2, and 3, schedules cannot be deleted. They are automatically managed based on the adviser.');
+            }
+
             $schedule->delete();
 
             return redirect()->back()->with('success', 'Schedule removed successfully.');
@@ -532,6 +558,124 @@ class TeacherDashboardController extends Controller
         }
     }
 
+    public function studentGrades(Classes $class, Student $student)
+    {
+        try {
+            $teacher = Auth::user()->teacher;
+
+            if (!$teacher || (int) $class->teacher_id !== (int) $teacher->id) {
+                abort(403, 'You are not allowed to view grades for this class.');
+            }
+
+            // Verify the student is enrolled in this class
+            $isEnrolled = $class->students()->where('students.id', $student->id)->exists();
+            if (!$isEnrolled) {
+                abort(404, 'Student is not enrolled in this class.');
+            }
+
+            $class->loadMissing('section.gradeLevel');
+
+            $activeSchoolYear = SchoolYear::active()->first();
+
+            // Get grades for the student in the current school year
+            $rawGrades = Grade::where('student_id', $student->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->with('subject')
+                ->get()
+                ->groupBy('subject_id');
+
+            // Use GradeService to process grades with proper DepEd transmutation and calculations
+            $processedGrades = GradeService::processGradesForReportCard($rawGrades);
+            $gradesData = $processedGrades['gradesData'];
+            $generalAverage = $processedGrades['generalAverage'];
+
+            // Attendance data
+            $maxDaysPerMonth = [
+                'jun' => 11,
+                'jul' => 23,
+                'aug' => 20,
+                'sep' => 22,
+                'oct' => 23,
+                'nov' => 21,
+                'dec' => 14,
+                'jan' => 21,
+                'feb' => 19,
+                'mar' => 23,
+                'apr' => 0
+            ];
+
+            $monthMapping = [
+                6 => 'jun',
+                7 => 'jul',
+                8 => 'aug',
+                9 => 'sep',
+                10 => 'oct',
+                11 => 'nov',
+                12 => 'dec',
+                1 => 'jan',
+                2 => 'feb',
+                3 => 'mar',
+                4 => 'apr'
+            ];
+
+            $attendanceByMonth = Attendance::selectRaw('
+                MONTH(date) as month_num,
+                SUM(CASE WHEN status IN ("present", "late", "excused") THEN 1 ELSE 0 END) as present_days,
+                SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_days
+            ')
+                ->where('student_id', $student->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->groupBy('month_num')
+                ->get()
+                ->keyBy('month_num');
+
+            $attendanceData = [];
+            $totalSchoolDays = 0;
+            $totalDaysPresent = 0;
+            $totalDaysAbsent = 0;
+
+            foreach ($maxDaysPerMonth as $monthAbbr => $schoolDays) {
+                $monthNum = array_search($monthAbbr, $monthMapping);
+                $monthlyData = $attendanceByMonth->get($monthNum);
+
+                $presentDays = $monthlyData ? min($monthlyData->present_days, $schoolDays) : 0;
+                $absentDays = $monthlyData ? min($monthlyData->absent_days, $schoolDays - $presentDays) : 0;
+
+                $attendanceData[$monthAbbr] = [
+                    'school_days' => $schoolDays,
+                    'present' => $presentDays,
+                    'absent' => $absentDays,
+                ];
+
+                $totalSchoolDays += $schoolDays;
+                $totalDaysPresent += $presentDays;
+                $totalDaysAbsent += $absentDays;
+            }
+
+            // Grade level history from profiles (distinct by academic year)
+            $student->load(['profiles.schoolYear', 'profiles.gradeLevel', 'enrollments.class.section']);
+            $gradeHistory = $student->profiles
+                ->sortByDesc('school_year_id')
+                ->values();
+
+            return view('teacher.grades.student', compact(
+                'class',
+                'student',
+                'gradesData',
+                'generalAverage',
+                'activeSchoolYear',
+                'attendanceData',
+                'totalSchoolDays',
+                'totalDaysPresent',
+                'totalDaysAbsent',
+                'gradeHistory'
+            ));
+        } catch (Throwable $e) {
+            Log::error('TeacherDashboardController@studentGrades error: ' . $e->getMessage(), ['exception' => $e]);
+            return redirect()->back()->with('error', 'Unable to load student grades: ' . $e->getMessage());
+        }
+    }
+
     public function gradebookQuiz()
     {
         try {
@@ -568,6 +712,14 @@ class TeacherDashboardController extends Controller
             // Get the active school year
             $activeSchoolYear = SchoolYear::active()->first();
 
+            // Get the active quarter for the active school year
+            $activeQuarter = null;
+            if ($activeSchoolYear) {
+                $activeQuarter = \App\Models\SchoolYearQuarter::where('school_year_id', $activeSchoolYear->id)
+                    ->current()
+                    ->first();
+            }
+
             // Get all schedules for this teacher in the active school year
             $schedules = Schedule::with('class.section', 'subject')
                 ->where('teacher_id', $teacherId)
@@ -579,7 +731,7 @@ class TeacherDashboardController extends Controller
             // Get unique sections (classes) from the schedules
             $sections = $schedules->pluck('class')->unique('id');
 
-            return view('teacher.attendance.take', compact('sections', 'teacherId'));
+            return view('teacher.attendance.take', compact('sections', 'teacherId', 'activeQuarter'));
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@takeAttendance error: ' . $e->getMessage(), ['exception' => $e]);
             return redirect()->back()->with('error', 'Unable to load attendance page: ' . $e->getMessage());
@@ -896,7 +1048,7 @@ class TeacherDashboardController extends Controller
                 try {
                     // Send to teacher first (if available)
                     if ($teacher && $teacher->user && !empty($teacher->user->email)) {
-                        Mail::to($teacher->user->email)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
+                        Mail::to($teacher->user->email)->queue(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
                     }
 
                     // Also send a copy to the guardian if present and has an email
@@ -907,7 +1059,7 @@ class TeacherDashboardController extends Controller
                         $teacherEmail = $teacher->user->email ?? null;
                         // avoid duplicate send if guardian and teacher share the same email
                         if ($guardianEmail !== $teacherEmail) {
-                            Mail::to($guardianEmail)->send(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
+                            Mail::to($guardianEmail)->queue(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
                         }
                     }
                 } catch (Throwable $e) {

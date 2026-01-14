@@ -7,7 +7,7 @@
         <div class="col-lg-12">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('teacher.students') }}">Students</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('teacher.students.index') }}">Students</a></li>
                     <li class="breadcrumb-item active" aria-current="page">{{ $student->name ?? 'Student Details' }}</li>
                 </ol>
             </nav>

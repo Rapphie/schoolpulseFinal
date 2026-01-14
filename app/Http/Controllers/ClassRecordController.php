@@ -70,6 +70,7 @@ class ClassRecordController extends Controller
                         'last_name' => $studentData['last_name'],
                     ],
                     [
+                        'student_id' => Student::generateStudentId(),
                         'lrn' => $studentData['lrn'] ?? null,
                         'first_name' => $studentData['first_name'],
                         'last_name' => $studentData['last_name'],
