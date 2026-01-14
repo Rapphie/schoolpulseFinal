@@ -8,7 +8,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\DevAttendanceController;
+// use App\Http\Controllers\DevAttendanceController; // Commented out - controller doesn't exist
 
 /*
 |--------------------------------------------------------------------------
@@ -53,9 +53,9 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
         return redirect()->route('login');
     })->name('dashboard');
 
-    // Temporary Dev Tooling Routes
-    Route::get('/dev/attendance-entry', [DevAttendanceController::class, 'index'])->name('dev.attendance.form');
-    Route::post('/dev/attendance-entry', [DevAttendanceController::class, 'store'])->name('dev.attendance.store');
+    // Temporary Dev Tooling Routes (Commented out - controller doesn't exist)
+    // Route::get('/dev/attendance-entry', [DevAttendanceController::class, 'index'])->name('dev.attendance.form');
+    // Route::post('/dev/attendance-entry', [DevAttendanceController::class, 'store'])->name('dev.attendance.store');
 });
 
 /*
