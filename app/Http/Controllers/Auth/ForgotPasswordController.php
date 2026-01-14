@@ -28,7 +28,7 @@ class ForgotPasswordController extends Controller
         $user->temporary_password = $tempPassword;
         $user->temporary_password_expires_at = $expiresAt;
         $user->save();
-        Mail::to($user->email)->send(new TemporaryPasswordMail($user, $tempPassword, $expiresAt));
+        Mail::to($user->email)->queue(new TemporaryPasswordMail($user, $tempPassword, $expiresAt));
         return back()->with('status', 'A temporary password has been sent to your email.');
     }
 }
