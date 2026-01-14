@@ -1,11 +1,12 @@
 @component('mail::message')
-# Student Absent Alert
+    # Student Absent Alert
 
-Dear {{ $teacher->user->name }},
+    Dear {{ $teacher->user->first_name ?? $guardian->user->first_name }},
 
-This is to inform you that **{{ $student->full_name }}** has been marked as absent for **{{ $consecutiveAbsences }}** consecutive days.
+    This is to inform you that **{{ $student->full_name }}** has been marked as absent for **{{ $consecutiveAbsences }}**
+    consecutive days.
 
-Thank you,
+    Thank you,
 
-{{ config('app.name') }}
+    {{ config('app.name') }}
 @endcomponent
