@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Student;
 use App\Models\Teacher;
+use Illuminate\Support\Facades\Log;
 
 class ClassRecordController extends Controller
 {
@@ -79,7 +80,15 @@ class ClassRecordController extends Controller
                         'teacher_id' => $teacherId,
                     ]
                 );
-                if (!$student->wasRecentlyCreated) {
+                if ($student->wasRecentlyCreated) {
+                    Log::info('ClassRecord import created new student', [
+                        'student_id' => $student->id,
+                        'first_name' => $student->first_name,
+                        'last_name' => $student->last_name,
+                        'lrn' => $student->lrn,
+                        'section_id' => $data['section_id'] ?? null,
+                    ]);
+                } else {
                     // Student already existed. Instead of returning, collect their name.
                     $existingFullNames[] = $student->last_name . ', ' . $student->first_name;
                 }

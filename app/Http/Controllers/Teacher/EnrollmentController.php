@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
 use App\Models\Section;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Exports\EnrolleesExport;
 use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
@@ -208,6 +209,23 @@ class EnrollmentController extends Controller
         // Resolve the class via route-model binding or fallback to validated class_id
         $resolvedClass = $class && $class->exists ? $class : Classes::findOrFail($validated['class_id']);
 
+        // Ensure active school year and class belong to it
+        $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+        if (!$currentSchoolYear) {
+            return redirect()->back()->with('error', 'No active school year found.');
+        }
+
+        if ($resolvedClass->school_year_id !== $currentSchoolYear->id) {
+            Log::warning('Attempt to enroll new student into a class not in the active school year', [
+                'class_id' => $resolvedClass->id,
+                'class_school_year_id' => $resolvedClass->school_year_id,
+                'active_school_year_id' => $currentSchoolYear->id,
+                'validated' => $validated,
+            ]);
+
+            return redirect()->back()->with('error', 'Selected class is not in the active school year. Please select a class for the current academic year.');
+        }
+
         // Determine enrollment status (default to 'enrolled')
         $enrollmentStatus = $validated['enrollment_status'] ?? 'enrolled';
 
@@ -304,6 +322,19 @@ class EnrollmentController extends Controller
             $currentSchoolYear = SchoolYear::where('is_active', true)->first();
             if (!$currentSchoolYear) {
                 return redirect()->route('teacher.enrollment.index')->with('error', 'No active school year found.');
+            }
+
+            // Defensive guard: ensure the selected class belongs to the active school year.
+            if ($class->school_year_id !== $currentSchoolYear->id) {
+                Log::warning('Attempt to enroll into a class that is not in the active school year', [
+                    'class_id' => $class->id,
+                    'class_school_year_id' => $class->school_year_id,
+                    'active_school_year_id' => $currentSchoolYear->id,
+                    'student_ids' => $studentIds,
+                ]);
+
+                return redirect()->route('teacher.enrollment.index')
+                    ->with('error', 'Selected class is not in the active school year. Please select a class for the current academic year.');
             }
 
             // Check capacity
@@ -540,6 +571,23 @@ class EnrollmentController extends Controller
             // Optional: Check class capacity before proceeding
             if ($class->enrollments()->count() >= $class->capacity) {
                 return back()->with('error', 'This class has reached its full capacity.');
+            }
+
+            // Ensure the adviser is enrolling into a class for the active school year
+            $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+            if (!$currentSchoolYear) {
+                return back()->with('error', 'No active school year found.');
+            }
+
+            if ($class->school_year_id !== $currentSchoolYear->id) {
+                Log::warning('Adviser attempted to enroll student into class not in active school year', [
+                    'class_id' => $class->id,
+                    'class_school_year_id' => $class->school_year_id,
+                    'active_school_year_id' => $currentSchoolYear->id,
+                    'validated' => $validated,
+                ]);
+
+                return back()->with('error', 'Selected class is not in the active school year.');
             }
 
             // 2. Use a database transaction for safety.

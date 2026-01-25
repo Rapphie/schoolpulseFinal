@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\Classes;
 use App\Models\Enrollment;
+use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\StudentProfile;
+use Illuminate\Support\Facades\Log;
 
 class StudentProfileService
 {
@@ -61,9 +63,30 @@ class StudentProfileService
     {
         $student = Student::findOrFail($enrollmentData['student_id']);
         $class = Classes::with('section')->findOrFail($enrollmentData['class_id']);
-        $schoolYearId = $enrollmentData['school_year_id'];
+        // Resolve the intended school year in a defensive manner:
+        // Prefer the active school year when available, otherwise fall back to the provided value or the class's school year.
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $providedSchoolYearId = $enrollmentData['school_year_id'] ?? null;
+        $classSchoolYearId = $class->school_year_id ?? null;
 
-        // Ensure profile exists
+        if ($activeSchoolYear) {
+            $schoolYearId = $activeSchoolYear->id;
+            // If caller provided an explicit and different school year, log it for diagnosis
+            if ($providedSchoolYearId && $providedSchoolYearId !== $schoolYearId) {
+                Log::warning('Enrollment requested with non-active school_year_id', [
+                    'provided' => $providedSchoolYearId,
+                    'active' => $schoolYearId,
+                    'class_id' => $class->id,
+                    'class_school_year_id' => $classSchoolYearId,
+                    'student_id' => $student->id,
+                ]);
+            }
+        } else {
+            // No active school year; prefer provided, then class
+            $schoolYearId = $providedSchoolYearId ?? $classSchoolYearId;
+        }
+
+        // Ensure profile exists for the resolved school year
         $profile = $this->ensureProfileForEnrollment($student, $class, $schoolYearId);
 
         // Add profile link to enrollment data

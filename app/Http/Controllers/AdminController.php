@@ -17,8 +17,11 @@ use App\Models\Enrollment;
 use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use PhpParser\Node\Stmt\TryCatch;
 
 class AdminController extends Controller
@@ -74,7 +77,8 @@ class AdminController extends Controller
             'role_id' => 2, // Teacher role
         ]);
 
-        $teacher = new Teacher($validated);
+        $teacher = new Teacher();
+        $teacher->fill($validated);
         $teacher->user_id = $user->id;
 
         if ($request->hasFile('profile_picture')) {
@@ -83,7 +87,7 @@ class AdminController extends Controller
 
         $teacher->save();
 
-        return redirect()->route('admin.teachers.edit', $teacher->id)
+        return redirect()->route('admin.teachers.edit', $teacher->getKey())
             ->with('success', 'Teacher created successfully. You can now assign subjects.');
     }
 
@@ -92,7 +96,7 @@ class AdminController extends Controller
         $subjects = Subject::all();
         $sections = Section::all();
         $assignedSubjects = DB::table('subject_teacher_section')
-            ->where('subject_teacher_section.teacher_id', $teacher->id)
+            ->where('subject_teacher_section.teacher_id', $teacher->getKey())
             ->join('subjects', 'subject_teacher_section.subject_id', '=', 'subjects.id')
             ->leftJoin('sections', 'subject_teacher_section.section_id', '=', 'sections.id')
             ->select('subjects.id as subject_id', 'subjects.name as subject_name', 'sections.id as section_id', 'sections.name as section_name')
@@ -129,7 +133,7 @@ class AdminController extends Controller
             $teacher->save();
         }
 
-        return redirect()->route('admin.teachers.edit', $teacher->id)
+        return redirect()->route('admin.teachers.edit', $teacher->getKey())
             ->with('success', 'Teacher updated successfully.');
     }
 
@@ -160,7 +164,7 @@ class AdminController extends Controller
     public function unassignSubject(Request $request, Teacher $teacher)
     {
         DB::table('classes')
-            ->where('teacher_id', $teacher->id)
+            ->where('teacher_id', $teacher->getKey())
             ->where('subject_id', $request->input('subject_id'))
             ->where('section_id', $request->input('section_id'))
             ->delete();
@@ -272,19 +276,19 @@ class AdminController extends Controller
     public function attendanceReport()
     {
         // Get attendance records with pagination (10 records per page)
-        $attendanceRecords = Attendance::with(['subject', 'student.section'])
+        $attendanceRecords = Attendance::query()->with(['subject', 'student.section'])
             ->paginate(10);
 
         // Setup additional data for charts and stats
-        $todayPresentCount = Attendance::whereDate('created_at', now()->toDateString())
+        $todayPresentCount = Attendance::query()->whereRaw('DATE(created_at) = ?', [now()->toDateString()])
             ->where('status', 'present')
             ->count();
 
-        $totalAbsences = Attendance::where('status', 'absent')->count();
-        $lateArrivalsCount = Attendance::where('status', 'late')->count();
-        $presentCount = Attendance::where('status', 'present')->count();
-        $absentCount = Attendance::where('status', 'absent')->count();
-        $lateCount = Attendance::where('status', 'late')->count();
+        $totalAbsences = Attendance::query()->where('status', 'absent')->count();
+        $lateArrivalsCount = Attendance::query()->where('status', 'late')->count();
+        $presentCount = Attendance::query()->where('status', 'present')->count();
+        $absentCount = Attendance::query()->where('status', 'absent')->count();
+        $lateCount = Attendance::query()->where('status', 'late')->count();
 
         // Calculate monthly attendance rate
         $totalAttendance = max(1, $presentCount + $absentCount + $lateCount);
@@ -322,14 +326,14 @@ class AdminController extends Controller
     /**
      * Display least learned competencies report.
      */
-    public function leastLearnedReport()
-    {
-        $subjects = Subject::with(['llcItems' => function ($query) {
-            $query->orderBy('score', 'asc')->take(5);
-        }])->get();
+    // public function leastLearnedReport()
+    // {
+    //     $subjects = Subject::with(['llcItems' => function ($query) {
+    //         $query->orderBy('score', 'asc')->take(5);
+    //     }])->get();
 
-        return view('admin.least-learned', compact('subjects'));
-    }
+    //     return view('admin.least-learned', compact('subjects'));
+    // }
 
     /**
      * Display cumulative report.
@@ -343,85 +347,9 @@ class AdminController extends Controller
             })->count(),
             'total_subjects' => Subject::count(),
             'average_grade' => number_format(Grade::avg('grade') ?? 0, 2),
-            'attendance_rate' => number_format((Attendance::where('status', 'present')->count() / max(1, Attendance::count())) * 100, 2)
+            'attendance_rate' => number_format((Attendance::query()->where('status', 'present')->count() / max(1, Attendance::query()->count())) * 100, 2)
         ];
 
         return view('admin.reports.cumulative', compact('cumulativeData'));
-    }
-
-    public function settings()
-    {
-        return view('profile');
-    }
-
-    /**
-     * Display the user's profile page.
-     */
-    public function profile()
-    {
-        $user = auth()->user();
-        return view('profile', compact('user'));
-    }
-
-    /**
-     * Update the user's profile information.
-     */
-    public function updateProfile(Request $request)
-    {
-        $user = auth()->user();
-
-        $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-        ]);
-
-        $user->first_name = $validated['first_name'];
-        $user->last_name = $validated['last_name'];
-        $user->email = $validated['email'];
-
-        if ($request->hasFile('profile_picture')) {
-            // Delete old profile picture if it exists
-            if ($user->profile_picture && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->profile_picture)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_picture);
-            }
-            $user->profile_picture = $request->file('profile_picture')->store('profile_pictures', 'public');
-        }
-
-        $user->save();
-
-        return redirect()->route('profile')->with('success', 'Profile updated successfully.');
-    }
-
-    /**
-     * Update the user's password.
-     */
-    public function updatePassword(Request $request)
-    {
-        $validated = $request->validate([
-            'current_password' => 'required|current_password',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        $user = auth()->user();
-        $user->password = \Illuminate\Support\Facades\Hash::make($validated['password']);
-        $user->save();
-
-        return redirect()->route('profile')->with('success', 'Password updated successfully.');
-    }
-
-    public function test()
-    {
-        $users = User::all();
-        $subjects = Subject::all();
-        $subject = $subjects->first();
-
-        // Create a fake attendance object for testing
-        $attendance = (object)[
-            'date' => now(),
-        ];
-
-        return view('welcome', compact('users', 'subjects', 'subject', 'attendance'));
     }
 }

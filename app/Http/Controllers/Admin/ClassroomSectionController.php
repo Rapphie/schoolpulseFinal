@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use App\Services\StudentProfileService;
 
 class ClassroomSectionController extends Controller
@@ -524,6 +525,23 @@ class ClassroomSectionController extends Controller
             // Optional: prevent over-capacity
             if ($class->enrollments()->count() >= $class->capacity) {
                 return back()->with('error', 'This class has reached its full capacity.')->with('error_form', 'enroll');
+            }
+
+            // Ensure the class belongs to the active school year
+            $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+            if (!$activeSchoolYear) {
+                return back()->with('error', 'No active school year found.')->with('error_form', 'enroll');
+            }
+
+            if ($class->school_year_id !== $activeSchoolYear->id) {
+                Log::warning('Admin attempted to enroll student into class not in active school year', [
+                    'class_id' => $class->id,
+                    'class_school_year_id' => $class->school_year_id,
+                    'active_school_year_id' => $activeSchoolYear->id,
+                    'validated' => $validated,
+                ]);
+
+                return back()->with('error', 'Selected class is not in the active school year.')->with('error_form', 'enroll');
             }
 
             $plainPassword = "12345678";
