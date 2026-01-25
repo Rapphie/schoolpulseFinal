@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\EmailController;
-use App\Http\Controllers\LoginController;
+use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\Admin\AdminDashboardController;
@@ -53,9 +53,6 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
         return redirect()->route('login');
     })->name('dashboard');
 
-    // Temporary Dev Tooling Routes (Commented out - controller doesn't exist)
-    // Route::get('/dev/attendance-entry', [DevAttendanceController::class, 'index'])->name('dev.attendance.form');
-    // Route::post('/dev/attendance-entry', [DevAttendanceController::class, 'store'])->name('dev.attendance.store');
 });
 
 /*

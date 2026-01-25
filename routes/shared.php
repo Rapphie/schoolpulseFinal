@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\AdminReportController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportCardOutputController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,17 +19,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'password.force-change'])->group(function () {
 
     // Profile Management (accessible by all authenticated users)
-    Route::get('/profile', [AdminController::class, 'profile'])->name('profile');
-    Route::put('/profile/update', [AdminController::class, 'updateProfile'])->name('profile.update');
-    Route::put('/profile/password', [AdminController::class, 'updatePassword'])->name('profile.password');
-
-    // Settings
-    Route::prefix('settings')->name('settings.')->group(function () {
-        Route::get('/', [AdminController::class, 'settings'])->name('index');
-        Route::post('/general', [AdminController::class, 'updateGeneralSettings'])->name('general.update');
-        Route::post('/email', [AdminController::class, 'updateEmailSettings'])->name('email.update');
-        Route::post('/system', [AdminController::class, 'updateSystemSettings'])->name('system.update');
-    });
+    Route::get('/profile', [ProfileController::class, 'profile'])->name('profile');
+    Route::put('/profile/update', [ProfileController::class, 'updateProfile'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     // Reports
     Route::prefix('reports')->name('reports.')->group(function () {

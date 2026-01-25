@@ -133,6 +133,13 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
                 Route::get('cumulative', [AdminReportController::class, 'exportCumulative'])->name('cumulative');
             });
         });
+        // Settings
+        Route::prefix('settings')->name('settings.')->group(function () {
+            Route::get('/', [AdminController::class, 'settings'])->name('index');
+            Route::post('/general', [AdminController::class, 'updateGeneralSettings'])->name('general.update');
+            Route::post('/email', [AdminController::class, 'updateEmailSettings'])->name('email.update');
+            Route::post('/system', [AdminController::class, 'updateSystemSettings'])->name('system.update');
+        });
     });
 
 

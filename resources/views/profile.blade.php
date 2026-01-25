@@ -121,9 +121,16 @@
                                 <div class="col-md-4 mb-3">
                                     <label for="current_password" class="form-label">Current Password <span
                                             class="text-danger">*</span></label>
-                                    <input type="password"
-                                        class="form-control @error('current_password') is-invalid @enderror"
-                                        id="current_password" name="current_password" required>
+                                    <div class="input-group">
+                                        <input type="password"
+                                            class="form-control @error('current_password') is-invalid @enderror"
+                                            id="current_password" name="current_password" required>
+                                        <button type="button" class="btn btn-outline-secondary toggle-password"
+                                            data-target="current_password" aria-label="Toggle current password visibility"
+                                            title="Show password">
+                                            <i class="fas fa-eye icon-sm"></i>
+                                        </button>
+                                    </div>
                                     @error('current_password')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -131,8 +138,16 @@
                                 <div class="col-md-4 mb-3">
                                     <label for="password" class="form-label">New Password <span
                                             class="text-danger">*</span></label>
-                                    <input type="password" class="form-control @error('password') is-invalid @enderror"
-                                        id="password" name="password" required>
+                                    <div class="input-group">
+                                        <input type="password"
+                                            class="form-control @error('password') is-invalid @enderror" id="password"
+                                            name="password" required>
+                                        <button type="button" class="btn btn-outline-secondary toggle-password"
+                                            data-target="password" aria-label="Toggle new password visibility"
+                                            title="Show password">
+                                            <i class="fas fa-eye icon-sm"></i>
+                                        </button>
+                                    </div>
                                     @error('password')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
@@ -141,8 +156,15 @@
                                 <div class="col-md-4 mb-3">
                                     <label for="password_confirmation" class="form-label">Confirm New Password <span
                                             class="text-danger">*</span></label>
-                                    <input type="password" class="form-control" id="password_confirmation"
-                                        name="password_confirmation" required>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="password_confirmation"
+                                            name="password_confirmation" required>
+                                        <button type="button" class="btn btn-outline-secondary toggle-password"
+                                            data-target="password_confirmation"
+                                            aria-label="Toggle confirm password visibility" title="Show password">
+                                            <i class="fas fa-eye icon-sm"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -227,6 +249,29 @@
             });
 
             cancelBtn.addEventListener('click', resetToOriginal);
+
+            // Password visibility toggles
+            document.querySelectorAll('.toggle-password').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var targetId = this.getAttribute('data-target');
+                    var input = document.getElementById(targetId);
+                    if (!input) return;
+                    var isPassword = input.type === 'password';
+                    input.type = isPassword ? 'text' : 'password';
+
+                    var icon = this.querySelector('i');
+                    if (icon) {
+                        if (isPassword) {
+                            icon.classList.remove('fa-eye');
+                            icon.classList.add('fa-eye-slash');
+                        } else {
+                            icon.classList.remove('fa-eye-slash');
+                            icon.classList.add('fa-eye');
+                        }
+                    }
+                    this.title = isPassword ? 'Hide password' : 'Show password';
+                });
+            });
         });
     </script>
 @endpush

@@ -22,9 +22,17 @@
         <div class="dropdown user-dropdown">
             <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle"
                 id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                {{-- <span class="me-2 admin-text">{{ Auth::user()->first_name }}</span> --}}
-                <span class="me-2 admin-text">{{ Auth::user()->first_name }} </span>
-                <span data-feather="user"></span>
+                @if (Auth::user()->profile_picture)
+                    <img src="{{ asset('storage/' . Auth::user()->profile_picture) }}"
+                        alt="{{ Auth::user()->first_name }}" class="rounded-circle me-2"
+                        style="width:32px;height:32px;object-fit:cover;" />
+                    <span class="me-2 admin-text">{{ Auth::user()->first_name }}</span>
+                @else
+                    <span class="me-2 admin-text">{{ Auth::user()->first_name }}</span>
+                    <span
+                        class="avatar-placeholder rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center"
+                        style="width:32px;height:32px;font-size:0.85rem;">{{ strtoupper(substr(Auth::user()->first_name, 0, 1)) }}</span>
+                @endif
             </a>
             <ul class="dropdown-menu dropdown-menu-end text-small shadow" aria-labelledby="userDropdown">
                 <li><a class="dropdown-item" href="{{ route('profile') }}"><i data-feather="user"
