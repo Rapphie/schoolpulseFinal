@@ -3,6 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Models\Enrollment;
+use App\Models\Grade;
+use App\Models\Attendance;
+use App\Models\AssessmentScore;
 use App\Models\StudentProfile;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -16,15 +19,10 @@ class BackfillStudentProfiles extends Command
     {
         $dryRun = $this->option('dry-run');
 
-        // Get all enrollments without a student_profile_id
+        // Process enrollments
         $enrollments = Enrollment::whereNull('student_profile_id')
             ->with(['student', 'class.section.gradeLevel', 'schoolYear'])
             ->get();
-
-        if ($enrollments->isEmpty()) {
-            $this->info('All enrollments already have linked student profiles.');
-            return 0;
-        }
 
         $this->info("Found {$enrollments->count()} enrollments without profiles.");
 
@@ -36,7 +34,8 @@ class BackfillStudentProfiles extends Command
         $linked = 0;
         $skipped = 0;
 
-        $bar = $this->output->createProgressBar($enrollments->count());
+        // Backfill enrollments first
+        $bar = $this->output->createProgressBar(max(1, $enrollments->count()));
         $bar->start();
 
         foreach ($enrollments as $enrollment) {
@@ -50,7 +49,6 @@ class BackfillStudentProfiles extends Command
 
             if (!$dryRun) {
                 DB::transaction(function () use ($enrollment, $gradeLevelId, &$created, &$linked) {
-                    // Find or create the profile
                     $profile = StudentProfile::firstOrCreate(
                         [
                             'student_id' => $enrollment->student_id,
@@ -66,7 +64,6 @@ class BackfillStudentProfiles extends Command
                         $created++;
                     }
 
-                    // Link enrollment to profile
                     $enrollment->update(['student_profile_id' => $profile->id]);
                     $linked++;
                 });
@@ -77,6 +74,124 @@ class BackfillStudentProfiles extends Command
 
             $bar->advance();
         }
+
+        $bar->finish();
+        $this->newLine();
+
+        $this->info("Enrollments: created={$created} linked={$linked} skipped={$skipped}");
+
+        // Backfill grades
+        $grades = Grade::whereNull('student_profile_id')
+            ->whereNotNull('school_year_id')
+            ->get();
+
+        $this->info("Found {$grades->count()} grades without student_profile_id.");
+        $gBar = $this->output->createProgressBar(max(1, $grades->count()));
+        $gBar->start();
+        $gLinked = 0;
+        $gSkipped = 0;
+        foreach ($grades as $grade) {
+            $profile = StudentProfile::where('student_id', $grade->student_id)
+                ->where('school_year_id', $grade->school_year_id)
+                ->first();
+
+            if ($profile) {
+                if (!$dryRun) {
+                    $grade->update(['student_profile_id' => $profile->id]);
+                }
+                $gLinked++;
+            } else {
+                $gSkipped++;
+            }
+
+            $gBar->advance();
+        }
+        $gBar->finish();
+        $this->newLine();
+        $this->info("Grades linked: {$gLinked} skipped: {$gSkipped}");
+
+        // Backfill attendances
+        $attendances = Attendance::whereNull('student_profile_id')
+            ->whereNotNull('school_year_id')
+            ->with('class.section.gradeLevel')
+            ->get();
+
+        $this->info("Found {$attendances->count()} attendances without student_profile_id.");
+        $aBar = $this->output->createProgressBar(max(1, $attendances->count()));
+        $aBar->start();
+        $aLinked = 0;
+        $aSkipped = 0;
+        foreach ($attendances as $att) {
+            $gradeLevelId = $att->class?->section?->grade_level_id;
+            $profile = StudentProfile::where('student_id', $att->student_id)
+                ->where('school_year_id', $att->school_year_id)
+                ->first();
+
+            if (!$profile && $gradeLevelId) {
+                // create profile when grade level can be inferred
+                if (!$dryRun) {
+                    $profile = StudentProfile::firstOrCreate(
+                        ['student_id' => $att->student_id, 'school_year_id' => $att->school_year_id],
+                        ['grade_level_id' => $gradeLevelId, 'status' => 'active']
+                    );
+                }
+            }
+
+            if ($profile) {
+                if (!$dryRun) {
+                    $att->update(['student_profile_id' => $profile->id]);
+                }
+                $aLinked++;
+            } else {
+                $aSkipped++;
+            }
+
+            $aBar->advance();
+        }
+        $aBar->finish();
+        $this->newLine();
+        $this->info("Attendances linked: {$aLinked} skipped: {$aSkipped}");
+
+        // Backfill assessment scores
+        $scores = AssessmentScore::whereNull('student_profile_id')
+            ->with(['assessment.class.section.gradeLevel'])
+            ->get();
+
+        $this->info("Found {$scores->count()} assessment scores without student_profile_id.");
+        $sBar = $this->output->createProgressBar(max(1, $scores->count()));
+        $sBar->start();
+        $sLinked = 0;
+        $sSkipped = 0;
+        foreach ($scores as $score) {
+            $assessment = $score->assessment;
+            $gradeLevelId = $assessment?->class?->section?->grade_level_id;
+            $profile = StudentProfile::where('student_id', $score->student_id)
+                ->where('school_year_id', $assessment?->school_year_id)
+                ->first();
+
+            if (!$profile && $gradeLevelId && $assessment?->school_year_id) {
+                if (!$dryRun) {
+                    $profile = StudentProfile::firstOrCreate(
+                        ['student_id' => $score->student_id, 'school_year_id' => $assessment->school_year_id],
+                        ['grade_level_id' => $gradeLevelId, 'status' => 'active']
+                    );
+                }
+            }
+
+            if ($profile) {
+                if (!$dryRun) {
+                    $score->update(['student_profile_id' => $profile->id]);
+                }
+                $sLinked++;
+            } else {
+                $sSkipped++;
+            }
+
+            $sBar->advance();
+        }
+        $sBar->finish();
+        $this->newLine();
+        $this->info("Assessment scores linked: {$sLinked} skipped: {$sSkipped}");
 
         $bar->finish();
         $this->newLine(2);

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\AssessmentScore;
+use App\Models\StudentProfile;
 use App\Models\SchoolYear;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -22,9 +23,15 @@ class StudentFeaturesService
         $rollEnd = $monthEnd;
 
         // Monthly counts (row-based as per current data collection)
+        // Prefer attendance entries linked to a StudentProfile for the requested school year.
+        $profile = null;
+        if ($schoolYearId) {
+            $profile = StudentProfile::where('student_id', $studentId)->where('school_year_id', $schoolYearId)->first();
+        }
+
         $baseMonthly = Attendance::query()
-            ->where('student_id', $studentId)
-            ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+            ->when($profile, fn($q) => $q->where('student_profile_id', $profile->id), fn($q) => $q->where('student_id', $studentId))
+            ->when(!$profile && $schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
             ->whereBetween('date', [$monthStart, $monthEnd]);
 
         $monthlyTotal = (clone $baseMonthly)->count();
@@ -36,8 +43,8 @@ class StudentFeaturesService
 
         // Rolling 3-month counts
         $baseRolling = Attendance::query()
-            ->where('student_id', $studentId)
-            ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+            ->when($profile, fn($q) => $q->where('student_profile_id', $profile->id), fn($q) => $q->where('student_id', $studentId))
+            ->when(!$profile && $schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
             ->whereBetween('date', [$rollStart, $rollEnd]);
         $r3Absent = (clone $baseRolling)->where('status', 'absent')->count();
         $r3Excused = (clone $baseRolling)->where('status', 'excused')->count();
@@ -98,60 +105,166 @@ class StudentFeaturesService
         $rollStart = $date->copy()->startOfMonth()->subMonthsNoOverflow(2)->startOfMonth()->toDateString();
         $rollEnd = $monthEnd;
 
-        // Monthly attendance aggregates per student
-        $monthlyQuery = DB::table('attendances')
-            ->selectRaw('student_id,
-                SUM(status = "present") as present_count,
-                SUM(status = "absent") as absent_count,
-                SUM(status = "excused") as excused_count,
-                SUM(status = "late") as late_count,
-                COUNT(*) as total_count')
-            ->whereIn('student_id', $studentIds)
-            ->whereBetween('date', [$monthStart, $monthEnd])
-            ->groupBy('student_id');
-
+        // Attempt to prefer attendance/score rows linked to StudentProfile for the school year.
+        $profileMap = [];
+        $profileIds = [];
         if ($schoolYearId) {
-            $monthlyQuery->where('school_year_id', $schoolYearId);
+            $profileMap = StudentProfile::whereIn('student_id', $studentIds)
+                ->where('school_year_id', $schoolYearId)
+                ->pluck('id', 'student_id')
+                ->toArray();
+            $profileIds = array_values($profileMap);
         }
-        $monthly = $monthlyQuery->get()->keyBy('student_id');
 
-        // Rolling 3-month attendance aggregates per student
-        $rollingQuery = DB::table('attendances')
-            ->selectRaw('student_id,
-                SUM(status = "absent") as r_absent,
-                SUM(status = "excused") as r_excused,
-                SUM(status = "late") as r_late')
-            ->whereIn('student_id', $studentIds)
-            ->whereBetween('date', [$rollStart, $rollEnd])
-            ->groupBy('student_id');
+        // Monthly attendance aggregates per student (profile-aware)
+        $monthly = collect();
+        if (!empty($profileIds)) {
+            $monthlyProfileAgg = DB::table('attendances')
+                ->selectRaw('student_profile_id,
+                    SUM(status = "present") as present_count,
+                    SUM(status = "absent") as absent_count,
+                    SUM(status = "excused") as excused_count,
+                    SUM(status = "late") as late_count,
+                    COUNT(*) as total_count')
+                ->whereIn('student_profile_id', $profileIds)
+                ->whereBetween('date', [$monthStart, $monthEnd])
+                ->groupBy('student_profile_id')
+                ->get()
+                ->keyBy('student_profile_id');
 
-        if ($schoolYearId) {
-            $rollingQuery->where('school_year_id', $schoolYearId);
+            // Map profile aggregates back to student_id
+            foreach ($profileMap as $sid => $pid) {
+                if ($monthlyProfileAgg->has($pid)) {
+                    $monthly->put($sid, $monthlyProfileAgg->get($pid));
+                }
+            }
         }
-        $rolling = $rollingQuery->get()->keyBy('student_id');
+
+        // Fallback: include attendances keyed by student_id for any students not covered by profiles
+        $remaining = array_filter($studentIds, fn($id) => !array_key_exists($id, $profileMap));
+        if (!empty($remaining)) {
+            $monthlyFallback = DB::table('attendances')
+                ->selectRaw('student_id,
+                    SUM(status = "present") as present_count,
+                    SUM(status = "absent") as absent_count,
+                    SUM(status = "excused") as excused_count,
+                    SUM(status = "late") as late_count,
+                    COUNT(*) as total_count')
+                ->whereIn('student_id', $remaining)
+                ->whereBetween('date', [$monthStart, $monthEnd])
+                ->groupBy('student_id')
+                ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+                ->get()
+                ->keyBy('student_id');
+
+            $monthly = $monthly->merge($monthlyFallback);
+        }
+
+        // Rolling 3-month attendance aggregates per student (profile-aware similar to monthly)
+        $rolling = collect();
+        if (!empty($profileIds)) {
+            $rollingProfileAgg = DB::table('attendances')
+                ->selectRaw('student_profile_id,
+                    SUM(status = "absent") as r_absent,
+                    SUM(status = "excused") as r_excused,
+                    SUM(status = "late") as r_late')
+                ->whereIn('student_profile_id', $profileIds)
+                ->whereBetween('date', [$rollStart, $rollEnd])
+                ->groupBy('student_profile_id')
+                ->get()
+                ->keyBy('student_profile_id');
+
+            foreach ($profileMap as $sid => $pid) {
+                if ($rollingProfileAgg->has($pid)) {
+                    $rolling->put($sid, $rollingProfileAgg->get($pid));
+                }
+            }
+        }
+
+        $remaining = array_filter($studentIds, fn($id) => !array_key_exists($id, $profileMap));
+        if (!empty($remaining)) {
+            $rollingFallback = DB::table('attendances')
+                ->selectRaw('student_id,
+                    SUM(status = "absent") as r_absent,
+                    SUM(status = "excused") as r_excused,
+                    SUM(status = "late") as r_late')
+                ->whereIn('student_id', $remaining)
+                ->whereBetween('date', [$rollStart, $rollEnd])
+                ->groupBy('student_id')
+                ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+                ->get()
+                ->keyBy('student_id');
+
+            $rolling = $rolling->merge($rollingFallback);
+        }
 
         // Scores: average of (score / max_score) per student for month and rolling window
-        $monthlyScores = DB::table('assessment_scores as sc')
-            ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
-            ->selectRaw('sc.student_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
-            ->whereIn('sc.student_id', $studentIds)
-            ->whereBetween('a.assessment_date', [$monthStart, $monthEnd])
-            ->groupBy('sc.student_id');
-        if ($schoolYearId) {
-            $monthlyScores->where('a.school_year_id', $schoolYearId);
-        }
-        $monthlyScores = $monthlyScores->get()->keyBy('student_id');
+        // Monthly scores (prefer assessment_scores linked to student_profiles)
+        $monthlyScores = collect();
+        if (!empty($profileIds)) {
+            $ms = DB::table('assessment_scores as sc')
+                ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
+                ->selectRaw('sc.student_profile_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
+                ->whereIn('sc.student_profile_id', $profileIds)
+                ->whereBetween('a.assessment_date', [$monthStart, $monthEnd])
+                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->groupBy('sc.student_profile_id')
+                ->get()
+                ->keyBy('student_profile_id');
 
-        $rollingScores = DB::table('assessment_scores as sc')
-            ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
-            ->selectRaw('sc.student_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
-            ->whereIn('sc.student_id', $studentIds)
-            ->whereBetween('a.assessment_date', [$rollStart, $rollEnd])
-            ->groupBy('sc.student_id');
-        if ($schoolYearId) {
-            $rollingScores->where('a.school_year_id', $schoolYearId);
+            foreach ($profileMap as $sid => $pid) {
+                if ($ms->has($pid)) {
+                    $monthlyScores->put($sid, $ms->get($pid));
+                }
+            }
         }
-        $rollingScores = $rollingScores->get()->keyBy('student_id');
+
+        if (!empty($remaining)) {
+            $msFallback = DB::table('assessment_scores as sc')
+                ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
+                ->selectRaw('sc.student_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
+                ->whereIn('sc.student_id', $remaining)
+                ->whereBetween('a.assessment_date', [$monthStart, $monthEnd])
+                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->groupBy('sc.student_id')
+                ->get()
+                ->keyBy('student_id');
+
+            $monthlyScores = $monthlyScores->merge($msFallback);
+        }
+
+        $rollingScores = collect();
+        if (!empty($profileIds)) {
+            $rs = DB::table('assessment_scores as sc')
+                ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
+                ->selectRaw('sc.student_profile_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
+                ->whereIn('sc.student_profile_id', $profileIds)
+                ->whereBetween('a.assessment_date', [$rollStart, $rollEnd])
+                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->groupBy('sc.student_profile_id')
+                ->get()
+                ->keyBy('student_profile_id');
+
+            foreach ($profileMap as $sid => $pid) {
+                if ($rs->has($pid)) {
+                    $rollingScores->put($sid, $rs->get($pid));
+                }
+            }
+        }
+
+        if (!empty($remaining)) {
+            $rsFallback = DB::table('assessment_scores as sc')
+                ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
+                ->selectRaw('sc.student_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
+                ->whereIn('sc.student_id', $remaining)
+                ->whereBetween('a.assessment_date', [$rollStart, $rollEnd])
+                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->groupBy('sc.student_id')
+                ->get()
+                ->keyBy('student_id');
+
+            $rollingScores = $rollingScores->merge($rsFallback);
+        }
 
         $result = [];
         foreach ($studentIds as $sid) {
@@ -273,14 +386,25 @@ class StudentFeaturesService
 
     private function avgScoreBetween(int $studentId, ?int $schoolYearId, string $startDate, string $endDate): float
     {
-        $rows = AssessmentScore::query()
-            ->where('student_id', $studentId)
-            ->whereHas('assessment', function ($q) use ($schoolYearId, $startDate, $endDate) {
-                if ($schoolYearId) {
-                    $q->where('school_year_id', $schoolYearId);
-                }
-                $q->whereBetween('assessment_date', [$startDate, $endDate]);
-            })
+        // Prefer assessment_scores linked to a StudentProfile for the requested school year.
+        $profile = null;
+        if ($schoolYearId) {
+            $profile = StudentProfile::where('student_id', $studentId)->where('school_year_id', $schoolYearId)->first();
+        }
+
+        $query = AssessmentScore::query();
+        if ($profile) {
+            $query->where('student_profile_id', $profile->id);
+        } else {
+            $query->where('student_id', $studentId);
+        }
+
+        $rows = $query->whereHas('assessment', function ($q) use ($schoolYearId, $startDate, $endDate) {
+            if ($schoolYearId) {
+                $q->where('school_year_id', $schoolYearId);
+            }
+            $q->whereBetween('assessment_date', [$startDate, $endDate]);
+        })
             ->with(['assessment:id,max_score,assessment_date'])
             ->get();
 

@@ -904,8 +904,8 @@ class AdminReportController extends Controller
             ->join('students', 'grades.student_id', '=', 'students.id')
             ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
             ->leftJoin('enrollments', function ($join) {
-                $join->on('enrollments.student_id', '=', 'grades.student_id')
-                    ->on('enrollments.school_year_id', '=', 'grades.school_year_id');
+                $join->on('enrollments.school_year_id', '=', 'grades.school_year_id')
+                    ->whereRaw('(enrollments.student_profile_id = grades.student_profile_id OR enrollments.student_id = grades.student_id)');
             })
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
@@ -917,8 +917,8 @@ class AdminReportController extends Controller
         // Get summary stats
         $summaryQuery = Grade::query()
             ->leftJoin('enrollments', function ($join) {
-                $join->on('enrollments.student_id', '=', 'grades.student_id')
-                    ->on('enrollments.school_year_id', '=', 'grades.school_year_id');
+                $join->on('enrollments.school_year_id', '=', 'grades.school_year_id')
+                    ->whereRaw('(enrollments.student_profile_id = grades.student_profile_id OR enrollments.student_id = grades.student_id)');
             })
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
@@ -964,8 +964,8 @@ class AdminReportController extends Controller
                 )
                 ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
                 ->leftJoin('enrollments', function ($join) {
-                    $join->on('enrollments.student_id', '=', 'grades.student_id')
-                        ->on('enrollments.school_year_id', '=', 'grades.school_year_id');
+                    $join->on('enrollments.school_year_id', '=', 'grades.school_year_id')
+                        ->whereRaw('(enrollments.student_profile_id = grades.student_profile_id OR enrollments.student_id = grades.student_id)');
                 })
                 ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
                 ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
@@ -1607,7 +1607,8 @@ class AdminReportController extends Controller
         $baseQuery = Grade::query()
             ->leftJoin('students', 'grades.student_id', '=', 'students.id')
             ->leftJoin('enrollments', function ($join) use ($schoolYearId) {
-                $join->on('grades.student_id', '=', 'enrollments.student_id');
+                $join->on('enrollments.school_year_id', '=', 'grades.school_year_id')
+                    ->whereRaw('(enrollments.student_profile_id = grades.student_profile_id OR enrollments.student_id = grades.student_id)');
 
                 if ($schoolYearId) {
                     $join->where('enrollments.school_year_id', $schoolYearId);

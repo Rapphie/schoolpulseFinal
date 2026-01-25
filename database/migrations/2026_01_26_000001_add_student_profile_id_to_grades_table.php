@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('grades', function (Blueprint $table) {
+            if (!Schema::hasColumn('grades', 'student_profile_id')) {
+                $table->unsignedBigInteger('student_profile_id')->nullable()->after('school_year_id');
+                $table->foreign('student_profile_id')->references('id')->on('student_profiles')->onDelete('set null');
+            }
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('grades', function (Blueprint $table) {
+            if (Schema::hasColumn('grades', 'student_profile_id')) {
+                $table->dropForeign(['student_profile_id']);
+                $table->dropColumn('student_profile_id');
+            }
+        });
+    }
+};

@@ -15,6 +15,7 @@ class Attendance extends Model
 
     protected $fillable = [
         "student_id",
+        "student_profile_id",
         "subject_id",
         "teacher_id",
         'class_id',
@@ -43,5 +44,32 @@ class Attendance extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    public function class(): BelongsTo
+    {
+        return $this->belongsTo(Classes::class, 'class_id');
+    }
+
+    public function studentProfile(): BelongsTo
+    {
+        return $this->belongsTo(StudentProfile::class, 'student_profile_id');
+    }
+
+    /**
+     * Scope to prefer student_profile_id when available for a given student and optional school year.
+     * Usage: Attendance::profileAware($studentId, $schoolYearId?)
+     */
+    public function scopeProfileAware($query, int $studentId, ?int $schoolYearId = null)
+    {
+        if ($schoolYearId) {
+            $profile = \App\Models\StudentProfile::where('student_id', $studentId)->where('school_year_id', $schoolYearId)->first();
+            if ($profile) {
+                return $query->where('student_profile_id', $profile->id);
+            }
+            return $query->where('student_id', $studentId)->where('school_year_id', $schoolYearId);
+        }
+
+        return $query->where('student_id', $studentId);
     }
 }

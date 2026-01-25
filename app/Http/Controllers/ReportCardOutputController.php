@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\Grade;
 use App\Models\Attendance;
+use App\Models\StudentProfile;
 use App\Models\SchoolYear;
 use App\Services\GradeService;
 use Illuminate\Support\Facades\DB;
@@ -68,14 +69,15 @@ class ReportCardOutputController extends Controller
                 "April" => 0 // Assuming 0 for Apr
             ];
 
+            $profile = $student->profiles()->where('school_year_id', $schoolYear->id)->first();
+
             $attendanceByMonth = Attendance::selectRaw('
                 MONTH(date) as month_num,
                 DATE_FORMAT(date, "%M") as month_name,
                 SUM(CASE WHEN status IN ("present", "late", "excused") THEN 1 ELSE 0 END) as present_days,
                 SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_days
             ')
-                ->where('student_id', $student->id)
-                ->where('school_year_id', $schoolYear->id)
+                ->when($profile, fn($q) => $q->where('student_profile_id', $profile->id), fn($q) => $q->where('student_id', $student->id)->where('school_year_id', $schoolYear->id))
                 ->groupBy('month_num', 'month_name')
                 ->get()
                 ->keyBy('month_name');
@@ -130,11 +132,14 @@ class ReportCardOutputController extends Controller
 
 
             // Grades aggregation per subject (quarters Q1..Q4)
-            $rawGrades = Grade::where('student_id', $student->id)
-                ->where('school_year_id', $schoolYear->id)
-                ->with('subject')
-                ->get()
-                ->groupBy('subject_id');
+            $rawGradesQuery = Grade::with('subject');
+            if ($profile) {
+                $rawGradesQuery->where('student_profile_id', $profile->id);
+            } else {
+                $rawGradesQuery->where('student_id', $student->id)->where('school_year_id', $schoolYear->id);
+            }
+
+            $rawGrades = $rawGradesQuery->get()->groupBy('subject_id');
 
             // Use GradeService to process grades with proper DepEd transmutation and calculations
             $processedGrades = GradeService::processGradesForReportCard($rawGrades);

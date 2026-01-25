@@ -74,6 +74,22 @@ class Student extends Model
             ->first();
     }
 
+    /**
+     * Return the `StudentProfile` for the given school year if provided,
+     * otherwise return the most recent profile for the student.
+     *
+     * @param int|null $schoolYearId
+     * @return \App\Models\StudentProfile|null
+     */
+    public function profileFor(?int $schoolYearId = null)
+    {
+        if ($schoolYearId) {
+            return $this->profiles()->where('school_year_id', $schoolYearId)->first();
+        }
+
+        return $this->profiles()->orderByDesc('school_year_id')->first();
+    }
+
     public function assessmentScores()
     {
         return $this->hasMany(AssessmentScore::class);

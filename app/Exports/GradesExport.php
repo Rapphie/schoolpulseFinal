@@ -48,8 +48,8 @@ class GradesExport implements FromCollection, WithMapping, WithHeadings, ShouldA
             ->leftJoin('teachers', 'grades.teacher_id', '=', 'teachers.id')
             ->leftJoin('users', 'teachers.user_id', '=', 'users.id')
             ->leftJoin('enrollments', function ($join) {
-                $join->on('enrollments.student_id', '=', 'grades.student_id')
-                    ->on('enrollments.school_year_id', '=', 'grades.school_year_id');
+                $join->on('enrollments.school_year_id', '=', 'grades.school_year_id')
+                    ->whereRaw('(enrollments.student_profile_id = grades.student_profile_id OR enrollments.student_id = grades.student_id)');
             })
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')

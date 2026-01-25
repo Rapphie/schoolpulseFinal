@@ -63,13 +63,16 @@ class TeacherDashboardController extends Controller
             $classCount = $allClassIds->count();
 
             // Card 2: Student Count (unique students across all their classes)
-            $studentCount = Enrollment::whereIn('class_id', $allClassIds)->distinct('student_id')->count();
+            $studentCount = Enrollment::whereIn('class_id', $allClassIds)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->distinct()
+                ->count(DB::raw('COALESCE(student_profile_id, student_id)'));
 
             // Card 3: Today's Attendance Count (students marked by this teacher today)
             $todayAttendanceCount = Attendance::where('teacher_id', $teacher->id)
                 ->where('date', today()->toDateString())
-                ->distinct('student_id')
-                ->count();
+                ->distinct()
+                ->count(DB::raw('COALESCE(student_profile_id, student_id)'));
 
             // --- DATA FOR TABLES AND LISTS ---
 
@@ -89,12 +92,23 @@ class TeacherDashboardController extends Controller
             $scheduleCount = $upcomingSchedules->count();
 
             // Student Performance Data
-            $studentIds = Enrollment::whereIn('class_id', $allClassIds)->pluck('student_id')->unique();
-            $grades = Grade::whereIn('student_id', $studentIds)
+            // Get unique student profile keys (prefer student_profile_id) for classes then compute averages grouped by that key
+            $studentKeys = Enrollment::whereIn('class_id', $allClassIds)
                 ->where('school_year_id', $activeSchoolYear->id)
-                ->select('student_id', DB::raw('AVG(grade) as average_grade'))
-                ->groupBy('student_id')
-                ->get();
+                ->select(DB::raw('COALESCE(student_profile_id, student_id) as pid'))
+                ->pluck('pid')
+                ->unique()
+                ->toArray();
+
+            $grades = collect();
+            if (!empty($studentKeys)) {
+                $grades = DB::table('grades')
+                    ->select(DB::raw('COALESCE(student_profile_id, student_id) as pid'), DB::raw('AVG(grade) as average_grade'))
+                    ->whereIn(DB::raw('COALESCE(student_profile_id, student_id)'), $studentKeys)
+                    ->where('school_year_id', $activeSchoolYear->id)
+                    ->groupBy('pid')
+                    ->get();
+            }
 
             $highPerformers = $grades->where('average_grade', '>=', 90)->count();
             $averagePerformers = $grades->where('average_grade', '>=', 75)->where('average_grade', '<', 90)->count();
@@ -745,8 +759,10 @@ class TeacherDashboardController extends Controller
             $teacherId = Teacher::where('user_id', $userId)->value('id');
 
             // Fetch individual attendance records
+            // Join student_profiles so we can resolve student identity when attendance rows reference a profile
             $attendanceRecords = Attendance::where('attendances.teacher_id', $teacherId)
-                ->join('students', 'attendances.student_id', '=', 'students.id')
+                ->leftJoin('student_profiles', 'attendances.student_profile_id', '=', 'student_profiles.id')
+                ->join('students', DB::raw('COALESCE(attendances.student_id, student_profiles.student_id)'), '=', 'students.id')
                 ->join('classes', 'attendances.class_id', '=', 'classes.id')
                 ->join('sections', 'classes.section_id', '=', 'sections.id')
                 ->join('subjects', 'attendances.subject_id', '=', 'subjects.id')
@@ -801,10 +817,21 @@ class TeacherDashboardController extends Controller
             $studentIds = Student::where('section_id', $recordToDelete->student->section_id)->pluck('id')->toArray();
 
             // Delete all attendance records for this date, subject, and section
+            // Also consider attendance rows linked by student_profile_id for these students
+            $profileIds = \App\Models\StudentProfile::whereIn('student_id', $studentIds)
+                ->where('school_year_id', $recordToDelete->school_year_id)
+                ->pluck('id')
+                ->toArray();
+
             $deletedCount = Attendance::where('attendances.date', $date)
                 ->where('attendances.subject_id', $subjectId)
                 ->where('attendances.teacher_id', $teacherId)
-                ->whereIn('attendances.student_id', $studentIds)
+                ->where(function ($q) use ($studentIds, $profileIds) {
+                    $q->whereIn('attendances.student_id', $studentIds);
+                    if (!empty($profileIds)) {
+                        $q->orWhereIn('attendances.student_profile_id', $profileIds);
+                    }
+                })
                 ->delete();
 
             return redirect()->route('teacher.attendance.records')
@@ -855,11 +882,44 @@ class TeacherDashboardController extends Controller
                     ->where('class_id', $class->id);
             })->get();
 
-            // Get existing attendance records for this section, subject and date
-            $existingAttendance = Attendance::where([
+            // Map student -> profile IDs for active year to resolve attendance rows linked to profiles
+            $studentIds = $students->pluck('id')->toArray();
+            $profileMap = \App\Models\StudentProfile::whereIn('student_id', $studentIds)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->pluck('id', 'student_id')
+                ->toArray();
+
+            $profileIds = array_values($profileMap);
+
+            // Get existing attendance records for this section, subject and date (profile-aware)
+            $existingAttendanceQuery = Attendance::where([
                 'subject_id' => $subject->id,
                 'date' => $date,
-            ])->whereIn('student_id', $students->pluck('id'))->get()->keyBy('student_id');
+            ]);
+
+            $existingAttendanceQuery->where(function ($q) use ($studentIds, $profileIds) {
+                $q->whereIn('student_id', $studentIds);
+                if (!empty($profileIds)) {
+                    $q->orWhereIn('student_profile_id', $profileIds);
+                }
+            });
+
+            $existingAttendanceRows = $existingAttendanceQuery->get();
+
+            // Key attendance by resolved student id
+            $existingAttendance = [];
+            foreach ($existingAttendanceRows as $att) {
+                $resolvedStudentId = $att->student_id;
+                if (!$resolvedStudentId && $att->student_profile_id) {
+                    $resolvedStudentId = \App\Models\StudentProfile::find($att->student_profile_id)?->student_id;
+                }
+                if ($resolvedStudentId) {
+                    $existingAttendance[$resolvedStudentId] = [
+                        'status' => $att->status,
+                        'remarks' => $att->remarks,
+                    ];
+                }
+            }
 
             // Format attendance data
             $attendance = [];

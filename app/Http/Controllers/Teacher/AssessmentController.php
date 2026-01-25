@@ -96,7 +96,16 @@ class AssessmentController extends Controller
                     $typeAssessments = $quarterAssessments->get($type, collect());
 
                     foreach ($typeAssessments as $assessment) {
-                        $score = $assessment->scores->firstWhere('student_id', $student->id);
+                        // Prefer score by student_profile_id (per-school-year) when available
+                        $profile = $student->profileFor($class->school_year_id);
+                        $score = null;
+                        if ($profile) {
+                            $score = $assessment->scores->firstWhere('student_profile_id', $profile->id);
+                        }
+                        if (!$score) {
+                            $score = $assessment->scores->firstWhere('student_id', $student->id);
+                        }
+
                         $quarterData[$type][] = [
                             'assessment' => $assessment,
                             'score' => $score ? $score->score : null,
@@ -205,11 +214,25 @@ class AssessmentController extends Controller
      */
     public function editScores(Classes $class, Assessment $assessment)
     {
-        // Eager load assessmentScores for each student
-        // The `where('assessment_id', $assessment->id)` ensures we only get scores for this specific assessment.
-        $students = $class->students()->with(['assessmentScores' => function ($query) use ($assessment) {
-            $query->where('assessment_id', $assessment->id);
-        }])->get();
+        // Build lookup of scores for this assessment (both by student_profile_id and student_id)
+        $scores = AssessmentScore::where('assessment_id', $assessment->id)->get();
+        $scoresByProfile = $scores->whereNotNull('student_profile_id')->keyBy('student_profile_id');
+        $scoresByStudent = $scores->whereNotNull('student_id')->keyBy('student_id');
+
+        $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get()->map(function ($student) use ($scoresByProfile, $scoresByStudent, $class) {
+            $profile = $student->profileFor($class->school_year_id);
+            $score = null;
+            if ($profile) {
+                $score = $scoresByProfile->get($profile->id);
+            }
+            if (!$score) {
+                $score = $scoresByStudent->get($student->id);
+            }
+
+            // Provide a collection compatible with previous view expectations
+            $student->setRelation('assessmentScores', $score ? collect([$score]) : collect());
+            return $student;
+        });
 
         return view('teacher.assessments.scores.edit', compact('class', 'assessment', 'students'));
     }
@@ -240,23 +263,42 @@ class AssessmentController extends Controller
             $score = $data['score'] ?? null;
             $remarks = $data['remarks'] ?? null;
 
-            // If both score and remarks are empty, delete the existing record if any
+            $student = Student::find($studentId);
+            $profile = $student ? $student->profileFor($assessment->school_year_id) : null;
+
+            // If both score and remarks are empty, delete any existing record (by student_id or student_profile_id)
             if (is_null($score) && is_null($remarks)) {
                 AssessmentScore::where('assessment_id', $assessment->id)
-                    ->where('student_id', $studentId)
-                    ->delete();
+                    ->where(function ($q) use ($studentId, $profile) {
+                        $q->where('student_id', $studentId);
+                        if ($profile) {
+                            $q->orWhere('student_profile_id', $profile->id);
+                        }
+                    })->delete();
                 continue; // Move to the next student
             }
 
-            // Update or create the assessment score record
-            AssessmentScore::updateOrCreate(
-                [
+            // Build match keys: prefer matching by student_profile_id when available
+            if ($profile) {
+                $match = [
+                    'assessment_id' => $assessment->id,
+                    'student_profile_id' => $profile->id,
+                ];
+            } else {
+                $match = [
                     'assessment_id' => $assessment->id,
                     'student_id' => $studentId,
-                ],
+                ];
+            }
+
+            // Update or create the assessment score record and store both identifiers for compatibility
+            AssessmentScore::updateOrCreate(
+                $match,
                 [
                     'score' => $score,
                     'remarks' => $remarks,
+                    'student_id' => $studentId,
+                    'student_profile_id' => $profile ? $profile->id : null,
                 ]
             );
         }
@@ -335,14 +377,29 @@ class AssessmentController extends Controller
                 }
 
                 // Update or create the assessment score
-                AssessmentScore::updateOrCreate(
-                    [
+                // Attach profile id when available to avoid splitting per-year data
+                $student = Student::find($gradeData['student_id']);
+                $profile = $student && $assessment ? $student->profileFor($assessment->school_year_id) : null;
+
+                if ($profile) {
+                    $match = [
+                        'assessment_id' => $gradeData['assessment_id'],
+                        'student_profile_id' => $profile->id,
+                    ];
+                } else {
+                    $match = [
                         'assessment_id' => $gradeData['assessment_id'],
                         'student_id' => $gradeData['student_id'],
-                    ],
+                    ];
+                }
+
+                AssessmentScore::updateOrCreate(
+                    $match,
                     [
                         'score' => $gradeData['score'],
-                        'remarks' => null, // Extend later if needed
+                        'remarks' => null,
+                        'student_id' => $gradeData['student_id'],
+                        'student_profile_id' => $profile ? $profile->id : null,
                     ]
                 );
 
@@ -555,21 +612,33 @@ class AssessmentController extends Controller
             ->get();
 
         if ($assessments->isEmpty()) {
-            // If no assessments exist, we could delete grades or set to 0; choose to set to 0.
-            $students = $class->students()->pluck('id');
-            foreach ($students as $studentId) {
-                Grade::updateOrCreate(
-                    [
-                        'student_id' => $studentId,
+            // If no assessments exist, set grades to 0 for enrolled students.
+            $students = $class->students()->get();
+            foreach ($students as $student) {
+                $profile = $student->profileFor($schoolYearId);
+                if ($profile) {
+                    $match = [
+                        'student_profile_id' => $profile->id,
                         'subject_id' => $subjectId,
                         'quarter' => (string)$quarter,
                         'teacher_id' => $teacherId,
                         'school_year_id' => $schoolYearId,
-                    ],
-                    [
-                        'grade' => 0.0,
-                    ]
-                );
+                    ];
+                } else {
+                    $match = [
+                        'student_id' => $student->id,
+                        'subject_id' => $subjectId,
+                        'quarter' => (string)$quarter,
+                        'teacher_id' => $teacherId,
+                        'school_year_id' => $schoolYearId,
+                    ];
+                }
+
+                Grade::updateOrCreate($match, [
+                    'grade' => 0.0,
+                    'student_id' => $student->id,
+                    'student_profile_id' => $profile ? $profile->id : null,
+                ]);
             }
             return;
         }
@@ -586,7 +655,16 @@ class AssessmentController extends Controller
                 $totalScore = 0.0;
                 $totalMax = 0.0;
                 foreach ($typeAssessments as $assessment) {
-                    $scoreModel = $assessment->scores->firstWhere('student_id', $student->id);
+                    // Prefer score by student_profile_id when available
+                    $profile = $student->profileFor($schoolYearId);
+                    $scoreModel = null;
+                    if ($profile) {
+                        $scoreModel = $assessment->scores->firstWhere('student_profile_id', $profile->id);
+                    }
+                    if (!$scoreModel) {
+                        $scoreModel = $assessment->scores->firstWhere('student_id', $student->id);
+                    }
+
                     $scoreValue = $scoreModel ? (float)$scoreModel->score : 0.0;
                     $maxScore = (float)$assessment->max_score;
                     if ($maxScore > 0) {
@@ -605,18 +683,31 @@ class AssessmentController extends Controller
             // Apply DepEd transmutation to convert initial grade to transmuted grade
             $transmutedGrade = GradeService::transmute($initialGrade);
 
-            Grade::updateOrCreate(
-                [
+            // Persist grade, prefer matching by student_profile_id when available
+            $profile = $student->profileFor($schoolYearId);
+            if ($profile) {
+                $match = [
+                    'student_profile_id' => $profile->id,
+                    'subject_id' => $subjectId,
+                    'quarter' => (string)$quarter,
+                    'teacher_id' => $teacherId,
+                    'school_year_id' => $schoolYearId,
+                ];
+            } else {
+                $match = [
                     'student_id' => $student->id,
                     'subject_id' => $subjectId,
                     'quarter' => (string)$quarter,
                     'teacher_id' => $teacherId,
                     'school_year_id' => $schoolYearId,
-                ],
-                [
-                    'grade' => $transmutedGrade,
-                ]
-            );
+                ];
+            }
+
+            Grade::updateOrCreate($match, [
+                'grade' => $transmutedGrade,
+                'student_id' => $student->id,
+                'student_profile_id' => $profile ? $profile->id : null,
+            ]);
         }
     }
 }

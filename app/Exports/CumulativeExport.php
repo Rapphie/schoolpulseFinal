@@ -141,8 +141,8 @@ class AttendanceSummarySheet implements FromCollection, WithTitle, WithHeadings,
             )
             ->join('students', 'attendances.student_id', '=', 'students.id')
             ->leftJoin('enrollments', function ($join) {
-                $join->on('enrollments.student_id', '=', 'attendances.student_id')
-                    ->on('enrollments.school_year_id', '=', 'attendances.school_year_id');
+                $join->on('enrollments.school_year_id', '=', 'attendances.school_year_id')
+                    ->whereRaw('(enrollments.student_profile_id = attendances.student_profile_id OR enrollments.student_id = attendances.student_id)');
             })
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
@@ -221,8 +221,8 @@ class GradesSummarySheet implements FromCollection, WithTitle, WithHeadings, Wit
             ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
             ->join('students', 'grades.student_id', '=', 'students.id')
             ->leftJoin('enrollments', function ($join) {
-                $join->on('enrollments.student_id', '=', 'grades.student_id')
-                    ->on('enrollments.school_year_id', '=', 'grades.school_year_id');
+                $join->on('enrollments.school_year_id', '=', 'grades.school_year_id')
+                    ->whereRaw('(enrollments.student_profile_id = grades.student_profile_id OR enrollments.student_id = grades.student_id)');
             })
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
