@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
@@ -25,7 +26,7 @@ class LoginController extends Controller
         }
 
         // Check for temporary password
-        $user = \App\Models\User::where('email', $request['email'])->first();
+        $user = User::firstWhere('email', $request->input('email'));
         if ($user && $user->temporary_password && $user->temporary_password_expires_at && now()->lessThanOrEqualTo($user->temporary_password_expires_at)) {
             if ($request['password'] === $user->temporary_password && $user->role_id == $request['role']) {
                 Auth::login($user, $remember);
