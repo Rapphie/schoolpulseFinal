@@ -141,7 +141,7 @@
                     </a>
                 </li> --}}
                 <li class="nav-item mb-3 w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.settings') ? 'active' : 'link-dark' }}"
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.settings.index') ? 'active' : 'link-dark' }}"
                         href="{{ route('admin.settings.index') }}" style="width: 100%;">
                         <i class="me-2" data-feather="settings"></i>
                         <span>System Settings</span>

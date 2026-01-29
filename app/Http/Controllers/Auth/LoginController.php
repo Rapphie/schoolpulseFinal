@@ -28,7 +28,7 @@ class LoginController extends Controller
 
         // Check for temporary password
         $user = User::firstWhere('email', $request->input('email'));
-        if ($user && $user->temporary_password && $user->temporary_password_expires_at && now()->lessThanOrEqualTo($user->temporary_password_expires_at)) {
+        if ($user?->temporary_password && $user->temporary_password_expires_at && now()->lessThanOrEqualTo($user->temporary_password_expires_at)) {
             if ($request['password'] === $user->temporary_password && $user->role_id == $request['role']) {
                 Auth::login($user, $remember);
                 $request->session()->regenerate();

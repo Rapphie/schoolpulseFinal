@@ -167,6 +167,7 @@ class SchoolYear extends Model
 
     /**
      * Check if this school year has any related data (enrollments, grades, etc.)
+     * Note: Empty classes (without enrollments) are allowed to be deleted with the school year.
      *
      * @return bool
      */
@@ -174,8 +175,7 @@ class SchoolYear extends Model
     {
         return $this->enrollments()->exists()
             || $this->grades()->exists()
-            || $this->attendances()->exists()
-            || $this->classes()->exists();
+            || $this->attendances()->exists();
     }
 
     /**

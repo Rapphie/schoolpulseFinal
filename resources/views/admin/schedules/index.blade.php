@@ -27,8 +27,6 @@
 @endsection
 
 @push('styles')
-    <!-- FullCalendar CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
     <style>
         .add-schedule-btn {
             background-color: #0d6efd !important;
@@ -77,7 +75,7 @@
 
 @push('scripts')
     <!-- FullCalendar JS -->
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script src="{{ asset('js/calendar/main.min.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             var calendarEl = document.getElementById('calendar');
