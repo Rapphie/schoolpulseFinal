@@ -40,6 +40,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
             Route::put('/{quarter}', [SchoolYearQuarterController::class, 'update'])->name('update');
             Route::delete('/{quarter}', [SchoolYearQuarterController::class, 'destroy'])->name('destroy');
             Route::post('/{quarter}/toggle-lock', [SchoolYearQuarterController::class, 'toggleLock'])->name('toggle-lock');
+            Route::post('/{quarter}/set-active', [SchoolYearQuarterController::class, 'setActive'])->name('set-active');
             Route::post('/auto-generate', [SchoolYearQuarterController::class, 'autoGenerate'])->name('auto-generate');
         });
 
