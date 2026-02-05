@@ -111,14 +111,12 @@ class GradeService
             return null;
         }
 
-        // Calculate the final grade
-        // Per DepEd guidelines: Final Grade = (Q1 + Q2 + Q3 + Q4) / 4
-        // When all quarters are available, always divide by 4
-        // When not all quarters are available, divide by the number of available quarters (for preview purposes)
-        $sum = array_sum($existingGrades);
-        $divisor = $count === 4 ? 4 : $count;
+        // The final grade is the average of all 4 quarters. Missing quarters are treated as 0.
+        $sum = array_sum($quarterlyGrades); // array_sum treats null values in the array as 0.
 
-        return round($sum / $divisor, 2);
+        // Per DepEd guidelines: Final Grade = (Q1 + Q2 + Q3 + Q4) / 4
+        // When $requireAllQuarters is false, we can calculate a running average.
+        return round($sum / $count, 2);
     }
 
     /**
@@ -203,18 +201,13 @@ class GradeService
                 }
             }
 
-            // Calculate final grade using the existing calculateFinalGrade method
+            // Calculate final grade.
             $existingGrades = array_filter($quarters, fn($val) => $val !== null);
             $final = null;
-            $quarterCount = count($existingGrades);
 
-            if ($quarterCount > 0) {
-                // Use the proper calculation method that handles partial quarters correctly
-                // When all 4 quarters are present, divide by 4
-                // When not all quarters are present, divide by the number of available quarters (for preview)
-                $sum = array_sum($existingGrades);
-                $divisor = $quarterCount === 4 ? 4 : $quarterCount;
-                $final = round($sum / $divisor, 0);
+            // Only calculate final grade if at least one quarter has a grade.
+            if (count($existingGrades) > 0) {
+                $final = self::calculateFinalGrade($quarters);
             }
 
             if ($final !== null) {

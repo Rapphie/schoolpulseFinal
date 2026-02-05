@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
 use App\Models\SchoolYear;
@@ -101,8 +102,8 @@ class StudentController extends Controller
             FILTER_VALIDATE_BOOLEAN
         );
 
-        // Filter by enrollment status - default to 'pending' when enrollment is enabled
-        $enrollmentFilter = $request->get('enrollment_status', $teacherEnrollmentEnabled ? 'pending' : 'all');
+        // Filter by enrollment status - default to 'all'
+        $enrollmentFilter = $request->get('enrollment_status', 'all');
         if ($enrollmentFilter === 'pending' && $currentSchoolYear && $teacher) {
             // Show students with pending profiles created by this teacher
             $query->whereHas('profiles', function ($q) use ($teacher, $currentSchoolYear) {
@@ -309,6 +310,34 @@ class StudentController extends Controller
         ]);
 
         $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+        $teacher = Auth::user()->teacher;
+        $isAdviser = false;
+        $sectionHistory = collect();
+        $studentClass = null;
+
+        if ($currentSchoolYear && $teacher) {
+            $currentEnrollment = $student->enrollments->where('school_year_id', $currentSchoolYear->id)->first();
+            if ($currentEnrollment && $currentEnrollment->class && (int)$currentEnrollment->class->teacher_id === (int)$teacher->id) {
+                $isAdviser = true;
+                $studentClass = $currentEnrollment->class;
+
+                // Section History for advisers
+                $allClasses = Classes::where('section_id', $studentClass->section_id)
+                    ->with(['schoolYear', 'teacher.user', 'enrollments'])
+                    ->orderByDesc('school_year_id')
+                    ->get();
+
+                $sectionHistory = $allClasses->map(function ($c) {
+                    return [
+                        'class_id' => $c->id,
+                        'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
+                        'adviser' => $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A',
+                        'capacity' => $c->capacity,
+                        'enrolled' => $c->enrollments->count(),
+                    ];
+                });
+            }
+        }
 
         // Organize grades by school year
         $gradesByYear = $student->grades
@@ -336,11 +365,50 @@ class StudentController extends Controller
             'currentSchoolYear' => $currentSchoolYear,
             'gradesByYear' => $gradesByYear,
             'attendanceByYear' => $attendanceByYear,
+            'isAdviser' => $isAdviser,
+            'sectionHistory' => $sectionHistory,
+            'studentClass' => $studentClass,
         ]);
     }
 
     /**
-     * Show the form for editing the specified student.
+     * Display the grades of a student for a specific school year.
+     */
+    public function grades(Student $student, SchoolYear $sy)
+    {
+        // Eager load necessary relationships
+        $student->load([
+            'grades' => function ($query) use ($sy) {
+                $query->where('school_year_id', $sy->id)->with('subject')->orderBy('subject_id')->orderBy('quarter');
+            },
+            'enrollments' => function ($query) use ($sy) {
+                $query->where('school_year_id', $sy->id)->with('class.section.gradeLevel');
+            }
+        ]);
+
+        $profile = StudentProfile::where('student_id', $student->id)
+            ->where('school_year_id', $sy->id)
+            ->first();
+
+        $grades = $student->grades;
+        $enrollment = $student->enrollments->first();
+
+        // Group grades by subject for easy display
+        $gradesBySubject = $grades->groupBy('subject.name');
+
+
+        return view('teacher.students.grades', [
+            'student' => $student,
+            'schoolYear' => $sy,
+            'gradesBySubject' => $gradesBySubject,
+            'enrollment' => $enrollment,
+            'profile' => $profile,
+        ]);
+    }
+
+
+    /**
+     * Show the form for editing the specified student profile.
      */
     public function edit(Student $student)
     {

@@ -39,7 +39,7 @@ class StudentProfileService
             ],
             [
                 'grade_level_id' => $gradeLevelId,
-                'status' => 'active',
+                'status' => 'enrolled',
             ]
         );
 
@@ -63,27 +63,28 @@ class StudentProfileService
     {
         $student = Student::findOrFail($enrollmentData['student_id']);
         $class = Classes::with('section')->findOrFail($enrollmentData['class_id']);
-        // Resolve the intended school year in a defensive manner:
-        // Prefer the active school year when available, otherwise fall back to the provided value or the class's school year.
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        // Resolve the intended school year
+        // We prioritize the class's school year or the explicitly provided school year ID.
+        // This allows enrollment into future school years even if they are not yet "active".
         $providedSchoolYearId = $enrollmentData['school_year_id'] ?? null;
         $classSchoolYearId = $class->school_year_id ?? null;
 
-        if ($activeSchoolYear) {
-            $schoolYearId = $activeSchoolYear->id;
-            // If caller provided an explicit and different school year, log it for diagnosis
-            if ($providedSchoolYearId && $providedSchoolYearId !== $schoolYearId) {
-                Log::warning('Enrollment requested with non-active school_year_id', [
-                    'provided' => $providedSchoolYearId,
-                    'active' => $schoolYearId,
-                    'class_id' => $class->id,
-                    'class_school_year_id' => $classSchoolYearId,
-                    'student_id' => $student->id,
-                ]);
+        $schoolYearId = $providedSchoolYearId ?? $classSchoolYearId;
+
+        if (!$schoolYearId) {
+            // Fallback to active school year if neither class nor explicit ID provides one
+            $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+            if ($activeSchoolYear) {
+                $schoolYearId = $activeSchoolYear->id;
+            } else {
+                throw new \RuntimeException('Cannot determine school year for enrollment. No class school year, no provided ID, and no active school year.');
             }
-        } else {
-            // No active school year; prefer provided, then class
-            $schoolYearId = $providedSchoolYearId ?? $classSchoolYearId;
+        }
+
+        $schoolYear = SchoolYear::find($schoolYearId);
+
+        if (!$schoolYear || (!$schoolYear->is_active && !$schoolYear->is_promotion_open)) {
+            throw new \RuntimeException('Enrollment for this school year is not open.');
         }
 
         // Ensure profile exists for the resolved school year

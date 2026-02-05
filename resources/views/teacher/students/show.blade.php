@@ -22,6 +22,12 @@
                 <h4 class="mb-0">Student Profile</h4>
             </div>
             <div class="d-flex gap-2">
+                @if ($isAdviser ?? false)
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#sectionHistoryModal">
+                        <i data-feather="history" class="icon-sm me-1"></i> History
+                    </button>
+                @endif
                 <a href="{{ route('teacher.students.edit', $student) }}" class="btn btn-outline-primary btn-sm">
                     <i data-feather="edit-2" class="icon-sm me-1"></i> Edit Profile
                 </a>
@@ -52,12 +58,24 @@
                         <p class="text-muted mb-2">Student ID: {{ $student->student_id }}</p>
 
                         @if ($isEnrolledThisYear)
-                            @php $currentEnrollment = $student->enrollments->where('school_year_id', $currentSchoolYear->id)->first(); @endphp
-                            <span class="badge bg-success mb-2">
-                                <i data-feather="check-circle" class="icon-xs me-1"></i>
-                                Enrolled - {{ $currentEnrollment->class->section->gradeLevel->name ?? '' }}
-                                {{ $currentEnrollment->class->section->name ?? '' }}
-                            </span>
+                            @php
+                                $currentEnrollment = $student->enrollments
+                                    ->where('school_year_id', $currentSchoolYear->id)
+                                    ->first();
+                                $adviser = $currentEnrollment->class->teacher->user ?? null;
+                            @endphp
+                            <div class="mb-2">
+                                <span class="badge bg-success">
+                                    <i data-feather="check-circle" class="icon-xs me-1"></i>
+                                    Enrolled - {{ $currentEnrollment->class->section->gradeLevel->name ?? '' }}
+                                    {{ $currentEnrollment->class->section->name ?? '' }}
+                                </span>
+                                @if ($adviser)
+                                    <div class="small text-muted mt-1">
+                                        Adviser: {{ $adviser->first_name }} {{ $adviser->last_name }}
+                                    </div>
+                                @endif
+                            </div>
                         @else
                             <span class="badge bg-warning text-dark mb-2">
                                 <i data-feather="clock" class="icon-xs me-1"></i>
@@ -163,6 +181,109 @@
 
             <!-- Right Column - Academic History -->
             <div class="col-lg-8">
+                <!-- Summary / Short History -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card h-100 bg-light border-0 shadow-sm">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Academic Standing</h6>
+                                <div class="h4 mb-0">
+                                    @php
+                                        $latestProfile =
+                                            $student->profiles
+                                                ->where('status', 'promoted')
+                                                ->sortByDesc('school_year_id')
+                                                ->first() ?? $student->profiles->sortByDesc('school_year_id')->first();
+                                    @endphp
+                                    {{ $latestProfile && $latestProfile->final_average ? number_format($latestProfile->final_average, 2) : 'N/A' }}
+                                </div>
+                                <small class="text-muted">Last recorded final average</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 bg-light border-0 shadow-sm">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-2">Current Attendance</h6>
+                                <div class="h4 mb-0 text-success">
+                                    @php
+                                        $currentAttendance = $attendanceByYear[$currentSchoolYear->id ?? 0] ?? null;
+                                        $rate =
+                                            $currentAttendance && $currentAttendance['total'] > 0
+                                                ? (($currentAttendance['present'] + $currentAttendance['late']) /
+                                                        $currentAttendance['total']) *
+                                                    100
+                                                : 0;
+                                    @endphp
+                                    {{ $rate > 0 ? number_format($rate, 1) . '%' : 'No Data' }}
+                                </div>
+                                <small class="text-muted">Attendance rate for current year</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Academic Performance -->
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i data-feather="award" class="icon-sm me-2"></i>
+                            Current Academic Performance
+                        </h6>
+                        @if ($currentSchoolYear)
+                            <span class="badge bg-primary">{{ $currentSchoolYear->name }}</span>
+                        @endif
+                    </div>
+                    <div class="card-body p-0">
+                        @php
+                            $currentYearId = $currentSchoolYear->id ?? null;
+                            $currentGrades = $student->grades->where('school_year_id', $currentYearId);
+                        @endphp
+                        @if ($currentGrades->isEmpty())
+                            <div class="text-center py-4">
+                                <i data-feather="file-text" class="text-muted mb-2"
+                                    style="width: 32px; height: 32px;"></i>
+                                <p class="text-muted mb-0">No grade records for the current school year.</p>
+                            </div>
+                        @else
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Subject</th>
+                                            <th class="text-center">1st</th>
+                                            <th class="text-center">2nd</th>
+                                            <th class="text-center">3rd</th>
+                                            <th class="text-center">4th</th>
+                                            <th class="text-center">Final</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($currentGrades->groupBy('subject_id') as $subjectId => $grades)
+                                            @php
+                                                $subject = $grades->first()->subject;
+                                                $g1 = $grades->where('quarter', 1)->first();
+                                                $g2 = $grades->where('quarter', 2)->first();
+                                                $g3 = $grades->where('quarter', 3)->first();
+                                                $g4 = $grades->where('quarter', 4)->first();
+                                                $final = $grades->where('quarter', 5)->first();
+                                            @endphp
+                                            <tr>
+                                                <td>{{ $subject->name ?? 'Unknown' }}</td>
+                                                <td class="text-center">{{ $g1->grade ?? '-' }}</td>
+                                                <td class="text-center">{{ $g2->grade ?? '-' }}</td>
+                                                <td class="text-center">{{ $g3->grade ?? '-' }}</td>
+                                                <td class="text-center">{{ $g4->grade ?? '-' }}</td>
+                                                <td class="text-center fw-bold">{{ $final->grade ?? '-' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
                 <!-- Grade Level History -->
                 <div class="card mb-3">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -174,7 +295,8 @@
                     <div class="card-body p-0">
                         @if ($student->profiles->isEmpty())
                             <div class="text-center py-4">
-                                <i data-feather="file-text" class="text-muted mb-2" style="width: 32px; height: 32px;"></i>
+                                <i data-feather="file-text" class="text-muted mb-2"
+                                    style="width: 32px; height: 32px;"></i>
                                 <p class="text-muted mb-0">No grade level history available.</p>
                             </div>
                         @else
@@ -188,6 +310,7 @@
                                             <th>Final Average</th>
                                             <th>Status</th>
                                             <th>Attendance</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -232,6 +355,7 @@
                                                         $statusColors = [
                                                             'pending' => 'bg-secondary',
                                                             'active' => 'bg-info',
+                                                            'enrolled' => 'bg-info',
                                                             'promoted' => 'bg-success',
                                                             'retained' => 'bg-warning text-dark',
                                                             'dropped' => 'bg-danger',
@@ -260,6 +384,12 @@
                                                     @else
                                                         <span class="text-muted">-</span>
                                                     @endif
+                                                </td>
+                                                <td>
+                                                    <a href="{{ route('teacher.students.grades', ['student' => $student->id, 'sy' => $profile->school_year_id]) }}"
+                                                        class="btn btn-outline-primary btn-sm">
+                                                        <i data-feather="eye" class="icon-sm"></i>
+                                                    </a>
                                                 </td>
                                             </tr>
                                         @endforeach
@@ -372,9 +502,89 @@
             </div>
         </div>
     </div>
+
+    @if ($isAdviser ?? false)
+        <!-- Section History Modal -->
+        <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="sectionHistoryModalLabel">Section History</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
+                                <thead>
+                                    <tr>
+                                        <th>School Year</th>
+                                        <th>Adviser</th>
+                                        <th>Enrolled</th>
+                                        <th>Capacity</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Data populated by DataTables -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @push('scripts')
+    @if ($isAdviser ?? false)
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const sectionHistory = @json($sectionHistory ?? []);
+                const table = $('#sectionHistoryTable').DataTable({
+                    data: sectionHistory,
+                    columns: [{
+                            data: 'school_year',
+                            title: 'School Year'
+                        },
+                        {
+                            data: 'adviser',
+                            title: 'Adviser'
+                        },
+                        {
+                            data: 'enrolled',
+                            title: 'Enrolled'
+                        },
+                        {
+                            data: 'capacity',
+                            title: 'Capacity'
+                        },
+                        {
+                            data: null,
+                            orderable: false,
+                            searchable: false,
+                            render: function(data, type, row) {
+                                if (!row.class_id) return '';
+                                const url =
+                                    `{{ route('teacher.classes.view', ['class' => $studentClass->id ?? 0]) }}?class_id=${row.class_id}`;
+                                return `<a href="${url}" class="btn btn-sm btn-outline-primary">View</a>`;
+                            }
+                        }
+                    ],
+                    order: [
+                        [0, 'desc']
+                    ],
+                    responsive: true,
+                    destroy: true
+                });
+
+                $('#sectionHistoryModal').on('shown.bs.modal', function() {
+                    table.columns.adjust().draw();
+                });
+            });
+        </script>
+    @endif
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof feather !== 'undefined') {

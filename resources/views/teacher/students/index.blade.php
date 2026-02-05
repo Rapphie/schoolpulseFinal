@@ -174,6 +174,7 @@
                                                     $statusColors = [
                                                         'pending' => 'bg-warning text-dark',
                                                         'active' => 'bg-success',
+                                                        'enrolled' => 'bg-success',
                                                         'promoted' => 'bg-info',
                                                         'retained' => 'bg-secondary',
                                                         'transferred' => 'bg-dark',
@@ -221,8 +222,8 @@
                                         <td class="text-end">
                                             <div class="btn-group btn-group-sm">
                                                 <a href="{{ route('teacher.students.show', $student) }}"
-                                                    class="btn btn-outline-primary" title="View Profile">
-                                                    <i data-feather="eye" class="icon-sm"></i>
+                                                    class="btn btn-outline-primary">
+                                                    View
                                                 </a>
                                                 <a href="{{ route('teacher.students.edit', $student) }}"
                                                     class="btn btn-outline-secondary" title="Edit">

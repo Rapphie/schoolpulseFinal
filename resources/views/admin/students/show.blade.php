@@ -190,6 +190,54 @@
             </div>
         </div>
 
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Grades by Quarter (Active SY)</h6>
+                </div>
+                <div class="card-body">
+                    @if ($quarters->isNotEmpty())
+                        <div class="row">
+                            @foreach ($quarters as $quarter)
+                                <div class="col-md-3 mb-2">
+                                    <div class="text-xs font-weight-bold text-uppercase text-muted">
+                                        {{ $quarter->name }}</div>
+                                    <div class="h6 mb-0">
+                                        {{ isset($gradesByQuarter[$quarter->name]) ? number_format($gradesByQuarter[$quarter->name]->average_grade, 2) : 'N/A' }}
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-muted mb-0">No quarters found for the active school year.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="m-0 font-weight-bold text-primary">Grades by Subject (Active SY)</h6>
+                </div>
+                <div class="card-body">
+                    @if ($gradesBySubject->isNotEmpty())
+                        <ul class="list-group list-group-flush">
+                            @foreach ($gradesBySubject as $grade)
+                                <li class="list-group-item d-flex justify-content-between align-items-center ps-0 pe-0">
+                                    {{ $grade->subject_name }}
+                                    <span
+                                        class="badge bg-primary rounded-pill">{{ number_format($grade->average_grade, 2) }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @else
+                        <p class="text-muted mb-0">No subject grades found for the active school year.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+
         <div class="card shadow mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">
@@ -237,6 +285,7 @@
                                             @php
                                                 $statusColors = [
                                                     'active' => 'primary',
+                                                    'enrolled' => 'primary',
                                                     'promoted' => 'success',
                                                     'retained' => 'warning',
                                                     'transferred' => 'info',

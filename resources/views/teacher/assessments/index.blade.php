@@ -216,17 +216,111 @@
         </div>
     @else
         <!-- Oral Participation Info Banner -->
-        <div class="alert alert-success d-flex align-items-center mb-3" role="alert">
-            <i class="fas fa-comments me-3 fs-4"></i>
-            <div class="flex-grow-1">
-                <strong>Oral Participation:</strong> The first Performance Task column (marked "OP") is linked to Oral
-                Participation.
-                Scores are automatically synced from the Oral Participation page.
+        <div class="alert alert-info py-2 px-3 d-flex align-items-center mb-3 shadow-sm" role="alert">
+            <i class="fas fa-comments me-2 text-primary"></i>
+            <div class="flex-grow-1 small">
+                <strong>Oral Participation:</strong> The "OP" column is linked to Oral Participation.
             </div>
-            <a href="{{ route('teacher.oral-participation.list', $class) }}@if ($selectedSubject) ?subject_id={{ $selectedSubject->id }} @endif"
-                class="btn btn-success btn-sm ms-3">
-                <i class="fas fa-external-link-alt me-1"></i> Manage Oral Participation
-            </a>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#recitationModeModal">
+                    <i class="fas fa-chalkboard-teacher me-1"></i> Recitation Mode
+                </button>
+                <a href="{{ route('teacher.oral-participation.index', $class) }}@if ($selectedSubject) ?subject_id={{ $selectedSubject->id }} @endif"
+                    id="manageOralParticipationLink" class="btn btn-outline-primary btn-sm"
+                    title="Manage Oral Participation">
+                    <i class="fas fa-external-link-alt"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Recitation Mode Modal -->
+        <div class="modal fade" id="recitationModeModal" tabindex="-1" aria-labelledby="recitationModeModalLabel"
+            aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <div class="d-flex align-items-center w-100 justify-content-between">
+                            <h5 class="modal-title mb-0" id="recitationModeModalLabel">
+                                <i class="fas fa-chalkboard-teacher me-2"></i> Recitation Mode
+                            </h5>
+                            <div class="d-flex gap-3 align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <label for="recitationQuarter" class="me-2 fw-bold text-white-50">Quarter:</label>
+                                    <select id="recitationQuarter" class="form-select form-select-sm text-dark"
+                                        style="width: 120px;">
+                                        @for ($q = 1; $q <= 4; $q++)
+                                            <option value="{{ $q }}">Quarter {{ $q }}</option>
+                                        @endfor
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <label for="recitationMaxScore" class="me-2 fw-bold text-white-50">Activity Max:</label>
+                                    <input type="number" id="recitationMaxScore"
+                                        class="form-control form-control-sm text-center fw-bold" value="10"
+                                        min="1" max="100" style="width: 70px;">
+                                </div>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                        </div>
+                    </div>
+                    <div class="modal-body bg-light">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="recitationTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th class="text-center" style="width: 200px;">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($studentsData as $studentData)
+                                        <tr class="student-card-wrapper"
+                                            data-student-id="{{ $studentData['student']->id }}">
+                                            <td class="align-middle fw-bold">
+                                                {{ $studentData['student']->last_name }},
+                                                {{ $studentData['student']->first_name }}
+                                            </td>
+                                            <td class="align-middle text-center">
+                                                <div class="input-group justify-content-center"
+                                                    style="max-width: 160px; margin: 0 auto;">
+                                                    <button class="btn btn-outline-danger minus-btn" type="button">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <input type="number"
+                                                        class="form-control text-center recitation-score-input fw-bold"
+                                                        data-student-id="{{ $studentData['student']->id }}" value="0"
+                                                        min="0">
+                                                    <button class="btn btn-outline-success plus-btn" type="button">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer justify-content-between">
+                        <div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="resetRecitation">
+                                <i class="fas fa-undo me-1"></i> Reset All
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm ms-2" id="fillPerfectRecitation">
+                                <i class="fas fa-star me-1"></i> All Perfect
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" id="applyRecitationScores">
+                                <i class="fas fa-check-circle me-2"></i> Apply & Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Quarter Tabs -->
@@ -279,11 +373,39 @@
                                             @foreach ($types as $type => $label)
                                                 @php
                                                     $availableAssessments = $quarterAssessments->get($type, collect());
-                                                    $maxColumns =
-                                                        $fixedAssessmentCounts[$type] ?? $availableAssessments->count();
-                                                    $limitedAssessments[$type] = $availableAssessments->take(
-                                                        $maxColumns,
-                                                    );
+
+                                                    if ($type === 'performance_task') {
+                                                        $opAssessment = $availableAssessments->firstWhere(
+                                                            'type',
+                                                            'oral_participation',
+                                                        );
+                                                        $otherAssessments = $availableAssessments->where(
+                                                            'type',
+                                                            '!=',
+                                                            'oral_participation',
+                                                        );
+
+                                                        if (!$opAssessment) {
+                                                            // If no OP assessment exists for this quarter, create a placeholder.
+                                                            $opAssessment = (object) [
+                                                                'id' => -999, // Virtual ID
+                                                                'name' => 'Oral Participation',
+                                                                'type' => 'oral_participation',
+                                                                'max_score' => null, // View will default to 10 for display
+                                                            ];
+                                                        }
+                                                        // Re-assemble the collection with OP guaranteed to be first.
+                                                        $finalAssessments = collect([$opAssessment])->merge(
+                                                            $otherAssessments,
+                                                        );
+                                                    } else {
+                                                        $finalAssessments = $availableAssessments;
+                                                    }
+
+                                                    $baseCount =
+                                                        $fixedAssessmentCounts[$type] ?? $finalAssessments->count();
+                                                    $limitedAssessments[$type] = $finalAssessments->take($baseCount);
+
                                                     // +3 for Total, PS, and Weighted Score columns
                                                     $colCount = $limitedAssessments[$type]->count() + 3;
                                                 @endphp
@@ -291,19 +413,21 @@
                                                     {{ $label }}
                                                 </th>
                                             @endforeach
-                                            <th rowspan="2" class="grade-col">Quarter Grade</th>
+                                            <th rowspan="2" class="grade-col">Initial Grade</th>
+                                            <th rowspan="2" class="grade-col">FINAL</th>
                                         </tr>
 
                                         <tr>
                                             @foreach ($types as $type => $label)
                                                 @php
                                                     $typeAssessments = $limitedAssessments[$type] ?? collect();
+                                                    $ptCounter = 1;
                                                 @endphp
                                                 @foreach ($typeAssessments as $index => $assessment)
                                                     @php
-                                                        // Performance Task 1 (index 0) is Oral Participation
+                                                        // Check if assessment is oral participation by type
                                                         $isOralParticipation =
-                                                            $type === 'performance_tasks' && $index === 0;
+                                                            $assessment->type === 'oral_participation';
                                                     @endphp
                                                     <th class="assessment-header position-relative {{ $isOralParticipation ? 'oral-participation-header' : '' }}"
                                                         title="{{ $isOralParticipation ? 'Oral Participation (linked)' : $assessment->name }}">
@@ -311,7 +435,7 @@
                                                             <span
                                                                 title="Oral Participation - Edit in Oral Participation page">OP</span>
                                                         @else
-                                                            {{ $index + 1 }}
+                                                            {{ $ptCounter++ }}
                                                         @endif
                                                     </th>
                                                 @endforeach
@@ -344,9 +468,9 @@
                                                                     ),
                                                                     '.',
                                                                 );
-                                                        // Performance Task 1 (index 0) is Oral Participation
+                                                        // Check if assessment is oral participation by type
                                                         $isOralParticipation =
-                                                            $type === 'performance_tasks' && $index === 0;
+                                                            $assessment->type === 'oral_participation';
                                                     @endphp
                                                     <th
                                                         class="highest-score-row {{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
@@ -368,6 +492,7 @@
                                                 <th class="highest-score-row">{{ number_format($typeWeight) }}%</th>
                                             @endforeach
                                             <th class="highest-score-row">100.00</th>
+                                            <th class="highest-score-row">100</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -402,13 +527,13 @@
                                                             ) {
                                                                 $scoreValue = number_format($scoreValue, 0);
                                                             }
-                                                            // Performance Task 1 (index 0) is Oral Participation
+                                                            // Check if assessment is oral participation by type
                                                             $isOralParticipation =
-                                                                $type === 'performance_tasks' && $index === 0;
+                                                                $assessment->type === 'oral_participation';
                                                         @endphp
                                                         <td
                                                             class="{{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
-                                                            <input type="number"
+                                                            <input type="number" min="0"
                                                                 class="grade-input {{ str_replace('_', '-', $type) }}-score"
                                                                 data-quarter="{{ $quarter }}"
                                                                 data-type="{{ $type }}"
@@ -436,8 +561,10 @@
                                                 @endforeach
 
                                                 {{-- Quarter Grade --}}
+                                                <td class="calculated-field initial-grade grade-col"
+                                                    data-quarter="{{ $quarter }}">--</td>
                                                 <td class="calculated-field quarter-grade grade-col"
-                                                    data-quarter="{{ $quarter }}" data-has-grade="0">0.00</td>
+                                                    data-quarter="{{ $quarter }}" data-has-grade="0">--</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -455,6 +582,7 @@
                                             <th class="grade-col">Quarter {{ $quarter }}</th>
                                         @endfor
                                         <th class="grade-col">Final Grade</th>
+                                        <th class="grade-col">Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -467,6 +595,7 @@
                                                     data-quarter="{{ $quarter }}">--</td>
                                             @endfor
                                             <td class="calculated-field final-grade grade-col">--</td>
+                                            <td class="calculated-field final-remarks grade-col">--</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -486,6 +615,8 @@
 
 @push('scripts')
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
     <script>
         $(document).ready(function() {
             const highlightStudentId = @json($highlightStudentId);
@@ -497,6 +628,41 @@
             };
 
             initializeAssessmentInputsState();
+
+            function updateManageOralParticipationLink(quarter) {
+                const baseUrl = "{{ route('teacher.oral-participation.index', $class) }}";
+                const subjectId = {{ $selectedSubject->id ?? 'null' }};
+                const params = new URLSearchParams();
+
+                if (subjectId) {
+                    params.append('subject_id', subjectId);
+                }
+
+                const quarterNum = parseInt(quarter);
+                if (!isNaN(quarterNum) && quarterNum >= 1 && quarterNum <= 4) {
+                    params.append('quarter', quarterNum);
+                }
+
+                const queryString = params.toString();
+                const newHref = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+
+                $('#manageOralParticipationLink').attr('href', newHref);
+            }
+
+            function getActiveQuarter() {
+                const activeTabLink = $('#quarterTabs .nav-link.active');
+                const activeTabId = activeTabLink.attr('id');
+                if (activeTabId) {
+                    const match = activeTabId.match(/quarter(\d+)/);
+                    if (match && match[1]) {
+                        return parseInt(match[1]);
+                    }
+                }
+                return 1; // Default to 1
+            }
+
+            // Set initial link on page load
+            updateManageOralParticipationLink(getActiveQuarter());
 
             if (highlightStudentId) {
                 const $rows = $(`tr[data-student-id="${highlightStudentId}"]`);
@@ -528,6 +694,25 @@
 
             // Calculate grades when input changes
             $(document).on('input change', '.grade-input', function() {
+                const $input = $(this);
+                const scoreRaw = $input.val();
+
+                if (scoreRaw.trim() !== '') {
+                    const maxScoreRaw = $input.data('max-score');
+                    const score = parseFloat(scoreRaw);
+
+                    if (score < 0) {
+                        alert('Score cannot be negative.');
+                        $input.val('');
+                    } else if (maxScoreRaw.toString().trim() !== '') {
+                        const maxScore = parseFloat(maxScoreRaw);
+                        if (!isNaN(maxScore) && score > maxScore) {
+                            alert(`Score (${score}) cannot exceed the maximum of ${maxScore}.`);
+                            $input.val('');
+                        }
+                    }
+                }
+
                 const $row = $(this).closest('tr');
                 const quarter = $(this).closest('.tab-pane').attr('id').replace('quarter', '');
                 calculateQuarterGrades($row, parseInt(quarter));
@@ -567,8 +752,13 @@
                         $('.grade-input').trigger('change');
                     },
                     error: function(xhr) {
-                        alert('Error updating max score: ' + (xhr.responseJSON?.message ||
-                            'Unknown error'));
+                        let msg = 'Error updating max score: ' + (xhr.responseJSON?.message ||
+                            'Unknown error');
+                        if (xhr.responseJSON?.errors) {
+                            msg += '\n' + Object.values(xhr.responseJSON.errors).map(e => e
+                                .join('\n')).join('\n');
+                        }
+                        alert(msg);
                     }
                 });
             });
@@ -576,8 +766,12 @@
 
             // Initialize calculations when tab is shown
             $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
-                const quarter = $(e.target).attr('aria-controls').replace('quarter', '');
-                initializeQuarterCalculations(parseInt(quarter));
+                const targetId = $(e.target).attr('aria-controls');
+                if (targetId && targetId.startsWith('quarter')) {
+                    const quarter = targetId.replace('quarter', '');
+                    initializeQuarterCalculations(parseInt(quarter));
+                    updateManageOralParticipationLink(quarter);
+                }
             });
 
             // Initialize all quarters on load for accurate summaries
@@ -749,15 +943,21 @@
                     }
                 });
 
-                // Apply DepEd transmutation to the quarter grade (initial grade -> transmuted grade)
-                const transmutedQuarterGrade = quarterHasScores ? transmuteGrade(quarterGrade) : 0;
+                // Round the initial grade to 2 decimal places to avoid floating point issues near transmutation thresholds.
+                const initialGrade = quarterHasScores ? parseFloat(quarterGrade.toFixed(2)) : null;
+
+                const initialGradeText = initialGrade !== null ? initialGrade.toFixed(2) : '--';
+                const transmutedQuarterGrade = initialGrade !== null ? transmuteGrade(initialGrade) : null;
+                const transmutedGradeText = transmutedQuarterGrade !== null ? transmutedQuarterGrade : '--';
+
+                $row.find(`.initial-grade[data-quarter="${quarter}"]`).text(initialGradeText);
 
                 // Quarter grade displays the transmuted grade per DepEd guidelines
                 $row.find(`.quarter-grade[data-quarter="${quarter}"]`)
-                    .text(quarterHasScores ? transmutedQuarterGrade : '--')
-                    .attr('data-has-grade', quarterHasScores ? '1' : '0')
-                    .attr('data-raw-grade', quarterGrade.toFixed(2))
-                    .data('has-grade', quarterHasScores ? 1 : 0);
+                    .text(transmutedGradeText)
+                    .attr('data-has-grade', initialGrade !== null ? '1' : '0')
+                    .attr('data-raw-grade', initialGradeText)
+                    .data('has-grade', initialGrade !== null ? 1 : 0);
 
                 const studentId = $row.data('student-id');
                 updateFinalGradeRow(studentId);
@@ -792,10 +992,11 @@
                     }
                 }
 
-                // Per DepEd guidelines: Final Grade = (Q1 + Q2 + Q3 + Q4) / 4
-                // Always divide by 4 regardless of how many quarters have grades
-                const finalGrade = countedQuarters > 0 ? Math.round(total / 4) : null;
+                // The Final Grade is the average of the quarters with available grades.
+                const finalGrade = countedQuarters > 0 ? Math.round(total / countedQuarters) : null;
                 $finalRow.find('.final-grade').text(finalGrade !== null ? finalGrade : '--');
+                const remarks = finalGrade !== null ? (finalGrade >= 75 ? 'PASSED' : 'FAILED') : '--';
+                $finalRow.find('.final-remarks').text(remarks);
             }
 
             function refreshFinalGradesTable() {
@@ -808,8 +1009,8 @@
             $('#saveAllGrades').click(function() {
                 const gradesData = [];
 
-                // Collect grades from all tabs
-                $('.tab-pane').each(function() {
+                // Collect detailed assessment grades from all quarter tabs
+                $('.tab-pane[id^="quarter"]').each(function() {
                     $(this).find('tbody tr').each(function() {
                         const $row = $(this);
                         const studentId = $row.data('student-id');
@@ -817,14 +1018,20 @@
                         $row.find('.grade-input:not([disabled])').each(function() {
                             const $input = $(this);
                             const assessmentId = $input.data('assessment-id');
-                            const score = $input.val();
+                            const isOral = $input.data('is-oral-participation') ==
+                                '1';
+                            const scoreRaw = $input.val();
 
-                            if (assessmentId && score !== '') {
-                                gradesData.push({
-                                    student_id: studentId,
-                                    assessment_id: assessmentId,
-                                    score: parseFloat(score)
-                                });
+                            if (assessmentId && assessmentId !== -999 && !isOral &&
+                                scoreRaw !== '' && scoreRaw !== null) {
+                                const scoreNum = parseFloat(scoreRaw);
+                                if (!isNaN(scoreNum)) {
+                                    gradesData.push({
+                                        student_id: studentId,
+                                        assessment_id: assessmentId,
+                                        score: scoreNum
+                                    });
+                                }
                             }
                         });
                     });
@@ -841,24 +1048,200 @@
                 $.ajax({
                     url: '{{ route('teacher.assessments.saveGrades', $class) }}',
                     method: 'POST',
-                    data: {
+                    contentType: 'application/json',
+                    data: JSON.stringify({
                         _token: '{{ csrf_token() }}',
-                        grades: gradesData
-                    },
+                        grades: gradesData,
+                    }),
                     success: function(response) {
-                        alert('Grades saved successfully!');
+                        alert(response.message || 'Grades saved successfully!');
                         $('#saveAllGrades').prop('disabled', false).html(
                             '<i class="fas fa-save"></i> Save Grades');
                     },
                     error: function(xhr) {
-                        alert('Error saving grades: ' + (xhr.responseJSON?.message ||
-                            'Unknown error'));
+                        let errorMsg = 'Validation failed.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMsg = xhr.responseJSON.message;
+                        } else if (xhr.status === 413) {
+                            errorMsg = 'Request too large. Try saving in smaller batches.';
+                        }
+
+                        alert('Error saving grades: ' + errorMsg);
                         $('#saveAllGrades').prop('disabled', false).html(
                             '<i class="fas fa-save"></i> Save Grades');
                     }
                 });
             });
 
+            // Recitation Mode Logic for Assessments Page
+
+            function syncRecitationModal(quarter) {
+                $('#recitationQuarter').val(quarter);
+                // Default activity max score is 10 for new activities
+                $('#recitationMaxScore').val(10);
+
+                // Reset all student inputs to 0
+                $('.recitation-score-input').val(0);
+            }
+
+            // Open Modal
+            $('#recitationModeModal').on('show.bs.modal', function() {
+                // Find active tab from assessments page tabs
+                // Try standard selector first
+                let activeTabLink = $('#quarterTabs .nav-link.active');
+                // Fallback if not found (e.g. mobile view or structure change)
+                if (!activeTabLink.length) {
+                    activeTabLink = $('.nav-tabs .nav-link.active');
+                }
+
+                let activeTabId = activeTabLink.attr('id');
+                let activeQuarter = 1;
+                if (activeTabId) {
+                    // Extract number from "quarter1-tab"
+                    const match = activeTabId.match(/quarter(\d+)/);
+                    if (match && match[1]) {
+                        activeQuarter = parseInt(match[1]);
+                    }
+                }
+                syncRecitationModal(activeQuarter);
+
+                // Adjust columns
+                setTimeout(() => {
+                    if (typeof recitationTable !== 'undefined') {
+                        recitationTable.columns.adjust().draw();
+                    }
+                }, 200);
+            });
+
+            // Max Score Change
+            $('#recitationMaxScore').on('input change', function() {
+                const newMax = parseFloat($(this).val()) || 10;
+                // Validate existing scores
+                $('.recitation-score-input').each(function() {
+                    let val = parseFloat($(this).val()) || 0;
+                    if (val > newMax) $(this).val(newMax);
+                });
+            });
+
+            // Plus Button
+            $(document).on('click', '.plus-btn', function() {
+                const $input = $(this).closest('div').find('.recitation-score-input');
+                const maxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                let currentScore = parseFloat($input.val()) || 0;
+
+                if (currentScore < maxScore) {
+                    $input.val(currentScore + 1).trigger('change');
+                }
+            });
+
+            // Minus Button
+            $(document).on('click', '.minus-btn', function() {
+                const $input = $(this).closest('div').find('.recitation-score-input');
+                let currentScore = parseFloat($input.val()) || 0;
+
+                if (currentScore > 0) {
+                    $input.val(currentScore - 1).trigger('change');
+                }
+            });
+
+            // Direct Input Validation
+            $(document).on('input change', '.recitation-score-input', function() {
+                const maxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                let val = $(this).val();
+                if (val === '') return;
+
+                val = parseFloat(val);
+                if (isNaN(val)) val = 0;
+                if (val > maxScore) val = maxScore;
+                if (val < 0) val = 0;
+
+                $(this).val(val);
+            });
+
+            // Reset All
+            $('#resetRecitation').click(function() {
+                $('.recitation-score-input').val(0);
+            });
+
+            // Fill Perfect
+            $('#fillPerfectRecitation').click(function() {
+                const maxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                $('.recitation-score-input').val(maxScore);
+            });
+
+            // Apply & Save
+            $('#applyRecitationScores').click(function() {
+                const quarter = $('#recitationQuarter').val();
+                const sessionMaxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                const subjectId = {{ $selectedSubject->id ?? 'null' }};
+
+                const scoresData = [];
+                $('.recitation-score-input').each(function() {
+                    const studentId = $(this).data('student-id');
+                    const score = parseFloat($(this).val()) || 0;
+                    scoresData.push({
+                        student_id: studentId,
+                        score: score
+                    });
+                });
+
+                console.log('Sending payload:', {
+                    subject_id: subjectId,
+                    quarter: quarter,
+                    session_max_score: sessionMaxScore,
+                    scores: scoresData
+                });
+
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Saving...');
+
+                $.ajax({
+                    url: '{{ route('teacher.oral-participation.appendScores', $class) }}',
+                    method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        subject_id: subjectId,
+                        quarter: quarter,
+                        session_max_score: sessionMaxScore,
+                        scores: scoresData
+                    },
+                    success: function(response) {
+                        alert(
+                            `Success! Added ${sessionMaxScore} points to the total max score.`
+                        );
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        let msg = 'Error saving scores: ' + (xhr.responseJSON?.message ||
+                            'Unknown error');
+                        if (xhr.responseJSON?.errors) {
+                            msg += '\n' + Object.values(xhr.responseJSON.errors).map(e => e
+                                .join('\n')).join('\n');
+                        }
+                        alert(msg);
+                        $btn.prop('disabled', false).html(
+                            '<i class="fas fa-check-circle me-2"></i> Apply & Save');
+                    }
+                });
+            });
+
+            // Initialize Recitation DataTable
+            let recitationTable = $('#recitationTable').DataTable({
+                paging: false,
+                info: false,
+                scrollY: '50vh',
+                scrollCollapse: true,
+                searching: true,
+                ordering: true,
+                columnDefs: [{
+                    orderable: false,
+                    targets: [1]
+                }],
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search student..."
+                }
+            });
         });
     </script>
 @endpush

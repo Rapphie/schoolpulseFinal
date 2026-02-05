@@ -82,6 +82,12 @@ class ClassroomSectionController extends Controller
         // Teacher assignment rule: A teacher can only be an adviser to one section regardless of grade level
         if (!empty($validated['teacher_id'])) {
             $teacherId = $validated['teacher_id'];
+            $gradeLevel = GradeLevel::find($validated['grade_level_id']);
+
+            // Workload check: if a teacher is a block adviser, they have a full load.
+            if ($this->isBlockAdviser($teacherId, $activeSchoolYear->id)) {
+                return back()->with('error', 'This teacher is already a block adviser and has a full load.');
+            }
 
             // Check if this teacher is already assigned as adviser to any section
             $existingAdvisory = Classes::where('teacher_id', $teacherId)
@@ -97,6 +103,17 @@ class ClassroomSectionController extends Controller
                     "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
                         "Teachers can only be an adviser to one section."
                 );
+            }
+
+            // If assigning to a block section (Grades 1-3), check for existing subject loads
+            if ($gradeLevel && in_array($gradeLevel->level, [1, 2, 3])) {
+                $hasSubjects = Schedule::where('teacher_id', $teacherId)
+                    ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                    ->exists();
+
+                if ($hasSubjects) {
+                    return back()->with('error', 'This teacher has existing subject loads and cannot be a block adviser.');
+                }
             }
         }
 
@@ -201,6 +218,12 @@ class ClassroomSectionController extends Controller
 
             if ($newTeacherId && $newTeacherId != $class->teacher_id) {
                 $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+                $gradeLevel = $class->section->gradeLevel;
+
+                // Workload check: if a teacher is a block adviser, they have a full load.
+                if ($this->isBlockAdviser($newTeacherId, $activeSchoolYear->id, $class->id)) {
+                    return back()->with('error', 'This teacher is already a block adviser and has a full load.');
+                }
 
                 // Check if this teacher is already assigned as adviser to any other section
                 $existingAdvisory = Classes::where('teacher_id', $newTeacherId)
@@ -217,6 +240,18 @@ class ClassroomSectionController extends Controller
                         "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
                             "Teachers can only be an adviser to one section."
                     );
+                }
+
+                // If assigning to a block section (Grades 1-3), check for existing subject loads
+                if ($gradeLevel && in_array($gradeLevel->level, [1, 2, 3])) {
+                    $hasSubjects = Schedule::where('teacher_id', $newTeacherId)
+                        ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                        ->where('class_id', '!=', $class->id)
+                        ->exists();
+
+                    if ($hasSubjects) {
+                        return back()->with('error', 'This teacher has existing subject loads and cannot be a block adviser.');
+                    }
                 }
             }
 
@@ -259,16 +294,27 @@ class ClassroomSectionController extends Controller
     /**
      * Manage page for a specific section.
      */
-    public function manageClass(Section $section)
+    public function manageClass(Section $section, Request $request)
     {
         $section->load('gradeLevel');
-        $class = $this->findActiveClass($section, [
+
+        $relations = [
             'teacher.user',
             'schoolYear',
             'enrollments.student.guardian.user',
             'schedules.subject',
             'schedules.teacher.user',
-        ]);
+        ];
+
+        $classId = $request->query('class_id');
+
+        if ($classId) {
+            $class = Classes::where('section_id', $section->id)
+                ->with($relations)
+                ->findOrFail($classId);
+        } else {
+            $class = $this->findActiveClass($section, $relations);
+        }
 
         if (!$class) {
             return redirect()->route('admin.sections.index')
@@ -278,7 +324,26 @@ class ClassroomSectionController extends Controller
         $subjects = Subject::where('grade_level_id', $section->grade_level_id)->orderBy('name')->get();
         $teachers = Teacher::with('user')->orderBy('id')->get();
 
-        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers'));
+        // Section/Class History: get all classes for this section, sorted by school year (desc)
+        $allClasses = Classes::where('section_id', $section->id)
+            ->with(['schoolYear', 'teacher.user', 'schedules', 'enrollments'])
+            ->orderByDesc('school_year_id')
+            ->get();
+
+        $sectionHistory = $allClasses->map(function ($c) {
+            $adviser = $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A';
+            $rooms = $c->schedules->pluck('room')->filter()->unique()->implode(', ');
+            return [
+                'class_id' => $c->id,
+                'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
+                'adviser' => $adviser,
+                'capacity' => $c->capacity,
+                'enrolled' => $c->enrollments->count(),
+                'rooms' => $rooms ?: '—',
+            ];
+        });
+
+        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers', 'sectionHistory'));
     }
 
     /**
@@ -299,6 +364,11 @@ class ClassroomSectionController extends Controller
             $activeSchoolYear = SchoolYear::where('is_active', true)->first();
             $teacherId = $validated['teacher_id'];
 
+            // Teacher availability and workload checks
+            if ($this->isBlockAdviser($teacherId, $activeSchoolYear->id, $class->id)) {
+                return back()->with('error', 'This teacher is already a block adviser and cannot be assigned elsewhere.');
+            }
+
             // Check if this teacher is already assigned as adviser to any other section
             $existingAdvisory = Classes::where('teacher_id', $teacherId)
                 ->where('school_year_id', $activeSchoolYear->id)
@@ -314,6 +384,18 @@ class ClassroomSectionController extends Controller
                     "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
                         "Teachers can only be an adviser to one section."
                 );
+            }
+
+            // If assigning to a block section, ensure teacher has no other subject loads
+            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+                $hasSubjects = Schedule::where('teacher_id', $teacherId)
+                    ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                    ->where('class_id', '!=', $class->id)
+                    ->exists();
+
+                if ($hasSubjects) {
+                    return back()->with('error', 'This teacher has existing subject loads and cannot be a block adviser.');
+                }
             }
 
             $class->update(['teacher_id' => $validated['teacher_id']]);
@@ -426,6 +508,12 @@ class ClassroomSectionController extends Controller
         ]);
         try {
             $validated['class_id'] = $class->id;
+            $activeSchoolYear = $this->getActiveSchoolYear();
+
+            // Workload check: prevent block advisers from being assigned to other subject schedules
+            if ($this->isBlockAdviser($validated['teacher_id'], $activeSchoolYear->id)) {
+                return back()->withInput()->with('error', 'This teacher is a block adviser with a full load and cannot be assigned to other subjects.');
+            }
 
             // Conflict checks: ensure no overlapping schedule for this class or for the assigned teacher
             $days = array_values($validated['day_of_week']);
@@ -619,6 +707,9 @@ class ClassroomSectionController extends Controller
         $activeProfile = null;
         $attendanceSummary = null;
         $gradeSummary = null;
+        $gradesByQuarter = collect();
+        $gradesBySubject = collect();
+        $quarters = collect();
 
         if ($activeSchoolYear) {
             $activeEnrollment = $student->enrollments
@@ -639,6 +730,27 @@ class ClassroomSectionController extends Controller
                 ->where('school_year_id', $activeSchoolYear->id)
                 ->selectRaw('AVG(grade) as avg_grade, COUNT(*) as grade_count')
                 ->first();
+
+            $gradesByQuarter = Grade::query()
+                ->where('student_id', $student->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->join('quarters', 'grades.quarter_id', '=', 'quarters.id')
+                ->select('quarters.name as quarter_name', DB::raw('AVG(grade) as average_grade'))
+                ->groupBy('quarters.name')
+                ->orderBy('quarters.name')
+                ->get()
+                ->keyBy('quarter_name');
+
+            $gradesBySubject = Grade::query()
+                ->where('student_id', $student->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
+                ->select('subjects.name as subject_name', DB::raw('AVG(grade) as average_grade'))
+                ->groupBy('subjects.name')
+                ->orderBy('subjects.name')
+                ->get();
+
+            $quarters = $activeSchoolYear->quarters()->orderBy('start_date')->get();
         }
 
         // Grade level history from profiles (distinct by academic year)
@@ -653,7 +765,10 @@ class ClassroomSectionController extends Controller
             'activeProfile',
             'attendanceSummary',
             'gradeSummary',
-            'gradeHistory'
+            'gradeHistory',
+            'gradesByQuarter',
+            'gradesBySubject',
+            'quarters'
         ));
     }
 
@@ -822,11 +937,38 @@ class ClassroomSectionController extends Controller
     }
 
     /**
+     * Check if a teacher is an adviser of a block section (Grades 1-3).
+     *
+     * @param int $teacherId
+     * @param int $schoolYearId
+     * @param int|null $ignoreClassId
+     * @return bool
+     */
+    private function isBlockAdviser(int $teacherId, int $schoolYearId, ?int $ignoreClassId = null): bool
+    {
+        return Classes::where('teacher_id', $teacherId)
+            ->where('school_year_id', $schoolYearId)
+            ->when($ignoreClassId, function ($query) use ($ignoreClassId) {
+                $query->where('id', '!=', $ignoreClassId);
+            })
+            ->whereHas('section.gradeLevel', function ($query) {
+                $query->whereIn('level', [1, 2, 3]);
+            })
+            ->exists();
+    }
+
+    /**
      * Retrieve the active school year or throw a friendly error.
      */
     private function getActiveSchoolYear(): SchoolYear
     {
-        return SchoolYear::where('is_active', true)->firstOrFail();
+        $active = SchoolYear::getActive();
+
+        if (!$active) {
+            abort(404, 'No school year found. Please create one first in the dashboard.');
+        }
+
+        return $active;
     }
 
     /**
