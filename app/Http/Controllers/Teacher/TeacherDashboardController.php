@@ -245,9 +245,14 @@ class TeacherDashboardController extends Controller
             return redirect()->back()->with('error', 'Unable to load classes: ' . $e->getMessage());
         }
     }
-    public function viewClass(Classes $class)
+    public function viewClass(Classes $class, Request $request)
     {
         try {
+            $classId = $request->query('class_id');
+            if ($classId && (int)$classId !== (int)$class->id) {
+                $class = Classes::findOrFail($classId);
+            }
+
             $class->load([
                 'section.gradeLevel',
                 'teacher.user',
@@ -262,8 +267,25 @@ class TeacherDashboardController extends Controller
 
             $subjects = collect();
             $assignableTeachers = collect();
+            $sectionHistory = collect();
 
             if ($isAdviser) {
+                // Section History for advisers
+                $allClasses = Classes::where('section_id', $class->section_id)
+                    ->with(['schoolYear', 'teacher.user', 'enrollments'])
+                    ->orderByDesc('school_year_id')
+                    ->get();
+
+                $sectionHistory = $allClasses->map(function ($c) {
+                    return [
+                        'class_id' => $c->id,
+                        'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
+                        'adviser' => $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A',
+                        'capacity' => $c->capacity,
+                        'enrolled' => $c->enrollments->count(),
+                    ];
+                });
+
                 $gradeLevelId = optional($class->section)->grade_level_id;
 
                 if ($gradeLevelId) {
@@ -283,13 +305,15 @@ class TeacherDashboardController extends Controller
                     ->values();
             }
 
-            return view('teacher.classes.view', compact(
-                'class',
-                'teacher',
-                'isAdviser',
-                'subjects',
-                'assignableTeachers'
-            ));
+            return view('teacher.classes.view', [
+                'class' => $class,
+                'section' => $class->section,
+                'teacher' => $teacher,
+                'isAdviser' => $isAdviser,
+                'subjects' => $subjects,
+                'assignableTeachers' => $assignableTeachers,
+                'sectionHistory' => $sectionHistory
+            ]);
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@viewClass error: ' . $e->getMessage(), ['exception' => $e]);
             return redirect()->back()->with('error', 'Unable to load class view: ' . $e->getMessage());
@@ -745,7 +769,14 @@ class TeacherDashboardController extends Controller
             // Get unique sections (classes) from the schedules
             $sections = $schedules->pluck('class')->unique('id');
 
-            return view('teacher.attendance.take', compact('sections', 'teacherId', 'activeQuarter'));
+            // Check if teacher is an adviser for grade level 1-6
+            $isElementaryAdviser = $teacher->advisoryClasses()
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->whereHas('section.gradeLevel', function ($query) {
+                    $query->whereBetween('level', [1, 6]);
+                })->exists();
+
+            return view('teacher.attendance.take', compact('sections', 'teacherId', 'activeQuarter', 'isElementaryAdviser'));
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@takeAttendance error: ' . $e->getMessage(), ['exception' => $e]);
             return redirect()->back()->with('error', 'Unable to load attendance page: ' . $e->getMessage());
@@ -756,15 +787,23 @@ class TeacherDashboardController extends Controller
     {
         try {
             $userId = Auth::id();
-            $teacherId = Teacher::where('user_id', $userId)->value('id');
+            $teacher = Teacher::where('user_id', $userId)->firstOrFail();
+            $teacherId = $teacher->id;
+            $activeSchoolYear = SchoolYear::active()->first();
+
+            if (!$activeSchoolYear) {
+                return redirect()->back()->with('error', 'No active school year found.');
+            }
 
             // Fetch individual attendance records
             // Join student_profiles so we can resolve student identity when attendance rows reference a profile
             $attendanceRecords = Attendance::where('attendances.teacher_id', $teacherId)
+                ->where('attendances.school_year_id', $activeSchoolYear->id)
                 ->leftJoin('student_profiles', 'attendances.student_profile_id', '=', 'student_profiles.id')
                 ->join('students', DB::raw('COALESCE(attendances.student_id, student_profiles.student_id)'), '=', 'students.id')
                 ->join('classes', 'attendances.class_id', '=', 'classes.id')
                 ->join('sections', 'classes.section_id', '=', 'sections.id')
+                ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
                 ->join('subjects', 'attendances.subject_id', '=', 'subjects.id')
                 ->select(
                     'attendances.id',
@@ -773,6 +812,7 @@ class TeacherDashboardController extends Controller
                     'students.first_name',
                     'students.last_name',
                     'sections.name as section_name',
+                    'grade_levels.name as grade_level_name',
                     'subjects.name as subject_name',
                     'attendances.class_id'
                 )
@@ -780,9 +820,17 @@ class TeacherDashboardController extends Controller
                 ->orderBy('students.last_name', 'asc')
                 ->get();
 
-            // Get all subjects and sections for the filter dropdowns
-            $subjects = Subject::all();
-            $sections = Section::all();
+            // Get relevant Grade Levels, Sections, and Subjects for the teacher
+            $teacherSchedules = Schedule::where('teacher_id', $teacherId)
+                ->whereHas('class', function ($q) use ($activeSchoolYear) {
+                    $q->where('school_year_id', $activeSchoolYear->id);
+                })
+                ->with(['class.section.gradeLevel', 'subject'])
+                ->get();
+
+            $gradeLevels = $teacherSchedules->pluck('class.section.gradeLevel')->filter()->unique('id')->values();
+            $sections = $teacherSchedules->pluck('class.section')->filter()->unique('id')->values();
+            $subjects = $teacherSchedules->pluck('subject')->filter()->unique('id')->values();
 
             // Get the classes assigned to the logged-in teacher for the summary modal
             $teacherClasses = Classes::where('teacher_id', $teacherId)
@@ -790,6 +838,7 @@ class TeacherDashboardController extends Controller
                 ->get();
 
             return view('teacher.attendance.records', compact(
+                'gradeLevels',
                 'subjects',
                 'sections',
                 'attendanceRecords',
@@ -826,6 +875,7 @@ class TeacherDashboardController extends Controller
             $deletedCount = Attendance::where('attendances.date', $date)
                 ->where('attendances.subject_id', $subjectId)
                 ->where('attendances.teacher_id', $teacherId)
+                ->where('attendances.school_year_id', $recordToDelete->school_year_id)
                 ->where(function ($q) use ($studentIds, $profileIds) {
                     $q->whereIn('attendances.student_id', $studentIds);
                     if (!empty($profileIds)) {
@@ -850,13 +900,20 @@ class TeacherDashboardController extends Controller
         try {
             $request->validate([
                 'section_id' => 'required',
-                'subject_id' => 'required|exists:subjects,id',
+                'subject_id' => 'required', // Removed exists:subjects,id because 'all' is possible
                 'date' => 'required|date',
             ]);
 
-            $section = Classes::with('sections')->findOrFail($request->section_id);
-            $subject = Subject::findOrFail($request->subject_id);
-            $date = $request->date;
+            $isAllDay = $request->input('subject_id') === 'all';
+
+            $section = Classes::with('sections')->findOrFail($request->input('section_id'));
+
+            $subject = null;
+            if (!$isAllDay) {
+                $subject = Subject::findOrFail($request->input('subject_id'));
+            }
+
+            $date = $request->input('date');
 
             $activeSchoolYear = SchoolYear::active()->first();
 
@@ -870,10 +927,13 @@ class TeacherDashboardController extends Controller
                 ->firstOrFail();
 
             // Get schedule for this class and subject if available
-            $schedule = Schedule::where([
-                'class_id' => $class->id,
-                'subject_id' => $subject->id,
-            ])->first();
+            $schedule = null;
+            if (!$isAllDay && $subject) {
+                $schedule = Schedule::where([
+                    'class_id' => $class->id,
+                    'subject_id' => $subject->id,
+                ])->first();
+            }
 
             // Get all students enrolled in this class
             $students = Student::whereIn('id', function ($query) use ($class) {
@@ -893,9 +953,12 @@ class TeacherDashboardController extends Controller
 
             // Get existing attendance records for this section, subject and date (profile-aware)
             $existingAttendanceQuery = Attendance::where([
-                'subject_id' => $subject->id,
                 'date' => $date,
             ]);
+
+            if (!$isAllDay && $subject) {
+                $existingAttendanceQuery->where('subject_id', $subject->id);
+            }
 
             $existingAttendanceQuery->where(function ($q) use ($studentIds, $profileIds) {
                 $q->whereIn('student_id', $studentIds);
@@ -906,28 +969,23 @@ class TeacherDashboardController extends Controller
 
             $existingAttendanceRows = $existingAttendanceQuery->get();
 
-            // Key attendance by resolved student id
-            $existingAttendance = [];
+            // Key attendance by resolved student id (values as arrays with status and remarks)
+            $attendance = [];
             foreach ($existingAttendanceRows as $att) {
                 $resolvedStudentId = $att->student_id;
                 if (!$resolvedStudentId && $att->student_profile_id) {
                     $resolvedStudentId = \App\Models\StudentProfile::find($att->student_profile_id)?->student_id;
                 }
                 if ($resolvedStudentId) {
-                    $existingAttendance[$resolvedStudentId] = [
-                        'status' => $att->status,
-                        'remarks' => $att->remarks,
-                    ];
+                    // If all day, we might have multiple subjects. Just take the first one found or handle differently.
+                    // For now, if all day, we just want to know if they were already marked at least once.
+                    if (!isset($attendance[$resolvedStudentId])) {
+                        $attendance[$resolvedStudentId] = [
+                            'status' => $att->status,
+                            'remarks' => $att->remarks,
+                        ];
+                    }
                 }
-            }
-
-            // Format attendance data
-            $attendance = [];
-            foreach ($existingAttendance as $item) {
-                $attendance[$item->student_id] = [
-                    'status' => $item->status,
-                    'remarks' => $item->remarks
-                ];
             }
 
             // Format student data with attendance information
@@ -943,7 +1001,7 @@ class TeacherDashboardController extends Controller
 
             return response()->json([
                 'section' => $section,
-                'subject' => $subject,
+                'subject' => $isAllDay ? ['name' => 'All Scheduled Subjects', 'code' => 'MULTIPLE'] : $subject,
                 'schedule' => $schedule,
                 'students' => $formattedStudents
             ]);
@@ -967,8 +1025,9 @@ class TeacherDashboardController extends Controller
             ]);
 
             // Find student by bar code
-            $student = Student::where('bar_code', $request->bar_code)
-                ->orWhere('lrn', $request->bar_code)
+            $barCode = $request->input('bar_code');
+            $student = Student::where('bar_code', $barCode)
+                ->orWhere('lrn', $barCode)
                 ->first();
 
             if (!$student) {
@@ -979,7 +1038,7 @@ class TeacherDashboardController extends Controller
             }
 
             // Verify student belongs to the selected section
-            if ($student->section_id != $request->section_id) {
+            if ($student->section_id != $request->input('section_id')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Student is not in the selected section'
@@ -1024,54 +1083,85 @@ class TeacherDashboardController extends Controller
     public function saveAttendance(Request $request)
     {
         try {
-            $request->validate([
+            $validated = $request->validate([
                 'section_id' => 'required',
-                'subject_id' => 'required|exists:subjects,id',
+                'subject_id' => 'required', // Removed exists:subjects,id
                 'date' => 'required|date',
                 'quarter' => 'required|string', // Accept string (e.g., '1st Quarter')
                 'status' => 'required|array',
                 'remarks' => 'nullable|array',
             ]);
             $userId = Auth::id();
-            $teacherId = Teacher::where('user_id', $userId)->value('id');
+            $teacher = Teacher::where('user_id', $userId)->firstOrFail();
+            $teacherId = $teacher->id;
+
+            $isAllDay = $request->input('subject_id') === 'all';
+            $activeSchoolYear = SchoolYear::active()->first();
+
+            if (!$activeSchoolYear) {
+                return response()->json(['message' => 'No active school year found.'], 400);
+            }
+
+            // Get subjects to apply attendance to
+            $subjectIds = [];
+            if ($isAllDay) {
+                $dayOfWeek = strtolower(Carbon::parse($request->input('date'))->format('l'));
+                $subjectIds = Schedule::where('class_id', $request->input('section_id'))
+                    ->whereJsonContains('day_of_week', $dayOfWeek)
+                    ->pluck('subject_id')
+                    ->unique()
+                    ->toArray();
+
+                if (empty($subjectIds)) {
+                    // Fallback: get all subjects for this class if no schedule found for today
+                    $subjectIds = Schedule::where('class_id', $request->input('section_id'))
+                        ->pluck('subject_id')
+                        ->unique()
+                        ->toArray();
+                }
+            } else {
+                $subjectIds = [$request->input('subject_id')];
+            }
+
+            if (empty($subjectIds)) {
+                return response()->json(['message' => 'No subjects found for this section.'], 400);
+            }
 
             // Process each student's attendance
-            foreach ($request->status as $studentId => $status) {
-                // Validate student ID
+            $statusArray = $request->input('status', []);
+            $remarksArray = $request->input('remarks', []);
+
+            foreach ($statusArray as $studentId => $status) {
                 if (!is_numeric($studentId)) {
                     continue; // Skip if not a valid student ID
                 }
 
-                $remarks = $request->remarks[$studentId] ?? null;
+                $remarks = $remarksArray[$studentId] ?? null;
 
-                $activeSchoolYear = SchoolYear::active()->first();
-
-                if (!$activeSchoolYear) {
-                    return response()->json(['message' => 'No active school year found.'], 400);
+                foreach ($subjectIds as $subjectId) {
+                    Attendance::updateOrCreate(
+                        [
+                            'student_id' => $studentId,
+                            'subject_id' => $subjectId,
+                            'class_id' => $request->input('section_id'),
+                            'date' => $request->input('date'),
+                            'quarter' => $request->input('quarter'),
+                            'school_year_id' => $activeSchoolYear->id,
+                        ],
+                        [
+                            'status' => $status,
+                            'remarks' => $remarks,
+                            'teacher_id' => $teacherId,
+                        ]
+                    );
                 }
-
-                Attendance::updateOrCreate(
-                    [
-                        'student_id' => $studentId,
-                        'subject_id' => $request->subject_id,
-                        'class_id' => $request->section_id,
-                        'date' => $request->date,
-                        'quarter' => $request->quarter,
-                        'school_year_id' => $activeSchoolYear->id,
-                    ],
-                    [
-                        'status' => $status,
-                        'remarks' => $remarks,
-                        'teacher_id' => $teacherId,
-                    ]
-                );
 
                 $this->checkAbsences($studentId, $teacherId);
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Attendance saved successfully'
+                'message' => 'Attendance saved successfully for ' . (count($subjectIds)) . ' subjects.'
             ]);
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@saveAttendance error: ' . $e->getMessage(), ['exception' => $e]);
@@ -1143,7 +1233,7 @@ class TeacherDashboardController extends Controller
             ]);
 
             // Filter sections by the grade_level value (not ID)
-            $sections = Section::where('grade_level', $request->grade_level)
+            $sections = Section::where('grade_level', $request->input('grade_level'))
                 ->orderBy('name')
                 ->get();
 
@@ -1179,7 +1269,7 @@ class TeacherDashboardController extends Controller
         try {
             // Validate the incoming request
             $request->validate([
-                'status' => ['required', \Illuminate\Validation\Rule::in(['present', 'late', 'absent', 'excused'])],
+                'status' => ['required', Rule::in(['present', 'late', 'absent', 'excused'])],
             ]);
 
             // Find the attendance record
@@ -1250,6 +1340,96 @@ class TeacherDashboardController extends Controller
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@getStudentsBySection error: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['success' => false, 'message' => 'Unable to retrieve students: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getAttendanceSummary(Request $request)
+    {
+        try {
+            $activeSchoolYear = SchoolYear::active()->first();
+            if (!$activeSchoolYear) {
+                return response()->json(['success' => false, 'message' => 'No active school year found.'], 400);
+            }
+
+            $classId = $request->input('class_id');
+            $subjectId = $request->input('subject_id');
+            $dateFrom = $request->input('date_from');
+            $dateTo = $request->input('date_to');
+
+            $attendanceQuery = Attendance::where('class_id', $classId)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->whereBetween('date', [$dateFrom, $dateTo]);
+
+            if ($subjectId !== 'all') {
+                $attendanceQuery->where('subject_id', $subjectId);
+            }
+
+            $stats = [
+                'present_count' => (clone $attendanceQuery)->where('status', 'present')->count(),
+                'late_count' => (clone $attendanceQuery)->where('status', 'late')->count(),
+                'absent_count' => (clone $attendanceQuery)->where('status', 'absent')->count(),
+                'excused_count' => (clone $attendanceQuery)->where('status', 'excused')->count(),
+            ];
+
+            // Get student details
+            $students = Student::whereIn('id', function ($query) use ($classId) {
+                $query->select('student_id')
+                    ->from('enrollments')
+                    ->where('class_id', $classId);
+            })->get();
+
+            $studentDetails = [];
+            foreach ($students as $student) {
+                $studentAttendanceQuery = Attendance::where('student_id', $student->id)
+                    ->where('class_id', $classId)
+                    ->where('school_year_id', $activeSchoolYear->id)
+                    ->whereBetween('date', [$dateFrom, $dateTo]);
+
+                if ($subjectId !== 'all') {
+                    $studentAttendanceQuery->where('subject_id', $subjectId);
+                }
+
+                $studentAttendance = $studentAttendanceQuery->get();
+
+                $absentCount = $studentAttendance->where('status', 'absent')->count();
+
+                $studentDetails[] = [
+                    'first_name' => $student->first_name,
+                    'last_name' => $student->last_name,
+                    'present_count' => $studentAttendance->where('status', 'present')->count(),
+                    'late_count' => $studentAttendance->where('status', 'late')->count(),
+                    'absent_count' => $absentCount,
+                    'is_at_risk' => $absentCount >= 3, // At risk if 3 or more absences in the period
+                ];
+            }
+
+            // Get trend data (attendance counts per day)
+            $trendDataQuery = Attendance::where('class_id', $classId)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->whereBetween('date', [$dateFrom, $dateTo]);
+
+            if ($subjectId !== 'all') {
+                $trendDataQuery->where('subject_id', $subjectId);
+            }
+
+            $trendData = $trendDataQuery->select(
+                'date',
+                DB::raw('count(*) as total'),
+                DB::raw("SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present"),
+                DB::raw("SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent")
+            )
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get();
+
+            return response()->json([
+                'stats' => $stats,
+                'student_details' => $studentDetails,
+                'trend_data' => $trendData
+            ]);
+        } catch (Throwable $e) {
+            Log::error('TeacherDashboardController@getAttendanceSummary error: ' . $e->getMessage(), ['exception' => $e]);
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve summary: ' . $e->getMessage()], 500);
         }
     }
 }

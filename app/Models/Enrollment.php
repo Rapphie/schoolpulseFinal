@@ -10,6 +10,7 @@ class Enrollment extends Model
         'student_id',
         'class_id',
         'school_year_id',
+        'teacher_id',
         'student_profile_id',
         'enrollment_date',
         'status',

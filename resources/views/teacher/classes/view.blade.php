@@ -23,6 +23,14 @@
                     {{ $class->section->name }}</h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
+            @if ($isAdviser)
+                <div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#sectionHistoryModal">
+                        <i data-feather="history" class="icon-sm me-1"></i> History
+                    </button>
+                </div>
+            @endif
         </div>
 
         <div class="row">
@@ -88,9 +96,7 @@
                                     <th>Name</th>
                                     <th>Gender</th>
                                     <th>Guardian</th>
-                                    @if ($isAdviser)
-                                        <th class="text-center">Actions</th>
-                                    @endif
+                                    <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -102,20 +108,20 @@
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
                                         <td>{{ $enrollment->student->guardian->user->first_name ?? 'N/A' }}
                                             {{ $enrollment->student->guardian->user->last_name ?? '' }}</td>
-                                        @if ($isAdviser)
-                                            <td class="text-center">
-                                                <div class="btn-group" role="group">
-                                                    <a href="{{ route('teacher.students.show', $enrollment->student) }}"
-                                                        class="btn btn-sm btn-outline-secondary">
-                                                        View
-                                                    </a>
+                                        <td class="text-center">
+                                            <div class="btn-group" role="group">
+                                                <a href="{{ route('teacher.students.show', $enrollment->student) }}"
+                                                    class="btn btn-sm btn-outline-secondary">
+                                                    View
+                                                </a>
+                                                @if ($isAdviser && $class->schoolYear->is_active)
                                                     <a href="{{ route('teacher.students.edit', $enrollment->student) }}"
                                                         class="btn btn-sm btn-outline-primary">
                                                         Edit
                                                     </a>
-                                                </div>
-                                            </td>
-                                        @endif
+                                                @endif
+                                            </div>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -197,42 +203,52 @@
                                             <td class="align-middle text-center">
                                                 <div class="d-flex justify-content-center gap-2 align-items-center">
                                                     @if ($schedule)
-                                                        <button class="btn btn-sm btn-outline-secondary edit-schedule-btn"
-                                                            data-bs-toggle="modal" data-bs-target="#manageScheduleModal"
-                                                            data-subject-id="{{ $subject->id }}"
-                                                            data-subject-name="{{ $subject->name }}"
-                                                            data-schedule-id="{{ $schedule->id }}"
-                                                            data-days="{{ $dayNames ? implode(',', $dayNames) : '' }}"
-                                                            data-start-time="{{ $schedule?->start_time?->format('H:i') }}"
-                                                            data-end-time="{{ $schedule?->end_time?->format('H:i') }}"
-                                                            data-teacher-id="{{ $schedule?->teacher_id ?? '' }}"
-                                                            data-room="{{ $schedule?->room ?? '' }}"
-                                                            data-is-lower-grade="{{ $isLowerGrade ? 'true' : 'false' }}">
-                                                            Edit
-                                                        </button>
-
-                                                        @if (!$isLowerGrade)
-                                                            <form
-                                                                action="{{ route('teacher.classes.schedule.destroy', ['class' => $class, 'schedule' => $schedule->id]) }}"
-                                                                method="POST" class="m-0"
-                                                                onsubmit="return confirm('This action cannot be undone. Confirm to delete Schedule?');">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button
-                                                                    class="btn btn-sm btn-outline-danger">Remove</button>
-                                                            </form>
-                                                        @endif
-                                                    @else
-                                                        @if (!$isLowerGrade)
-                                                            <button class="btn btn-sm btn-primary assign-schedule-btn"
+                                                        @if ($class->schoolYear->is_active)
+                                                            <button
+                                                                class="btn btn-sm btn-outline-secondary edit-schedule-btn"
                                                                 data-bs-toggle="modal" data-bs-target="#manageScheduleModal"
                                                                 data-subject-id="{{ $subject->id }}"
-                                                                data-subject-name="{{ $subject->name }}">
-                                                                Assign Schedule
+                                                                data-subject-name="{{ $subject->name }}"
+                                                                data-schedule-id="{{ $schedule->id }}"
+                                                                data-days="{{ $dayNames ? implode(',', $dayNames) : '' }}"
+                                                                data-start-time="{{ $schedule?->start_time?->format('H:i') }}"
+                                                                data-end-time="{{ $schedule?->end_time?->format('H:i') }}"
+                                                                data-teacher-id="{{ $schedule?->teacher_id ?? '' }}"
+                                                                data-room="{{ $schedule?->room ?? '' }}"
+                                                                data-is-lower-grade="{{ $isLowerGrade ? 'true' : 'false' }}">
+                                                                Edit
                                                             </button>
+
+                                                            @if (!$isLowerGrade)
+                                                                <form
+                                                                    action="{{ route('teacher.classes.schedule.destroy', ['class' => $class, 'schedule' => $schedule->id]) }}"
+                                                                    method="POST" class="m-0"
+                                                                    onsubmit="return confirm('This action cannot be undone. Confirm to delete Schedule?');">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button
+                                                                        class="btn btn-sm btn-outline-danger">Remove</button>
+                                                                </form>
+                                                            @endif
                                                         @else
-                                                            <span class="text-muted"><em>Auto-assigned to
-                                                                    adviser</em></span>
+                                                            <span class="text-muted">Locked</span>
+                                                        @endif
+                                                    @else
+                                                        @if ($class->schoolYear->is_active)
+                                                            @if (!$isLowerGrade)
+                                                                <button class="btn btn-sm btn-primary assign-schedule-btn"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#manageScheduleModal"
+                                                                    data-subject-id="{{ $subject->id }}"
+                                                                    data-subject-name="{{ $subject->name }}">
+                                                                    Assign Schedule
+                                                                </button>
+                                                            @else
+                                                                <span class="text-muted"><em>Auto-assigned to
+                                                                        adviser</em></span>
+                                                            @endif
+                                                        @else
+                                                            <span class="text-muted">No Schedule</span>
                                                         @endif
                                                     @endif
                                                 </div>
@@ -289,7 +305,8 @@
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="manageScheduleModalLabel">Assign Schedule</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
                         </div>
                         <form id="manageScheduleForm" action="{{ route('teacher.classes.schedule.store', $class) }}"
                             method="POST">
@@ -544,6 +561,39 @@
             </div>
         </div>
     </div>
+
+    @if ($isAdviser)
+        <!-- Section History Modal -->
+        <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="sectionHistoryModalLabel">Section History</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
+                                <thead>
+                                    <tr>
+                                        <th>School Year</th>
+                                        <th>Adviser</th>
+                                        <th>Enrolled</th>
+                                        <th>Capacity</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Data populated by DataTables -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @if ($isAdviser)
@@ -736,6 +786,53 @@
 @endpush
 
 @push('scripts')
+    @if ($isAdviser)
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const sectionHistory = @json($sectionHistory ?? []);
+                const table = $('#sectionHistoryTable').DataTable({
+                    data: sectionHistory,
+                    columns: [{
+                            data: 'school_year',
+                            title: 'School Year'
+                        },
+                        {
+                            data: 'adviser',
+                            title: 'Adviser'
+                        },
+                        {
+                            data: 'enrolled',
+                            title: 'Enrolled'
+                        },
+                        {
+                            data: 'capacity',
+                            title: 'Capacity'
+                        },
+                        {
+                            data: null,
+                            orderable: false,
+                            searchable: false,
+                            render: function(data, type, row) {
+                                if (!row.class_id) return '';
+                                const url =
+                                    `{{ route('teacher.classes.view', $class) }}?class_id=${row.class_id}`;
+                                return `<a href="${url}" class="btn btn-sm btn-outline-primary">View</a>`;
+                            }
+                        }
+                    ],
+                    order: [
+                        [0, 'desc']
+                    ],
+                    responsive: true,
+                    destroy: true
+                });
+
+                $('#sectionHistoryModal').on('shown.bs.modal', function() {
+                    table.columns.adjust().draw();
+                });
+            });
+        </script>
+    @endif
     @if ($errors->any() || session('error'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {

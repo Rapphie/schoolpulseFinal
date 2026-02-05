@@ -11,13 +11,28 @@
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-                <h4 class="mb-1">Student Enrollment</h4>
-                <small class="text-muted">
-                    {{ $currentSchoolYear->name ?? 'Current School Year' }}
-                    @if (isset($currentSchoolYear) && $currentSchoolYear->is_enrollment_open)
-                        <span class="badge bg-success ms-1">Open</span>
+                <div class="d-flex align-items-center gap-2">
+                    <h4 class="mb-0">Student Enrollment</h4>
+                    @if (isset($allSchoolYears))
+                        <form action="{{ route('teacher.enrollment.index') }}" method="GET">
+                            <select name="school_year_id" class="form-select form-select-sm"
+                                style="width: auto; font-weight: bold;" onchange="this.form.submit()">
+                                @foreach ($allSchoolYears as $sy)
+                                    <option value="{{ $sy->id }}"
+                                        {{ isset($currentSchoolYear) && $currentSchoolYear->id == $sy->id ? 'selected' : '' }}>
+                                        {{ $sy->name }}
+                                        {{ isset($activeSchoolYearId) && $sy->id == $activeSchoolYearId ? '(Active)' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </form>
+                    @else
+                        <h5 class="text-muted mb-0">{{ $currentSchoolYear->name ?? 'Current School Year' }}</h5>
                     @endif
-                </small>
+                </div>
+                @if (isset($currentSchoolYear) && $currentSchoolYear->is_enrollment_open)
+                    <small class="text-success"><i class="fas fa-check-circle"></i> Enrollment Open</small>
+                @endif
             </div>
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
@@ -33,28 +48,119 @@
         <!-- Quick Stats -->
         <div class="row mb-3 g-2">
             <div class="col-md-3 col-6">
-                <div class="quick-stat pending">
+                <div class="quick-stat pending h-100">
                     <div class="stat-value">{{ $students->count() }}</div>
                     <div class="stat-label">Not Yet Enrolled</div>
+                    <div class="mt-2 border-top pt-2" style="max-height: 100px; overflow-y: auto;">
+                        @php
+                            $studentsByGrade = $students
+                                ->groupBy(function ($s) {
+                                    return $s->profiles->sortByDesc('school_year_id')->first()?->grade_level_id ?? 0;
+                                })
+                                ->map(function ($gs) {
+                                    $profile = $gs->first()->profiles->sortByDesc('school_year_id')->first();
+                                    return [
+                                        'name' => $profile?->gradeLevel?->name ?? 'N/A',
+                                        'count' => $gs->count(),
+                                        'level' => $profile?->gradeLevel?->level ?? 0,
+                                    ];
+                                })
+                                ->sortBy('level');
+                        @endphp
+                        @foreach ($studentsByGrade as $grade)
+                            <div class="d-flex justify-content-between px-1 small text-muted">
+                                <span style="font-size: 0.7rem;">{{ $grade['name'] }}</span>
+                                <span style="font-size: 0.7rem;" class="fw-bold">{{ $grade['count'] }}</span>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
             <div class="col-md-3 col-6">
-                <div class="quick-stat classes">
+                <div class="quick-stat classes h-100">
                     <div class="stat-value">
                         {{ $classes->filter(fn($c) => $c->enrollments->count() < $c->capacity)->count() }}</div>
-                    <div class="stat-label">Classes</div>
+                    <div class="stat-label">Classes w/ Slots</div>
+                    <div class="mt-2 border-top pt-2" style="max-height: 100px; overflow-y: auto;">
+                        @php
+                            $classesByGrade = $classes
+                                ->groupBy(fn($c) => $c->section->gradeLevel->id)
+                                ->map(
+                                    fn($gc) => [
+                                        'name' => $gc->first()->section->gradeLevel->name,
+                                        'count' => $gc
+                                            ->filter(fn($c) => $c->enrollments->count() < $c->capacity)
+                                            ->count(),
+                                        'level' => $gc->first()->section->gradeLevel->level,
+                                    ],
+                                )
+                                ->sortBy('level');
+                        @endphp
+                        @foreach ($classesByGrade as $grade)
+                            @if ($grade['count'] > 0)
+                                <div class="d-flex justify-content-between px-1 small text-muted">
+                                    <span style="font-size: 0.7rem;">{{ $grade['name'] }}</span>
+                                    <span style="font-size: 0.7rem;" class="fw-bold">{{ $grade['count'] }}</span>
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
                 </div>
             </div>
             <div class="col-md-3 col-6">
-                <div class="quick-stat enrolled">
+                <div class="quick-stat enrolled h-100">
                     <div class="stat-value">{{ $teacherEnrollments->flatten()->count() }}</div>
-                    <div class="stat-label">Enrolled</div>
+                    <div class="stat-label">My Enrollments</div>
+                    <div class="mt-2 border-top pt-2" style="max-height: 100px; overflow-y: auto;">
+                        @php
+                            $myEnrollmentsByGrade = $teacherEnrollments
+                                ->flatten()
+                                ->groupBy(fn($e) => $e->class->section->gradeLevel->id)
+                                ->map(
+                                    fn($ge) => [
+                                        'name' => $ge->first()->class->section->gradeLevel->name,
+                                        'count' => $ge->count(),
+                                        'level' => $ge->first()->class->section->gradeLevel->level,
+                                    ],
+                                )
+                                ->sortBy('level');
+                        @endphp
+                        @foreach ($myEnrollmentsByGrade as $grade)
+                            <div class="d-flex justify-content-between px-1 small text-muted">
+                                <span style="font-size: 0.7rem;">{{ $grade['name'] }}</span>
+                                <span style="font-size: 0.7rem;" class="fw-bold">{{ $grade['count'] }}</span>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
             <div class="col-md-3 col-6">
-                <div class="quick-stat slots">
-                    <div class="stat-value">{{ $classes->sum(fn($c) => $c->capacity - $c->enrollments->count()) }}</div>
-                    <div class="stat-label">Slots</div>
+                <div class="quick-stat slots h-100">
+                    <div class="stat-value">{{ $classes->sum(fn($c) => max(0, $c->capacity - $c->enrollments->count())) }}
+                    </div>
+                    <div class="stat-label">Available Slots</div>
+                    <div class="mt-2 border-top pt-2" style="max-height: 100px; overflow-y: auto;">
+                        @php
+                            $slotsByGrade = $classes
+                                ->groupBy(fn($c) => $c->section->gradeLevel->id)
+                                ->map(
+                                    fn($gc) => [
+                                        'name' => $gc->first()->section->gradeLevel->name,
+                                        'slots' => $gc->sum(fn($c) => max(0, $c->capacity - $c->enrollments->count())),
+                                        'level' => $gc->first()->section->gradeLevel->level,
+                                    ],
+                                )
+                                ->sortBy('level');
+                        @endphp
+                        @foreach ($slotsByGrade as $grade)
+                            @if ($grade['slots'] > 0)
+                                <div class="d-flex justify-content-between px-1 small text-muted">
+                                    <span style="font-size: 0.7rem;">{{ $grade['name'] }}</span>
+                                    <span style="font-size: 0.7rem;" class="fw-bold">{{ $grade['slots'] }}</span>
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
                 </div>
             </div>
         </div>
@@ -393,17 +499,26 @@
                                             <option value="">All Grade Levels</option>
                                             @php
                                                 // Filter for students with 'pending' status profile in the ACTIVE school year
-                                                $activeSchoolYearIdForFilter = $currentSchoolYear ? $currentSchoolYear->id : null;
+                                                $activeSchoolYearIdForFilter = $currentSchoolYear
+                                                    ? $currentSchoolYear->id
+                                                    : null;
                                                 $pendingStudentGradeLevels = $students
                                                     ->filter(function ($s) use ($activeSchoolYearIdForFilter) {
                                                         $activeYearProfile = $activeSchoolYearIdForFilter
-                                                            ? $s->profiles->firstWhere('school_year_id', $activeSchoolYearIdForFilter)
+                                                            ? $s->profiles->firstWhere(
+                                                                'school_year_id',
+                                                                $activeSchoolYearIdForFilter,
+                                                            )
                                                             : null;
-                                                        return $activeYearProfile && $activeYearProfile->status === 'pending';
+                                                        return $activeYearProfile &&
+                                                            $activeYearProfile->status === 'pending';
                                                     })
                                                     ->map(function ($s) use ($activeSchoolYearIdForFilter) {
                                                         $activeYearProfile = $activeSchoolYearIdForFilter
-                                                            ? $s->profiles->firstWhere('school_year_id', $activeSchoolYearIdForFilter)
+                                                            ? $s->profiles->firstWhere(
+                                                                'school_year_id',
+                                                                $activeSchoolYearIdForFilter,
+                                                            )
                                                             : null;
                                                         return $activeYearProfile?->gradeLevel;
                                                     })
@@ -2238,23 +2353,24 @@
             students.forEach(s => {
                 // Check if this student is in the multi-select array
                 const selected = state.selectedStudentIds.includes(s.id) ? 'selected' : '';
-                const statusBadge = s.status && s.status !== 'active' ?
-                    `<span class="badge bg-${s.status === 'promoted' ? 'success' : 'warning'} ms-1">${s.status.charAt(0).toUpperCase() + s.status.slice(1)}</span>` :
-                    '';
-                const nextGrade = s.next_grade_level_name ? `→ ${s.next_grade_level_name}` : '';
 
-                // Show 'Previously Enrolled' badge if student has enrollment history
-                const enrolledBadge = s.enrollment_history && s.enrollment_history.length > 0 ?
-                    `<span class="badge bg-info ms-1">Previously Enrolled</span>` : '';
+                // Use last enrollment to show which school year they were last enrolled
+                const lastEnrollment = s.enrollment_history && s.enrollment_history.length > 0 ? s
+                    .enrollment_history[0] : null;
+                const statusBadge = lastEnrollment ?
+                    `<span class="badge bg-secondary ms-1">Enrolled S.Y. ${lastEnrollment.school_year}</span>` :
+                    '';
+
+                const nextGrade = s.next_grade_level_name ? `→ ${s.next_grade_level_name}` : '';
 
                 html += `
                         <div class="student-result-card ${selected}" data-student-id="${s.id}"
                             data-name="${s.first_name} ${s.last_name}" data-lrn="${s.lrn || ''}"
                             data-next-grade-level-id="${s.next_grade_level_id || ''}">
                             <div class="flex-grow-1">
-                                <div class="fw-semibold">${s.first_name} ${s.last_name}${enrolledBadge}</div>
+                                <div class="fw-semibold">${s.first_name} ${s.last_name}${statusBadge}</div>
                                 <div class="small text-muted">
-                                    LRN: ${s.lrn || 'N/A'} • Last: ${s.last_grade} ${nextGrade}${statusBadge}
+                                    LRN: ${s.lrn || 'N/A'} • Last Grade: ${s.last_grade} ${nextGrade}
                                 </div>
                             </div>
                         </div>

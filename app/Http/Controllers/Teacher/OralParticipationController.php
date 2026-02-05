@@ -107,11 +107,16 @@ class OralParticipationController extends Controller
         // Get all students enrolled in this class
         $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get();
 
-        // Get Performance Task 1 assessments (used for Oral Participation) for all quarters
-        $oralParticipationAssessments = $this->getOralParticipationAssessments($class, $selectedSubject);
+        // Get all Oral Participation assessments for all quarters
+        $allOralAssessments = Assessment::where('class_id', $class->id)
+            ->where('subject_id', $selectedSubject->id)
+            ->where('type', 'oral_participation')
+            ->orderBy('assessment_date', 'desc')
+            ->get()
+            ->groupBy('quarter');
 
-        // Organize data by student and quarter
-        $studentsData = $students->map(function ($student) use ($oralParticipationAssessments) {
+        // Organize data by student and quarter (for the summary table)
+        $studentsData = $students->map(function ($student) use ($allOralAssessments) {
             $studentData = [
                 'student' => $student,
                 'quarters' => []
@@ -119,32 +124,38 @@ class OralParticipationController extends Controller
 
             // Process each quarter (1-4)
             for ($quarter = 1; $quarter <= 4; $quarter++) {
-                $assessment = $oralParticipationAssessments->get($quarter);
-                $score = null;
-                $maxScore = 10; // Default max score for oral participation
+                $quarterAssessments = $allOralAssessments->get($quarter, collect());
 
-                if ($assessment) {
+                // Sum scores for this student across all sessions in this quarter
+                $totalScore = 0;
+                $totalMaxScore = 0;
+                $hasParticipated = false;
+
+                foreach ($quarterAssessments as $assessment) {
                     $scoreRecord = $assessment->scores->firstWhere('student_id', $student->id);
-                    $score = $scoreRecord ? $scoreRecord->score : null;
-                    $maxScore = $assessment->max_score ?? 10;
+                    if ($scoreRecord) {
+                        $totalScore += $scoreRecord->score;
+                        $hasParticipated = true;
+                    }
+                    $totalMaxScore += $assessment->max_score;
                 }
 
                 $studentData['quarters'][$quarter] = [
-                    'assessment' => $assessment,
-                    'score' => $score,
-                    'max_score' => $maxScore,
+                    'score' => $hasParticipated ? $totalScore : null,
+                    'max_score' => $totalMaxScore,
+                    'sessions_count' => $quarterAssessments->count()
                 ];
             }
 
             return $studentData;
-        });
+        })->groupBy(fn($item) => strtolower($item['student']->gender));
 
         return view('teacher.oral-participation.index', [
             'class' => $class,
             'subjects' => $subjects,
             'selectedSubject' => $selectedSubject,
             'studentsData' => $studentsData,
-            'oralParticipationAssessments' => $oralParticipationAssessments,
+            'oralParticipationAssessments' => $allOralAssessments,
         ]);
     }
 
@@ -172,10 +183,10 @@ class OralParticipationController extends Controller
             $successCount = 0;
 
             foreach ($request->scores as $scoreData) {
-                // Verify the assessment belongs to this teacher and class
+                // Verify the assessment belongs to this class
+                // We don't strictly check teacher_id here to allow Advisors to edit Subject Teacher's assessments if needed
                 $assessment = Assessment::where('id', $scoreData['assessment_id'])
                     ->where('class_id', $class->id)
-                    ->where('teacher_id', $teacher->id)
                     ->first();
 
                 if (!$assessment) {
@@ -244,7 +255,7 @@ class OralParticipationController extends Controller
         $request->validate([
             'subject_id' => 'required|exists:subjects,id',
             'quarter' => 'required|integer|in:1,2,3,4',
-            'max_score' => 'required|numeric|min:1|max:100',
+            'max_score' => 'required|numeric|min:1|max:1000',
         ]);
 
         $teacher = Auth::user()->teacher;
@@ -259,24 +270,20 @@ class OralParticipationController extends Controller
         }
 
         // Find the first performance task for the specified quarter (which is Oral Participation)
-        $assessment = Assessment::where('class_id', $class->id)
-            ->where('subject_id', $request->subject_id)
-            ->where('quarter', $request->quarter)
-            ->where('type', 'performance_tasks')
-            ->where('teacher_id', $teacher->id)
-            ->orderBy('assessment_date')
-            ->orderBy('id')
-            ->first();
+        // Use the correct teacher ID (Subject Teacher) for attribution
+        $correctTeacherId = $this->getTeacherIdForClassSubject($class->id, $request->subject_id);
+
+        $assessment = $this->findOrMigrateOralParticipation($class->id, $request->subject_id, $request->quarter, $correctTeacherId);
 
         if (!$assessment) {
-            // Create Performance Task 1 (Oral Participation) dynamically
+            // Create Oral Participation dynamically
             $assessment = Assessment::create([
                 'class_id' => $class->id,
                 'subject_id' => $request->subject_id,
                 'teacher_id' => $teacher->id,
                 'school_year_id' => $activeSchoolYear->id,
-                'name' => 'PT 1',
-                'type' => 'performance_tasks',
+                'name' => 'Oral Participation',
+                'type' => 'oral_participation',
                 'max_score' => $request->max_score,
                 'quarter' => $request->quarter,
                 'assessment_date' => now()->toDateString(),
@@ -303,22 +310,61 @@ class OralParticipationController extends Controller
         $assessments = collect();
 
         for ($quarter = 1; $quarter <= 4; $quarter++) {
-            // Get the first performance task for this quarter (which is Performance Task 1 / Oral Participation)
-            $assessment = Assessment::where('class_id', $class->id)
-                ->where('subject_id', $subject->id)
-                ->where('quarter', $quarter)
-                ->where('type', 'performance_tasks')
-                ->orderBy('assessment_date')
-                ->orderBy('id')
-                ->with('scores')
-                ->first();
+            $assessment = $this->findOrMigrateOralParticipation($class->id, $subject->id, $quarter);
 
             if ($assessment) {
+                $assessment->load('scores');
                 $assessments->put($quarter, $assessment);
             }
         }
 
         return $assessments;
+    }
+
+    /**
+     * Find the Oral Participation assessment securely using strict Type.
+     * Migrates legacy records if found.
+     */
+    private function findOrMigrateOralParticipation($classId, $subjectId, $quarter, $teacherId = null)
+    {
+        $query = Assessment::where('class_id', $classId)
+            ->where('subject_id', $subjectId)
+            ->where('quarter', $quarter);
+
+        if ($teacherId) {
+            $query->where('teacher_id', $teacherId);
+        }
+
+        // 1. Look for explicit type 'oral_participation'
+        $explicit = (clone $query)->where('type', 'oral_participation')->first();
+        if ($explicit) return $explicit;
+
+        // 2. Fallback: Find by "Strict Name" AND 'performance_tasks' (Previous Migration)
+        $strictName = (clone $query)
+            ->where('type', 'performance_tasks')
+            ->where('name', 'ORAL PARTICIPATION (DO NOT RENAME)')
+            ->first();
+
+        if ($strictName) {
+            // Migrate to new type
+            $strictName->update(['type' => 'oral_participation', 'name' => 'Oral Participation']);
+            return $strictName;
+        }
+
+        // 3. Fallback: Legacy First PT
+        $legacy = (clone $query)
+            ->where('type', 'performance_tasks')
+            ->orderBy('assessment_date')
+            ->orderBy('id')
+            ->first();
+
+        if ($legacy) {
+            // Migrate to new type
+            $legacy->update(['type' => 'oral_participation', 'name' => 'Oral Participation']);
+            return $legacy;
+        }
+
+        return null;
     }
 
     /**
@@ -359,14 +405,8 @@ class OralParticipationController extends Controller
         $quarter = (int) $request->quarter;
 
         // Get the oral participation assessment (first performance task) for this quarter
-        $assessment = Assessment::where('class_id', $class->id)
-            ->where('subject_id', $subjectId)
-            ->where('quarter', $quarter)
-            ->where('type', 'performance_tasks')
-            ->orderBy('assessment_date')
-            ->orderBy('id')
-            ->with('scores')
-            ->first();
+        $assessment = $this->findOrMigrateOralParticipation($class->id, $subjectId, $quarter);
+        if ($assessment) $assessment->load('scores');
 
         // Get all students enrolled in this class
         $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get();
@@ -404,7 +444,7 @@ class OralParticipationController extends Controller
             $request->validate([
                 'subject_id' => 'required|exists:subjects,id',
                 'quarter' => 'required|integer|in:1,2,3,4',
-                'max_score' => 'required|numeric|min:1|max:100',
+                'max_score' => 'required|numeric|min:1|max:1000',
                 'scores' => 'required|array',
                 'scores.*.student_id' => 'required|exists:students,id',
                 'scores.*.score' => 'required|numeric|min:0',
@@ -432,24 +472,20 @@ class OralParticipationController extends Controller
             }
 
             // Get or create the oral participation assessment (first performance task)
-            $assessment = Assessment::where('class_id', $class->id)
-                ->where('subject_id', $subjectId)
-                ->where('quarter', $quarter)
-                ->where('type', 'performance_tasks')
-                ->where('teacher_id', $teacher->id)
-                ->orderBy('assessment_date')
-                ->orderBy('id')
-                ->first();
+            // Use correct teacher attribution
+            $correctTeacherId = $this->getTeacherIdForClassSubject($class->id, $subjectId);
+
+            $assessment = $this->findOrMigrateOralParticipation($class->id, $subjectId, $quarter, $correctTeacherId);
 
             if (!$assessment) {
-                // Create Performance Task 1 (Oral Participation) dynamically
+                // Create Oral Participation dynamically
                 $assessment = Assessment::create([
                     'class_id' => $class->id,
                     'subject_id' => $subjectId,
-                    'teacher_id' => $teacher->id,
+                    'teacher_id' => $correctTeacherId,
                     'school_year_id' => $activeSchoolYear->id,
-                    'name' => 'PT 1',
-                    'type' => 'performance_tasks',
+                    'name' => 'Oral Participation',
+                    'type' => 'oral_participation',
                     'max_score' => $maxScore,
                     'quarter' => $quarter,
                     'assessment_date' => now()->toDateString(),
@@ -466,7 +502,10 @@ class OralParticipationController extends Controller
 
                 // Validate score doesn't exceed max
                 if ($score > $maxScore) {
-                    $score = $maxScore;
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Score for a student exceeds the maximum score of {$maxScore}."
+                    ], 422);
                 }
 
                 AssessmentScore::updateOrCreate(
@@ -502,5 +541,158 @@ class OralParticipationController extends Controller
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
+    }
+
+    /**
+     * Helper to get the correct teacher ID for a class and subject.
+     * Checks the schedule first, falls back to authenticated teacher if not found or if the user is the adviser.
+     */
+    private function getTeacherIdForClassSubject($classId, $subjectId)
+    {
+        // Find the schedule for this class and subject
+        $schedule = \App\Models\Schedule::where('class_id', $classId)
+            ->where('subject_id', $subjectId)
+            ->with('teacher') // Ensure teacher relationship is loaded
+            ->first();
+
+        if ($schedule && $schedule->teacher) {
+            return $schedule->teacher->id;
+        }
+
+        // Fallback to the authenticated teacher (e.g., if they are the adviser)
+        return Auth::user()->teacher->id;
+    }
+
+    /**
+     * Create a new oral participation session (Assessment).
+     * Creates a NEW assessment record for each session instead of accumulating.
+     */
+    public function appendScores(Request $request, Classes $class)
+    {
+        try {
+            $request->validate([
+                'subject_id' => 'required|exists:subjects,id',
+                'quarter' => 'required|integer|in:1,2,3,4',
+                'session_max_score' => 'required|numeric|min:1|max:1000',
+                'scores' => 'required|array',
+                'scores.*.student_id' => 'required|exists:students,id',
+                'scores.*.score' => 'required|numeric|min:0',
+            ]);
+
+            $teacher = Auth::user()->teacher;
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authenticated user is not a teacher.'
+                ], 403);
+            }
+
+            $subjectId = $request->subject_id;
+            $quarter = (int) $request->quarter;
+            $sessionMaxScore = $request->session_max_score;
+
+            // Get active school year
+            $activeSchoolYear = SchoolYear::active()->first();
+            if (!$activeSchoolYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active school year found.'
+                ], 404);
+            }
+
+            $correctTeacherId = $this->getTeacherIdForClassSubject($class->id, $subjectId);
+
+            // Create a NEW assessment record for this session
+            $assessment = Assessment::create([
+                'class_id' => $class->id,
+                'subject_id' => $subjectId,
+                'teacher_id' => $correctTeacherId,
+                'school_year_id' => $activeSchoolYear->id,
+                'name' => 'Oral Participation - ' . now()->format('M d, Y'),
+                'type' => 'oral_participation',
+                'max_score' => $sessionMaxScore,
+                'quarter' => $quarter,
+                'assessment_date' => now()->toDateString(),
+            ]);
+
+            $successCount = 0;
+            foreach ($request->scores as $scoreData) {
+                $score = $scoreData['score'];
+
+                if ($score > $sessionMaxScore) {
+                    // This shouldn't happen with frontend validation, but for safety
+                    continue;
+                }
+
+                if ($score > 0) {
+                    AssessmentScore::create([
+                        'assessment_id' => $assessment->id,
+                        'student_id' => $scoreData['student_id'],
+                        'score' => $score,
+                        'remarks' => 'Oral Participation',
+                    ]);
+                    $successCount++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Session created with max score of {$sessionMaxScore}. {$successCount} student scores recorded.",
+                'saved_count' => $successCount,
+                'assessment_id' => $assessment->id
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = collect($errors)->flatten()->first();
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . $firstError,
+                'errors' => $errors,
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unexpected error saving scores.',
+                'error' => app()->environment('local') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
+     * Get scores for a specific oral participation session.
+     */
+    public function getSessionScores(Classes $class, Assessment $assessment)
+    {
+        // Verify this assessment belongs to this class and is oral participation
+        if ($assessment->class_id !== $class->id || $assessment->type !== 'oral_participation') {
+            return response()->json(['error' => 'Invalid session'], 404);
+        }
+
+        $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get();
+        $scores = $assessment->scores->keyBy('student_id');
+
+        $data = $students->map(function ($student) use ($assessment, $scores) {
+            $scoreRecord = $scores->get($student->id);
+            $score = $scoreRecord ? $scoreRecord->score : 0;
+            return [
+                'student_id' => $student->id,
+                'student_name' => $student->last_name . ', ' . $student->first_name,
+                'gender' => $student->gender,
+                'score' => $score,
+                'max_score' => $assessment->max_score,
+                'percentage' => $assessment->max_score > 0 ? ($score / $assessment->max_score) * 100 : 0
+            ];
+        });
+
+        return response()->json([
+            'assessment' => [
+                'id' => $assessment->id,
+                'name' => $assessment->name,
+                'date' => \Carbon\Carbon::parse($assessment->assessment_date)->format('M d, Y'),
+                'max_score' => $assessment->max_score,
+                'quarter' => $assessment->quarter,
+            ],
+            'scores' => $data
+        ]);
     }
 }

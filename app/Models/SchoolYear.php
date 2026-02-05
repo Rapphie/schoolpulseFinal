@@ -114,6 +114,22 @@ class SchoolYear extends Model
     */
 
     /**
+     * Get the active school year, or fallback to the latest one.
+     *
+     * @return static|null
+     */
+    public static function getActive(): ?self
+    {
+        $active = static::where('is_active', true)->first();
+
+        if (!$active) {
+            $active = static::latest('end_date')->first();
+        }
+
+        return $active;
+    }
+
+    /**
      * Scope a query to only include the active school year.
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
@@ -121,7 +137,10 @@ class SchoolYear extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('is_active', true);
+        return $query->where('is_active', true)
+            ->orWhereHas('quarters', function ($q) {
+                $q->where('is_manually_set_active', true);
+            });
     }
 
     /*
@@ -221,10 +240,7 @@ class SchoolYear extends Model
             return null;
         }
 
-        return $activeSchoolYear->quarters()
-            ->where('start_date', '<=', Carbon::today())
-            ->where('end_date', '>=', Carbon::today())
-            ->first();
+        return $activeSchoolYear->quarters()->current()->first();
     }
 
     /**

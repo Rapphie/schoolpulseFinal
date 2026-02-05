@@ -168,26 +168,13 @@
                                                     $uniqueSubjects = $classSchedules
                                                         ->map(fn($schedule) => $schedule->subject)
                                                         ->unique('id');
-                                                    $subjectsCount = $uniqueSubjects->count();
-                                                    $singleSubject =
-                                                        $subjectsCount === 1 ? $uniqueSubjects->first() : null;
+                                                    $singleSubject = $uniqueSubjects->first();
                                                 @endphp
-                                                @if ($subjectsCount > 1)
-                                                    <button type="button"
-                                                        class="btn btn-sm btn-outline-success d-flex align-items-center subject-modal-btn"
-                                                        data-bs-toggle="modal" data-bs-target="#subjectModal"
-                                                        data-class-id="{{ $class->id }}"
-                                                        data-class-name="{{ $class->section->gradeLevel->name }} - {{ $class->section->name }}">
-                                                        <i class="fas fa-comments me-1"></i>
-                                                        <span>Oral Participation</span>
-                                                    </button>
-                                                @else
-                                                    <a href="{{ route('teacher.oral-participation.index', $class) }}@if ($singleSubject) ?subject_id={{ $singleSubject->id }} @endif"
-                                                        class="btn btn-sm btn-outline-success d-flex align-items-center">
-                                                        <i class="fas fa-comments me-1"></i>
-                                                        <span>Oral Participation</span>
-                                                    </a>
-                                                @endif
+                                                <a href="{{ route('teacher.oral-participation.index', $class) }}@if ($singleSubject) ?subject_id={{ $singleSubject->id }} @endif"
+                                                    class="btn btn-sm btn-outline-success d-flex align-items-center">
+                                                    <i class="fas fa-comments me-1"></i>
+                                                    <span>Oral Participation</span>
+                                                </a>
                                             </td>
                                         </tr>
                                     @endforeach
@@ -297,7 +284,8 @@
                     <button type="button" class="btn btn-success" id="modalSaveScores" style="display: none;">
                         <i class="fas fa-s
                 </div>
-                <div class="modal-footerave me-1"></i> Save Scores
+                <div class="modal-footerave me-1"></i>
+                        Save Scores
                     </button>
                 </div>
             </div>

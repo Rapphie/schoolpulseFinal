@@ -11,7 +11,7 @@ class ScheduleController extends Controller
 {
     public function index()
     {
-        $userId = Auth::id();
+        $userId = Auth::user()->teacher();
         $teacherId = Teacher::where('user_id', $userId)->value('id');
 
         $schedules = Schedule::where('teacher_id', $teacherId)

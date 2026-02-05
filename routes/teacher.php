@@ -37,6 +37,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::get('/{student}', [StudentController::class, 'show'])->name('show');
             Route::get('/{student}/edit', [StudentController::class, 'edit'])->name('edit');
             Route::put('/{student}', [StudentController::class, 'update'])->name('update');
+            Route::get('/{student}/grades/{sy}', [StudentController::class, 'grades'])->name('grades');
         });
 
         // Enrollment Management (protected by enrollment.enabled middleware)
@@ -72,7 +73,9 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::get('/{class}/students', [OralParticipationController::class, 'getStudentsWithScores'])->name('students');
             Route::post('/{class}/save-scores', [OralParticipationController::class, 'saveScores'])->name('saveScores');
             Route::post('/{class}/quick-save', [OralParticipationController::class, 'quickSave'])->name('quickSave');
+            Route::post('/{class}/append-scores', [OralParticipationController::class, 'appendScores'])->name('appendScores');
             Route::post('/{class}/update-max-score', [OralParticipationController::class, 'updateMaxScore'])->name('updateMaxScore');
+            Route::get('/{class}/{assessment}/scores-json', [OralParticipationController::class, 'getSessionScores'])->name('session-scores');
         });
 
         // Class Management
@@ -121,7 +124,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::post('/save', [TeacherDashboardController::class, 'saveAttendance'])->name('save');
             Route::put('/{id}/delete', [TeacherDashboardController::class, 'updateAttendance'])->name('update');
             Route::delete('/{id}/delete', [TeacherDashboardController::class, 'destroyAttendance'])->name('delete');
-            Route::delete('/', [TeacherDashboardController::class, 'getAttendanceSummary'])->name('summary');
+            Route::get('/summary', [TeacherDashboardController::class, 'getAttendanceSummary'])->name('summary');
             Route::get('/pattern', [\App\Http\Controllers\Teacher\AttendanceController::class, 'attendancePattern'])->name('pattern');
             Route::get('/export', [\App\Http\Controllers\Teacher\AttendanceController::class, 'exportAttendancePattern'])->name('pattern.export');
         });

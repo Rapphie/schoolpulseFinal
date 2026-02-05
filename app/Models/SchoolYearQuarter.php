@@ -17,6 +17,7 @@ class SchoolYearQuarter extends Model
         'end_date',
         'grade_submission_deadline',
         'is_locked',
+        'is_manually_set_active',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class SchoolYearQuarter extends Model
         'end_date' => 'date',
         'grade_submission_deadline' => 'date',
         'is_locked' => 'boolean',
+        'is_manually_set_active' => 'boolean',
     ];
 
     /**
@@ -55,13 +57,28 @@ class SchoolYearQuarter extends Model
     */
 
     /**
-     * Scope to get the current quarter based on today's date.
+     * Scope to get the current quarter based on today's date or manual override.
      */
     public function scopeCurrent(Builder $query): Builder
     {
+        // Prioritize the manually set active quarter
+        $manualActive = $query->clone()->where('is_manually_set_active', true)->first();
+
+        if ($manualActive) {
+            return $query->where('id', $manualActive->id);
+        }
+
         $today = Carbon::today();
         return $query->where('start_date', '<=', $today)
             ->where('end_date', '>=', $today);
+    }
+
+    /**
+     * Scope to get the manually set active quarter.
+     */
+    public function scopeManuallyActive(Builder $query): Builder
+    {
+        return $query->where('is_manually_set_active', true);
     }
 
     /**
@@ -79,10 +96,20 @@ class SchoolYearQuarter extends Model
     */
 
     /**
-     * Check if this quarter is currently active (based on date).
+     * Check if this quarter is currently active (based on date or manual override).
      */
     public function isCurrent(): bool
     {
+        if ($this->is_manually_set_active) {
+            return true;
+        }
+
+        // Fallback for when no quarter is manually set as active
+        $manuallyActiveExists = self::where('is_manually_set_active', true)->exists();
+        if ($manuallyActiveExists) {
+            return false;
+        }
+
         $today = Carbon::today();
         return $today->between($this->start_date, $this->end_date);
     }
@@ -138,6 +165,9 @@ class SchoolYearQuarter extends Model
      */
     public function getStatusAttribute(): string
     {
+        if ($this->is_manually_set_active) {
+            return 'Active (Manual)';
+        }
         if ($this->is_locked) {
             return 'Locked';
         }
@@ -156,6 +186,7 @@ class SchoolYearQuarter extends Model
     public function getStatusBadgeClassAttribute(): string
     {
         return match ($this->status) {
+            'Active (Manual)' => 'bg-primary',
             'Locked' => 'bg-secondary',
             'Upcoming' => 'bg-info',
             'Active' => 'bg-success',

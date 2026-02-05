@@ -69,11 +69,6 @@
             z-index: 1000;
         }
 
-        .info-card {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            border-radius: 10px;
-        }
 
         .info-card .icon {
             font-size: 2.5rem;
@@ -116,6 +111,12 @@
 @endpush
 
 @section('content')
+    @php
+        $lastMaxScores = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $lastMaxScores[$i] = $oralParticipationAssessments->get($i, collect())->first()?->max_score ?? 10;
+        }
+    @endphp
     <div class="row">
         <div class="col-12">
             <nav aria-label="breadcrumb">
@@ -155,19 +156,18 @@
     </div>
 
     <!-- Info Card -->
-    <div class="row mb-4">
-        <div class="col-md-12">
+    <div class="row mb-2">
+        <div class="col-12">
             <div class="card info-card shadow">
-                <div class="card-body d-flex align-items-center">
-                    <div class="icon me-3">
+                <div class="card-body d-flex align-items-center py-2 px-3">
+                    <div class="icon me-2" style="font-size:1.2rem; opacity:0.85;">
                         <i class="fas fa-info-circle"></i>
                     </div>
                     <div>
-                        <h5 class="mb-1">Oral Participation Scores</h5>
-                        <p class="mb-0">
+                        <h6 class="mb-0">Oral Participation Scores</h6>
+                        <p class="mb-0 small">
                             Scores entered here are automatically linked to <strong>Performance Task 1</strong> in the Grade
                             Management.
-                            These scores contribute to the Performance Tasks component (60% weight in DepEd grading).
                         </p>
                     </div>
                 </div>
@@ -181,174 +181,403 @@
             <p>There are no students enrolled in this class yet.</p>
         </div>
     @else
-        <div class="card shadow">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-users me-2"></i>
-                    Student Oral Participation Scores
-                </h5>
+        <!-- Quarter Tabs -->
+        <div class="card shadow mb-4">
+            <div class="card-header p-0">
+                <ul class="nav nav-tabs" id="quarterTabs" role="tablist">
+                    @for ($quarter = 1; $quarter <= 4; $quarter++)
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ $quarter === 1 ? 'active' : '' }} py-3 px-4 fw-bold"
+                                id="quarter{{ $quarter }}-tab" data-bs-toggle="tab"
+                                data-bs-target="#quarter{{ $quarter }}" type="button" role="tab"
+                                aria-controls="quarter{{ $quarter }}"
+                                aria-selected="{{ $quarter === 1 ? 'true' : 'false' }}">
+                                Quarter {{ $quarter }}
+                            </button>
+                        </li>
+                    @endfor
+                </ul>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered score-table mb-0">
-                        <thead class="sticky-top">
-                            <tr>
-                                <th rowspan="2" class="student-name">LEARNERS' NAMES</th>
-                                @for ($quarter = 1; $quarter <= 4; $quarter++)
-                                    <th class="quarter-header">Quarter {{ $quarter }}</th>
-                                @endfor
-                            </tr>
-                            <tr>
-                                @for ($quarter = 1; $quarter <= 4; $quarter++)
-                                    @php
-                                        $assessment = $oralParticipationAssessments->get($quarter);
-                                        $maxScore = $assessment ? $assessment->max_score : 10;
-                                        $assessmentId = $assessment ? $assessment->id : null;
-                                    @endphp
-                                    <th class="max-score-row">
-                                        Max:
-                                        <input type="number" class="max-score-input" data-quarter="{{ $quarter }}"
-                                            data-assessment-id="{{ $assessmentId }}" value="{{ $maxScore ?? 10 }}"
-                                            min="1" max="100" step="1"
-                                            {{ !$assessmentId ? 'disabled' : '' }} title="Click to edit max score">
-                                    </th>
-                                @endfor
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($studentsData as $studentData)
-                                <tr data-student-id="{{ $studentData['student']->id }}">
-                                    <td class="student-name">
-                                        {{ $studentData['student']->last_name }},
-                                        {{ $studentData['student']->first_name }}
-                                    </td>
+                <div class="tab-content" id="quarterTabContent">
+                    @for ($quarter = 1; $quarter <= 4; $quarter++)
+                        @php
+                            $quarterSessions = $oralParticipationAssessments->get($quarter, collect());
+                        @endphp
+                        <div class="tab-pane fade {{ $quarter === 1 ? 'show active' : '' }}"
+                            id="quarter{{ $quarter }}" role="tabpanel"
+                            aria-labelledby="quarter{{ $quarter }}-tab">
 
-                                    @for ($quarter = 1; $quarter <= 4; $quarter++)
-                                        @php
-                                            $quarterData = $studentData['quarters'][$quarter] ?? [];
-                                            $assessment = $quarterData['assessment'] ?? null;
-                                            $score = $quarterData['score'] ?? '';
-                                            $maxScore = $quarterData['max_score'] ?? 10;
+                            <!-- Sessions Table -->
+                            <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+                                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Participation Sessions</h5>
+                                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                                    data-bs-target="#recitationModeModal">
+                                    <i class="fas fa-plus me-1"></i> New Session
+                                </button>
+                            </div>
 
-                                            // Format score display
-                                            if ($score !== '' && $score !== null) {
-                                                $score =
-                                                    fmod((float) $score, 1) === 0.0 ? number_format($score, 0) : $score;
-                                            }
-                                        @endphp
-                                        <td>
-                                            @if ($assessment)
-                                                <input type="number" class="score-input oral-score"
-                                                    data-quarter="{{ $quarter }}"
-                                                    data-assessment-id="{{ $assessment->id }}"
-                                                    data-max-score="{{ $maxScore }}" value="{{ $score }}"
-                                                    min="0" max="{{ $maxScore }}" step="0.5">
-                                            @else
-                                                <span class="text-muted">N/A</span>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-bordered mb-0">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th class="text-center" style="width: 33%;">Date</th>
+                                            <th class="text-center" style="width: 33%;">Max Score</th>
+                                            <th class="text-center" style="width: 34%;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse ($quarterSessions as $session)
+                                            <tr>
+                                                <td class="text-center align-middle">
+                                                    {{ \Carbon\Carbon::parse($session->assessment_date)->format('M d, Y') }}
+                                                </td>
+                                                <td class="text-center align-middle fw-bold">
+                                                    {{ $session->max_score }}
+                                                </td>
+                                                <td class="text-center align-middle">
+                                                    <div class="btn-group">
+                                                        <button type="button"
+                                                            class="btn btn-sm btn-outline-primary edit-session-btn"
+                                                            data-session-id="{{ $session->id }}"
+                                                            data-session-name="{{ $session->name }}"
+                                                            data-session-date="{{ \Carbon\Carbon::parse($session->assessment_date)->format('M d, Y') }}"
+                                                            data-session-max="{{ $session->max_score }}"
+                                                            title="Edit Session">
+                                                            <i class="fas fa-edit"></i> Edit
+                                                        </button>
+                                                        <button type="button"
+                                                            class="btn btn-sm btn-outline-info view-session-btn"
+                                                            data-session-id="{{ $session->id }}"
+                                                            data-session-name="{{ $session->name }}"
+                                                            data-session-date="{{ \Carbon\Carbon::parse($session->assessment_date)->format('M d, Y') }}"
+                                                            data-session-max="{{ $session->max_score }}"
+                                                            title="View Scores">
+                                                            <i class="fas fa-eye"></i> View
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="3" class="text-center py-4 text-muted">
+                                                    No oral participation sessions recorded for this quarter.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Summary Table (Students) -->
+                            <div class="p-3 bg-light border-top border-bottom">
+                                <h5 class="mb-0"><i class="fas fa-users me-2"></i>Quarterly Summary (PT 1)</h5>
+                                <small class="text-muted">Total accumulated scores across all sessions</small>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover table-bordered mb-0">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th class="student-name" style="width: 40%;">LEARNERS' NAMES</th>
+                                            <th class="text-center" style="width: 20%;">Total Sessions</th>
+                                            <th class="text-center" style="width: 20%;">Total Score</th>
+                                            <th class="text-center" style="width: 20%;">Percentage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (['male', 'female'] as $gender)
+                                            @if ($studentsData->has($gender))
+                                                <tr class="table-light">
+                                                    <td colspan="4" class="fw-bold text-primary bg-light">
+                                                        {{ strtoupper($gender) }}
+                                                    </td>
+                                                </tr>
+                                                @foreach ($studentsData->get($gender) as $studentData)
+                                                    @php
+                                                        $quarterData = $studentData['quarters'][$quarter] ?? [];
+                                                        $score = $quarterData['score'] ?? '';
+                                                        $maxScore = $quarterData['max_score'] ?? 0;
+                                                        $sessionsCount = $quarterData['sessions_count'] ?? 0;
+
+                                                        // Format score display
+                                                        $scoreDisplay =
+                                                            $score === null || $score === ''
+                                                                ? '--'
+                                                                : (fmod((float) $score, 1) === 0.0
+                                                                    ? number_format((float) $score, 0)
+                                                                    : $score);
+
+                                                        // Calculate percentage for display
+                                                        $percentage = '--';
+                                                        $pctClass = '';
+                                                        if ($score !== '' && $score !== null && $maxScore > 0) {
+                                                            $pctVal = ($score / $maxScore) * 100;
+                                                            $percentage = number_format($pctVal, 1) . '%';
+                                                            if ($pctVal >= 75) {
+                                                                $pctClass = 'text-success fw-bold';
+                                                            } elseif ($pctVal >= 50) {
+                                                                $pctClass = 'text-warning fw-bold';
+                                                            } else {
+                                                                $pctClass = 'text-danger fw-bold';
+                                                            }
+                                                        }
+                                                    @endphp
+                                                    <tr data-student-id="{{ $studentData['student']->id }}">
+                                                        <td class="student-name align-middle">
+                                                            {{ $studentData['student']->last_name }},
+                                                            {{ $studentData['student']->first_name }}
+                                                        </td>
+                                                        <td class="text-center align-middle">
+                                                            {{ $sessionsCount }}
+                                                        </td>
+                                                        <td class="text-center align-middle">
+                                                            {{ $scoreDisplay }} <span class="text-muted small">/
+                                                                {{ $maxScore }}</span>
+                                                        </td>
+                                                        <td
+                                                            class="text-center align-middle percentage-cell {{ $pctClass }}">
+                                                            {{ $percentage }}
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
                                             @endif
-                                        </td>
-                                    @endfor
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    @endfor
                 </div>
             </div>
         </div>
 
-        <button type="button" class="btn btn-success btn-lg save-btn" id="saveScores">
-            <i class="fas fa-save me-2"></i> Save Scores
-        </button>
+        <div class="fixed-bottom bg-white border-top shadow p-3 d-flex justify-content-between align-items-center"
+            style="z-index: 1020;">
+            <div>
+                <span class="text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Use <strong>Recitation Mode</strong> for real-time scoring.
+                </span>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                    data-bs-target="#recitationModeModal">
+                    <i class="fas fa-chalkboard-teacher me-2"></i> Recitation Mode
+                </button>
+                <button type="button" class="btn btn-success" id="saveScores">
+                    <i class="fas fa-save me-2"></i> Save Changes
+                </button>
+            </div>
+        </div>
 
-        <button type="button" class="btn btn-primary btn-lg quick-add-btn" data-bs-toggle="modal"
-            data-bs-target="#quickAddModal">
-            <i class="fas fa-plus me-2"></i> Quick Add
-        </button>
+        <!-- Spacer for fixed bottom bar -->
+        <div style="height: 80px;"></div>
     @endif
 
-    <!-- Quick Add Modal -->
-    <div class="modal fade" id="quickAddModal" tabindex="-1" aria-labelledby="quickAddModalLabel" aria-hidden="true">
+    <!-- Recitation Mode Modal -->
+    <div class="modal fade" id="recitationModeModal" tabindex="-1" aria-labelledby="recitationModeModalLabel"
+        aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <div class="d-flex align-items-center w-100 justify-content-between">
+                        <h5 class="modal-title mb-0" id="recitationModeModalLabel">
+                            <i class="fas fa-chalkboard-teacher me-2"></i> Recitation Mode
+                        </h5>
+                        <div class="d-flex gap-3 align-items-center">
+                            <div class="d-flex align-items-center">
+                                <label for="recitationQuarter" class="me-2 fw-bold text-white-50">Quarter:</label>
+                                <select id="recitationQuarter" class="form-select form-select-sm text-dark"
+                                    style="width: 120px;">
+                                    @for ($q = 1; $q <= 4; $q++)
+                                        <option value="{{ $q }}">Quarter {{ $q }}</option>
+                                    @endfor
+                                </select>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <label for="recitationMaxScore" class="me-2 fw-bold text-white-50">Activity Max:</label>
+                                <input type="number" id="recitationMaxScore"
+                                    class="form-control form-control-sm text-center fw-bold" value="10"
+                                    min="1" max="100" style="width: 70px;">
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body bg-light">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="recitationTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th class="text-center" style="width: 200px;">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (['male', 'female'] as $gender)
+                                    @if ($studentsData->has($gender))
+                                        <tr class="table-light">
+                                            <td class="fw-bold text-primary">{{ strtoupper($gender) }}</td>
+                                            <td></td>
+                                        </tr>
+                                        @foreach ($studentsData->get($gender) as $studentData)
+                                            <tr class="student-card-wrapper"
+                                                data-student-id="{{ $studentData['student']->id }}">
+                                                <td class="align-middle fw-bold">
+                                                    {{ $studentData['student']->last_name }},
+                                                    {{ $studentData['student']->first_name }}
+                                                </td>
+                                                <td class="align-middle text-center">
+                                                    <div class="input-group justify-content-center"
+                                                        style="max-width: 160px; margin: 0 auto;">
+                                                        <button class="btn btn-outline-danger minus-btn" type="button">
+                                                            <i class="fas fa-minus"></i>
+                                                        </button>
+                                                        <input type="number"
+                                                            class="form-control text-center recitation-score-input fw-bold"
+                                                            data-student-id="{{ $studentData['student']->id }}"
+                                                            value="0" min="0">
+                                                        <button class="btn btn-outline-success plus-btn" type="button">
+                                                            <i class="fas fa-plus"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    @endif
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="resetRecitation">
+                            <i class="fas fa-undo me-1"></i> Reset All
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm ms-2" id="fillPerfectRecitation">
+                            <i class="fas fa-star me-1"></i> All Perfect
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="applyRecitationScores">
+                            <i class="fas fa-check-circle me-2"></i> Apply & Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Session Modal -->
+    <div class="modal fade" id="viewSessionModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title" id="quickAddModalLabel">
-                        <i class="fas fa-comments me-2"></i> Quick Add Oral Participation Scores
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i> Session Scores
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                         aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="quickAddQuarter" class="form-label fw-bold">Select Quarter</label>
-                            <select id="quickAddQuarter" class="form-select">
-                                @for ($q = 1; $q <= 4; $q++)
-                                    <option value="{{ $q }}">Quarter {{ $q }}</option>
-                                @endfor
-                            </select>
+                    <div class="d-flex justify-content-between mb-3">
+                        <div>
+                            <strong>Date:</strong> <span id="viewSessionDate"></span>
                         </div>
-                        <div class="col-md-6">
-                            <label for="quickAddMaxScore" class="form-label fw-bold">Max Score (Total)</label>
-                            <input type="number" id="quickAddMaxScore" class="form-control" value="10" min="1"
-                                max="100">
+                        <div>
+                            <strong>Max Score:</strong> <span id="viewSessionMax"></span>
                         </div>
                     </div>
-
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>
-                        Enter scores for students below. Leave blank if no score to record.
-                    </div>
-
                     <div class="table-responsive" style="max-height: 400px;">
-                        <table class="table table-hover table-sm" id="quickAddTable">
-                            <thead class="table-light sticky-top">
+                        <table class="table table-sm table-striped table-hover">
+                            <thead>
                                 <tr>
-                                    <th style="min-width: 200px;">Student Name</th>
-                                    <th style="width: 120px;" class="text-center">Score</th>
-                                    <th style="width: 100px;" class="text-center">Percentage</th>
+                                    <th>Student Name</th>
+                                    <th class="text-center">Score</th>
+                                    <th class="text-center">Percentage</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                @foreach ($studentsData as $studentData)
-                                    <tr data-student-id="{{ $studentData['student']->id }}">
-                                        <td>{{ $studentData['student']->last_name }},
-                                            {{ $studentData['student']->first_name }}</td>
-                                        <td class="text-center">
-                                            <input type="number"
-                                                class="form-control form-control-sm quick-score-input text-center"
-                                                data-student-id="{{ $studentData['student']->id }}" min="0"
-                                                step="0.5" placeholder="--">
-                                        </td>
-                                        <td class="text-center quick-percentage">--</td>
-                                    </tr>
-                                @endforeach
+                            <tbody id="viewSessionScoresBody">
+                                <!-- Scores will be loaded here via AJAX -->
+                                <tr>
+                                    <td colspan="3" class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        Loading scores...
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="editFromViewBtn">
+                        <i class="fas fa-edit me-1"></i> Edit Scores
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded">
-                                <div>
-                                    <strong>Quick Actions:</strong>
-                                </div>
-                                <div class="btn-group btn-group-sm">
-                                    <button type="button" class="btn btn-outline-secondary" id="fillAllPerfect">
-                                        <i class="fas fa-star me-1"></i> Fill All Perfect
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" id="clearAllScores">
-                                        <i class="fas fa-eraser me-1"></i> Clear All
-                                    </button>
-                                </div>
+    <!-- Edit Session Modal -->
+    <div class="modal fade" id="editSessionModal" tabindex="-1" aria-labelledby="editSessionModalLabel"
+        aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <div class="d-flex align-items-center w-100 justify-content-between">
+                        <h5 class="modal-title mb-0" id="editSessionModalLabel">
+                            <i class="fas fa-edit me-2"></i> Edit Session Scores
+                        </h5>
+                        <div class="d-flex gap-3 align-items-center">
+                            <div class="d-flex align-items-center">
+                                <label for="editSessionMaxScore" class="me-2 fw-bold text-white-50">Max Score:</label>
+                                <input type="number" id="editSessionMaxScore"
+                                    class="form-control form-control-sm text-center fw-bold" value="10"
+                                    min="1" max="100" style="width: 70px;" readonly>
                             </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body bg-light">
+                    <div id="editSessionLoading" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Loading session data...</p>
+                    </div>
+                    <div id="editSessionContent" style="display: none;">
+                        <input type="hidden" id="editAssessmentId">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="editSessionTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th class="text-center" style="width: 200px;">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="editSessionScoresBody">
+                                    <!-- Populated via AJAX -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success" id="applyQuickAdd">
-                        <i class="fas fa-check me-2"></i> Apply Scores
-                    </button>
+                <div class="modal-footer justify-content-between">
+                    <div>
+                        <button type="button" class="btn btn-outline-info btn-sm" id="fillPerfectEdit">
+                            <i class="fas fa-star me-1"></i> All Perfect
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="saveEditScores">
+                            <i class="fas fa-save me-2"></i> Save Changes
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -357,8 +586,13 @@
 
 @push('scripts')
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
     <script>
         $(document).ready(function() {
+            // Store last max scores for each quarter
+            const lastMaxScores = @json($lastMaxScores);
+
             // Subject filter functionality
             $('#subjectFilter').change(function() {
                 const classId = {{ $class->id }};
@@ -366,248 +600,375 @@
                 window.location.href = `/teacher/oral-participation/${classId}?subject_id=${subjectId}`;
             });
 
-            // Handle max score updates
-            $(document).on('change', '.max-score-input', function() {
-                const $input = $(this);
-                const quarter = $input.data('quarter');
-                const assessmentId = $input.data('assessment-id');
-                const maxScore = parseFloat($input.val());
+            // Recitation Mode Logic (Table based)
 
-                if (!assessmentId) {
-                    alert('No assessment found for this quarter.');
-                    return;
-                }
-
-                if (isNaN(maxScore) || maxScore <= 0) {
-                    alert('Please enter a valid max score greater than zero.');
-                    $input.val(10);
-                    return;
-                }
-
-                // Update all score inputs for this quarter with the new max
-                $(`.oral-score[data-quarter="${quarter}"]`).each(function() {
-                    $(this).attr('max', maxScore).data('max-score', maxScore);
-                    const currentVal = parseFloat($(this).val());
-                    if (!isNaN(currentVal) && currentVal > maxScore) {
-                        $(this).val(maxScore);
-                    }
-                });
-
-                // Save max score to server
-                $.ajax({
-                    url: '{{ route('teacher.oral-participation.updateMaxScore', $class) }}',
-                    method: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}',
-                        subject_id: {{ $selectedSubject->id ?? 'null' }},
-                        quarter: quarter,
-                        max_score: maxScore
-                    },
-                    success: function(response) {
-                        console.log('Max score updated successfully');
-                    },
-                    error: function(xhr) {
-                        alert('Error updating max score: ' + (xhr.responseJSON?.message ||
-                            'Unknown error'));
-                    }
-                });
-            });
-
-            // Validate score on input
-            $(document).on('input', '.oral-score', function() {
-                const $input = $(this);
-                const value = parseFloat($input.val());
-                const maxScore = parseFloat($input.data('max-score'));
-
-                if (!isNaN(value) && !isNaN(maxScore) && value > maxScore) {
-                    $input.val(maxScore);
-                }
-
-                if (!isNaN(value) && value < 0) {
-                    $input.val(0);
-                }
-            });
-
-            // Quick Add Modal - Update percentages when scores change
-            $(document).on('input', '.quick-score-input', function() {
-                updateQuickAddPercentage($(this));
-            });
-
-            $(document).on('change', '#quickAddMaxScore', function() {
-                updateAllQuickAddPercentages();
-                // Update max attribute on all quick score inputs
-                const maxScore = parseFloat($(this).val()) || 10;
-                $('.quick-score-input').attr('max', maxScore);
-            });
-
-            function updateQuickAddPercentage($input) {
-                const score = parseFloat($input.val());
-                const maxScore = parseFloat($('#quickAddMaxScore').val()) || 10;
-                const $row = $input.closest('tr');
-                const $percentage = $row.find('.quick-percentage');
-
-                if (!isNaN(score) && score >= 0) {
-                    // Clamp to max
-                    if (score > maxScore) {
-                        $input.val(maxScore);
-                        $percentage.text('100%').removeClass('text-danger text-warning').addClass('text-success');
-                    } else {
-                        const pct = (score / maxScore) * 100;
-                        $percentage.text(pct.toFixed(1) + '%');
-                        // Color coding
-                        $percentage.removeClass('text-success text-warning text-danger');
-                        if (pct >= 75) {
-                            $percentage.addClass('text-success');
-                        } else if (pct >= 50) {
-                            $percentage.addClass('text-warning');
-                        } else {
-                            $percentage.addClass('text-danger');
-                        }
-                    }
-                } else {
-                    $percentage.text('--').removeClass('text-success text-warning text-danger');
-                }
+            function syncRecitationModal(quarter) {
+                $('#recitationQuarter').val(quarter);
+                // Use the last max score for this quarter, default to 10
+                const defaultMax = lastMaxScores[quarter] || 10;
+                $('#recitationMaxScore').val(defaultMax);
+                // Reset all student inputs to 0
+                $('.recitation-score-input').val(0);
             }
 
-            function updateAllQuickAddPercentages() {
-                $('.quick-score-input').each(function() {
-                    updateQuickAddPercentage($(this));
-                });
-            }
-
-            // Fill All Perfect
-            $('#fillAllPerfect').click(function() {
-                const maxScore = parseFloat($('#quickAddMaxScore').val()) || 10;
-                $('.quick-score-input').val(maxScore);
-                updateAllQuickAddPercentages();
+            // Update max score when quarter is changed in the modal
+            $('#recitationQuarter').change(function() {
+                const quarter = $(this).val();
+                const defaultMax = lastMaxScores[quarter] || 10;
+                $('#recitationMaxScore').val(defaultMax);
             });
 
-            // Clear All Scores
-            $('#clearAllScores').click(function() {
-                $('.quick-score-input').val('');
-                updateAllQuickAddPercentages();
-            });
-
-            // Apply Quick Add scores to the main table
-            $('#applyQuickAdd').click(function() {
-                const quarter = $('#quickAddQuarter').val();
-                const maxScore = parseFloat($('#quickAddMaxScore').val()) || 10;
-
-                // Update max score in the main table header
-                $(`.max-score-input[data-quarter="${quarter}"]`).val(maxScore).trigger('change');
-
-                // Apply scores to main table
-                $('.quick-score-input').each(function() {
-                    const $input = $(this);
-                    const studentId = $input.data('student-id');
-                    const score = $input.val();
-
-                    if (score !== '') {
-                        // Find the corresponding input in the main table
-                        const $mainRow = $(`tbody tr[data-student-id="${studentId}"]`);
-                        const $mainInput = $mainRow.find(`.oral-score[data-quarter="${quarter}"]`);
-                        if ($mainInput.length) {
-                            $mainInput.val(score).data('max-score', maxScore).attr('max', maxScore);
-                        }
+            $('#recitationModeModal').on('show.bs.modal', function() {
+                // Find active tab from oral participation page tabs
+                let activeTabLink = $('#quarterTabs .nav-link.active');
+                let activeTabId = activeTabLink.attr('id');
+                let activeQuarter = 1;
+                if (activeTabId) {
+                    const match = activeTabId.match(/quarter(\d+)/);
+                    if (match && match[1]) {
+                        activeQuarter = parseInt(match[1]);
                     }
-                });
+                }
+                syncRecitationModal(activeQuarter);
 
-                // Close modal
-                $('#quickAddModal').modal('hide');
-
-                // Clear quick add form
-                $('.quick-score-input').val('');
-                updateAllQuickAddPercentages();
-
-                // Notify user
-                alert(
-                    `Scores applied to Quarter ${quarter}. Don't forget to click "Save Scores" to save your changes.`);
-            });
-
-            // When modal opens, pre-fill with existing scores for the selected quarter
-            $('#quickAddModal').on('show.bs.modal', function() {
-                const quarter = $('#quickAddQuarter').val();
-                loadExistingScoresForQuarter(quarter);
-            });
-
-            $('#quickAddQuarter').change(function() {
-                loadExistingScoresForQuarter($(this).val());
-            });
-
-            function loadExistingScoresForQuarter(quarter) {
-                // Get the max score for this quarter
-                const $maxInput = $(`.max-score-input[data-quarter="${quarter}"]`);
-                const maxScore = parseFloat($maxInput.val()) || 10;
-                $('#quickAddMaxScore').val(maxScore);
-
-                // Load existing scores
-                $('.quick-score-input').each(function() {
-                    const $input = $(this);
-                    const studentId = $input.data('student-id');
-
-                    // Find the main table input
-                    const $mainRow = $(`tbody tr[data-student-id="${studentId}"]`);
-                    const $mainInput = $mainRow.find(`.oral-score[data-quarter="${quarter}"]`);
-
-                    if ($mainInput.length && $mainInput.val() !== '') {
-                        $input.val($mainInput.val());
-                    } else {
-                        $input.val('');
+                // Adjust columns
+                setTimeout(() => {
+                    if (typeof recitationTable !== 'undefined') {
+                        recitationTable.columns.adjust().draw();
                     }
+                }, 200);
+            });
+
+            // Max Score Change
+            $('#recitationMaxScore').on('input change', function() {
+                const newMax = parseFloat($(this).val()) || 10;
+
+                // Update the sticky default for this session
+                const quarter = $('#recitationQuarter').val();
+                if (quarter) {
+                    lastMaxScores[quarter] = newMax;
+                }
+
+                // Validate existing scores
+                $('.recitation-score-input').each(function() {
+                    let val = parseFloat($(this).val()) || 0;
+                    if (val > newMax) $(this).val(newMax);
                 });
+            });
 
-                updateAllQuickAddPercentages();
-            }
+            // Plus Button
+            $(document).on('click', '.plus-btn', function() {
+                const $input = $(this).siblings('.recitation-score-input');
+                const maxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                let currentScore = parseFloat($input.val()) || 0;
 
-            // Save all scores
-            $('#saveScores').click(function() {
+                if (currentScore < maxScore) {
+                    $input.val(currentScore + 1).trigger('change');
+                }
+            });
+
+            // Minus Button
+            $(document).on('click', '.minus-btn', function() {
+                const $input = $(this).siblings('.recitation-score-input');
+                let currentScore = parseFloat($input.val()) || 0;
+
+                if (currentScore > 0) {
+                    $input.val(currentScore - 1).trigger('change');
+                }
+            });
+
+            // Direct Input Validation
+            $(document).on('input change', '.recitation-score-input', function() {
+                const maxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                let val = $(this).val();
+                if (val === '') return;
+
+                val = parseFloat(val);
+                if (isNaN(val)) val = 0;
+                if (val > maxScore) val = maxScore;
+                if (val < 0) val = 0;
+
+                $(this).val(val);
+            });
+
+            // Reset All
+            $('#resetRecitation').click(function() {
+                $('.recitation-score-input').val(0);
+            });
+
+            // Fill Perfect
+            $('#fillPerfectRecitation').click(function() {
+                const maxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                $('.recitation-score-input').val(maxScore);
+            });
+
+            // Apply & Save
+            $('#applyRecitationScores').click(function() {
+                const quarter = $('#recitationQuarter').val();
+                const sessionMaxScore = parseFloat($('#recitationMaxScore').val()) || 10;
+                const subjectId = {{ $selectedSubject->id ?? 'null' }};
+
                 const scoresData = [];
-
-                $('tbody tr').each(function() {
-                    const $row = $(this);
-                    const studentId = $row.data('student-id');
-
-                    $row.find('.oral-score').each(function() {
-                        const $input = $(this);
-                        const assessmentId = $input.data('assessment-id');
-                        const score = $input.val();
-
-                        if (assessmentId) {
-                            scoresData.push({
-                                student_id: studentId,
-                                assessment_id: assessmentId,
-                                score: score !== '' ? parseFloat(score) : null
-                            });
-                        }
+                $('.recitation-score-input').each(function() {
+                    const studentId = $(this).data('student-id');
+                    const score = parseFloat($(this).val()) || 0;
+                    scoresData.push({
+                        student_id: studentId,
+                        score: score
                     });
                 });
 
-                if (scoresData.length === 0) {
-                    alert('No scores to save!');
-                    return;
-                }
-
-                // Show loading
                 const $btn = $(this);
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Saving...');
+
+                $.ajax({
+                    url: '{{ route('teacher.oral-participation.appendScores', $class) }}',
+                    method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        subject_id: subjectId,
+                        quarter: quarter,
+                        session_max_score: sessionMaxScore,
+                        scores: scoresData
+                    },
+                    success: function(response) {
+                        alert(`Success! Participation recorded.`);
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        let msg = 'Error saving scores: ' + (xhr.responseJSON?.message ||
+                            'Unknown error');
+                        if (xhr.responseJSON?.errors) {
+                            msg += '\n' + Object.values(xhr.responseJSON.errors).map(e => e
+                                .join('\n')).join('\n');
+                        }
+                        alert(msg);
+                        $btn.prop('disabled', false).html(
+                            '<i class="fas fa-check-circle me-2"></i> Apply & Save');
+                    }
+                });
+            });
+
+            // Initialize Recitation DataTable
+            let recitationTable = $('#recitationTable').DataTable({
+                paging: false,
+                info: false,
+                scrollY: '50vh',
+                scrollCollapse: true,
+                searching: true,
+                ordering: false,
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search student..."
+                }
+            });
+
+            // View Session Scores Logic
+            $(document).on('click', '.view-session-btn', function() {
+                const sessionId = $(this).data('session-id');
+                const sessionDate = $(this).data('session-date');
+                const sessionMax = $(this).data('session-max');
+                const classId = {{ $class->id }};
+
+                $('#viewSessionDate').text(sessionDate);
+                $('#viewSessionMax').text(sessionMax);
+
+                // Set data attributes for the edit button within view modal
+                $('#editFromViewBtn').data('session-id', sessionId);
+
+                // Show modal
+                $('#viewSessionModal').modal('show');
+
+                // Reset table
+                $('#viewSessionScoresBody').html(
+                    '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Loading scores...</td></tr>'
+                );
+
+                // Fetch scores via AJAX
+                $.ajax({
+                    url: `/teacher/oral-participation/${classId}/${sessionId}/scores-json`,
+                    method: 'GET',
+                    success: function(response) {
+                        let html = '';
+                        if (!response.scores || response.scores.length === 0) {
+                            html =
+                                '<tr><td colspan="3" class="text-center py-3 text-muted">No student scores found for this session.</td></tr>';
+                        } else {
+                            // Group by gender in frontend
+                            const grouped = {
+                                'male': [],
+                                'female': []
+                            };
+                            response.scores.forEach(s => {
+                                const g = s.gender.toLowerCase();
+                                if (grouped[g]) grouped[g].push(s);
+                                else {
+                                    if (!grouped['other']) grouped['other'] = [];
+                                    grouped['other'].push(s);
+                                }
+                            });
+
+                            ['male', 'female', 'other'].forEach(gender => {
+                                if (grouped[gender] && grouped[gender].length > 0) {
+                                    html +=
+                                        `<tr class="table-light"><td class="fw-bold text-primary small">${gender.toUpperCase()}</td><td></td><td></td></tr>`;
+                                    grouped[gender].forEach(function(score) {
+                                        let pctClass = '';
+                                        if (score.percentage >= 75) pctClass =
+                                            'text-success fw-bold';
+                                        else if (score.percentage >= 50)
+                                            pctClass =
+                                            'text-warning fw-bold';
+                                        else pctClass = 'text-danger fw-bold';
+
+                                        html += `
+                                            <tr>
+                                                <td class="align-middle text-start ps-4">${score.student_name}</td>
+                                                <td class="text-center align-middle fw-bold">${score.score}</td>
+                                                <td class="text-center align-middle ${pctClass}">${score.percentage.toFixed(1)}%</td>
+                                            </tr>
+                                        `;
+                                    });
+                                }
+                            });
+                        }
+                        $('#viewSessionScoresBody').html(html);
+                    },
+                    error: function() {
+                        $('#viewSessionScoresBody').html(
+                            '<tr><td colspan="3" class="text-center py-3 text-danger">Failed to load scores.</td></tr>'
+                        );
+                    }
+                });
+            });
+
+            // Edit Session Modal Logic
+            function openEditModal(sessionId) {
+                const classId = {{ $class->id }};
+
+                $('#viewSessionModal').modal('hide');
+                $('#editSessionModal').modal('show');
+
+                $('#editSessionLoading').show();
+                $('#editSessionContent').hide();
+                $('#editSessionScoresBody').empty();
+
+                $.ajax({
+                    url: `/teacher/oral-participation/${classId}/${sessionId}/scores-json`,
+                    method: 'GET',
+                    success: function(response) {
+                        $('#editAssessmentId').val(response.assessment.id);
+                        $('#editSessionMaxScore').val(response.assessment.max_score);
+
+                        let html = '';
+                        const grouped = {
+                            'male': [],
+                            'female': []
+                        };
+                        response.scores.forEach(s => {
+                            const g = s.gender.toLowerCase();
+                            if (grouped[g]) grouped[g].push(s);
+                            else {
+                                if (!grouped['other']) grouped['other'] = [];
+                                grouped['other'].push(s);
+                            }
+                        });
+
+                        ['male', 'female', 'other'].forEach(gender => {
+                            if (grouped[gender] && grouped[gender].length > 0) {
+                                html +=
+                                    `<tr class="table-light"><td class="fw-bold text-primary">${gender.toUpperCase()}</td><td></td></tr>`;
+                                grouped[gender].forEach(s => {
+                                    html += `
+                                        <tr class="edit-score-row" data-student-id="${s.student_id}">
+                                            <td class="align-middle fw-bold ps-4">${s.student_name}</td>
+                                            <td class="align-middle text-center">
+                                                <div class="input-group justify-content-center" style="max-width: 160px; margin: 0 auto;">
+                                                    <button class="btn btn-outline-danger edit-minus-btn" type="button"><i class="fas fa-minus"></i></button>
+                                                    <input type="number" class="form-control text-center edit-score-input fw-bold"
+                                                        data-student-id="${s.student_id}" value="${s.score}" min="0" max="${response.assessment.max_score}">
+                                                    <button class="btn btn-outline-success edit-plus-btn" type="button"><i class="fas fa-plus"></i></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+                                });
+                            }
+                        });
+
+                        $('#editSessionScoresBody').html(html);
+                        $('#editSessionLoading').hide();
+                        $('#editSessionContent').show();
+                    }
+                });
+            }
+
+            $(document).on('click', '.edit-session-btn', function() {
+                openEditModal($(this).data('session-id'));
+            });
+
+            $('#editFromViewBtn').click(function() {
+                openEditModal($(this).data('session-id'));
+            });
+
+            // Edit Modal Plus/Minus
+            $(document).on('click', '.edit-plus-btn', function() {
+                const $input = $(this).siblings('.edit-score-input');
+                const max = parseFloat($('#editSessionMaxScore').val());
+                let val = parseFloat($input.val()) || 0;
+                if (val < max) $input.val(val + 1).trigger('change');
+            });
+
+            $(document).on('click', '.edit-minus-btn', function() {
+                const $input = $(this).siblings('.edit-score-input');
+                let val = parseFloat($input.val()) || 0;
+                if (val > 0) $input.val(val - 1).trigger('change');
+            });
+
+            $(document).on('input change', '.edit-score-input', function() {
+                const max = parseFloat($('#editSessionMaxScore').val());
+                let val = parseFloat($(this).val());
+                if (isNaN(val)) val = 0;
+                if (val > max) val = max;
+                if (val < 0) val = 0;
+                $(this).val(val);
+            });
+
+            $('#fillPerfectEdit').click(function() {
+                const max = $('#editSessionMaxScore').val();
+                $('.edit-score-input').val(max);
+            });
+
+            $('#saveEditScores').click(function() {
+                const assessmentId = $('#editAssessmentId').val();
+                const scores = [];
+                $('.edit-score-input').each(function() {
+                    scores.push({
+                        student_id: $(this).data('student-id'),
+                        assessment_id: assessmentId,
+                        score: $(this).val()
+                    });
+                });
+
+                const $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
 
                 $.ajax({
                     url: '{{ route('teacher.oral-participation.saveScores', $class) }}',
                     method: 'POST',
                     data: {
                         _token: '{{ csrf_token() }}',
-                        scores: scoresData
+                        scores: scores
                     },
-                    success: function(response) {
-                        alert('Oral participation scores saved successfully!');
-                        $btn.prop('disabled', false).html(
-                            '<i class="fas fa-save me-2"></i> Save Scores');
+                    success: function() {
+                        alert('Scores updated successfully!');
+                        location.reload();
                     },
                     error: function(xhr) {
                         alert('Error saving scores: ' + (xhr.responseJSON?.message ||
                             'Unknown error'));
                         $btn.prop('disabled', false).html(
-                            '<i class="fas fa-save me-2"></i> Save Scores');
+                            '<i class="fas fa-save me-2"></i> Save Changes');
                     }
                 });
             });

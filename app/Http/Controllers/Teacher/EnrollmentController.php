@@ -50,14 +50,22 @@ class EnrollmentController extends Controller
         );
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $targetSchoolYearId = $request->input('school_year_id');
+
+        // Determine the "current" school year context for the view.
+        // If the user selected a year, use it. Otherwise use the active year.
+        $currentSchoolYear = $targetSchoolYearId
+            ? SchoolYear::find($targetSchoolYearId)
+            : $activeSchoolYear;
 
         $teacher = Auth::user()->teacher ?? null;
         $teacherEnrollments = collect();
         $classes = collect();
         $studentsToEnroll = collect();
+        $previousSchoolYear = null;
 
         if ($currentSchoolYear) {
             $teacherEnrollments = $teacher ? Enrollment::where('teacher_id', $teacher->id)
@@ -139,6 +147,11 @@ class EnrollmentController extends Controller
             ])->values();
         }
 
+        // Get all school years for the selector
+        $allSchoolYears = SchoolYear::where('is_active', true)
+            ->orWhere('is_promotion_open', true)
+            ->orderBy('start_date', 'desc')->get();
+
         return view('teacher.enrollment.index', [
             'classes' => $classes,
             'students' => $studentsToEnroll,
@@ -146,8 +159,10 @@ class EnrollmentController extends Controller
             'currentSchoolYear' => $currentSchoolYear,
             'previousSchoolYear' => $previousSchoolYear ?? null,
             'gradeLevels' => GradeLevel::orderBy('level')->get(),
-            'error' => !$currentSchoolYear ? 'No active school year found.' : null,
+            'error' => !$currentSchoolYear ? 'No school year found.' : null,
             'currentTeacherId' => $teacher?->id,
+            'allSchoolYears' => $allSchoolYears,
+            'activeSchoolYearId' => $activeSchoolYear?->id,
         ]);
     }
     public function create()
@@ -209,21 +224,9 @@ class EnrollmentController extends Controller
         // Resolve the class via route-model binding or fallback to validated class_id
         $resolvedClass = $class && $class->exists ? $class : Classes::findOrFail($validated['class_id']);
 
-        // Ensure active school year and class belong to it
-        $currentSchoolYear = SchoolYear::where('is_active', true)->first();
-        if (!$currentSchoolYear) {
-            return redirect()->back()->with('error', 'No active school year found.');
-        }
-
-        if ($resolvedClass->school_year_id !== $currentSchoolYear->id) {
-            Log::warning('Attempt to enroll new student into a class not in the active school year', [
-                'class_id' => $resolvedClass->id,
-                'class_school_year_id' => $resolvedClass->school_year_id,
-                'active_school_year_id' => $currentSchoolYear->id,
-                'validated' => $validated,
-            ]);
-
-            return redirect()->back()->with('error', 'Selected class is not in the active school year. Please select a class for the current academic year.');
+        // Ensure class has a valid school year
+        if (!$resolvedClass->school_year_id) {
+            return redirect()->back()->with('error', 'Selected class does not represent a valid school year.');
         }
 
         // Determine enrollment status (default to 'enrolled')
@@ -300,6 +303,13 @@ class EnrollmentController extends Controller
         ]);
 
         try {
+            $class = Classes::findOrFail($request->class_id);
+            $schoolYear = $class->schoolYear;
+
+            if (!$schoolYear || (!$schoolYear->is_active && !$schoolYear->is_promotion_open)) {
+                return redirect()->route('teacher.enrollment.index')->with('error', 'Enrollment for this school year is not open.');
+            }
+
             // Parse student IDs (can be single ID or comma-separated list)
             $studentIds = array_filter(array_map('intval', explode(',', $request->student_id)));
 
@@ -318,24 +328,8 @@ class EnrollmentController extends Controller
 
             $class = Classes::findOrFail($request->class_id);
 
-            // Check for an active school year
-            $currentSchoolYear = SchoolYear::where('is_active', true)->first();
-            if (!$currentSchoolYear) {
-                return redirect()->route('teacher.enrollment.index')->with('error', 'No active school year found.');
-            }
-
-            // Defensive guard: ensure the selected class belongs to the active school year.
-            if ($class->school_year_id !== $currentSchoolYear->id) {
-                Log::warning('Attempt to enroll into a class that is not in the active school year', [
-                    'class_id' => $class->id,
-                    'class_school_year_id' => $class->school_year_id,
-                    'active_school_year_id' => $currentSchoolYear->id,
-                    'student_ids' => $studentIds,
-                ]);
-
-                return redirect()->route('teacher.enrollment.index')
-                    ->with('error', 'Selected class is not in the active school year. Please select a class for the current academic year.');
-            }
+            // We determine the target school year from the class itself.
+            $targetSchoolYearId = $class->school_year_id;
 
             // Check capacity
             $currentEnrolled = $class->enrollments()->count();
@@ -353,7 +347,7 @@ class EnrollmentController extends Controller
             $updatedCount = 0;
             $errors = [];
 
-            DB::transaction(function () use ($studentIds, $studentUpdates, $class, $currentSchoolYear, $profileService, $teacherId, $enrollmentStatus, &$enrolledCount, &$skippedCount, &$updatedCount, &$errors) {
+            DB::transaction(function () use ($studentIds, $studentUpdates, $class, $targetSchoolYearId, $profileService, $teacherId, $enrollmentStatus, &$enrolledCount, &$skippedCount, &$updatedCount, &$errors) {
                 foreach ($studentIds as $studentId) {
                     $student = Student::find($studentId);
                     if (!$student) {
@@ -361,8 +355,8 @@ class EnrollmentController extends Controller
                         continue;
                     }
 
-                    // Check if the student is already enrolled in the current school year
-                    $isAlreadyEnrolled = $student->enrollments()->where('school_year_id', $currentSchoolYear->id)->exists();
+                    // Check if the student is already enrolled in the target school year
+                    $isAlreadyEnrolled = $student->enrollments()->where('school_year_id', $targetSchoolYearId)->exists();
                     if ($isAlreadyEnrolled) {
                         $skippedCount++;
                         $errors[] = "{$student->first_name} {$student->last_name} is already enrolled";
@@ -371,6 +365,7 @@ class EnrollmentController extends Controller
 
                     // Apply student updates if provided
                     if (isset($studentUpdates[$studentId]) && !empty($studentUpdates[$studentId])) {
+                        // ...existing code...
                         $updates = $studentUpdates[$studentId];
 
                         // Update student fields
@@ -436,7 +431,7 @@ class EnrollmentController extends Controller
                     $profileService->createEnrollmentWithProfile([
                         'student_id' => $student->id,
                         'class_id' => $class->id,
-                        'school_year_id' => $currentSchoolYear->id,
+                        'school_year_id' => $targetSchoolYearId,
                         'teacher_id' => $teacherId,
                         'enrollment_date' => now(),
                         'status' => $enrollmentStatus,
