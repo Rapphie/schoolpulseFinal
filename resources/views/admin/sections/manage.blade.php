@@ -19,6 +19,8 @@
                 onsubmit="return confirm('Are you sure you want to delete this section? This action cannot be undone.');">
                 @csrf
                 @method('DELETE')
+                <button type="button" class="btn btn-outline-secondary btn-lg me-2" data-bs-toggle="modal"
+                    data-bs-target="#sectionHistoryModal">History</button>
                 <button type="submit" class="btn btn-outline-danger btn-lg">Delete</button>
             </form>
         </div>
@@ -663,17 +665,14 @@
                             <div class="col-md-4 mb-3">
                                 <label for="start_time" class="form-label">Start Time <span
                                         class="text-danger">*</span></label>
-                                <input type="time" class="form-control" name="start_time" required>
+                                <select class="form-select" name="start_time" id="start_time" required></select>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="end_time" class="form-label">End Time <span
                                         class="text-danger">*</span></label>
-                                <input type="time" class="form-control" name="end_time" required>
+                                <select class="form-select" name="end_time" id="end_time" required></select>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="room" class="form-label">Room (Optional)</label>
-                                <input type="text" class="form-control" name="room">
-                            </div>
+                            <!-- Room input removed -->
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -736,18 +735,14 @@
                             <div class="col-md-4 mb-3">
                                 <label for="edit_start_time" class="form-label">Start Time <span
                                         class="text-danger">*</span></label>
-                                <input type="time" class="form-control" name="start_time" id="edit_start_time"
-                                    required>
+                                <select class="form-select" name="start_time" id="edit_start_time" required></select>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="edit_end_time" class="form-label">End Time <span
                                         class="text-danger">*</span></label>
-                                <input type="time" class="form-control" name="end_time" id="edit_end_time" required>
+                                <select class="form-select" name="end_time" id="edit_end_time" required></select>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="edit_room" class="form-label">Room (Optional)</label>
-                                <input type="text" class="form-control" name="room" id="edit_room">
-                            </div>
+                            <!-- Room input removed -->
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -822,353 +817,477 @@
     </div>
 @endsection
 
-@push('scripts')
-    @once('day-toggle-script')
+
+<!-- Section/Class History Modal (moved from @section('modals')) -->
+    <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sectionHistoryModalLabel">Section/Class History</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body w-100 col-md-8 col-sm-8 col-lg-8 col-xl-8">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
+                            <thead>
+                                <tr>
+                                    <th>School Year</th>
+                                    <th>Adviser</th>
+                                    <th>Enrolled</th>
+                                    <th>Capacity</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be populated by DataTables -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @push('scripts')
         <script>
-            (() => {
-                const wireDayToggleButtons = () => {
-                    document.querySelectorAll('[data-day-toggle]').forEach((btn) => {
-                        if (btn.dataset.dayToggleBound === 'true') {
-                            return;
+            document.addEventListener('DOMContentLoaded', function() {
+                // Prepare section history data (injected by controller)
+                const sectionHistory = @json($sectionHistory ?? []);
+                const table = $('#sectionHistoryTable').DataTable({
+
+                    data: sectionHistory,
+                    columns: [{
+                            data: 'school_year',
+                            title: 'School Year'
+                        },
+                        {
+                            data: 'adviser',
+                            title: 'Adviser'
+                        },
+                        {
+                            data: 'enrolled',
+                            title: 'Enrolled'
+                        },
+                        {
+                            data: 'capacity',
+                            title: 'Capacity'
+                        },
+                        {
+                            data: null,
+                            orderable: false,
+                            searchable: false,
+                            render: function(data, type, row) {
+                                if (!row.class_id) return '';
+                                const url =
+                                    `{{ route('admin.sections.manage', $section) }}?class_id=${row.class_id}`;
+                                return `<a href="${url}"
+                                                class="btn btn-sm btn-outline-primary" title="View">
+                                                View
+                                            </a>`;
+                            }
+                        }
+                    ],
+                    order: [
+                        [0, 'desc']
+                    ],
+                    responsive: true,
+                    destroy: true,
+
+                    drawCallback: function(settings) {
+                        if (typeof feather !== 'undefined') {
+                            feather.replace();
+                        }
+                    }
+                });
+
+                // Re-draw on modal show (fixes DataTables rendering in modals)
+                $('#sectionHistoryModal').on('shown.bs.modal', function() {
+                    table.columns.adjust().draw();
+                });
+            });
+        </script>
+        @once('day-toggle-script')
+            <script>
+                (() => {
+                    const wireDayToggleButtons = () => {
+                        document.querySelectorAll('[data-day-toggle]').forEach((btn) => {
+                            if (btn.dataset.dayToggleBound === 'true') {
+                                return;
+                            }
+
+                            btn.dataset.dayToggleBound = 'true';
+                            const showLabel = btn.dataset.showLabel || btn.textContent.trim() || 'Change days';
+                            const hideLabel = btn.dataset.hideLabel || 'Hide days';
+                            btn.dataset.showLabel = showLabel;
+                            btn.dataset.hideLabel = hideLabel;
+
+                            btn.addEventListener('click', () => {
+                                const selector = btn.getAttribute('data-day-toggle');
+                                if (!selector) {
+                                    return;
+                                }
+
+                                const target = document.querySelector(selector);
+                                if (!target) {
+                                    return;
+                                }
+
+                                const isHidden = target.classList.toggle('d-none');
+                                const expanded = !isHidden;
+                                btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                                btn.textContent = expanded ? hideLabel : showLabel;
+                            });
+                        });
+                    };
+
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', wireDayToggleButtons);
+                    } else {
+                        wireDayToggleButtons();
+                    }
+
+                    document.addEventListener('shown.bs.modal', wireDayToggleButtons);
+                })();
+            </script>
+        @endonce
+    @endpush
+
+    @push('scripts')
+        <script>
+            (function() {
+                const modalEl = document.getElementById('addScheduleModal');
+                if (!modalEl) return;
+
+                modalEl.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget; // Button that triggered the modal
+                    const subjectId = button?.getAttribute('data-subject-id');
+                    const subjectName = button?.getAttribute('data-subject-name');
+
+                    const select = document.getElementById('subject_select');
+                    const hidden = document.getElementById('subject_id_input');
+                    const title = modalEl.querySelector('.modal-title');
+
+                    if (subjectId) {
+                        // Set hidden input for submission
+                        hidden.value = subjectId;
+
+                        // Set the select to the value and disable it to prevent changes
+                        if (select) {
+                            select.value = subjectId;
+                            select.setAttribute('disabled', 'disabled');
                         }
 
-                        btn.dataset.dayToggleBound = 'true';
-                        const showLabel = btn.dataset.showLabel || btn.textContent.trim() || 'Change days';
-                        const hideLabel = btn.dataset.hideLabel || 'Hide days';
-                        btn.dataset.showLabel = showLabel;
-                        btn.dataset.hideLabel = hideLabel;
-
-                        btn.addEventListener('click', () => {
-                            const selector = btn.getAttribute('data-day-toggle');
-                            if (!selector) {
-                                return;
-                            }
-
-                            const target = document.querySelector(selector);
-                            if (!target) {
-                                return;
-                            }
-
-                            const isHidden = target.classList.toggle('d-none');
-                            const expanded = !isHidden;
-                            btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-                            btn.textContent = expanded ? hideLabel : showLabel;
-                        });
-                    });
-                };
-
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', wireDayToggleButtons);
-                } else {
-                    wireDayToggleButtons();
-                }
-
-                document.addEventListener('shown.bs.modal', wireDayToggleButtons);
-            })();
-        </script>
-    @endonce
-@endpush
-
-@push('scripts')
-    <script>
-        (function() {
-            const modalEl = document.getElementById('addScheduleModal');
-            if (!modalEl) return;
-
-            modalEl.addEventListener('show.bs.modal', function(event) {
-                const button = event.relatedTarget; // Button that triggered the modal
-                const subjectId = button?.getAttribute('data-subject-id');
-                const subjectName = button?.getAttribute('data-subject-name');
-
-                const select = document.getElementById('subject_select');
-                const hidden = document.getElementById('subject_id_input');
-                const title = modalEl.querySelector('.modal-title');
-
-                if (subjectId) {
-                    // Set hidden input for submission
-                    hidden.value = subjectId;
-
-                    // Set the select to the value and disable it to prevent changes
-                    if (select) {
-                        select.value = subjectId;
-                        select.setAttribute('disabled', 'disabled');
+                        // Update modal title to indicate subject
+                        if (title && subjectName) {
+                            title.textContent = `Add Schedule Entry — ${subjectName}`;
+                        }
+                    } else {
+                        // No subject provided: ensure select is enabled and cleared
+                        if (select) {
+                            select.removeAttribute('disabled');
+                            select.value = '';
+                        }
+                        if (hidden) hidden.value = '';
                     }
+                });
 
-                    // Update modal title to indicate subject
-                    if (title && subjectName) {
-                        title.textContent = `Add Schedule Entry — ${subjectName}`;
-                    }
-                } else {
-                    // No subject provided: ensure select is enabled and cleared
+                modalEl.addEventListener('hidden.bs.modal', function() {
+                    const select = document.getElementById('subject_select');
+                    const hidden = document.getElementById('subject_id_input');
+                    const title = modalEl.querySelector('.modal-title');
+
                     if (select) {
                         select.removeAttribute('disabled');
                         select.value = '';
                     }
                     if (hidden) hidden.value = '';
-                }
-            });
-
-            modalEl.addEventListener('hidden.bs.modal', function() {
-                const select = document.getElementById('subject_select');
-                const hidden = document.getElementById('subject_id_input');
-                const title = modalEl.querySelector('.modal-title');
-
-                if (select) {
-                    select.removeAttribute('disabled');
-                    select.value = '';
-                }
-                if (hidden) hidden.value = '';
-                if (title) title.textContent = 'Add Schedule Entry';
-            });
-        })();
-    </script>
-    <script>
-        (function() {
-            const editModalEl = document.getElementById('editScheduleModal');
-            if (!editModalEl) return;
-
-            editModalEl.addEventListener('show.bs.modal', function(event) {
-                const button = event.relatedTarget;
-                const scheduleId = button?.getAttribute('data-schedule-id');
-                const updateUrl = button?.getAttribute('data-update-url');
-                const teacherId = button?.getAttribute('data-teacher-id');
-                const days = button?.getAttribute('data-days') || '';
-                const startTime = button?.getAttribute('data-start-time');
-                const endTime = button?.getAttribute('data-end-time');
-                const room = button?.getAttribute('data-room');
-                const subjectId = button?.getAttribute('data-subject-id');
-                const subjectName = button?.getAttribute('data-subject-name');
-                const isLowerGrade = button?.getAttribute('data-is-lower-grade') === 'true';
-
-                const form = document.getElementById('editScheduleForm');
-                const teacherSelect = document.getElementById('edit_teacher_id');
-                const teacherLabel = document.querySelector('label[for="edit_teacher_id"]');
-                const subjectInput = document.getElementById('edit_subject_id');
-                const subjectDisplay = document.getElementById('edit_subject_display');
-                const startInput = document.getElementById('edit_start_time');
-                const endInput = document.getElementById('edit_end_time');
-                const roomInput = document.getElementById('edit_room');
-
-                // Set form action
-                if (form && updateUrl) {
-                    form.setAttribute('action', updateUrl);
-                }
-
-                // Populate teacher and handle lower grade restriction
-                if (teacherSelect) {
-                    teacherSelect.value = teacherId || '';
-                    if (isLowerGrade) {
-                        teacherSelect.setAttribute('disabled', 'disabled');
-                        // Add a hidden input to maintain the teacher_id value
-                        let hiddenTeacher = form.querySelector('input[name="teacher_id"][type="hidden"]');
-                        if (!hiddenTeacher) {
-                            hiddenTeacher = document.createElement('input');
-                            hiddenTeacher.type = 'hidden';
-                            hiddenTeacher.name = 'teacher_id';
-                            hiddenTeacher.id = 'edit_teacher_id_hidden';
-                            form.appendChild(hiddenTeacher);
-                        }
-                        hiddenTeacher.value = teacherId || '';
-                    } else {
-                        teacherSelect.removeAttribute('disabled');
-                        const hiddenTeacher = form.querySelector('input[name="teacher_id"][type="hidden"]');
-                        if (hiddenTeacher) hiddenTeacher.remove();
-                    }
-                }
-
-                // Update label to show restriction note for lower grades
-                const teacherNote = editModalEl.querySelector('#teacher-restriction-note');
-                if (isLowerGrade) {
-                    if (!teacherNote) {
-                        const note = document.createElement('small');
-                        note.id = 'teacher-restriction-note';
-                        note.className = 'text-muted d-block';
-                        note.textContent = 'Teacher is locked to the class adviser for Grade 1-3.';
-                        teacherSelect.parentNode.appendChild(note);
-                    }
-                } else {
-                    if (teacherNote) teacherNote.remove();
-                }
-
-                // Populate subject display and hidden input
-                if (subjectInput) subjectInput.value = subjectId || '';
-                if (subjectDisplay) subjectDisplay.value = subjectName || '';
-
-                // Populate days checkboxes
-                const dayArray = days ? days.split(',').map(d => d.trim().toLowerCase()) : [];
-                document.querySelectorAll('.edit-day-checkbox').forEach((cb) => {
-                    cb.checked = dayArray.includes(cb.value.toLowerCase());
+                    if (title) title.textContent = 'Add Schedule Entry';
                 });
+            })();
+        </script>
+        <script>
+            (function() {
+                // Time dropdown population
+                function populateTimeDropdowns(startId, endId) {
+                    const startTimeSelect = document.getElementById(startId);
+                    const endTimeSelect = document.getElementById(endId);
+                    if (!startTimeSelect || !endTimeSelect) return;
 
-                // Populate times and room
-                if (startInput) startInput.value = startTime || '';
-                if (endInput) endInput.value = endTime || '';
-                if (roomInput) roomInput.value = room || '';
-            });
+                    // Clear existing options
+                    startTimeSelect.innerHTML = '<option value="">-- Select --</option>';
+                    endTimeSelect.innerHTML = '<option value="">-- Select --</option>';
 
-            editModalEl.addEventListener('hidden.bs.modal', function() {
-                const form = document.getElementById('editScheduleForm');
-                if (form) {
-                    form.removeAttribute('action');
+                    let currentTime = new Date();
+                    currentTime.setHours(7, 0, 0, 0);
+
+                    const endTime = new Date();
+                    endTime.setHours(17, 0, 0, 0);
+
+                    while (currentTime <= endTime) {
+                        const hours = currentTime.getHours();
+                        const minutes = currentTime.getMinutes();
+                        const ampm = hours >= 12 ? 'PM' : 'AM';
+                        const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+                        const displayMinutes = minutes < 10 ? '0' + minutes : minutes;
+                        const displayTime = `${displayHours}:${displayMinutes} ${ampm}`;
+                        const valueTime = `${hours < 10 ? '0' + hours : hours}:${displayMinutes}`;
+
+                        const optionStart = new Option(displayTime, valueTime);
+                        const optionEnd = new Option(displayTime, valueTime);
+
+                        startTimeSelect.add(optionStart);
+                        endTimeSelect.add(optionEnd);
+
+                        currentTime.setMinutes(currentTime.getMinutes() + 15);
+                    }
                 }
-                const teacherSelect = document.getElementById('edit_teacher_id');
-                if (teacherSelect) {
-                    teacherSelect.removeAttribute('disabled');
-                }
-                const hiddenTeacher = form?.querySelector('input[name="teacher_id"][type="hidden"]');
-                if (hiddenTeacher) hiddenTeacher.remove();
-                const teacherNote = document.querySelector('#teacher-restriction-note');
-                if (teacherNote) teacherNote.remove();
 
-                document.getElementById('edit_subject_id').value = '';
-                document.getElementById('edit_subject_display').value = '';
-                document.getElementById('edit_teacher_id').value = '';
-                document.getElementById('edit_start_time').value = '';
-                document.getElementById('edit_end_time').value = '';
-                document.getElementById('edit_room').value = '';
-                document.querySelectorAll('.edit-day-checkbox').forEach(cb => cb.checked = false);
-            });
-        })();
-    </script>
-    <script>
-        (function() {
-            const editStudentModal = document.getElementById('editStudentModal');
-            if (!editStudentModal) return;
+                populateTimeDropdowns('start_time', 'end_time');
+                populateTimeDropdowns('edit_start_time', 'edit_end_time');
 
-            editStudentModal.addEventListener('show.bs.modal', function(event) {
-                const button = event.relatedTarget;
-                const form = document.getElementById('editStudentForm');
 
-                if (form) {
-                    const updateUrl = button?.getAttribute('data-update-url');
-                    if (updateUrl) {
+                const editModalEl = document.getElementById('editScheduleModal');
+                if (!editModalEl) return;
+
+                editModalEl.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const startTime = button?.getAttribute('data-start-time');
+                    const endTime = button?.getAttribute('data-end-time');
+                    const room = button?.getAttribute('data-room');
+                    const subjectId = button?.getAttribute('data-subject-id');
+                    const subjectName = button?.getAttribute('data-subject-name');
+                    const isLowerGrade = button?.getAttribute('data-is-lower-grade') === 'true';
+
+                    const form = document.getElementById('editScheduleForm');
+                    const teacherSelect = document.getElementById('edit_teacher_id');
+                    const teacherLabel = document.querySelector('label[for="edit_teacher_id"]');
+                    const subjectInput = document.getElementById('edit_subject_id');
+                    const subjectDisplay = document.getElementById('edit_subject_display');
+                    const startInput = document.getElementById('edit_start_time');
+                    const endInput = document.getElementById('edit_end_time');
+                    const roomInput = document.getElementById('edit_room');
+
+                    // Set form action
+                    if (form && updateUrl) {
                         form.setAttribute('action', updateUrl);
                     }
-                }
 
-                const setValue = (id, value) => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.value = value ?? '';
+                    // Populate teacher and handle lower grade restriction
+                    if (teacherSelect) {
+                        teacherSelect.value = teacherId || '';
+                        if (isLowerGrade) {
+                            teacherSelect.setAttribute('disabled', 'disabled');
+                            // Add a hidden input to maintain the teacher_id value
+                            let hiddenTeacher = form.querySelector('input[name="teacher_id"][type="hidden"]');
+                            if (!hiddenTeacher) {
+                                hiddenTeacher = document.createElement('input');
+                                hiddenTeacher.type = 'hidden';
+                                hiddenTeacher.name = 'teacher_id';
+                                hiddenTeacher.id = 'edit_teacher_id_hidden';
+                                form.appendChild(hiddenTeacher);
+                            }
+                            hiddenTeacher.value = teacherId || '';
+                        } else {
+                            teacherSelect.removeAttribute('disabled');
+                            const hiddenTeacher = form.querySelector('input[name="teacher_id"][type="hidden"]');
+                            if (hiddenTeacher) hiddenTeacher.remove();
+                        }
                     }
+
+                    // Update label to show restriction note for lower grades
+                    const teacherNote = editModalEl.querySelector('#teacher-restriction-note');
+                    if (isLowerGrade) {
+                        if (!teacherNote) {
+                            const note = document.createElement('small');
+                            note.id = 'teacher-restriction-note';
+                            note.className = 'text-muted d-block';
+                            note.textContent = 'Teacher is locked to the class adviser for Grade 1-3.';
+                            teacherSelect.parentNode.appendChild(note);
+                        }
+                    } else {
+                        if (teacherNote) teacherNote.remove();
+                    }
+
+                    // Populate subject display and hidden input
+                    if (subjectInput) subjectInput.value = subjectId || '';
+                    if (subjectDisplay) subjectDisplay.value = subjectName || '';
+
+                    // Populate days checkboxes
+                    const dayArray = days ? days.split(',').map(d => d.trim().toLowerCase()) : [];
+                    document.querySelectorAll('.edit-day-checkbox').forEach((cb) => {
+                        cb.checked = dayArray.includes(cb.value.toLowerCase());
+                    });
+
+                    // Populate times and room
+                    if (startInput) startInput.value = startTime || '';
+                    if (endInput) endInput.value = endTime || '';
+                    if (roomInput) roomInput.value = room || '';
+                });
+
+                editModalEl.addEventListener('hidden.bs.modal', function() {
+                    const form = document.getElementById('editScheduleForm');
+                    if (form) {
+                        form.removeAttribute('action');
+                    }
+                    const teacherSelect = document.getElementById('edit_teacher_id');
+                    if (teacherSelect) {
+                        teacherSelect.removeAttribute('disabled');
+                    }
+                    const hiddenTeacher = form?.querySelector('input[name="teacher_id"][type="hidden"]');
+                    if (hiddenTeacher) hiddenTeacher.remove();
+                    const teacherNote = document.querySelector('#teacher-restriction-note');
+                    if (teacherNote) teacherNote.remove();
+
+                    document.getElementById('edit_subject_id').value = '';
+                    document.getElementById('edit_subject_display').value = '';
+                    document.getElementById('edit_teacher_id').value = '';
+                    document.getElementById('edit_start_time').value = '';
+                    document.getElementById('edit_end_time').value = '';
+                    document.getElementById('edit_room').value = '';
+                    document.querySelectorAll('.edit-day-checkbox').forEach(cb => cb.checked = false);
+                });
+            })();
+        </script>
+        <script>
+            (function() {
+                const editStudentModal = document.getElementById('editStudentModal');
+                if (!editStudentModal) return;
+
+                editStudentModal.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const form = document.getElementById('editStudentForm');
+
+                    if (form) {
+                        const updateUrl = button?.getAttribute('data-update-url');
+                        if (updateUrl) {
+                            form.setAttribute('action', updateUrl);
+                        }
+                    }
+
+                    const setValue = (id, value) => {
+                        const el = document.getElementById(id);
+                        if (el) {
+                            el.value = value ?? '';
+                        }
+                    };
+
+                    const data = button?.dataset ?? {};
+                    setValue('edit_lrn', data.lrn);
+                    setValue('edit_first_name', data.firstName);
+                    setValue('edit_last_name', data.lastName);
+                    setValue('edit_gender', data.gender);
+                    setValue('edit_birthdate', data.birthdate);
+                    setValue('edit_address', data.address);
+                    setValue('edit_distance_km', data.distance);
+                    setValue('edit_transportation', data.transportation);
+                    setValue('edit_family_income', data.familyIncome);
+                    setValue('edit_guardian_first_name', data.guardianFirstName);
+                    setValue('edit_guardian_last_name', data.guardianLastName);
+                    setValue('edit_guardian_email', data.guardianEmail);
+                    setValue('edit_guardian_phone', data.guardianPhone);
+                    setValue('edit_guardian_relationship', data.guardianRelationship);
+                });
+
+                editStudentModal.addEventListener('hidden.bs.modal', function() {
+                    const form = document.getElementById('editStudentForm');
+                    if (form) {
+                        form.removeAttribute('action');
+                        form.reset();
+                    }
+                });
+            })();
+        </script>
+        @if (($errors->any() && old('_form') === 'enroll') || session('error_form') === 'enroll')
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    try {
+                        var modalEl = document.getElementById('enrollStudentModal');
+                        if (modalEl) {
+                            var modal = new bootstrap.Modal(modalEl);
+                            modal.show();
+                        }
+                    } catch (e) {
+                        // fail silently if bootstrap not available on the page load
+                        console.warn('Could not show enroll modal automatically:', e);
+                    }
+                });
+            </script>
+        @endif
+
+        <script>
+            (function() {
+                // Teacher data for the combobox
+                const teachersList = @json($teachers->map(fn($t) => ['id' => $t->id, 'name' => $t->user->first_name . ' ' . $t->user->last_name]));
+
+                const adviserInput = document.getElementById('adviser_search');
+                const adviserHidden = document.getElementById('adviser_teacher_id');
+                const adviserMenu = document.getElementById('adviserDropdown');
+
+                if (!adviserInput || !adviserHidden || !adviserMenu) return;
+
+                const renderDropdown = (teachers) => {
+                    adviserMenu.innerHTML = '';
+                    if (teachers.length === 0) {
+                        adviserMenu.innerHTML = '<div class="dropdown-item text-muted">No teachers found</div>';
+                        return;
+                    }
+                    teachers.forEach(teacher => {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'dropdown-item';
+                        item.textContent = teacher.name;
+                        item.dataset.id = teacher.id;
+                        item.addEventListener('click', () => {
+                            adviserInput.value = teacher.name;
+                            adviserHidden.value = teacher.id;
+                            adviserMenu.classList.remove('show');
+                        });
+                        adviserMenu.appendChild(item);
+                    });
                 };
 
-                const data = button?.dataset ?? {};
-                setValue('edit_lrn', data.lrn);
-                setValue('edit_first_name', data.firstName);
-                setValue('edit_last_name', data.lastName);
-                setValue('edit_gender', data.gender);
-                setValue('edit_birthdate', data.birthdate);
-                setValue('edit_address', data.address);
-                setValue('edit_distance_km', data.distance);
-                setValue('edit_transportation', data.transportation);
-                setValue('edit_family_income', data.familyIncome);
-                setValue('edit_guardian_first_name', data.guardianFirstName);
-                setValue('edit_guardian_last_name', data.guardianLastName);
-                setValue('edit_guardian_email', data.guardianEmail);
-                setValue('edit_guardian_phone', data.guardianPhone);
-                setValue('edit_guardian_relationship', data.guardianRelationship);
-            });
+                // Filter and show dropdown on input
+                adviserInput.addEventListener('input', function() {
+                    const query = this.value.toLowerCase().trim();
+                    const filtered = teachersList.filter(t => t.name.toLowerCase().includes(query));
+                    renderDropdown(filtered);
+                    adviserMenu.classList.add('show');
+                });
 
-            editStudentModal.addEventListener('hidden.bs.modal', function() {
-                const form = document.getElementById('editStudentForm');
-                if (form) {
-                    form.removeAttribute('action');
-                    form.reset();
-                }
-            });
-        })();
-    </script>
-    @if (($errors->any() && old('_form') === 'enroll') || session('error_form') === 'enroll')
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                try {
-                    var modalEl = document.getElementById('enrollStudentModal');
-                    if (modalEl) {
-                        var modal = new bootstrap.Modal(modalEl);
-                        modal.show();
-                    }
-                } catch (e) {
-                    // fail silently if bootstrap not available on the page load
-                    console.warn('Could not show enroll modal automatically:', e);
-                }
-            });
-        </script>
-    @endif
+                // Show all teachers on focus
+                adviserInput.addEventListener('focus', function() {
+                    const query = this.value.toLowerCase().trim();
+                    const filtered = query ?
+                        teachersList.filter(t => t.name.toLowerCase().includes(query)) :
+                        teachersList;
+                    renderDropdown(filtered);
+                    adviserMenu.classList.add('show');
+                });
 
-    <script>
-        (function() {
-            // Teacher data for the combobox
-            const teachersList = @json($teachers->map(fn($t) => ['id' => $t->id, 'name' => $t->user->first_name . ' ' . $t->user->last_name]));
-
-            const adviserInput = document.getElementById('adviser_search');
-            const adviserHidden = document.getElementById('adviser_teacher_id');
-            const adviserMenu = document.getElementById('adviserDropdown');
-
-            if (!adviserInput || !adviserHidden || !adviserMenu) return;
-
-            const renderDropdown = (teachers) => {
-                adviserMenu.innerHTML = '';
-                if (teachers.length === 0) {
-                    adviserMenu.innerHTML = '<div class="dropdown-item text-muted">No teachers found</div>';
-                    return;
-                }
-                teachers.forEach(teacher => {
-                    const item = document.createElement('button');
-                    item.type = 'button';
-                    item.className = 'dropdown-item';
-                    item.textContent = teacher.name;
-                    item.dataset.id = teacher.id;
-                    item.addEventListener('click', () => {
-                        adviserInput.value = teacher.name;
-                        adviserHidden.value = teacher.id;
+                // Hide dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!adviserInput.contains(e.target) && !adviserMenu.contains(e.target)) {
                         adviserMenu.classList.remove('show');
-                    });
-                    adviserMenu.appendChild(item);
-                });
-            };
-
-            // Filter and show dropdown on input
-            adviserInput.addEventListener('input', function() {
-                const query = this.value.toLowerCase().trim();
-                const filtered = teachersList.filter(t => t.name.toLowerCase().includes(query));
-                renderDropdown(filtered);
-                adviserMenu.classList.add('show');
-            });
-
-            // Show all teachers on focus
-            adviserInput.addEventListener('focus', function() {
-                const query = this.value.toLowerCase().trim();
-                const filtered = query ?
-                    teachersList.filter(t => t.name.toLowerCase().includes(query)) :
-                    teachersList;
-                renderDropdown(filtered);
-                adviserMenu.classList.add('show');
-            });
-
-            // Hide dropdown when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!adviserInput.contains(e.target) && !adviserMenu.contains(e.target)) {
-                    adviserMenu.classList.remove('show');
-                }
-            });
-
-            // Reset modal on open
-            const assignAdviserModal = document.getElementById('assignAdviserModal');
-            if (assignAdviserModal) {
-                assignAdviserModal.addEventListener('show.bs.modal', function() {
-                    // Set initial value if there's a current adviser
-                    const currentTeacherId = '{{ $class->teacher_id ?? '' }}';
-                    const currentTeacher = teachersList.find(t => t.id == currentTeacherId);
-                    if (currentTeacher) {
-                        adviserInput.value = currentTeacher.name;
-                        adviserHidden.value = currentTeacher.id;
-                    } else {
-                        adviserInput.value = '';
-                        adviserHidden.value = '';
                     }
                 });
-            }
-        })();
-    </script>
-@endpush
+
+                // Reset modal on open
+                const assignAdviserModal = document.getElementById('assignAdviserModal');
+                if (assignAdviserModal) {
+                    assignAdviserModal.addEventListener('show.bs.modal', function() {
+                        // Set initial value if there's a current adviser
+                        const currentTeacherId = '{{ $class->teacher_id ?? '' }}';
+                        const currentTeacher = teachersList.find(t => t.id == currentTeacherId);
+                        if (currentTeacher) {
+                            adviserInput.value = currentTeacher.name;
+                            adviserHidden.value = currentTeacher.id;
+                        } else {
+                            adviserInput.value = '';
+                            adviserHidden.value = '';
+                        }
+                    });
+                }
+            })();
+        </script>
+    @endpush

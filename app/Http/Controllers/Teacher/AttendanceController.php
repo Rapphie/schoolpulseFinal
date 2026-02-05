@@ -14,6 +14,7 @@ use App\Models\Teacher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+
 class AttendanceController extends Controller
 {
     public function getSubjectsForClass(Classes $class, Request $request)

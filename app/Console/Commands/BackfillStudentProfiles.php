@@ -56,7 +56,7 @@ class BackfillStudentProfiles extends Command
                         ],
                         [
                             'grade_level_id' => $gradeLevelId,
-                            'status' => 'active',
+                            'status' => 'enrolled',
                         ]
                     );
 
@@ -132,7 +132,7 @@ class BackfillStudentProfiles extends Command
                 if (!$dryRun) {
                     $profile = StudentProfile::firstOrCreate(
                         ['student_id' => $att->student_id, 'school_year_id' => $att->school_year_id],
-                        ['grade_level_id' => $gradeLevelId, 'status' => 'active']
+                        ['grade_level_id' => $gradeLevelId, 'status' => 'enrolled']
                     );
                 }
             }
@@ -173,7 +173,7 @@ class BackfillStudentProfiles extends Command
                 if (!$dryRun) {
                     $profile = StudentProfile::firstOrCreate(
                         ['student_id' => $score->student_id, 'school_year_id' => $assessment->school_year_id],
-                        ['grade_level_id' => $gradeLevelId, 'status' => 'active']
+                        ['grade_level_id' => $gradeLevelId, 'status' => 'enrolled']
                     );
                 }
             }

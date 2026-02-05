@@ -20,25 +20,39 @@
         <div class="card-body">
             <div class="mb-4 p-3 bg-light border rounded">
                 <div class="row align-items-end">
-                    <div class="col-md-3">
-                        <label for="section-filter" class="form-label">Filter by Section</label>
+                    <div class="col-md-2">
+                        <label for="grade-level-filter" class="form-label">Grade Level</label>
+                        <select id="grade-level-filter" class="form-select form-select-sm">
+                            <option value="">All</option>
+                            @foreach ($gradeLevels as $gl)
+                                <option value="{{ $gl->name }}" data-id="{{ $gl->id }}">{{ $gl->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="section-filter" class="form-label">Section</label>
                         <select id="section-filter" class="form-select form-select-sm">
-                            <option value="">All Sections</option>
+                            <option value="">All</option>
+                            {{-- Will be filtered based on Grade Level --}}
                             @foreach ($sections as $section)
-                                <option value="{{ $section->name }}">{{ $section->name }}</option>
+                                <option value="{{ $section->name }}" data-grade-id="{{ $section->grade_level_id }}">
+                                    {{ $section->name }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label for="subject-filter" class="form-label">Filter by Subject</label>
+                        <label for="subject-filter" class="form-label">Subject</label>
                         <select id="subject-filter" class="form-select form-select-sm">
-                            <option value="">All Subjects</option>
+                            <option value="">All</option>
+                            {{-- Will be filtered based on Section --}}
                             @foreach ($subjects as $subject)
-                                <option value="{{ $subject->name }}">{{ $subject->name }}</option>
+                                <option value="{{ $subject->name }}" data-grade-id="{{ $subject->grade_level_id }}">
+                                    {{ $subject->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label for="date-from" class="form-label">Date From</label>
                         <input type="date" id="date-from" class="form-control form-control-sm">
                     </div>
@@ -55,6 +69,7 @@
                         <tr>
                             <th>Date</th>
                             <th>Student Name</th>
+                            <th>Grade Level</th>
                             <th>Section</th>
                             <th>Subject</th>
                             <th>Status</th>
@@ -66,6 +81,7 @@
                             <tr>
                                 <td>{{ \Carbon\Carbon::parse($record->date)->format('M d, Y') }}</td>
                                 <td>{{ $record->last_name }}, {{ $record->first_name }}</td>
+                                <td>{{ $record->grade_level_name }}</td>
                                 <td>{{ $record->section_name }}</td>
                                 <td>{{ $record->subject_name }}</td>
                                 <td>
@@ -117,7 +133,7 @@
 
     <!-- Summarize Modal -->
     <div class="modal fade" id="summarizeModal" tabindex="-1" aria-labelledby="summarizeModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-fullscreen">
             <div class="modal-content">
                 <div class="modal-header border-0">
                     <h5 class="modal-title" id="summarizeModalLabel">Attendance Summary</h5>
@@ -126,23 +142,25 @@
                 <div class="modal-body">
                     <div class="p-3 bg-light border rounded mb-4">
                         <div class="row">
-                            <div class="col-md-6 mb-2">
-                                <label for="summary-class" class="form-label">Class</label>
-                                {{-- This dropdown is now populated with the teacher's classes --}}
-                                <select id="summary-class" class="form-select">
-                                    <option value="">Select Class</option>
-                                    @foreach ($teacherClasses as $class)
-                                        <option value="{{ $class->id }}">{{ $class->section->name }}</option>
+                            <div class="col-md-4 mb-2">
+                                <label for="summary-grade-level" class="form-label">Grade Level</label>
+                                <select id="summary-grade-level" class="form-select">
+                                    <option value="">Select Grade Level</option>
+                                    @foreach ($gradeLevels as $gl)
+                                        <option value="{{ $gl->id }}">{{ $gl->name }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-6 mb-2">
+                            <div class="col-md-4 mb-2">
+                                <label for="summary-class" class="form-label">Section</label>
+                                <select id="summary-class" class="form-select">
+                                    <option value="">Select Section</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-2">
                                 <label for="summary-subject" class="form-label">Subject</label>
                                 <select id="summary-subject" class="form-select">
                                     <option value="">Select Subject</option>
-                                    @foreach ($subjects as $subject)
-                                        <option value="{{ $subject->id }}">{{ $subject->name }}</option>
-                                    @endforeach
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -152,6 +170,16 @@
                             <div class="col-md-6">
                                 <label for="summary-date-to" class="form-label">Date To</label>
                                 <input type="date" id="summary-date-to" class="form-control">
+                            </div>
+                            <div class="col-12 mt-2">
+                                <div class="btn-group btn-group-sm w-100" role="group">
+                                    <button type="button" class="btn btn-outline-secondary quick-date"
+                                        data-days="7">Last 7 Days</button>
+                                    <button type="button" class="btn btn-outline-secondary quick-date"
+                                        data-days="14">Last 14 Days</button>
+                                    <button type="button" class="btn btn-outline-secondary quick-date"
+                                        data-days="30">Last 30 Days</button>
+                                </div>
                             </div>
                         </div>
                         <div class="text-center mt-3">
@@ -163,10 +191,18 @@
                     <div id="summaryResult" class="mt-4" style="display: none;">
                         <h6 class="fw-bold">Summary Results</h6>
                         <div class="row">
+                            <div class="col-md-12 mb-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Attendance Trends</h6>
+                                        <div id="trend-chart" style="height: 300px;"></div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <div class="card">
                                     <div class="card-body">
-                                        <h6 class="card-title">Attendance Statistics</h6>
+                                        <h6 class="card-title">Attendance Distribution</h6>
                                         <div id="attendance-chart" style="height: 300px;"></div>
                                     </div>
                                 </div>
@@ -180,9 +216,9 @@
                                                 <thead>
                                                     <tr>
                                                         <th>Name</th>
-                                                        <th>Present</th>
-                                                        <th>Late</th>
-                                                        <th>Absent</th>
+                                                        <th>P</th>
+                                                        <th>L</th>
+                                                        <th>A</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="summary-students">
@@ -190,6 +226,8 @@
                                                 </tbody>
                                             </table>
                                         </div>
+                                        <small class="text-danger">* Red names indicate at-risk students (3+
+                                            absences)</small>
                                     </div>
                                 </div>
                             </div>
@@ -273,6 +311,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize DataTable
@@ -283,16 +322,49 @@
                 ]
             });
 
+            // Grade level filter
+            $('#grade-level-filter').on('change', function() {
+                const name = $(this).val();
+                const id = $(this).find(':selected').data('id');
+                table.column(2).search(name).draw();
+
+                // Filter Section dropdown
+                const sectionFilter = $('#section-filter');
+                sectionFilter.val("");
+                table.column(3).search("").draw();
+
+                if (!id) {
+                    sectionFilter.find('option').show();
+                } else {
+                    sectionFilter.find('option').each(function() {
+                        const gradeId = $(this).data('grade-id');
+                        if (!gradeId || gradeId == id) {
+                            $(this).show();
+                        } else {
+                            $(this).hide();
+                        }
+                    });
+                }
+
+                // Reset Subject filter as well
+                $('#subject-filter').val("").find('option').show();
+                table.column(4).search("").draw();
+            });
+
             // Section filter
             $('#section-filter').on('change', function() {
-                const value = $(this).val();
-                table.column(2).search(value).draw();
+                const name = $(this).val();
+                table.column(3).search(name).draw();
+
+                // Optional: Filter Subject dropdown based on selected section?
+                // Since we don't have section-subject mapping easily here without more data,
+                // and the user asked for Grade Level -> Subject, let's stick to Grade Level -> Subject.
             });
 
             // Subject filter
             $('#subject-filter').on('change', function() {
-                const value = $(this).val();
-                table.column(3).search(value).draw();
+                const name = $(this).val();
+                table.column(4).search(name).draw();
             });
 
             // Date range filter
@@ -314,6 +386,85 @@
 
             $('#date-from, #date-to').on('change', function() {
                 table.draw();
+            });
+
+            // Quick date filters for summary
+            $('.quick-date').on('click', function() {
+                const days = $(this).data('days');
+                const to = new Date();
+                const from = new Date();
+                from.setDate(to.getDate() - days);
+
+                $('#summary-date-to').val(to.toISOString().split('T')[0]);
+                $('#summary-date-from').val(from.toISOString().split('T')[0]);
+
+                // Highlight active button
+                $('.quick-date').removeClass('active');
+                $(this).addClass('active');
+            });
+
+            // Grade level filter for summary
+            $('#summary-grade-level').on('change', function() {
+                const gradeLevelId = $(this).val();
+                const sectionDropdown = $('#summary-class');
+                const subjectDropdown = $('#summary-subject');
+
+                sectionDropdown.empty().append('<option value="">Select Section</option>');
+                subjectDropdown.empty().append('<option value="">Select Subject</option>');
+
+                if (!gradeLevelId) return;
+
+                $.ajax({
+                    url: '{{ route('teacher.sections.by-grade-level') }}',
+                    type: 'GET',
+                    data: {
+                        grade_level: gradeLevelId
+                    },
+                    success: function(response) {
+                        if (response.allClasses && response.allClasses.length > 0) {
+                            response.allClasses.forEach(classes => {
+                                sectionDropdown.append(
+                                    `<option value="${classes.id}">${classes.section.name}</option>`
+                                );
+                            });
+                        } else if (response.sections && response.sections.length > 0) {
+                            // Fallback for different response structure
+                            response.sections.forEach(section => {
+                                sectionDropdown.append(
+                                    `<option value="${section.id}">${section.name}</option>`
+                                );
+                            });
+                        }
+                    }
+                });
+            });
+
+            $('#summary-class').on('change', function() {
+                const sectionId = $(this).val();
+                const subjectDropdown = $('#summary-subject');
+
+                subjectDropdown.empty().append('<option value="">Select Subject</option>');
+
+                if (!sectionId) return;
+
+                // Add "All Subjects" option
+                subjectDropdown.append('<option value="all">All Subjects</option>');
+
+                $.ajax({
+                    url: "{{ route('teacher.subjects.by-section', ['section' => ':sectionId']) }}"
+                        .replace(':sectionId', sectionId),
+                    type: 'GET',
+                    success: function(response) {
+                        const subjects = response.subjects || response.data || response;
+                        if (Array.isArray(subjects)) {
+                            subjects.forEach(subject => {
+                                subjectDropdown.append(
+                                    `<option value="${subject.id}">${subject.name}</option>`
+                                );
+                            });
+                        }
+                    }
+                });
             });
 
             // Edit Record Button Click Event
@@ -365,6 +516,8 @@
                     },
                     success: function(response) {
                         const stats = response.stats;
+
+                        // Pie Chart
                         const chartOptions = {
                             series: [
                                 parseInt(stats.present_count),
@@ -395,12 +548,57 @@
                             "#attendance-chart"), chartOptions);
                         chart.render();
 
+                        // Trend Chart
+                        const trendData = response.trend_data;
+                        const trendChartOptions = {
+                            series: [{
+                                name: 'Present',
+                                data: trendData.map(item => item.present)
+                            }, {
+                                name: 'Absent',
+                                data: trendData.map(item => item.absent)
+                            }],
+                            chart: {
+                                height: 300,
+                                type: 'line',
+                                toolbar: {
+                                    show: false
+                                }
+                            },
+                            colors: ['#1cc88a', '#e74a3b'],
+                            dataLabels: {
+                                enabled: false
+                            },
+                            stroke: {
+                                curve: 'smooth',
+                                width: 3
+                            },
+                            xaxis: {
+                                categories: trendData.map(item => {
+                                    const date = new Date(item.date);
+                                    return date.toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric'
+                                    });
+                                }),
+                            },
+                            legend: {
+                                position: 'top'
+                            }
+                        };
+                        document.querySelector('#trend-chart').innerHTML = '';
+                        const trendChart = new ApexCharts(document.querySelector(
+                            "#trend-chart"), trendChartOptions);
+                        trendChart.render();
+
                         const studentTableBody = $('#summary-students');
                         studentTableBody.empty();
                         response.student_details.forEach(student => {
+                            const atRiskClass = student.is_at_risk ?
+                                'text-danger fw-bold' : '';
                             const row = `
                                 <tr>
-                                    <td>${student.last_name}, ${student.first_name}</td>
+                                    <td class="${atRiskClass}">${student.last_name}, ${student.first_name} ${student.is_at_risk ? '<i class="fa fa-exclamation-triangle"></i>' : ''}</td>
                                     <td>${student.present_count}</td>
                                     <td>${student.late_count}</td>
                                     <td>${student.absent_count}</td>

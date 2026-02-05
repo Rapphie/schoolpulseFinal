@@ -91,7 +91,7 @@ class StudentProfile extends Model
             ],
             [
                 'grade_level_id' => $gradeLevelId,
-                'status' => 'active',
+                'status' => 'enrolled',
             ]
         );
     }

@@ -19,10 +19,10 @@ class SectionController extends Controller
      */
     public function index()
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
         if (!$activeSchoolYear) {
             return redirect()->route('admin.dashboard')
-                ->with('error', 'No active school year found. Please set an active school year first.');
+                ->with('error', 'No school year found. Please create one first.');
         }
 
         // Fetch classes for the active year and eager load relationships for efficiency
@@ -41,7 +41,11 @@ class SectionController extends Controller
      */
     public function store(Request $request)
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
+        $activeSchoolYear = SchoolYear::getActive();
+
+        if (!$activeSchoolYear) {
+            abort(404, 'No school year found.');
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -110,7 +114,32 @@ class SectionController extends Controller
         $subjects = Subject::where('grade_level_id', $section->grade_level_id)->get();
         $teachers = Teacher::with('user')->get();
 
-        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers'));
+        // Section/Class History: get all classes for this section, sorted by school year (desc)
+        $allClasses = \App\Models\Classes::where('section_id', $section->id)
+            ->with(['schoolYear', 'teacher.user', 'schedules'])
+            ->orderByDesc('school_year_id')
+            ->get();
+
+        $sectionHistory = $allClasses->map(function ($c) {
+            $adviser = $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A';
+            $rooms = $c->schedules->pluck('room')->filter()->unique()->implode(', ');
+            return [
+                'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
+                'adviser' => $adviser,
+                'capacity' => $c->capacity,
+                'rooms' => $rooms ?: '—',
+            ];
+        });
+
+        // For debugging: always add a fake row to confirm DataTables is working
+        $sectionHistory->push([
+            'school_year' => 'Test Year',
+            'adviser' => 'Test Adviser',
+            'capacity' => 99,
+            'rooms' => 'Test Room',
+        ]);
+
+        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers', 'sectionHistory'));
     }
 
     public function assignAdviser(Request $request, Classes $class)

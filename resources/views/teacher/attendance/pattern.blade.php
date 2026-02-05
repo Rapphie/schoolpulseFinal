@@ -137,10 +137,12 @@
                                                 <td class="text-center">{{ $lateCount > 0 ? $lateCount : '-' }}</td>
                                                 <td class="text-center">{{ $excusedCount > 0 ? $excusedCount : '-' }}</td>
                                                 <td class="text-center table-active">
-                                                    <strong>{{ $monthlyTotal > 0 ? $monthlyTotal : '-' }}</strong></td>
+                                                    <strong>{{ $monthlyTotal > 0 ? $monthlyTotal : '-' }}</strong>
+                                                </td>
                                             @endforeach
                                             <td class="text-center table-primary">
-                                                <strong>{{ $grandTotal > 0 ? $grandTotal : '-' }}</strong></td>
+                                                <strong>{{ $grandTotal > 0 ? $grandTotal : '-' }}</strong>
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>

@@ -63,6 +63,18 @@
                             <small class="form-text text-muted">Only your assigned sections are shown. Click to search and
                                 select.</small>
                         </div>
+
+                        @if ($isElementaryAdviser)
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="allDayToggle" name="all_day">
+                                    <label class="form-check-label fw-bold" for="allDayToggle">
+                                        Apply to All Subjects of the Day
+                                    </label>
+                                </div>
+                            </div>
+                        @endif
+
                         <div class="mb-3">
                             <label for="subject_id" class="form-label">Subject <span class="text-danger">*</span></label>
                             <div class="dropdown" id="subjectDropdownWrapper">
@@ -88,6 +100,7 @@
                             </div>
                             <small class="form-text text-muted">Select a section first to load available subjects.</small>
                         </div>
+
                         <div class="mb-3">
                             <label for="date" class="form-label">Date <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" id="date" name="date"
@@ -316,6 +329,25 @@
                 setTimeout(() => $subjectDropdownSearch.focus(), 100);
             });
 
+            // Handle All-Day Toggle
+            $('#allDayToggle').on('change', function() {
+                const isChecked = $(this).is(':checked');
+                if (isChecked) {
+                    $subjectDropdownBtn.prop('disabled', true);
+                    $subjectDropdownSelected.text('All Scheduled Subjects');
+                    $('#subject_id').val('all'); // Special value for backend
+                } else {
+                    $subjectDropdownBtn.prop('disabled', false);
+                    $subjectDropdownSelected.text('Select Subject');
+                    $('#subject_id').val('');
+                    // Trigger section change to reload subjects if a section is already selected
+                    const sectionId = $('#section_id').val();
+                    if (sectionId) {
+                        loadSubjectsForSection(sectionId);
+                    }
+                }
+            });
+
             // Function to load subjects for a selected section
             function loadSubjectsForSection(sectionId) {
                 // Reset subject dropdown
@@ -495,6 +527,7 @@
                 const subjectId = $('#subject_id').val();
                 const date = $('#date').val();
                 const quarter = $('#quarter').val();
+                const isAllDay = $('#allDayToggle').is(':checked');
 
                 if (!quarter) {
                     alert('No active quarter available. Please contact the administrator.');
@@ -506,7 +539,7 @@
                     return;
                 }
 
-                if (!subjectId) {
+                if (!isAllDay && !subjectId) {
                     alert('Please select a subject');
                     return;
                 }
@@ -541,21 +574,24 @@
                     '<tr><td colspan="5" class="text-center">Loading students...</td></tr>');
                 $('#attendanceCard').show();
 
+                const isAllDay = $('#allDayToggle').is(':checked');
+
                 // Make AJAX call to get students for this section, subject and date
                 $.ajax({
                     url: '{{ route('teacher.attendance.get-students') }}',
                     type: 'GET',
                     data: {
                         section_id: sectionId,
-                        subject_id: subjectId,
+                        subject_id: isAllDay ? 'all' : subjectId,
                         date: date,
                         _token: '{{ csrf_token() }}'
                     },
                     success: function(response) {
                         // Update class info
                         $('#info-section').text(response.section.name);
-                        $('#info-subject').text(response.subject.name);
-                        $('#info-subject-code').text(response.subject.code);
+                        $('#info-subject').text(isAllDay ? 'All Scheduled Subjects' : response.subject
+                            .name);
+                        $('#info-subject-code').text(isAllDay ? 'MULTIPLE' : response.subject.code);
 
                         let scheduleText = 'N/A';
                         let roomText = 'N/A';
