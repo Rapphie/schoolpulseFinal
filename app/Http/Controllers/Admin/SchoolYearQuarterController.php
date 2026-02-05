@@ -192,4 +192,26 @@ class SchoolYearQuarterController extends Controller
             return redirect()->back()->with('error', 'Failed to generate quarters: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Set the active period for a school year.
+     */
+    public function setActive(SchoolYear $schoolYear, SchoolYearQuarter $quarter)
+    {
+        if ($quarter->school_year_id !== $schoolYear->id) {
+            abort(404);
+        }
+
+        DB::transaction(function () use ($quarter, $schoolYear) {
+            // Deactivate all other school years and quarters
+            SchoolYear::where('is_active', true)->update(['is_active' => false]);
+            SchoolYearQuarter::where('is_manually_set_active', true)->update(['is_manually_set_active' => false]);
+
+            // Activate the selected school year and quarter
+            $schoolYear->update(['is_active' => true]);
+            $quarter->update(['is_manually_set_active' => true]);
+        });
+
+        return redirect()->back()->with('success', "{$quarter->name} of {$schoolYear->name} is now the active period.");
+    }
 }

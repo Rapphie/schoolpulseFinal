@@ -198,9 +198,15 @@ class AdminDashboardController extends Controller
         ];
 
         // Class Distribution Chart Data (Sections per Grade Level)
-        $classDistributionData = Section::select(DB::raw('COUNT(*) as count'), 'grade_levels.name as grade_level_name')
-            ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->groupBy('grade_level_name')
+        $classDistributionQuery = Classes::select(DB::raw('COUNT(*) as count'), 'grade_levels.name as grade_level_name')
+            ->join('sections', 'classes.section_id', '=', 'sections.id')
+            ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id');
+
+        if ($activeSchoolYear) {
+            $classDistributionQuery->where('classes.school_year_id', $activeSchoolYear->id);
+        }
+
+        $classDistributionData = $classDistributionQuery->groupBy('grade_level_name')
             ->orderBy('grade_level_name')
             ->get();
 
@@ -398,11 +404,22 @@ class AdminDashboardController extends Controller
                     ->with('error', 'Cannot delete the active school year. Please set another school year as active first.');
             }
 
-            // Prevent deletion if school year has related data
+            // Prevent deletion if school year has related data (enrollments, grades, attendance)
             if ($schoolYear->hasRelatedData()) {
                 return redirect()->route('admin.dashboard')
-                    ->with('error', 'Cannot delete school year with existing enrollments, grades, attendance records, or classes. Please remove related data first.');
+                    ->with('error', 'Cannot delete school year with existing enrollments, grades, or attendance records. Please remove related data first.');
             }
+
+            // Delete associated classes and their schedules (empty classes without enrollments)
+            $classes = $schoolYear->classes;
+            foreach ($classes as $class) {
+                // Delete schedules for this class
+                Schedule::where('class_id', $class->id)->delete();
+                $class->delete();
+            }
+
+            // Delete quarters
+            $schoolYear->quarters()->delete();
 
             $schoolYear->delete();
 

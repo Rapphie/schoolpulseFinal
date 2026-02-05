@@ -690,38 +690,103 @@
                 <div class="modal-body">
                     <form id="schoolYearForm" method="POST" action="{{ route('admin.school-year.store') }}">
                         @csrf
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="start_date" class="form-label">Start Date</label>
-                                <div class="input-group">
-                                    <input type="date" class="form-control @error('start_date') is-invalid @enderror"
-                                        id="start_date" name="start_date" value="{{ old('start_date') }}" required>
-                                    <button type="button" class="btn btn-outline-secondary"
-                                        onclick="document.getElementById('start_date').value = new Date().toISOString().split('T')[0]"
-                                        title="Set to today">
-                                        <i data-feather="calendar" class="feather-sm"></i> Today
-                                    </button>
-                                </div>
-                                @error('start_date')
-                                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                                @enderror
+                        {{-- Hidden inputs for actual date values --}}
+                        <input type="hidden" id="start_date" name="start_date" value="{{ old('start_date') }}">
+                        <input type="hidden" id="end_date" name="end_date" value="{{ old('end_date') }}">
+
+                        {{-- School Year Selection --}}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">School Year</label>
+                            <div class="d-flex align-items-center gap-2">
+                                @php
+                                    $currentYear = (int) date('Y');
+                                    $yearRangeStart = $currentYear - 5;
+                                    $yearRangeEnd = $currentYear + 5;
+                                @endphp
+                                <select class="form-select" id="addStartYear" style="width: auto;">
+                                    @for ($y = $yearRangeStart; $y <= $yearRangeEnd; $y++)
+                                        <option value="{{ $y }}" {{ $y == $currentYear ? 'selected' : '' }}>
+                                            {{ $y }}</option>
+                                    @endfor
+                                </select>
+                                <span class="text-muted">—</span>
+                                <select class="form-select" id="addEndYear" style="width: auto;" disabled>
+                                    @for ($y = $yearRangeStart + 1; $y <= $yearRangeEnd + 1; $y++)
+                                        <option value="{{ $y }}"
+                                            {{ $y == $currentYear + 1 ? 'selected' : '' }}>{{ $y }}</option>
+                                    @endfor
+                                </select>
                             </div>
-                            <div class="col-md-6">
-                                <label for="end_date" class="form-label">End Date</label>
-                                <div class="input-group">
-                                    <input type="date" class="form-control @error('end_date') is-invalid @enderror"
-                                        id="end_date" name="end_date" value="{{ old('end_date') }}" required>
-                                    <button type="button" class="btn btn-outline-secondary"
-                                        onclick="document.getElementById('end_date').value = new Date().toISOString().split('T')[0]"
-                                        title="Set to today">
-                                        <i data-feather="calendar" class="feather-sm"></i> Today
-                                    </button>
+                            <div class="mt-2">
+                                <span class="badge bg-primary fs-6" id="addSchoolYearPreview">S.Y.
+                                    {{ $currentYear }}-{{ $currentYear + 1 }}</span>
+                            </div>
+                            @error('start_date')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                            @error('end_date')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        {{-- School Year Period --}}
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-semibold mb-0">School Year Period</label>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" id="addEnableCustomDates"
+                                        role="switch">
+                                    <label class="form-check-label small text-muted" for="addEnableCustomDates">Customize
+                                        dates</label>
                                 </div>
-                                @error('end_date')
-                                    <div class="invalid-feedback d-block">{{ $message }}</div>
-                                @enderror
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="addStartMonth" class="form-label small text-muted">Start Month</label>
+                                    <select class="form-select" id="addStartMonth" disabled>
+                                        <option value="1">January</option>
+                                        <option value="2">February</option>
+                                        <option value="3">March</option>
+                                        <option value="4">April</option>
+                                        <option value="5">May</option>
+                                        <option value="6" selected>June</option>
+                                        <option value="7">July</option>
+                                        <option value="8">August</option>
+                                        <option value="9">September</option>
+                                        <option value="10">October</option>
+                                        <option value="11">November</option>
+                                        <option value="12">December</option>
+                                    </select>
+                                    <small class="text-muted">Defaults to June 1</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="addEndMonth" class="form-label small text-muted">End Month</label>
+                                    <select class="form-select" id="addEndMonth" disabled>
+                                        <option value="1">January</option>
+                                        <option value="2">February</option>
+                                        <option value="3" selected>March</option>
+                                        <option value="4">April</option>
+                                        <option value="5">May</option>
+                                        <option value="6">June</option>
+                                        <option value="7">July</option>
+                                        <option value="8">August</option>
+                                        <option value="9">September</option>
+                                        <option value="10">October</option>
+                                        <option value="11">November</option>
+                                        <option value="12">December</option>
+                                    </select>
+                                    <small class="text-muted">Defaults to March 31</small>
+                                </div>
+                            </div>
+                            <div class="alert alert-light border mt-3 py-2 px-3">
+                                <small>
+                                    <i data-feather="calendar" class="feather-sm me-1"></i>
+                                    <strong>Period:</strong> <span id="addDateRangePreview">June 1, {{ $currentYear }} —
+                                        March 31, {{ $currentYear + 1 }}</span>
+                                </small>
                             </div>
                         </div>
+
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" id="isCurrentYear" name="is_active"
                                 value="1" {{ old('is_active') ? 'checked' : '' }}>
@@ -741,6 +806,17 @@
     </div>
 
     @foreach ($schoolYears as $year)
+        @php
+            $yearStartDate = \Carbon\Carbon::parse($year->start_date);
+            $yearEndDate = \Carbon\Carbon::parse($year->end_date);
+            $editStartYear = $yearStartDate->year;
+            $editEndYear = $yearEndDate->year;
+            $editStartMonth = $yearStartDate->month;
+            $editEndMonth = $yearEndDate->month;
+            $currentYear = (int) date('Y');
+            $yearRangeStart = $currentYear - 5;
+            $yearRangeEnd = $currentYear + 5;
+        @endphp
         <div class="modal fade text-left" id="editSchoolYearModal{{ $year->id }}" tabindex="-1" role="dialog"
             aria-labelledby="editSchoolYearModalLabel{{ $year->id }}" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
@@ -749,38 +825,129 @@
                         <h5 class="modal-title" id="editSchoolYearModalLabel{{ $year->id }}">Edit School Year</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <form method="POST" action="{{ route('admin.school-year.update', $year->id) }}">
+                    <form method="POST" action="{{ route('admin.school-year.update', $year->id) }}"
+                        class="edit-school-year-form">
                         @csrf
                         @method('PUT')
                         <div class="modal-body">
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="editStartDate{{ $year->id }}" class="form-label">Start Date</label>
-                                    <div class="input-group">
-                                        <input type="date" name="start_date" class="form-control"
-                                            value="{{ \Carbon\Carbon::parse($year->start_date)->format('Y-m-d') }}"
-                                            id="editStartDate{{ $year->id }}" required>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                            onclick="document.getElementById('editStartDate{{ $year->id }}').value = new Date().toISOString().split('T')[0]"
-                                            title="Set to today">
-                                            <i data-feather="calendar" class="feather-sm"></i> Today
-                                        </button>
-                                    </div>
+                            {{-- Hidden inputs for actual date values --}}
+                            <input type="hidden" class="edit-start-date" name="start_date"
+                                value="{{ $yearStartDate->format('Y-m-d') }}">
+                            <input type="hidden" class="edit-end-date" name="end_date"
+                                value="{{ $yearEndDate->format('Y-m-d') }}">
+
+                            {{-- School Year Selection --}}
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">School Year</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <select class="form-select edit-start-year" style="width: auto;"
+                                        data-year-id="{{ $year->id }}">
+                                        @for ($y = $yearRangeStart; $y <= $yearRangeEnd; $y++)
+                                            <option value="{{ $y }}"
+                                                {{ $y == $editStartYear ? 'selected' : '' }}>{{ $y }}</option>
+                                        @endfor
+                                    </select>
+                                    <span class="text-muted">—</span>
+                                    <select class="form-select edit-end-year" style="width: auto;" disabled
+                                        data-year-id="{{ $year->id }}">
+                                        @for ($y = $yearRangeStart + 1; $y <= $yearRangeEnd + 1; $y++)
+                                            <option value="{{ $y }}"
+                                                {{ $y == $editEndYear ? 'selected' : '' }}>{{ $y }}</option>
+                                        @endfor
+                                    </select>
                                 </div>
-                                <div class="col-md-6">
-                                    <label for="editEndDate{{ $year->id }}" class="form-label">End Date</label>
-                                    <div class="input-group">
-                                        <input type="date" name="end_date" class="form-control"
-                                            value="{{ \Carbon\Carbon::parse($year->end_date)->format('Y-m-d') }}"
-                                            id="editEndDate{{ $year->id }}" required>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                            onclick="document.getElementById('editEndDate{{ $year->id }}').value = new Date().toISOString().split('T')[0]"
-                                            title="Set to today">
-                                            <i data-feather="calendar" class="feather-sm"></i> Today
-                                        </button>
-                                    </div>
+                                <div class="mt-2">
+                                    <span class="badge bg-primary fs-6 edit-school-year-preview">S.Y.
+                                        {{ $editStartYear }}-{{ $editEndYear }}</span>
                                 </div>
                             </div>
+
+                            {{-- School Year Period --}}
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label fw-semibold mb-0">School Year Period</label>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input edit-enable-custom-dates" type="checkbox"
+                                            id="editEnableCustomDates{{ $year->id }}" role="switch"
+                                            data-year-id="{{ $year->id }}">
+                                        <label class="form-check-label small text-muted"
+                                            for="editEnableCustomDates{{ $year->id }}">Customize dates</label>
+                                    </div>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label small text-muted">Start Month</label>
+                                        <select class="form-select edit-start-month" disabled
+                                            data-year-id="{{ $year->id }}">
+                                            <option value="1" {{ $editStartMonth == 1 ? 'selected' : '' }}>January
+                                            </option>
+                                            <option value="2" {{ $editStartMonth == 2 ? 'selected' : '' }}>February
+                                            </option>
+                                            <option value="3" {{ $editStartMonth == 3 ? 'selected' : '' }}>March
+                                            </option>
+                                            <option value="4" {{ $editStartMonth == 4 ? 'selected' : '' }}>April
+                                            </option>
+                                            <option value="5" {{ $editStartMonth == 5 ? 'selected' : '' }}>May
+                                            </option>
+                                            <option value="6" {{ $editStartMonth == 6 ? 'selected' : '' }}>June
+                                            </option>
+                                            <option value="7" {{ $editStartMonth == 7 ? 'selected' : '' }}>July
+                                            </option>
+                                            <option value="8" {{ $editStartMonth == 8 ? 'selected' : '' }}>August
+                                            </option>
+                                            <option value="9" {{ $editStartMonth == 9 ? 'selected' : '' }}>September
+                                            </option>
+                                            <option value="10" {{ $editStartMonth == 10 ? 'selected' : '' }}>October
+                                            </option>
+                                            <option value="11" {{ $editStartMonth == 11 ? 'selected' : '' }}>November
+                                            </option>
+                                            <option value="12" {{ $editStartMonth == 12 ? 'selected' : '' }}>December
+                                            </option>
+                                        </select>
+                                        <small class="text-muted">Defaults to June 1</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small text-muted">End Month</label>
+                                        <select class="form-select edit-end-month" disabled
+                                            data-year-id="{{ $year->id }}">
+                                            <option value="1" {{ $editEndMonth == 1 ? 'selected' : '' }}>January
+                                            </option>
+                                            <option value="2" {{ $editEndMonth == 2 ? 'selected' : '' }}>February
+                                            </option>
+                                            <option value="3" {{ $editEndMonth == 3 ? 'selected' : '' }}>March
+                                            </option>
+                                            <option value="4" {{ $editEndMonth == 4 ? 'selected' : '' }}>April
+                                            </option>
+                                            <option value="5" {{ $editEndMonth == 5 ? 'selected' : '' }}>May
+                                            </option>
+                                            <option value="6" {{ $editEndMonth == 6 ? 'selected' : '' }}>June
+                                            </option>
+                                            <option value="7" {{ $editEndMonth == 7 ? 'selected' : '' }}>July
+                                            </option>
+                                            <option value="8" {{ $editEndMonth == 8 ? 'selected' : '' }}>August
+                                            </option>
+                                            <option value="9" {{ $editEndMonth == 9 ? 'selected' : '' }}>September
+                                            </option>
+                                            <option value="10" {{ $editEndMonth == 10 ? 'selected' : '' }}>October
+                                            </option>
+                                            <option value="11" {{ $editEndMonth == 11 ? 'selected' : '' }}>November
+                                            </option>
+                                            <option value="12" {{ $editEndMonth == 12 ? 'selected' : '' }}>December
+                                            </option>
+                                        </select>
+                                        <small class="text-muted">Defaults to March 31</small>
+                                    </div>
+                                </div>
+                                <div class="alert alert-light border mt-3 py-2 px-3">
+                                    <small>
+                                        <i data-feather="calendar" class="feather-sm me-1"></i>
+                                        <strong>Period:</strong> <span
+                                            class="edit-date-range-preview">{{ $yearStartDate->format('F j, Y') }} —
+                                            {{ $yearEndDate->format('F j, Y') }}</span>
+                                    </small>
+                                </div>
+                            </div>
+
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox"
                                     id="editIsCurrentYear{{ $year->id }}" name="is_active"
@@ -841,7 +1008,7 @@
                                         <div
                                             class="card h-100 {{ $quarter->isCurrent() ? 'border-primary border-2' : '' }}">
                                             <div
-                                                class="card-header py-2 d-flex justify-content-between align-items-center {{ $quarter->isCurrent() ? 'bg-primary text-white' : 'bg-light' }}">
+                                                class="card-header py-2 d-flex justify-content-between align-items-center {{ $quarter->isCurrent() ? ($quarter->is_manually_set_active ? 'bg-primary text-white' : 'bg-success text-white') : 'bg-light' }}">
                                                 <strong>{{ $quarter->name }}</strong>
                                                 <span
                                                     class="badge {{ $quarter->status_badge_class }}">{{ $quarter->status }}</span>
@@ -868,6 +1035,18 @@
                                                 @endif
                                             </div>
                                             <div class="card-footer bg-transparent py-2 d-flex gap-1">
+                                                @if (!$quarter->is_manually_set_active)
+                                                    <form
+                                                        action="{{ route('admin.school-year.quarters.set-active', [$year, $quarter]) }}"
+                                                        method="POST" class="d-inline"
+                                                        onsubmit="return confirm('Are you sure you want to set this as the active quarter? This will override date-based settings.')">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-outline-success"
+                                                            title="Set Active Quarter">
+                                                            <i data-feather="check-circle" class="feather-sm"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                                 <button type="button"
                                                     class="btn btn-sm btn-outline-primary flex-grow-1 edit-quarter-btn"
                                                     data-quarter-id="{{ $quarter->id }}"
@@ -1374,6 +1553,137 @@
                 });
             }
 
+            // School Year Dropdown Automation
+            function initSchoolYearDropdowns() {
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'
+                ];
+
+                // Helper function to get last day of month
+                function getLastDayOfMonth(year, month) {
+                    return new Date(year, month, 0).getDate();
+                }
+
+                // Helper function to format date for display
+                function formatDateDisplay(year, month) {
+                    const lastDay = getLastDayOfMonth(year, month);
+                    const day = month === 6 ? 1 : lastDay; // June starts on 1st, others end on last day
+                    return `${monthNames[month - 1]} ${day}, ${year}`;
+                }
+
+                // Helper function to format date for hidden input (YYYY-MM-DD)
+                function formatDateValue(year, month, isStart = true) {
+                    const day = isStart ? '01' : String(getLastDayOfMonth(year, month)).padStart(2, '0');
+                    return `${year}-${String(month).padStart(2, '0')}-${day}`;
+                }
+
+                // ===== ADD SCHOOL YEAR MODAL =====
+                const addStartYear = document.getElementById('addStartYear');
+                const addEndYear = document.getElementById('addEndYear');
+                const addStartMonth = document.getElementById('addStartMonth');
+                const addEndMonth = document.getElementById('addEndMonth');
+                const addEnableCustomDates = document.getElementById('addEnableCustomDates');
+                const addSchoolYearPreview = document.getElementById('addSchoolYearPreview');
+                const addDateRangePreview = document.getElementById('addDateRangePreview');
+                const addStartDateInput = document.getElementById('start_date');
+                const addEndDateInput = document.getElementById('end_date');
+
+                function updateAddModalDates() {
+                    if (!addStartYear || !addEndYear) return;
+
+                    const startYear = parseInt(addStartYear.value);
+                    const endYear = parseInt(addEndYear.value);
+                    const startMonth = parseInt(addStartMonth.value);
+                    const endMonth = parseInt(addEndMonth.value);
+
+                    // Update preview
+                    addSchoolYearPreview.textContent = `S.Y. ${startYear}-${endYear}`;
+
+                    // Update date range preview
+                    const startDisplay = `${monthNames[startMonth - 1]} 1, ${startYear}`;
+                    const endDisplay =
+                        `${monthNames[endMonth - 1]} ${getLastDayOfMonth(endYear, endMonth)}, ${endYear}`;
+                    addDateRangePreview.textContent = `${startDisplay} — ${endDisplay}`;
+
+                    // Update hidden inputs
+                    addStartDateInput.value = formatDateValue(startYear, startMonth, true);
+                    addEndDateInput.value = formatDateValue(endYear, endMonth, false);
+                }
+
+                if (addStartYear) {
+                    // When start year changes, auto-update end year to +1
+                    addStartYear.addEventListener('change', function() {
+                        const newStartYear = parseInt(this.value);
+                        addEndYear.value = newStartYear + 1;
+                        updateAddModalDates();
+                    });
+
+                    // Month change listeners
+                    addStartMonth.addEventListener('change', updateAddModalDates);
+                    addEndMonth.addEventListener('change', updateAddModalDates);
+
+                    // Toggle custom dates
+                    addEnableCustomDates.addEventListener('change', function() {
+                        addStartMonth.disabled = !this.checked;
+                        addEndMonth.disabled = !this.checked;
+                    });
+
+                    // Initialize on page load
+                    updateAddModalDates();
+                }
+
+                // ===== EDIT SCHOOL YEAR MODALS =====
+                document.querySelectorAll('.edit-school-year-form').forEach(form => {
+                    const modal = form.closest('.modal');
+                    const startYearSelect = form.querySelector('.edit-start-year');
+                    const endYearSelect = form.querySelector('.edit-end-year');
+                    const startMonthSelect = form.querySelector('.edit-start-month');
+                    const endMonthSelect = form.querySelector('.edit-end-month');
+                    const enableCustomDates = form.querySelector('.edit-enable-custom-dates');
+                    const schoolYearPreview = form.querySelector('.edit-school-year-preview');
+                    const dateRangePreview = form.querySelector('.edit-date-range-preview');
+                    const startDateInput = form.querySelector('.edit-start-date');
+                    const endDateInput = form.querySelector('.edit-end-date');
+
+                    function updateEditModalDates() {
+                        const startYear = parseInt(startYearSelect.value);
+                        const endYear = parseInt(endYearSelect.value);
+                        const startMonth = parseInt(startMonthSelect.value);
+                        const endMonth = parseInt(endMonthSelect.value);
+
+                        // Update preview
+                        schoolYearPreview.textContent = `S.Y. ${startYear}-${endYear}`;
+
+                        // Update date range preview
+                        const startDisplay = `${monthNames[startMonth - 1]} 1, ${startYear}`;
+                        const endDisplay =
+                            `${monthNames[endMonth - 1]} ${getLastDayOfMonth(endYear, endMonth)}, ${endYear}`;
+                        dateRangePreview.textContent = `${startDisplay} — ${endDisplay}`;
+
+                        // Update hidden inputs
+                        startDateInput.value = formatDateValue(startYear, startMonth, true);
+                        endDateInput.value = formatDateValue(endYear, endMonth, false);
+                    }
+
+                    // When start year changes, auto-update end year to +1
+                    startYearSelect.addEventListener('change', function() {
+                        const newStartYear = parseInt(this.value);
+                        endYearSelect.value = newStartYear + 1;
+                        updateEditModalDates();
+                    });
+
+                    // Month change listeners
+                    startMonthSelect.addEventListener('change', updateEditModalDates);
+                    endMonthSelect.addEventListener('change', updateEditModalDates);
+
+                    // Toggle custom dates
+                    enableCustomDates.addEventListener('change', function() {
+                        startMonthSelect.disabled = !this.checked;
+                        endMonthSelect.disabled = !this.checked;
+                    });
+                });
+            }
+
             function initDashboardCharts() {
                 const enrollmentChartEl = document.getElementById('enrollmentChart');
                 const classDistributionChartEl = document.getElementById('classDistributionChart');
@@ -1645,6 +1955,7 @@
 
             // Call all initialization functions
             initSchoolYearManagement();
+            initSchoolYearDropdowns();
             initDashboardCharts();
             initSchoolYearTimeline(); // Call the new timeline function
 

@@ -185,6 +185,19 @@ class GradeLevelController extends Controller
      */
     public function destroy(GradeLevel $gradeLevel)
     {
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+
+        if ($activeSchoolYear) {
+            $hasActiveSections = $gradeLevel->sections()
+                ->whereHas('classes', function ($query) use ($activeSchoolYear) {
+                    $query->where('school_year_id', $activeSchoolYear->id);
+                })->exists();
+
+            if ($hasActiveSections) {
+                return redirect()->route('admin.grade-levels.index')
+                    ->with('error', 'Grade Level with active sections cannot be deleted.');
+            }
+        }
 
         try {
             $gradeLevel->delete();
@@ -193,7 +206,7 @@ class GradeLevelController extends Controller
                 ->with('success', 'Grade Level deleted successfully.');
         } catch (\Throwable $th) {
             return redirect()->route('admin.grade-levels.index')
-                ->with('error', 'Grade Level with active sections cannot be deleted.');
+                ->with('error', 'Grade Level cannot be deleted. It may be linked to other active records.');
         }
     }
 }
