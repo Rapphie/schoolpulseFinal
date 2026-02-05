@@ -67,12 +67,35 @@ class AssessmentController extends Controller
         // Get all assessments for the selected subject grouped by quarter and type
         $assessments = $class->assessments()
             ->where('subject_id', $selectedSubject->id)
+            ->where('teacher_id', $teacher->id)
             ->with('scores')
             ->orderBy('quarter')
             ->orderBy('type')
             ->orderBy('assessment_date')
             ->get()
             ->groupBy(['quarter', 'type']);
+
+        // Merge and Consolidate 'oral_participation' type into 'performance_tasks'
+        foreach ($assessments as $quarter => $types) {
+            $ops = $types->get('oral_participation', collect());
+            $pts = $types->get('performance_tasks', collect());
+
+            if ($ops->isNotEmpty()) {
+                // Consolidate multiple OP sessions into one virtual assessment for the grade sheet
+                $consolidatedOP = new Assessment();
+                $consolidatedOP->id = -999; // Unique virtual ID to identify consolidated OP
+                $consolidatedOP->name = 'Oral Participation';
+                $consolidatedOP->type = 'oral_participation';
+                $consolidatedOP->max_score = $ops->sum('max_score');
+                $consolidatedOP->quarter = $quarter;
+                $consolidatedOP->class_id = $class->id;
+                $consolidatedOP->subject_id = $selectedSubject->id;
+
+                // Prepend the consolidated OP to PTs
+                $pts = collect([$consolidatedOP])->merge($pts);
+                $types->put('performance_tasks', $pts);
+            }
+        }
 
         // Organize data by student
         $studentsData = $students->map(function ($student) use ($assessments, $selectedSubject, $class) {
@@ -96,22 +119,52 @@ class AssessmentController extends Controller
                     $typeAssessments = $quarterAssessments->get($type, collect());
 
                     foreach ($typeAssessments as $assessment) {
-                        // Prefer score by student_profile_id (per-school-year) when available
-                        $profile = $student->profileFor($class->school_year_id);
-                        $score = null;
-                        if ($profile) {
-                            $score = $assessment->scores->firstWhere('student_profile_id', $profile->id);
-                        }
-                        if (!$score) {
-                            $score = $assessment->scores->firstWhere('student_id', $student->id);
+                        $scoreValue = null;
+                        $maxScoreValue = $assessment->max_score;
+
+                        if ($assessment->id === -999) {
+                            // Consolidated Oral Participation logic: sum up scores from all OP sessions
+                            $quarterOps = $assessments->get($quarter, collect())->get('oral_participation', collect());
+                            $totalScore = 0;
+                            $hasAnyScore = false;
+
+                            foreach ($quarterOps as $op) {
+                                $profile = $student->profileFor($class->school_year_id);
+                                $s = null;
+                                if ($profile) {
+                                    $s = $op->scores->firstWhere('student_profile_id', $profile->id);
+                                }
+                                if (!$s) {
+                                    $s = $op->scores->firstWhere('student_id', $student->id);
+                                }
+
+                                if ($s) {
+                                    $totalScore += $s->score;
+                                    $hasAnyScore = true;
+                                }
+                            }
+                            if ($hasAnyScore) {
+                                $scoreValue = $totalScore;
+                            }
+                        } else {
+                            // Normal assessment logic
+                            $profile = $student->profileFor($class->school_year_id);
+                            $score = null;
+                            if ($profile) {
+                                $score = $assessment->scores->firstWhere('student_profile_id', $profile->id);
+                            }
+                            if (!$score) {
+                                $score = $assessment->scores->firstWhere('student_id', $student->id);
+                            }
+                            $scoreValue = $score ? $score->score : null;
                         }
 
                         $quarterData[$type][] = [
                             'assessment' => $assessment,
-                            'score' => $score ? $score->score : null,
-                            'max_score' => $assessment->max_score,
-                            'percentage' => $score && $assessment->max_score > 0
-                                ? ($score->score / $assessment->max_score) * 100
+                            'score' => $scoreValue,
+                            'max_score' => $maxScoreValue,
+                            'percentage' => $scoreValue !== null && $maxScoreValue > 0
+                                ? ($scoreValue / $maxScoreValue) * 100
                                 : null
                         ];
                     }
@@ -343,7 +396,7 @@ class AssessmentController extends Controller
                 'grades' => 'required|array',
                 'grades.*.student_id' => 'required|exists:students,id',
                 'grades.*.assessment_id' => 'required|exists:assessments,id',
-                'grades.*.score' => 'required|numeric|min:0',
+                'grades.*.score' => 'required|numeric|min:0|max:1000',
             ]);
 
             $teacher = Auth::user()->teacher;
@@ -377,28 +430,21 @@ class AssessmentController extends Controller
                 }
 
                 // Update or create the assessment score
-                // Attach profile id when available to avoid splitting per-year data
                 $student = Student::find($gradeData['student_id']);
-                $profile = $student && $assessment ? $student->profileFor($assessment->school_year_id) : null;
+                if (!$student) continue;
 
-                if ($profile) {
-                    $match = [
-                        'assessment_id' => $gradeData['assessment_id'],
-                        'student_profile_id' => $profile->id,
-                    ];
-                } else {
-                    $match = [
-                        'assessment_id' => $gradeData['assessment_id'],
-                        'student_id' => $gradeData['student_id'],
-                    ];
-                }
+                $profile = $assessment ? $student->profileFor($assessment->school_year_id) : null;
+
+                $match = [
+                    'assessment_id' => $gradeData['assessment_id'],
+                    'student_id' => $gradeData['student_id'],
+                ];
 
                 AssessmentScore::updateOrCreate(
                     $match,
                     [
                         'score' => $gradeData['score'],
                         'remarks' => null,
-                        'student_id' => $gradeData['student_id'],
                         'student_profile_id' => $profile ? $profile->id : null,
                     ]
                 );
@@ -432,10 +478,12 @@ class AssessmentController extends Controller
                 'saved_count' => $successCount
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            $firstError = collect($errors)->flatten()->first();
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed.',
-                'errors' => $e->errors(),
+                'message' => 'Validation failed: ' . $firstError,
+                'errors' => $errors,
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
@@ -482,7 +530,7 @@ class AssessmentController extends Controller
         $request->validate([
             'subject_id' => 'required|exists:subjects,id',
             'name' => 'required|string|max:255',
-            'type' => 'required|in:written_works,performance_tasks,quarterly_assessments',
+            'type' => 'required|in:written_works,performance_tasks,quarterly_assessments,oral_participation',
             'max_score' => 'nullable|numeric|min:1|max:1000',
             'quarter' => 'required|integer|in:1,2,3,4',
         ]);
@@ -570,6 +618,7 @@ class AssessmentController extends Controller
             foreach (self::DEFAULT_ASSESSMENT_COUNTS as $type => $requiredCount) {
                 $existingCount = Assessment::where('class_id', $class->id)
                     ->where('subject_id', $subject->id)
+                    ->where('teacher_id', $teacher->id)
                     ->where('quarter', $quarter)
                     ->where('type', $type)
                     ->count();
@@ -615,28 +664,16 @@ class AssessmentController extends Controller
             // If no assessments exist, set grades to 0 for enrolled students.
             $students = $class->students()->get();
             foreach ($students as $student) {
-                $profile = $student->profileFor($schoolYearId);
-                if ($profile) {
-                    $match = [
-                        'student_profile_id' => $profile->id,
-                        'subject_id' => $subjectId,
-                        'quarter' => (string)$quarter,
-                        'teacher_id' => $teacherId,
-                        'school_year_id' => $schoolYearId,
-                    ];
-                } else {
-                    $match = [
-                        'student_id' => $student->id,
-                        'subject_id' => $subjectId,
-                        'quarter' => (string)$quarter,
-                        'teacher_id' => $teacherId,
-                        'school_year_id' => $schoolYearId,
-                    ];
-                }
+                $match = [
+                    'student_id' => $student->id,
+                    'subject_id' => $subjectId,
+                    'quarter' => (string)$quarter,
+                    'teacher_id' => $teacherId,
+                    'school_year_id' => $schoolYearId,
+                ];
 
                 Grade::updateOrCreate($match, [
                     'grade' => 0.0,
-                    'student_id' => $student->id,
                     'student_profile_id' => $profile ? $profile->id : null,
                 ]);
             }
@@ -645,6 +682,14 @@ class AssessmentController extends Controller
 
         // Group assessments by type for weighting
         $grouped = $assessments->groupBy('type');
+
+        // Merge oral_participation into performance_tasks for weighting calculation
+        $ops = $grouped->get('oral_participation', collect());
+        if ($ops->isNotEmpty()) {
+            $pts = $grouped->get('performance_tasks', collect());
+            $grouped->put('performance_tasks', $pts->merge($ops));
+        }
+
         $students = $class->students()->get();
 
         foreach ($students as $student) {
@@ -683,29 +728,16 @@ class AssessmentController extends Controller
             // Apply DepEd transmutation to convert initial grade to transmuted grade
             $transmutedGrade = GradeService::transmute($initialGrade);
 
-            // Persist grade, prefer matching by student_profile_id when available
-            $profile = $student->profileFor($schoolYearId);
-            if ($profile) {
-                $match = [
-                    'student_profile_id' => $profile->id,
-                    'subject_id' => $subjectId,
-                    'quarter' => (string)$quarter,
-                    'teacher_id' => $teacherId,
-                    'school_year_id' => $schoolYearId,
-                ];
-            } else {
-                $match = [
-                    'student_id' => $student->id,
-                    'subject_id' => $subjectId,
-                    'quarter' => (string)$quarter,
-                    'teacher_id' => $teacherId,
-                    'school_year_id' => $schoolYearId,
-                ];
-            }
+            $match = [
+                'student_id' => $student->id,
+                'subject_id' => $subjectId,
+                'quarter' => (string)$quarter,
+                'teacher_id' => $teacherId,
+                'school_year_id' => $schoolYearId,
+            ];
 
             Grade::updateOrCreate($match, [
                 'grade' => $transmutedGrade,
-                'student_id' => $student->id,
                 'student_profile_id' => $profile ? $profile->id : null,
             ]);
         }
