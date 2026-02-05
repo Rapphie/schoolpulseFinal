@@ -38,7 +38,7 @@ class LoginController extends Controller
 
         return back()->withErrors([
             'error' => 'The provided credentials do not match our records.',
-        ])->onlyInput('error');
+        ])->withInput($request->except('password'));
     }
     public function login()
     {

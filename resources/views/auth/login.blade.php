@@ -28,7 +28,7 @@
                                 <i class="fas fa-envelope text-muted"></i>
                             </span>
                             <input name="email" type="text" class="form-control" id="email"
-                                placeholder="Enter your email" required>
+                                placeholder="Enter your email" value="{{ old('email') }}" required>
                         </div>
                         <div class="form-text">We'll never share your email.</div>
                     </div>
@@ -51,15 +51,16 @@
                         <label for="role" class="form-label">Login As</label>
                         <select class="form-select" id="role" name="role" required>
                             <option value="">-- Select user type -- </option>
-                            <option value="1">Administrator</option>
-                            <option value="2">Teacher</option>
-                            <option value="3">Guardian</option>
+                            <option value="1" {{ old('role') == '1' ? 'selected' : '' }}>Administrator</option>
+                            <option value="2" {{ old('role') == '2' ? 'selected' : '' }}>Teacher</option>
+                            <option value="3" {{ old('role') == '3' ? 'selected' : '' }}>Guardian</option>
                         </select>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="rememberMe" name="remember">
+                            <input class="form-check-input" type="checkbox" id="rememberMe" name="remember"
+                                {{ old('remember') ? 'checked' : '' }}>
                             <label class="form-check-label" for="rememberMe">
                                 Remember me
                             </label>

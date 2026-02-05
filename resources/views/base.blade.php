@@ -73,6 +73,8 @@
     <script src="{{ asset('js/angular.min.js') }}"></script>
     <script src="{{ asset('js/dataTables.min.js') }}"></script>
     <script src="{{ asset('js/dataTables.bootstrap5.min.js') }}"></script>
+    <script src="{{ asset('css/feather.min.js') }}"></script>
+
     <script>
         // Function to update Philippine time and date
         function updatePhilippineTime() {
