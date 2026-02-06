@@ -672,6 +672,8 @@ class AssessmentController extends Controller
                     'school_year_id' => $schoolYearId,
                 ];
 
+                $profile = $student->profileFor($schoolYearId);
+
                 Grade::updateOrCreate($match, [
                     'grade' => 0.0,
                     'student_profile_id' => $profile ? $profile->id : null,
@@ -693,6 +695,7 @@ class AssessmentController extends Controller
         $students = $class->students()->get();
 
         foreach ($students as $student) {
+            $profile = $student->profileFor($schoolYearId);
             $typePercentages = array_fill_keys(array_keys(self::ASSESSMENT_TYPE_WEIGHTS), 0.0);
 
             foreach (self::ASSESSMENT_TYPE_WEIGHTS as $type => $weight) {
@@ -701,7 +704,6 @@ class AssessmentController extends Controller
                 $totalMax = 0.0;
                 foreach ($typeAssessments as $assessment) {
                     // Prefer score by student_profile_id when available
-                    $profile = $student->profileFor($schoolYearId);
                     $scoreModel = null;
                     if ($profile) {
                         $scoreModel = $assessment->scores->firstWhere('student_profile_id', $profile->id);
