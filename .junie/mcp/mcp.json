@@ -1,0 +1,20 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "C:\\xampp\\php\\php.exe",
+            "args": [
+                "C:\\Users\\raffy\\codes\\rapphie\\schoolpulseFinal\\artisan",
+                "boost:mcp"
+            ]
+        },
+        "herd": {
+            "command": "C:\\xampp\\php\\php.exe",
+            "args": [
+                "C:/Users/raffy/.config/herd/bin/herd-mcp.phar"
+            ],
+            "env": {
+                "SITE_PATH": "C:\\Users\\raffy\\codes\\rapphie\\schoolpulseFinal"
+            }
+        }
+    }
+}
