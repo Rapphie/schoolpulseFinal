@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Student;
-use App\Models\Teacher;
-use App\Models\User;
-use App\Models\Subject;
-use App\Models\Section;
+use App\Mail\WelcomeEmail;
 use App\Models\Classes;
+use App\Models\GradeLevel;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
-use App\Models\GradeLevel;
-use App\Mail\WelcomeEmail;
+use App\Models\Section;
+use App\Models\Student;
+use App\Models\Subject;
+use App\Models\Teacher;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -40,7 +40,7 @@ class TeacherController extends Controller
         $teachers = Teacher::with([
             'user',
             'subjects',
-            'classes.section.gradeLevel'
+            'classes.section.gradeLevel',
         ])->get();
         // dd($teachers);
 
@@ -86,6 +86,7 @@ class TeacherController extends Controller
     {
         $subjects = Subject::all();
         $sections = Section::all();
+
         return view('admin.teachers.create', compact('subjects', 'sections'));
     }
 
@@ -96,7 +97,7 @@ class TeacherController extends Controller
     {
         $activeSchoolYear = SchoolYear::where('is_active', true)->first();
 
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Please set an active school year before assigning advisory classes.');
@@ -111,9 +112,10 @@ class TeacherController extends Controller
             'date_of_birth' => 'nullable|date',
             'address' => 'nullable|string',
             'qualification' => 'nullable|string',
-            'status' => 'nullable|string',
+            'status' => 'nullable|in:active,on-leave,inactive',
             'section_ids' => 'nullable|array',
             'section_ids.*' => 'nullable|integer|exists:sections,id',
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $sectionIds = collect($validated['section_ids'] ?? [])
@@ -123,53 +125,9 @@ class TeacherController extends Controller
 
         unset($validated['section_ids']);
 
-        // Pre-validate advisory assignments before creating the teacher
-        $advisoryErrors = [];
-        if ($sectionIds->isNotEmpty()) {
-            foreach ($sectionIds as $index => $sectionId) {
-                $section = Section::with('gradeLevel')->find($sectionId);
-                if (!$section) {
-                    continue;
-                }
-
-                $gradeLevel = $section->gradeLevel;
-                $gradeValue = optional($gradeLevel)->level;
-                // Grade levels 4, 5, 6 allow multi-section teachers
-                // All other grades (1-3, 7+) should have 1:1 teacher-to-section ratio
-                $isRestrictedGrade = !is_null($gradeValue) && !in_array($gradeValue, [4, 5, 6]);
-
-                if ($isRestrictedGrade) {
-                    // Check if this section already has an adviser
-                    $existingClass = Classes::where('section_id', $section->id)
-                        ->where('school_year_id', $activeSchoolYear->id)
-                        ->whereNotNull('teacher_id')
-                        ->with('teacher.user')
-                        ->first();
-
-                    if ($existingClass && $existingClass->teacher_id) {
-                        $existingTeacher = $existingClass->teacher;
-                        $existingUser = optional($existingTeacher)->user;
-                        $existingTeacherName = $existingUser
-                            ? trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? ''))
-                            : 'another teacher';
-
-                        $gradeLabel = optional($gradeLevel)->name ?? 'Grade ' . $gradeValue;
-                        $advisoryErrors["section_ids.{$index}"] = "{$gradeLabel} - {$section->name} is already handled by {$existingTeacherName}.";
-                    }
-                }
-            }
-        }
-
-        if (!empty($advisoryErrors)) {
-            return redirect()->back()
-                ->withInput()
-                ->withErrors($advisoryErrors)
-                ->with('error', 'Some advisory sections are already assigned to other teachers. Please review your selections.');
-        }
-
         DB::beginTransaction();
         try {
-            $password = strtolower($validated['first_name']) . strtolower(substr($validated['last_name'], 0, 1)) . date('Y');
+            $password = strtolower($validated['first_name']).strtolower(substr($validated['last_name'], 0, 1)).date('Y');
 
             // Create user first
             $user = User::create([
@@ -177,7 +135,7 @@ class TeacherController extends Controller
                 'last_name' => $validated['last_name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($password),
-                'profile_picture' => $request->file('profile_picture') ? $request->file('profile_picture')->store('teachers/profile-pictures', 'public') : null,
+                'profile_picture' => $request->hasFile('profile_picture') ? $request->file('profile_picture')->store('teachers/profile-pictures', 'public') : null,
                 'role_id' => 2,
             ]);
 
@@ -196,7 +154,7 @@ class TeacherController extends Controller
             if ($sectionIds->isNotEmpty()) {
                 $sectionIds->each(function ($sectionId) use ($activeSchoolYear, $teacher, $conflicts) {
                     $section = Section::with('gradeLevel')->find($sectionId);
-                    if (!$section) {
+                    if (! $section) {
                         return;
                     }
 
@@ -209,19 +167,19 @@ class TeacherController extends Controller
                     $gradeValue = optional($gradeLevel)->level;
                     // Grade levels 4, 5, 6 allow multi-section teachers
                     // All other grades (1-3, 7+) should have 1:1 teacher-to-section ratio
-                    $isRestrictedGrade = !is_null($gradeValue) && !in_array($gradeValue, [4, 5, 6]);
+                    $isRestrictedGrade = ! is_null($gradeValue) && ! in_array($gradeValue, [4, 5, 6]);
 
                     if ($isRestrictedGrade && $class->teacher_id && $class->teacher_id !== $teacher->id) {
                         $existingTeacher = Teacher::with('user')->find($class->teacher_id);
                         $existingUser = optional($existingTeacher)->user;
                         $existingTeacherName = $existingUser
-                            ? trim(($existingUser->first_name ?? '') . ' ' . ($existingUser->last_name ?? ''))
+                            ? trim(($existingUser->first_name ?? '').' '.($existingUser->last_name ?? ''))
                             : '';
                         $existingTeacherName = $existingTeacherName !== '' ? $existingTeacherName : 'another teacher';
 
                         $gradeLabel = optional($gradeLevel)->name;
-                        if (!$gradeLabel && !is_null($gradeValue)) {
-                            $gradeLabel = 'Grade ' . $gradeValue;
+                        if (! $gradeLabel && ! is_null($gradeValue)) {
+                            $gradeLabel = 'Grade '.$gradeValue;
                         }
 
                         $conflicts->push([
@@ -229,6 +187,7 @@ class TeacherController extends Controller
                             'grade' => $gradeLabel,
                             'teacher' => $existingTeacherName,
                         ]);
+
                         return;
                     }
 
@@ -246,13 +205,14 @@ class TeacherController extends Controller
 
                         if ($existingAdvisory) {
                             $existingSection = $existingAdvisory->section;
-                            $gradeLabel = optional($gradeLevel)->name ?? 'Grade ' . $gradeValue;
+                            $gradeLabel = optional($gradeLevel)->name ?? 'Grade '.$gradeValue;
 
                             $conflicts->push([
                                 'section' => $section->name,
                                 'grade' => $gradeLabel,
-                                'teacher' => 'Teacher already assigned to ' . optional($existingSection)->name,
+                                'teacher' => 'Teacher already assigned to '.optional($existingSection)->name,
                             ]);
+
                             return;
                         }
                     }
@@ -261,16 +221,16 @@ class TeacherController extends Controller
                 });
             }
 
-
             Mail::to($user->email)->queue(new WelcomeEmail($user, $password));
             DB::commit();
             $redirect = redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher created successfully.');
 
             if ($sectionIds->isNotEmpty() && $conflicts->isNotEmpty()) {
-                $warningMessage = 'Skipped advisory assignment for: ' . $conflicts->map(function ($conflict) {
-                    $gradeLabel = $conflict['grade'] ? $conflict['grade'] . ' - ' : '';
-                    return $gradeLabel . $conflict['section'] . ' (already handled by ' . $conflict['teacher'] . ')';
+                $warningMessage = 'Skipped advisory assignment for: '.$conflicts->map(function ($conflict) {
+                    $gradeLabel = $conflict['grade'] ? $conflict['grade'].' - ' : '';
+
+                    return $gradeLabel.$conflict['section'].' (already handled by '.$conflict['teacher'].')';
                 })->implode('; ');
 
                 $redirect = $redirect->with('warning', $warningMessage);
@@ -279,8 +239,9 @@ class TeacherController extends Controller
             return $redirect;
         } catch (\Throwable $th) {
             DB::rollBack();
+
             return redirect()->back()
-                ->with('error', 'An error has occured failed to save Teacher' . $th->getMessage());
+                ->with('error', 'An error has occured failed to save Teacher'.$th->getMessage());
         }
     }
 
@@ -326,7 +287,7 @@ class TeacherController extends Controller
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->ignore($teacher->id)
+                Rule::unique('users')->ignore($teacher->id),
             ],
             'phone' => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8|confirmed',
@@ -380,9 +341,10 @@ class TeacherController extends Controller
                 ->with('success', 'Teacher updated successfully.');
         } catch (\Throwable $th) {
             DB::rollBack();
+
             return redirect()->back()
                 ->withInput()
-                ->with('error', "Failed to update teacher: " . $th->getMessage());
+                ->with('error', 'Failed to update teacher: '.$th->getMessage());
         }
     }
 
@@ -486,7 +448,7 @@ class TeacherController extends Controller
     public function getSubjectsBySection(Request $request, Section $section)
     {
         // Validate the section
-        if (!$section) {
+        if (! $section) {
             return response()->json(['error' => 'Section not found'], 404);
         }
 

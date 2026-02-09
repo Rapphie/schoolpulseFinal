@@ -14,10 +14,9 @@ class Subject extends Model
         'name',
         'code',
         'description',
+        'duration_minutes',
         'is_active',
     ];
-
-
 
     public function schedules()
     {

@@ -3,15 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Enrollment;
-use App\Models\SchoolYear;
-use App\Models\Teacher;
-use App\Models\Classes;
-use App\Models\Section;
 use App\Models\Attendance;
-use App\Models\Student;
+use App\Models\Classes;
+use App\Models\Enrollment;
 use App\Models\Schedule;
+use App\Models\SchoolYear;
 use App\Models\Subject;
+use App\Models\Teacher;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -27,12 +25,12 @@ class AdminDashboardController extends Controller
         $activeSchoolYear = SchoolYear::where('is_active', true)->first();
 
         // If no active school year, use the latest one as a fallback
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             $activeSchoolYear = SchoolYear::latest('end_date')->first();
         }
 
         // Cache dashboard metrics for 2 minutes to reduce database load
-        $cacheKey = 'admin_dashboard_metrics_' . ($activeSchoolYear?->id ?? 'none');
+        $cacheKey = 'admin_dashboard_metrics_'.($activeSchoolYear?->id ?? 'none');
         $metrics = Cache::remember($cacheKey, 120, function () use ($activeSchoolYear) {
             $enrolledStudents = 0;
             $transferStudents = 0;
@@ -88,7 +86,7 @@ class AdminDashboardController extends Controller
 
         // Today's attendance - use aggregate query instead of fetching all records
         $todayDate = Carbon::today()->toDateString();
-        $attendanceStats = Cache::remember('admin_attendance_today_' . $todayDate, 60, function () use ($todayDate) {
+        $attendanceStats = Cache::remember('admin_attendance_today_'.$todayDate, 60, function () use ($todayDate) {
             return Attendance::where('date', $todayDate)
                 ->selectRaw("
                     SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count,
@@ -117,14 +115,14 @@ class AdminDashboardController extends Controller
                 return [
                     'type' => 'Enrollment',
                     'created_at' => $e->created_at,
-                    'description' => 'New student ' . $e->status,
+                    'description' => 'New student '.$e->status,
                 ];
             });
             $recentAssessments = \App\Models\Assessment::latest()->take(5)->get()->map(function ($a) {
                 return [
                     'type' => 'Assessment',
                     'created_at' => $a->created_at,
-                    'description' => $a->name . ' (Q' . $a->quarter . ')',
+                    'description' => $a->name.' (Q'.$a->quarter.')',
                 ];
             });
             $recentAbsences = Attendance::where('status', 'absent')->latest()->take(5)->get()->map(function ($at) {
@@ -134,6 +132,7 @@ class AdminDashboardController extends Controller
                     'description' => 'Student marked absent',
                 ];
             });
+
             return collect($recentEnrollments)->merge($recentAssessments)->merge($recentAbsences)
                 ->sortByDesc('created_at')->take(10)->values();
         });
@@ -154,6 +153,45 @@ class AdminDashboardController extends Controller
             });
         }
 
+        $slotsPerGrade = collect();
+        if ($activeSchoolYear) {
+            $slotsPerGrade = Cache::remember(
+                'slots_per_grade_'.$activeSchoolYear->id,
+                120,
+                function () use ($activeSchoolYear) {
+                    return Classes::where('classes.school_year_id', $activeSchoolYear->id)
+                        ->join('sections', 'classes.section_id', '=', 'sections.id')
+                        ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
+                        ->leftJoin('enrollments', function ($join) use ($activeSchoolYear) {
+                            $join->on('enrollments.class_id', '=', 'classes.id')
+                                ->where('enrollments.status', '=', 'enrolled')
+                                ->where('enrollments.school_year_id', '=', $activeSchoolYear->id);
+                        })
+                        ->select(
+                            'grade_levels.id as grade_level_id',
+                            'grade_levels.name as grade_level_name',
+                            'grade_levels.level',
+                        )
+                        ->selectRaw('SUM(DISTINCT classes.capacity) as total_capacity')
+                        ->selectRaw('COUNT(DISTINCT classes.id) as class_count')
+                        ->selectRaw('COUNT(DISTINCT enrollments.id) as enrolled')
+                        ->groupBy('grade_levels.id', 'grade_levels.name', 'grade_levels.level')
+                        ->orderBy('grade_levels.level')
+                        ->get()
+                        ->map(function ($row) {
+                            return [
+                                'name' => $row->grade_level_name,
+                                'level' => $row->level,
+                                'total_capacity' => (int) $row->total_capacity,
+                                'enrolled' => (int) $row->enrolled,
+                                'available' => max(0, (int) $row->total_capacity - (int) $row->enrolled),
+                                'class_count' => (int) $row->class_count,
+                            ];
+                        });
+                }
+            );
+        }
+
         return view('admin.dashboard', [
             'enrolledStudents' => $enrolledStudents,
             'teacherCount' => $metrics['teacherCount'],
@@ -172,6 +210,7 @@ class AdminDashboardController extends Controller
             'teacherStudentRatio' => $teacherStudentRatio,
             'recentActivities' => $recentActivities,
             'upcomingEvents' => $upcomingEvents,
+            'slotsPerGrade' => $slotsPerGrade,
         ]);
     }
 
@@ -244,10 +283,11 @@ class AdminDashboardController extends Controller
             ->get()
             ->map(function ($row) {
                 $percentage = $row->total_count > 0 ? round(($row->present_count / $row->total_count) * 100, 2) : 0;
+
                 return [
                     'date' => $row->date,
-                    'present' => (int)$row->present_count,
-                    'total' => (int)$row->total_count,
+                    'present' => (int) $row->present_count,
+                    'total' => (int) $row->total_count,
                     'percentage' => $percentage,
                 ];
             });
@@ -269,6 +309,7 @@ class AdminDashboardController extends Controller
             'gradePerformance' => $gradePerformance,
         ]);
     }
+
     public function storeSchoolYear(Request $request)
     {
         try {
@@ -289,6 +330,7 @@ class AdminDashboardController extends Controller
             if ($overlapping) {
                 $overlapStart = Carbon::parse($overlapping->start_date)->format('M d, Y');
                 $overlapEnd = Carbon::parse($overlapping->end_date)->format('M d, Y');
+
                 return redirect()->back()
                     ->withInput()
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
@@ -299,7 +341,7 @@ class AdminDashboardController extends Controller
 
             // Create the new school year record. The model's event will handle the 'is_active' logic.
             $newSchoolYear = SchoolYear::create([
-                'name' => $startDate->format('Y') . '-' . $endDate->format('Y'),
+                'name' => $startDate->format('Y').'-'.$endDate->format('Y'),
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
                 'is_active' => $data['is_active'],
@@ -323,17 +365,23 @@ class AdminDashboardController extends Controller
                     $gradeLevel = optional($class->section)->gradeLevel;
                     $gradeValue = optional($gradeLevel)->level;
 
-                    if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]) && $class->teacher_id) {
+                    if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]) && $class->teacher_id) {
                         $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
+                        $currentStart = strtotime('07:00');
 
                         foreach ($subjects as $subject) {
+                            $durationMinutes = $subject->duration_minutes ?? 60;
+                            $startTime = date('H:i', $currentStart);
+                            $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
+                            $currentStart += $durationMinutes * 60;
+
                             Schedule::create([
                                 'class_id' => $newClass->id,
                                 'subject_id' => $subject->id,
                                 'teacher_id' => $class->teacher_id,
                                 'day_of_week' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-                                'start_time' => '00:00',
-                                'end_time' => '00:00',
+                                'start_time' => $startTime,
+                                'end_time' => $endTime,
                                 'room' => null,
                             ]);
                         }
@@ -347,7 +395,7 @@ class AdminDashboardController extends Controller
         } catch (\Throwable $th) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to create school year: ' . $th->getMessage());
+                ->with('error', 'Failed to create school year: '.$th->getMessage());
         }
     }
 
@@ -373,12 +421,13 @@ class AdminDashboardController extends Controller
             if ($overlapping) {
                 $overlapStart = Carbon::parse($overlapping->start_date)->format('M d, Y');
                 $overlapEnd = Carbon::parse($overlapping->end_date)->format('M d, Y');
+
                 return redirect()->back()
                     ->withInput()
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
             }
 
-            $data['name'] = $startDate->format('Y') . '-' . $endDate->format('Y');
+            $data['name'] = $startDate->format('Y').'-'.$endDate->format('Y');
 
             if ($request->input('is_active')) {
                 // Set all other school years to inactive
@@ -389,7 +438,7 @@ class AdminDashboardController extends Controller
 
             return redirect()->route('admin.dashboard')->with('success', 'School Year updated successfully.');
         } catch (\Throwable $th) {
-            return redirect()->route('admin.dashboard')->with('error', 'Error: ' . $th->getMessage());
+            return redirect()->route('admin.dashboard')->with('error', 'Error: '.$th->getMessage());
         }
     }
 
@@ -425,7 +474,30 @@ class AdminDashboardController extends Controller
 
             return redirect()->route('admin.dashboard')->with('success', 'School Year deleted successfully.');
         } catch (\Throwable $th) {
-            return redirect()->route('admin.dashboard')->with('error', 'Error: ' . $th->getMessage());
+            return redirect()->route('admin.dashboard')->with('error', 'Error: '.$th->getMessage());
         }
+    }
+
+    /**
+     * Toggle the is_promotion_open flag for a school year.
+     * Promotion can only be opened after the school year has ended.
+     */
+    public function togglePromotion(int $id)
+    {
+        $schoolYear = SchoolYear::findOrFail($id);
+
+        if (! $schoolYear->is_promotion_open && ! $schoolYear->canOpenPromotion()) {
+            return redirect()->route('admin.dashboard')
+                ->with('error', 'Promotion can only be opened after the school year has ended ('
+                    .$schoolYear->end_date->format('M d, Y').'). '
+                    .'Please wait until the school year concludes to prevent data loss.');
+        }
+
+        $schoolYear->update(['is_promotion_open' => ! $schoolYear->is_promotion_open]);
+
+        $status = $schoolYear->is_promotion_open ? 'opened' : 'closed';
+
+        return redirect()->route('admin.dashboard')
+            ->with('success', "Promotion for {$schoolYear->name} has been {$status}.");
     }
 }

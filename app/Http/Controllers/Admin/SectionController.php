@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Classes;
+use App\Models\Schedule;
+use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Teacher;
-use App\Models\SchoolYear;
-use App\Models\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +20,7 @@ class SectionController extends Controller
     public function index()
     {
         $activeSchoolYear = SchoolYear::getActive();
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             return redirect()->route('admin.dashboard')
                 ->with('error', 'No school year found. Please create one first.');
         }
@@ -43,7 +43,7 @@ class SectionController extends Controller
     {
         $activeSchoolYear = SchoolYear::getActive();
 
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             abort(404, 'No school year found.');
         }
 
@@ -60,10 +60,10 @@ class SectionController extends Controller
             $section = Section::firstOrCreate(
                 [
                     'name' => $validated['name'],
-                    'grade_level_id' => $validated['grade_level_id']
+                    'grade_level_id' => $validated['grade_level_id'],
                 ],
                 [
-                    'description' => $validated['description']
+                    'description' => $validated['description'],
                 ]
             );
 
@@ -76,6 +76,7 @@ class SectionController extends Controller
             ]);
 
             DB::commit();
+
             return redirect()->back()->with('success', 'Section created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -83,7 +84,8 @@ class SectionController extends Controller
             if (str_contains($e->getMessage(), 'classes_section_id_school_year_id_unique')) {
                 return back()->withInput()->with('error', 'This section already has a class for the active school year.');
             }
-            return back()->withInput()->with('error', 'Failed to create class. ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Failed to create class. '.$e->getMessage());
         }
     }
 
@@ -102,11 +104,11 @@ class SectionController extends Controller
                 'schoolYear',
                 'enrollments.student.guardian.user',
                 'schedules.subject', // Eager load schedules
-                'schedules.teacher.user' // Eager load schedule's teacher
+                'schedules.teacher.user', // Eager load schedule's teacher
             ])
             ->first();
 
-        if (!$class) {
+        if (! $class) {
             return redirect()->route('admin.sections.index')
                 ->with('error', "No active class found for section '{$section->name}' for the current school year.");
         }
@@ -121,8 +123,9 @@ class SectionController extends Controller
             ->get();
 
         $sectionHistory = $allClasses->map(function ($c) {
-            $adviser = $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A';
+            $adviser = $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name.' '.$c->teacher->user->last_name) : 'N/A';
             $rooms = $c->schedules->pluck('room')->filter()->unique()->implode(', ');
+
             return [
                 'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
                 'adviser' => $adviser,
@@ -145,8 +148,43 @@ class SectionController extends Controller
     public function assignAdviser(Request $request, Classes $class)
     {
         $validated = $request->validate([
-            'teacher_id' => 'required|exists:teachers,id'
+            'teacher_id' => 'required|exists:teachers,id',
         ]);
+
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $teacherId = $validated['teacher_id'];
+
+        if ($activeSchoolYear) {
+            // Block adviser cannot be assigned elsewhere
+            if ($this->isBlockAdviser($teacherId, $activeSchoolYear->id, $class->id)) {
+                return back()->with('error', 'This teacher is already a block adviser and cannot be assigned elsewhere.');
+            }
+
+            // Check if the teacher is already an adviser for another section
+            $existingAdvisory = Classes::where('teacher_id', $teacherId)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->where('id', '!=', $class->id)
+                ->first();
+
+            if ($existingAdvisory) {
+                return back()->with('error', 'This teacher is already assigned as adviser to another section.');
+            }
+
+            // If assigning to a block section, ensure teacher has no other subject loads
+            $class->load('section.gradeLevel');
+            $gradeValue = optional($class->section->gradeLevel)->level;
+
+            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+                $hasSubjects = Schedule::where('teacher_id', $teacherId)
+                    ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                    ->where('class_id', '!=', $class->id)
+                    ->exists();
+
+                if ($hasSubjects) {
+                    return back()->with('error', 'This teacher has existing subject loads and cannot be a block adviser.');
+                }
+            }
+        }
 
         $class->update(['teacher_id' => $validated['teacher_id']]);
 
@@ -168,12 +206,63 @@ class SectionController extends Controller
             'room' => 'nullable|string|max:255',
         ]);
 
-        // Convert the array of days to a JSON string before storing
-        $validated['day_of_week'] = json_encode($validated['day_of_week']);
+        // Block Grade 1-3 classes from manual schedule creation
+        $class->load('section.gradeLevel');
+        $gradeValue = optional($class->section->gradeLevel)->level;
 
-        $schedule = new Schedule($validated);
-        $schedule->class_id = $class->id; // Explicitly assign the class ID
-        $schedule->save();
+        if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            return back()->with('error', 'For Grade 1, 2, and 3, schedules are automatically managed. You cannot manually add schedules.');
+        }
+
+        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $assignedTeacherId = $validated['teacher_id'];
+
+        if ($activeSchoolYear) {
+            // Block adviser cannot take additional schedules
+            if ($this->isBlockAdviser($assignedTeacherId, $activeSchoolYear->id)) {
+                return back()->withInput()->with('error', 'This teacher is a block adviser with a full load and cannot be assigned to other subjects.');
+            }
+        }
+
+        // Schedule time conflict checks
+        $days = array_values($validated['day_of_week']);
+        $start = $validated['start_time'];
+        $end = $validated['end_time'];
+
+        // Class time conflict
+        $classConflict = Schedule::where('class_id', $class->id)
+            ->where(function ($q) use ($days) {
+                foreach ($days as $i => $day) {
+                    $i === 0 ? $q->whereJsonContains('day_of_week', $day) : $q->orWhereJsonContains('day_of_week', $day);
+                }
+            })
+            ->where(function ($q) use ($start, $end) {
+                $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
+            })
+            ->first();
+
+        if ($classConflict) {
+            return back()->withInput()->with('error', 'Schedule conflicts with an existing class schedule.');
+        }
+
+        // Teacher time conflict
+        $teacherConflict = Schedule::where('teacher_id', $assignedTeacherId)
+            ->where(function ($q) use ($days) {
+                foreach ($days as $i => $day) {
+                    $i === 0 ? $q->whereJsonContains('day_of_week', $day) : $q->orWhereJsonContains('day_of_week', $day);
+                }
+            })
+            ->where(function ($q) use ($start, $end) {
+                $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
+            })
+            ->first();
+
+        if ($teacherConflict) {
+            return back()->withInput()->with('error', 'The assigned teacher has a conflicting schedule.');
+        }
+
+        $validated['class_id'] = $class->id;
+        Schedule::create($validated);
 
         return redirect()->back()->with('success', 'Schedule entry added successfully.');
     }
@@ -181,6 +270,23 @@ class SectionController extends Controller
     public function destroy(Request $request, Classes $class)
     {
         $class->delete();
+
         return redirect()->back()->with('Success', 'Successfully deleted class section');
+    }
+
+    /**
+     * Check if a teacher is an adviser of a block section (Grades 1-3).
+     */
+    private function isBlockAdviser(int $teacherId, int $schoolYearId, ?int $ignoreClassId = null): bool
+    {
+        return Classes::where('teacher_id', $teacherId)
+            ->where('school_year_id', $schoolYearId)
+            ->when($ignoreClassId, function ($query) use ($ignoreClassId) {
+                $query->where('id', '!=', $ignoreClassId);
+            })
+            ->whereHas('section.gradeLevel', function ($query) {
+                $query->whereIn('level', [1, 2, 3]);
+            })
+            ->exists();
     }
 }

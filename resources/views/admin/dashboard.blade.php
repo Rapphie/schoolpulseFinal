@@ -314,6 +314,7 @@
                                     <th>End Date</th>
                                     <th>Quarters</th>
                                     <th>Status</th>
+                                    <th>Promotion</th>
                                     <th width="250">Action</th>
                                 </tr>
                             </thead>
@@ -351,6 +352,30 @@
                                             @endif
                                         </td>
                                         <td>
+                                            <form method="POST"
+                                                action="{{ route('admin.school-year.toggle-promotion', $year->id) }}"
+                                                class="d-inline">
+                                                @csrf
+                                                @if ($year->is_promotion_open)
+                                                    <button type="submit" class="btn btn-sm btn-success"
+                                                        data-bs-toggle="tooltip"
+                                                        title="Click to close promotion enrollment">
+                                                        <i data-feather="unlock" class="feather-sm me-1"></i> Open
+                                                    </button>
+                                                @elseif ($year->canOpenPromotion())
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning"
+                                                        data-bs-toggle="tooltip" title="Click to open promotion enrollment">
+                                                        <i data-feather="lock" class="feather-sm me-1"></i> Closed
+                                                    </button>
+                                                @else
+                                                    <span class="badge bg-light text-muted" data-bs-toggle="tooltip"
+                                                        title="Promotion can only be opened after the school year ends ({{ $year->end_date->format('M d, Y') }})">
+                                                        <i data-feather="clock" class="feather-sm me-1"></i> Not Yet
+                                                    </span>
+                                                @endif
+                                            </form>
+                                        </td>
+                                        <td>
 
                                             <a href="#" data-bs-toggle="modal"
                                                 data-bs-target="#editSchoolYearModal{{ $year->id }}"
@@ -361,14 +386,15 @@
                                                 data-bs-target="#deleteSchoolYearModal"
                                                 data-year-id="{{ $year->id }}">Delete</button>
                                             <button class="btn btn-sm btn-secondary" data-bs-toggle="modal"
-                                                data-bs-target="#quartersModal{{ $year->id }}" title="Manage Quarters">
+                                                data-bs-target="#quartersModal{{ $year->id }}"
+                                                title="Manage Quarters">
                                                 Quarters
                                             </button>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted">No school years found.</td>
+                                        <td colspan="7" class="text-center text-muted">No school years found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -492,6 +518,58 @@
             </div>
         </div>
     </div>
+
+    {{-- Available Slots Per Grade Level --}}
+    @if (isset($slotsPerGrade) && $slotsPerGrade->count() > 0)
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold">Available Slots Per Grade Level</h5>
+                        <span class="badge bg-soft-primary text-primary">
+                            Total Available: {{ $slotsPerGrade->sum('available') }}
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            @foreach ($slotsPerGrade as $grade)
+                                @php
+                                    $fillPercent =
+                                        $grade['total_capacity'] > 0
+                                            ? round(($grade['enrolled'] / $grade['total_capacity']) * 100)
+                                            : 0;
+                                    $barColor =
+                                        $fillPercent >= 95 ? 'danger' : ($fillPercent >= 80 ? 'warning' : 'success');
+                                @endphp
+                                <div class="col-md-4 col-lg-2">
+                                    <div class="card border h-100">
+                                        <div class="card-body text-center py-3">
+                                            <h6 class="fw-bold text-muted mb-1">{{ $grade['name'] }}</h6>
+                                            <h3 class="fw-bold text-{{ $barColor }} mb-1">{{ $grade['available'] }}
+                                            </h3>
+                                            <small class="text-muted d-block">slots remaining</small>
+                                            <div class="progress mt-2" style="height: 6px;">
+                                                <div class="progress-bar bg-{{ $barColor }}" role="progressbar"
+                                                    style="width: {{ $fillPercent }}%"
+                                                    aria-valuenow="{{ $fillPercent }}" aria-valuemin="0"
+                                                    aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted mt-1 d-block">
+                                                {{ $grade['enrolled'] }}/{{ $grade['total_capacity'] }} enrolled
+                                                ({{ $grade['class_count'] }}
+                                                {{ Str::plural('class', $grade['class_count']) }})
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <div class="row g-4 mb-4">
         <div class="col-lg-8">
@@ -989,10 +1067,15 @@
                         {{-- Current Quarter Info --}}
                         @php $activeQuarter = $quarters->first(fn($q) => $q->isCurrent()); @endphp
                         @if ($activeQuarter)
-                            <div class="alert alert-info py-2 d-flex align-items-center mb-3">
-                                <i data-feather="info" class="feather-sm me-2"></i>
+                            <div
+                                class="alert {{ $activeQuarter->is_manually_set_active ? 'alert-warning' : 'alert-info' }} py-2 d-flex align-items-center mb-3">
+                                <i data-feather="{{ $activeQuarter->is_manually_set_active ? 'alert-triangle' : 'info' }}"
+                                    class="feather-sm me-2"></i>
                                 <small>
                                     <strong>Current:</strong> {{ $activeQuarter->name }}
+                                    @if ($activeQuarter->is_manually_set_active)
+                                        <span class="badge bg-warning text-dark ms-1">Manual Override</span>
+                                    @endif
                                     @if ($activeQuarter->daysRemaining() >= 0)
                                         ({{ $activeQuarter->daysRemaining() }} days left)
                                     @endif
@@ -1035,11 +1118,22 @@
                                                 @endif
                                             </div>
                                             <div class="card-footer bg-transparent py-2 d-flex gap-1">
-                                                @if (!$quarter->is_manually_set_active)
+                                                @if ($quarter->is_manually_set_active)
+                                                    <form
+                                                        action="{{ route('admin.school-year.quarters.unset-active', [$year, $quarter]) }}"
+                                                        method="POST" class="d-inline"
+                                                        onsubmit="return confirm('Remove manual override for {{ $quarter->name }}? The system will revert to date-based quarter detection.')">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-primary"
+                                                            title="Remove Manual Override (revert to date-based)">
+                                                            <i data-feather="rotate-ccw" class="feather-sm"></i>
+                                                        </button>
+                                                    </form>
+                                                @else
                                                     <form
                                                         action="{{ route('admin.school-year.quarters.set-active', [$year, $quarter]) }}"
                                                         method="POST" class="d-inline"
-                                                        onsubmit="return confirm('Are you sure you want to set this as the active quarter? This will override date-based settings.')">
+                                                        onsubmit="return confirm('WARNING: Setting {{ $quarter->name }} as the active quarter will:\n\n• Override automatic date-based detection\n• Set {{ $year->name }} as the active school year\n• This affects grades, attendance, and enrollment system-wide\n\nAre you sure you want to proceed?')">
                                                         @csrf
                                                         <button type="submit" class="btn btn-sm btn-outline-success"
                                                             title="Set Active Quarter">

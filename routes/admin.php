@@ -1,15 +1,15 @@
 <?php
 
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\Admin\SettingController;
-use App\Http\Controllers\Admin\TeacherController;
-use App\Http\Controllers\Admin\ClassroomSectionController;
-use App\Http\Controllers\Admin\SubjectController;
-use App\Http\Controllers\Admin\ScheduleController;
-use App\Http\Controllers\Admin\GradeLevelController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminReportController;
+use App\Http\Controllers\Admin\ClassroomSectionController;
+use App\Http\Controllers\Admin\GradeLevelController;
+use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\SchoolYearQuarterController;
+use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SubjectController;
+use App\Http\Controllers\Admin\TeacherController;
+use App\Http\Controllers\AdminController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,6 +32,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         Route::post('/school-year/store', [AdminDashboardController::class, 'storeSchoolYear'])->name('school-year.store');
         Route::put('/school-year/{id}', [AdminDashboardController::class, 'updateSchoolYear'])->name('school-year.update');
         Route::delete('/school-year/{id}', [AdminDashboardController::class, 'deleteSchoolYear'])->name('school-year.delete');
+        Route::post('/school-year/{id}/toggle-promotion', [AdminDashboardController::class, 'togglePromotion'])->name('school-year.toggle-promotion');
 
         // School Year Quarters
         Route::prefix('school-year/{schoolYear}/quarters')->name('school-year.quarters.')->group(function () {
@@ -41,6 +42,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
             Route::delete('/{quarter}', [SchoolYearQuarterController::class, 'destroy'])->name('destroy');
             Route::post('/{quarter}/toggle-lock', [SchoolYearQuarterController::class, 'toggleLock'])->name('toggle-lock');
             Route::post('/{quarter}/set-active', [SchoolYearQuarterController::class, 'setActive'])->name('set-active');
+            Route::post('/{quarter}/unset-active', [SchoolYearQuarterController::class, 'unsetActive'])->name('unset-active');
             Route::post('/auto-generate', [SchoolYearQuarterController::class, 'autoGenerate'])->name('auto-generate');
         });
 
@@ -136,8 +138,6 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         });
         // Note: settings routes handled by Admin\SettingController above
     });
-
-
 
     // Admin password reset (outside of admin prefix)
     Route::post('/admin/users/{user}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');

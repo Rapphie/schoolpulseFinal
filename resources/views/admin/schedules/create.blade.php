@@ -75,16 +75,20 @@
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label for="start_time" class="form-label">Start Time <span class="text-danger">*</span></label>
-                            <input type="time" class="form-control" name="start_time" required>
+                            <select class="form-select" name="start_time" id="start_time" required></select>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="end_time" class="form-label">End Time <span class="text-danger">*</span></label>
-                            <input type="time" class="form-control" name="end_time" required>
+                            <select class="form-select" name="end_time" id="end_time" required></select>
                         </div>
                         <div class="col-md-4 mb-3">
                             <label for="room" class="form-label">Room (Optional)</label>
                             <input type="text" class="form-control" name="room">
                         </div>
+                    </div>
+                    <div id="duration-hint" class="mb-3 d-none">
+                        <small class="text-info"><i data-feather="info" class="feather-sm me-1"></i><span
+                                id="duration-hint-text"></span></small>
                     </div>
                     <div class="d-flex justify-content-end mt-4">
                         <a href="{{ route('admin.schedules.index') }}" class="btn btn-secondary me-2">Cancel</a>
@@ -99,6 +103,71 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // ── Time dropdown population (15-min intervals, 7 AM – 5 PM) ──
+            function populateTimeDropdowns(startId, endId) {
+                const startSel = document.getElementById(startId);
+                const endSel = document.getElementById(endId);
+                if (!startSel || !endSel) return;
+                startSel.innerHTML = '<option value="">-- Select --</option>';
+                endSel.innerHTML = '<option value="">-- Select --</option>';
+                let cur = new Date();
+                cur.setHours(7, 0, 0, 0);
+                const stop = new Date();
+                stop.setHours(17, 0, 0, 0);
+                while (cur <= stop) {
+                    const h = cur.getHours(),
+                        m = cur.getMinutes();
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const dh = h % 12 === 0 ? 12 : h % 12;
+                    const dm = m < 10 ? '0' + m : m;
+                    const label = `${dh}:${dm} ${ampm}`;
+                    const val = `${h < 10 ? '0'+h : h}:${dm}`;
+                    startSel.add(new Option(label, val));
+                    endSel.add(new Option(label, val));
+                    cur.setMinutes(m + 15);
+                }
+            }
+            populateTimeDropdowns('start_time', 'end_time');
+
+            // ── Subject duration auto-calc ──
+            const subjects = @json($subjects);
+            const subjectSelect = document.getElementById('subject_id');
+            const startTime = document.getElementById('start_time');
+            const endTime = document.getElementById('end_time');
+            const hint = document.getElementById('duration-hint');
+            const hintText = document.getElementById('duration-hint-text');
+
+            function getSelectedDuration() {
+                if (!subjectSelect) return null;
+                const id = parseInt(subjectSelect.value, 10);
+                const subj = subjects.find(s => s.id === id);
+                return subj?.duration_minutes || null;
+            }
+
+            function autoCalcEndTime() {
+                const dur = getSelectedDuration();
+                if (dur && hint && hintText) {
+                    hint.classList.remove('d-none');
+                    hintText.textContent = `This subject has a recommended duration of ${dur} minutes.`;
+                } else if (hint) {
+                    hint.classList.add('d-none');
+                }
+                if (!dur || !startTime || !startTime.value) return;
+                const [sh, sm] = startTime.value.split(':').map(Number);
+                const end = new Date();
+                end.setHours(sh, sm + dur, 0, 0);
+                const eh = end.getHours(),
+                    em = end.getMinutes();
+                const endVal = `${eh < 10 ? '0'+eh : eh}:${em < 10 ? '0'+em : em}`;
+                if (endTime) {
+                    const opt = Array.from(endTime.options).find(o => o.value === endVal);
+                    if (opt) endTime.value = endVal;
+                }
+            }
+
+            if (subjectSelect) subjectSelect.addEventListener('change', autoCalcEndTime);
+            if (startTime) startTime.addEventListener('change', autoCalcEndTime);
+
             const gradeLevelSelect = document.getElementById('grade_level_id');
             const classSelect = document.getElementById('class_id');
             const subjectSelect = document.getElementById('subject_id');

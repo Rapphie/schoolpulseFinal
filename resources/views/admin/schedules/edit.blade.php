@@ -136,15 +136,15 @@
                     <!-- Row 7: Time -->
                     <div>
                         <label for="start_time" class="block text-sm font-medium text-gray-700">From Time *</label>
-                        <input type="time" id="start_time" name="start_time" value="{{ $schedule->start_time }}"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
+                        <select id="start_time" name="start_time"
+                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required></select>
                     </div>
                     <div>
                         <label for="end_time" class="block text-sm font-medium text-gray-700">To Time *</label>
-                        <input type="time" id="end_time" name="end_time" value="{{ $schedule->end_time }}"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
+                        <select id="end_time" name="end_time"
+                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required></select>
                     </div>
                 </div>
 
@@ -159,6 +159,32 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // ── Time dropdown population (15-min intervals, 7 AM – 5 PM) ──
+            function populateTimeDropdowns(startId, endId) {
+                const startSel = document.getElementById(startId);
+                const endSel = document.getElementById(endId);
+                if (!startSel || !endSel) return;
+                startSel.innerHTML = '<option value="">-- Select --</option>';
+                endSel.innerHTML = '<option value="">-- Select --</option>';
+                let cur = new Date();
+                cur.setHours(7, 0, 0, 0);
+                const stop = new Date();
+                stop.setHours(17, 0, 0, 0);
+                while (cur <= stop) {
+                    const h = cur.getHours(),
+                        m = cur.getMinutes();
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const dh = h % 12 === 0 ? 12 : h % 12;
+                    const dm = m < 10 ? '0' + m : m;
+                    const label = `${dh}:${dm} ${ampm}`;
+                    const val = `${h < 10 ? '0'+h : h}:${dm}`;
+                    startSel.add(new Option(label, val));
+                    endSel.add(new Option(label, val));
+                    cur.setMinutes(m + 15);
+                }
+            }
+            populateTimeDropdowns('start_time', 'end_time');
+
             const sectionSelect = document.getElementById('section_id');
             const subjectSelect = document.getElementById('subject_id');
             const gradeLevelInput = document.getElementById('grade_level');
@@ -169,6 +195,16 @@
             const gradeLevels = @json($gradeLevels->keyBy('id'));
             const teachers = @json($teachers->keyBy('id'));
             const schedule = @json($schedule);
+
+            // Pre-select existing time values
+            const startTimeSel = document.getElementById('start_time');
+            const endTimeSel = document.getElementById('end_time');
+            if (startTimeSel && schedule.start_time) {
+                startTimeSel.value = schedule.start_time.substring(0, 5);
+            }
+            if (endTimeSel && schedule.end_time) {
+                endTimeSel.value = schedule.end_time.substring(0, 5);
+            }
 
             function populateSubjects() {
                 const selectedOption = sectionSelect.options[sectionSelect.selectedIndex];

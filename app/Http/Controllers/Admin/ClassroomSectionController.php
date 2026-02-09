@@ -3,28 +3,27 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Classes;
-use App\Models\Grade;
-use App\Models\Enrollment;
 use App\Models\Attendance;
+use App\Models\Classes;
+use App\Models\Enrollment;
+use App\Models\Grade;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
-use App\Models\SchoolYear;
 use App\Models\Schedule;
+use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\StudentProfileService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-use App\Services\StudentProfileService;
+use Illuminate\Support\Facades\Mail;
 
 class ClassroomSectionController extends Controller
 {
@@ -38,7 +37,7 @@ class ClassroomSectionController extends Controller
         $classes = Classes::where('school_year_id', $activeSchoolYear->id)
             ->with(['section.gradeLevel', 'teacher.user', 'enrollments'])
             ->get()
-            ->sortBy(fn($class) => optional($class->section->gradeLevel)->level);
+            ->sortBy(fn ($class) => optional($class->section->gradeLevel)->level);
 
         $teachers = Teacher::with('user')->orderBy('id')->get();
         $gradeLevels = GradeLevel::orderBy('level')->get();
@@ -63,7 +62,7 @@ class ClassroomSectionController extends Controller
     public function store(Request $request)
     {
         $gradeLevelId = $this->resolveGradeLevelId($request);
-        if (!$gradeLevelId) {
+        if (! $gradeLevelId) {
             return back()->withInput()->with('error', 'Invalid grade level selected.');
         }
 
@@ -80,7 +79,7 @@ class ClassroomSectionController extends Controller
         $activeSchoolYear = $this->getActiveSchoolYear();
 
         // Teacher assignment rule: A teacher can only be an adviser to one section regardless of grade level
-        if (!empty($validated['teacher_id'])) {
+        if (! empty($validated['teacher_id'])) {
             $teacherId = $validated['teacher_id'];
             $gradeLevel = GradeLevel::find($validated['grade_level_id']);
 
@@ -98,17 +97,18 @@ class ClassroomSectionController extends Controller
             if ($existingAdvisory) {
                 $existingSectionName = optional($existingAdvisory->section)->name ?? 'another section';
                 $existingGradeLabel = optional($existingAdvisory->section->gradeLevel)->name ?? 'Unknown Grade';
+
                 return back()->withInput()->with(
                     'error',
-                    "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
-                        "Teachers can only be an adviser to one section."
+                    "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. ".
+                        'Teachers can only be an adviser to one section.'
                 );
             }
 
             // If assigning to a block section (Grades 1-3), check for existing subject loads
             if ($gradeLevel && in_array($gradeLevel->level, [1, 2, 3])) {
                 $hasSubjects = Schedule::where('teacher_id', $teacherId)
-                    ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                    ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                     ->exists();
 
                 if ($hasSubjects) {
@@ -137,6 +137,7 @@ class ClassroomSectionController extends Controller
             ]);
 
             DB::commit();
+
             return redirect()->route('admin.sections.index')->with('success', 'Section created successfully.');
         } catch (QueryException $exception) {
             DB::rollBack();
@@ -144,10 +145,11 @@ class ClassroomSectionController extends Controller
                 return back()->withInput()->with('error', 'This section already exists for the current school year.');
             }
 
-            return back()->withInput()->with('error', 'Failed to create section. ' . $exception->getMessage());
+            return back()->withInput()->with('error', 'Failed to create section. '.$exception->getMessage());
         } catch (\Throwable $throwable) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Failed to create section. ' . $throwable->getMessage());
+
+            return back()->withInput()->with('error', 'Failed to create section. '.$throwable->getMessage());
         }
     }
 
@@ -165,7 +167,7 @@ class ClassroomSectionController extends Controller
             'schedules.teacher.user',
         ]);
 
-        if (!$class) {
+        if (! $class) {
             return redirect()->route('admin.sections.index')
                 ->with('error', 'No active class found for this section in the current school year.');
         }
@@ -235,17 +237,18 @@ class ClassroomSectionController extends Controller
                 if ($existingAdvisory) {
                     $existingSectionName = optional($existingAdvisory->section)->name ?? 'another section';
                     $existingGradeLabel = optional($existingAdvisory->section->gradeLevel)->name ?? 'Unknown Grade';
+
                     return back()->withInput()->with(
                         'error',
-                        "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
-                            "Teachers can only be an adviser to one section."
+                        "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. ".
+                            'Teachers can only be an adviser to one section.'
                     );
                 }
 
                 // If assigning to a block section (Grades 1-3), check for existing subject loads
                 if ($gradeLevel && in_array($gradeLevel->level, [1, 2, 3])) {
                     $hasSubjects = Schedule::where('teacher_id', $newTeacherId)
-                        ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                        ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                         ->where('class_id', '!=', $class->id)
                         ->exists();
 
@@ -277,7 +280,7 @@ class ClassroomSectionController extends Controller
             'schedules.teacher.user',
         ]);
 
-        if (!$class) {
+        if (! $class) {
             return response()->json([
                 'message' => 'No active class found for this section.',
             ], Response::HTTP_NOT_FOUND);
@@ -316,7 +319,7 @@ class ClassroomSectionController extends Controller
             $class = $this->findActiveClass($section, $relations);
         }
 
-        if (!$class) {
+        if (! $class) {
             return redirect()->route('admin.sections.index')
                 ->with('error', 'No active class found for this section in the current school year.');
         }
@@ -331,8 +334,9 @@ class ClassroomSectionController extends Controller
             ->get();
 
         $sectionHistory = $allClasses->map(function ($c) {
-            $adviser = $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A';
+            $adviser = $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name.' '.$c->teacher->user->last_name) : 'N/A';
             $rooms = $c->schedules->pluck('room')->filter()->unique()->implode(', ');
+
             return [
                 'class_id' => $c->id,
                 'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
@@ -379,17 +383,18 @@ class ClassroomSectionController extends Controller
             if ($existingAdvisory) {
                 $existingSectionName = optional($existingAdvisory->section)->name ?? 'another section';
                 $existingGradeLabel = optional($existingAdvisory->section->gradeLevel)->name ?? 'Unknown Grade';
+
                 return back()->withInput()->with(
                     'error',
-                    "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. " .
-                        "Teachers can only be an adviser to one section."
+                    "This teacher is already assigned as adviser to {$existingGradeLabel} - {$existingSectionName}. ".
+                        'Teachers can only be an adviser to one section.'
                 );
             }
 
             // If assigning to a block section, ensure teacher has no other subject loads
-            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
                 $hasSubjects = Schedule::where('teacher_id', $teacherId)
-                    ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                    ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                     ->where('class_id', '!=', $class->id)
                     ->exists();
 
@@ -401,8 +406,9 @@ class ClassroomSectionController extends Controller
             $class->update(['teacher_id' => $validated['teacher_id']]);
 
             // For Grade 1, 2, 3: Auto-create schedules for all subjects assigned to the adviser
-            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
                 $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
+                $currentStart = strtotime('07:00');
 
                 foreach ($subjects as $subject) {
                     // Check if schedule already exists for this subject in this class
@@ -410,15 +416,19 @@ class ClassroomSectionController extends Controller
                         ->where('subject_id', $subject->id)
                         ->first();
 
-                    if (!$existingSchedule) {
-                        // Create a default schedule with the adviser as teacher (placeholder times to be edited later)
+                    if (! $existingSchedule) {
+                        $durationMinutes = $subject->duration_minutes ?? 60;
+                        $startTime = date('H:i', $currentStart);
+                        $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
+                        $currentStart += $durationMinutes * 60;
+
                         Schedule::create([
                             'class_id' => $class->id,
                             'subject_id' => $subject->id,
                             'teacher_id' => $teacherId,
                             'day_of_week' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-                            'start_time' => '00:00',
-                            'end_time' => '00:00',
+                            'start_time' => $startTime,
+                            'end_time' => $endTime,
                             'room' => null,
                         ]);
                     } else {
@@ -430,7 +440,7 @@ class ClassroomSectionController extends Controller
 
             return back()->with('success', 'Adviser assigned successfully.');
         } catch (\Throwable $throwable) {
-            return back()->withInput()->with('error', 'Failed to assign adviser: ' . $throwable->getMessage());
+            return back()->withInput()->with('error', 'Failed to assign adviser: '.$throwable->getMessage());
         }
     }
 
@@ -444,7 +454,7 @@ class ClassroomSectionController extends Controller
             $class->load('section.gradeLevel');
             $gradeValue = optional($class->section->gradeLevel)->level;
 
-            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
                 // Delete all schedules for this class
                 Schedule::where('class_id', $class->id)->delete();
             }
@@ -453,7 +463,7 @@ class ClassroomSectionController extends Controller
 
             return back()->with('success', 'Adviser removed successfully.');
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to remove adviser: ' . $throwable->getMessage());
+            return back()->with('error', 'Failed to remove adviser: '.$throwable->getMessage());
         }
     }
 
@@ -480,7 +490,7 @@ class ClassroomSectionController extends Controller
 
             return back()->with('success', 'Capacity updated successfully.');
         } catch (\Throwable $throwable) {
-            return back()->withInput()->with('error', 'Failed to update capacity: ' . $throwable->getMessage());
+            return back()->withInput()->with('error', 'Failed to update capacity: '.$throwable->getMessage());
         }
     }
 
@@ -493,7 +503,7 @@ class ClassroomSectionController extends Controller
         $class->load('section.gradeLevel');
         $gradeValue = optional($class->section->gradeLevel)->level;
 
-        if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+        if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
             return back()->with('error', 'For Grade 1, 2, and 3, schedules are automatically managed. You cannot manually add schedules.');
         }
 
@@ -539,12 +549,13 @@ class ClassroomSectionController extends Controller
                 $conflictDays = $classConflicts->day_of_week;
                 $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
                 $conflictMsg = sprintf(
-                    "Schedule conflicts with existing class schedule: %s (%s) %s - %s",
+                    'Schedule conflicts with existing class schedule: %s (%s) %s - %s',
                     optional($classConflicts->subject)->name ?? 'Subject',
                     $conflictLabel,
                     optional($classConflicts->start_time)?->format('g:i A') ?? $classConflicts->start_time,
                     optional($classConflicts->end_time)?->format('g:i A') ?? $classConflicts->end_time
                 );
+
                 return back()->withInput()->with('error', $conflictMsg);
             }
 
@@ -566,13 +577,14 @@ class ClassroomSectionController extends Controller
                 $conflictDays = $teacherConflicts->day_of_week;
                 $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
                 $conflictMsg = sprintf(
-                    "Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)",
+                    'Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)',
                     optional($teacherConflicts->subject)->name ?? 'Subject',
                     $conflictLabel,
                     optional($teacherConflicts->start_time)?->format('g:i A') ?? $teacherConflicts->start_time,
                     optional($teacherConflicts->end_time)?->format('g:i A') ?? $teacherConflicts->end_time,
                     optional($teacherConflicts->class->section)->name ?? 'Class'
                 );
+
                 return back()->withInput()->with('error', $conflictMsg);
             }
 
@@ -580,7 +592,7 @@ class ClassroomSectionController extends Controller
 
             return back()->with('success', 'Schedule entry saved.');
         } catch (\Throwable $throwable) {
-            return back()->withInput()->with('error', 'Failed to save schedule: ' . $throwable->getMessage());
+            return back()->withInput()->with('error', 'Failed to save schedule: '.$throwable->getMessage());
         }
     }
 
@@ -617,7 +629,7 @@ class ClassroomSectionController extends Controller
 
             // Ensure the class belongs to the active school year
             $activeSchoolYear = SchoolYear::where('is_active', true)->first();
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return back()->with('error', 'No active school year found.')->with('error_form', 'enroll');
             }
 
@@ -632,7 +644,7 @@ class ClassroomSectionController extends Controller
                 return back()->with('error', 'Selected class is not in the active school year.')->with('error_form', 'enroll');
             }
 
-            $plainPassword = "12345678";
+            $plainPassword = '12345678';
             $guardianUser = null;
 
             DB::transaction(function () use ($validated, $class, $plainPassword, &$guardianUser) {
@@ -666,7 +678,7 @@ class ClassroomSectionController extends Controller
                 ]);
 
                 // Create enrollment with linked student profile
-                $profileService = new StudentProfileService();
+                $profileService = new StudentProfileService;
                 $profileService->createEnrollmentWithProfile([
                     'student_id' => $student->id,
                     'class_id' => $class->id,
@@ -681,7 +693,7 @@ class ClassroomSectionController extends Controller
                 Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
             }
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to add student: ' . $throwable->getMessage())->with('error_form', 'enroll');
+            return back()->with('error', 'Failed to add student: '.$throwable->getMessage())->with('error_form', 'enroll');
         }
 
         return back()->with('success', 'Student enrolled successfully.');
@@ -721,7 +733,7 @@ class ClassroomSectionController extends Controller
             $attendanceSummary = Attendance::query()
                 ->where('student_id', $student->id)
                 ->where('school_year_id', $activeSchoolYear->id)
-                ->selectRaw("status, COUNT(*) as total")
+                ->selectRaw('status, COUNT(*) as total')
                 ->groupBy('status')
                 ->pluck('total', 'status');
 
@@ -791,7 +803,7 @@ class ClassroomSectionController extends Controller
         $guardianUser = $guardian?->user;
 
         $validated = $request->validate([
-            'lrn' => 'nullable|string|max:12|unique:students,lrn,' . $student->id,
+            'lrn' => 'nullable|string|max:12|unique:students,lrn,'.$student->id,
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'gender' => 'required|in:male,female',
@@ -802,7 +814,7 @@ class ClassroomSectionController extends Controller
             'family_income' => 'nullable|string|in:Low,Medium,High',
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required|email|max:255' . ($guardianUser ? '|unique:users,email,' . $guardianUser->id : '|unique:users,email'),
+            'guardian_email' => 'required|email|max:255'.($guardianUser ? '|unique:users,email,'.$guardianUser->id : '|unique:users,email'),
             'guardian_phone' => 'required|string|max:25',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
@@ -852,7 +864,7 @@ class ClassroomSectionController extends Controller
                 ]);
             });
         } catch (\Throwable $throwable) {
-            return back()->withInput()->with('edit_student_id', $student->id)->with('error', 'Failed to update student: ' . $throwable->getMessage());
+            return back()->withInput()->with('edit_student_id', $student->id)->with('error', 'Failed to update student: '.$throwable->getMessage());
         }
 
         return back()->with('success', 'Student updated successfully.');
@@ -865,9 +877,10 @@ class ClassroomSectionController extends Controller
     {
         try {
             $class->delete();
+
             return redirect()->route('admin.sections.index')->with('success', 'Class deleted successfully.');
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to delete class: ' . $throwable->getMessage());
+            return back()->with('error', 'Failed to delete class: '.$throwable->getMessage());
         }
     }
 
@@ -877,7 +890,7 @@ class ClassroomSectionController extends Controller
     public function removeStudent(Section $section, Student $student)
     {
         $class = $this->findActiveClass($section);
-        if (!$class) {
+        if (! $class) {
             return redirect()->route('admin.sections.index')
                 ->with('error', 'No active class found for this section in the current school year.');
         }
@@ -889,12 +902,13 @@ class ClassroomSectionController extends Controller
 
             if ($enrollment) {
                 $enrollment->delete();
+
                 return back()->with('success', 'Student removed from section.');
             }
 
             return back()->with('error', 'Student is not enrolled in this section.');
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to remove student: ' . $throwable->getMessage());
+            return back()->with('error', 'Failed to remove student: '.$throwable->getMessage());
         }
     }
 
@@ -924,7 +938,7 @@ class ClassroomSectionController extends Controller
             'schedules.teacher.user',
         ]);
 
-        if (!$class) {
+        if (! $class) {
             return response()->json([
                 'message' => 'No active class found for this section.',
             ], Response::HTTP_NOT_FOUND);
@@ -938,11 +952,6 @@ class ClassroomSectionController extends Controller
 
     /**
      * Check if a teacher is an adviser of a block section (Grades 1-3).
-     *
-     * @param int $teacherId
-     * @param int $schoolYearId
-     * @param int|null $ignoreClassId
-     * @return bool
      */
     private function isBlockAdviser(int $teacherId, int $schoolYearId, ?int $ignoreClassId = null): bool
     {
@@ -964,7 +973,7 @@ class ClassroomSectionController extends Controller
     {
         $active = SchoolYear::getActive();
 
-        if (!$active) {
+        if (! $active) {
             abort(404, 'No school year found. Please create one first in the dashboard.');
         }
 
@@ -999,6 +1008,7 @@ class ClassroomSectionController extends Controller
 
         if ($request->filled('grade_level')) {
             $gradeLevel = GradeLevel::where('level', $request->input('grade_level'))->first();
+
             return $gradeLevel?->id;
         }
 

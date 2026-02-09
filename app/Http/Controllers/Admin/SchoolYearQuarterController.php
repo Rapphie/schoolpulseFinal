@@ -52,9 +52,9 @@ class SchoolYearQuarterController extends Controller
         if ($startDate->lt($schoolYear->start_date) || $endDate->gt($schoolYear->end_date)) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Quarter dates must be within the school year period (' .
-                    Carbon::parse($schoolYear->start_date)->format('M d, Y') . ' - ' .
-                    Carbon::parse($schoolYear->end_date)->format('M d, Y') . ').');
+                ->with('error', 'Quarter dates must be within the school year period ('.
+                    Carbon::parse($schoolYear->start_date)->format('M d, Y').' - '.
+                    Carbon::parse($schoolYear->end_date)->format('M d, Y').').');
         }
 
         // Check for overlapping quarters
@@ -146,9 +146,10 @@ class SchoolYearQuarterController extends Controller
             abort(404);
         }
 
-        $quarter->update(['is_locked' => !$quarter->is_locked]);
+        $quarter->update(['is_locked' => ! $quarter->is_locked]);
 
         $status = $quarter->is_locked ? 'locked' : 'unlocked';
+
         return redirect()->back()->with('success', "{$quarter->name} has been {$status}.");
     }
 
@@ -189,7 +190,8 @@ class SchoolYearQuarterController extends Controller
             return redirect()->back()->with('success', 'All 4 quarters have been auto-generated. You can adjust the dates as needed.');
         } catch (\Throwable $e) {
             DB::rollBack();
-            return redirect()->back()->with('error', 'Failed to generate quarters: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Failed to generate quarters: '.$e->getMessage());
         }
     }
 
@@ -213,5 +215,23 @@ class SchoolYearQuarterController extends Controller
         });
 
         return redirect()->back()->with('success', "{$quarter->name} of {$schoolYear->name} is now the active period.");
+    }
+
+    /**
+     * Unset the manually active quarter (revert to date-based detection).
+     */
+    public function unsetActive(SchoolYear $schoolYear, SchoolYearQuarter $quarter): \Illuminate\Http\RedirectResponse
+    {
+        if ($quarter->school_year_id !== $schoolYear->id) {
+            abort(404);
+        }
+
+        if (! $quarter->is_manually_set_active) {
+            return redirect()->back()->with('error', "{$quarter->name} is not manually set as active.");
+        }
+
+        $quarter->update(['is_manually_set_active' => false]);
+
+        return redirect()->back()->with('success', "{$quarter->name} manual override removed. The system will now use date-based quarter detection.");
     }
 }

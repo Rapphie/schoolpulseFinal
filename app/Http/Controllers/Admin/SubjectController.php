@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Subject;
 use App\Models\GradeLevel;
+use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +18,7 @@ class SubjectController extends Controller
     {
         $subjects = Subject::all();
         $gradeLevels = GradeLevel::all();
+
         return view('admin.subjects.index', compact('subjects', 'gradeLevels'));
     }
 
@@ -37,9 +38,10 @@ class SubjectController extends Controller
         // Validate the incoming request
         $validated = $request->validate([
             'grade_level_id' => 'required|exists:grade_levels,id',
-            'subjects'       => 'required|array|min:1',
+            'subjects' => 'required|array|min:1',
             'subjects.*.name' => 'required|string|max:255',
             'subjects.*.code' => 'required|string|max:100',
+            'subjects.*.duration_minutes' => 'nullable|integer|min:15|max:480',
         ]);
 
         try {
@@ -49,18 +51,21 @@ class SubjectController extends Controller
 
             foreach ($validated['subjects'] as $subjectData) {
                 Subject::create([
-                    'name'           => $subjectData['name'],
-                    'code'           => $subjectData['code'],
+                    'name' => $subjectData['name'],
+                    'code' => $subjectData['code'],
                     'grade_level_id' => $gradeLevelId,
-                    'is_active'      => true, // Default to active
+                    'duration_minutes' => $subjectData['duration_minutes'] ?? null,
+                    'is_active' => true,
                 ]);
             }
 
             DB::commit();
+
             return redirect()->route('admin.subjects.index')->with('success', 'Subjects added successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error adding subjects: ' . $e->getMessage());
+            Log::error('Error adding subjects: '.$e->getMessage());
+
             return back()->with('error', 'An error occurred while adding subjects. Please try again.');
         }
     }
@@ -88,10 +93,10 @@ class SubjectController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:subjects,code,' . $subject->id,
+            'code' => 'required|string|max:50|unique:subjects,code,'.$subject->id,
             'description' => 'nullable|string',
             'grade_level_id' => 'required|exists:grade_levels,id',
-
+            'duration_minutes' => 'nullable|integer|min:15|max:480',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
@@ -117,6 +122,7 @@ class SubjectController extends Controller
                 return redirect()->route('admin.subjects.index')
                     ->with('error', 'Cannot delete subject because they are referenced in other records.');
             }
+
             return redirect()->route('admin.subjects.index')
                 ->with('error', 'An error occurred while deleting the subject.');
         } catch (\Throwable $th) {
@@ -128,6 +134,7 @@ class SubjectController extends Controller
     public function getSubjectsByGradeLevel($gradeLevel)
     {
         $subjects = Subject::where('grade_level_id', $gradeLevel)->get();
+
         return response()->json($subjects);
     }
 }

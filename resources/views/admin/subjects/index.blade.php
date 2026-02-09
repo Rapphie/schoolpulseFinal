@@ -9,7 +9,7 @@
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ route('admin.subjects.index') }}">Subjects</a></li>
                     <li class="breadcrumb-item active" aria-current="page">List</li>
-                </ol>P
+                </ol>
             </nav>
             <button type="button" class="btn btn-primary btn-sm d-flex align-items-center" data-bs-toggle="modal"
                 data-bs-target="#addSubjectModal">
@@ -84,7 +84,8 @@
                                             data-code="{{ $subject->code }}"
                                             data-description="{{ $subject->description ?? '' }}"
                                             data-is_active="{{ $subject->is_active }}"
-                                            data-grade_level_id="{{ $subject->grade_level_id }}">
+                                            data-grade_level_id="{{ $subject->grade_level_id }}"
+                                            data-duration_minutes="{{ $subject->duration_minutes ?? '' }}">
                                             <i data-feather="edit-2" class="feather-sm"></i>
                                         </button>
                                         <form action="{{ route('admin.subjects.destroy', $subject->id) }}" method="POST"
@@ -144,13 +145,18 @@
 
                         <div id="subject-entries-container">
                             <div class="row subject-entry mb-2">
-                                <div class="col-md-5">
+                                <div class="col-md-4">
                                     <input type="text" name="subjects[0][name]" class="form-control"
                                         placeholder="Subject Name" required>
                                 </div>
-                                <div class="col-md-5">
+                                <div class="col-md-3">
                                     <input type="text" name="subjects[0][code]" class="form-control"
                                         placeholder="Subject Code" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" name="subjects[0][duration_minutes]" class="form-control"
+                                        placeholder="Duration (mins)" min="15" max="480" step="15"
+                                        title="Duration in minutes (e.g. 60, 90, 120)">
                                 </div>
                                 <div class="col-md-2">
                                     {{-- The first row doesn't have a remove button --}}
@@ -255,6 +261,14 @@
                             <input type="checkbox" class="form-check-input" id="edit_is_active" name="is_active">
                             <label class="form-check-label" for="edit_is_active">Active</label>
                         </div>
+                        <div class="mb-3">
+                            <label for="edit_duration_minutes" class="form-label">Duration (minutes)</label>
+                            <input type="number" class="form-control" id="edit_duration_minutes"
+                                name="duration_minutes" min="15" max="480" step="15"
+                                placeholder="e.g. 60, 90, 120">
+                            <small class="form-text text-muted">Leave blank if duration can vary. Used to auto-calculate
+                                end time in schedules.</small>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -272,7 +286,6 @@
 @endsection
 
 @push('scripts')
-    >
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             let subjectIndex = 1; // Start index for new rows, since 0 is already in the HTML
@@ -280,11 +293,14 @@
             $('#add-subject-entry-btn').on('click', function() {
                 const newEntryHtml = `
                     <div class="row subject-entry mb-2">
-                        <div class="col-md-5">
+                        <div class="col-md-4">
                             <input type="text" name="subjects[${subjectIndex}][name]" class="form-control" placeholder="Subject Name" required>
                         </div>
-                        <div class="col-md-5">
+                        <div class="col-md-3">
                             <input type="text" name="subjects[${subjectIndex}][code]" class="form-control" placeholder="Subject Code" required>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="number" name="subjects[${subjectIndex}][duration_minutes]" class="form-control" placeholder="Duration (mins)" min="15" max="480" step="15" title="Duration in minutes">
                         </div>
                         <div class="col-md-2">
                             <button type="button" class="btn btn-danger btn-sm remove-subject-entry-btn w-100">Remove</button>
@@ -400,6 +416,7 @@
                 const code = button.data('code');
                 const description = button.data('description');
                 const isActive = button.data('is_active');
+                const durationMinutes = button.data('duration_minutes');
 
                 // Set the form action URL
                 $('#editSubjectForm').attr('action', '/admin/subjects/' + id);
@@ -410,6 +427,7 @@
                 $('#edit_code').val(code);
                 $('#edit_description').val(description);
                 $('#edit_is_active').prop('checked', isActive);
+                $('#edit_duration_minutes').val(durationMinutes || '');
 
                 // Show the modal using getOrCreateInstance
                 const modalElement = document.getElementById('editSubjectModal');

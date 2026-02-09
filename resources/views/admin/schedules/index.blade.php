@@ -16,6 +16,62 @@
             </a>
         </div>
 
+        {{-- Filters --}}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body py-3">
+                <form method="GET" action="{{ route('admin.schedules.index') }}" id="scheduleFilterForm">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label for="filterTeacherSearch" class="form-label fw-semibold mb-1">Teacher</label>
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="filterTeacherSearch"
+                                    placeholder="Search for a teacher..." autocomplete="off"
+                                    value="{{ $filters['teacher_id'] ?? '' ? $teachers->firstWhere('id', $filters['teacher_id'])?->user?->first_name . ' ' . $teachers->firstWhere('id', $filters['teacher_id'])?->user?->last_name : '' }}">
+                                <input type="hidden" name="teacher_id" id="filterTeacherId"
+                                    value="{{ $filters['teacher_id'] ?? '' }}">
+                                <div class="dropdown-menu w-100" id="teacherFilterDropdown"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterGradeLevel" class="form-label fw-semibold mb-1">Grade Level</label>
+                            <select class="form-select" id="filterGradeLevel" name="grade_level_id"
+                                onchange="filterSectionsByGradeLevel(); document.getElementById('scheduleFilterForm').submit()">
+                                <option value="">All Grade Levels</option>
+                                @foreach ($gradeLevels as $gradeLevel)
+                                    <option value="{{ $gradeLevel->id }}"
+                                        {{ ($filters['grade_level_id'] ?? '') == $gradeLevel->id ? 'selected' : '' }}>
+                                        {{ $gradeLevel->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterSection" class="form-label fw-semibold mb-1">Section</label>
+                            <select class="form-select" id="filterSection" name="section_id"
+                                {{ $filters['grade_level_id'] ?? '' ? '' : 'disabled' }}
+                                onchange="document.getElementById('scheduleFilterForm').submit()">
+                                <option value="">All Sections</option>
+                                @foreach ($sections as $section)
+                                    <option value="{{ $section->id }}"
+                                        data-grade-level-id="{{ $section->grade_level_id }}"
+                                        {{ ($filters['section_id'] ?? '') == $section->id ? 'selected' : '' }}>
+                                        {{ $section->gradeLevel->name ?? '' }} - {{ $section->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            @if (array_filter($filters ?? []))
+                                <a href="{{ route('admin.schedules.index') }}" class="btn btn-outline-secondary w-100">
+                                    <i data-feather="x" class="feather-sm me-1"></i> Clear Filters
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
 
         <div id='calendar-container' class="bg-white p-6 rounded-lg shadow-md">
             <div id='calendar-loader' class="text-center py-10">
@@ -30,6 +86,34 @@
     <style>
         .add-schedule-btn {
             background-color: #0d6efd !important;
+        }
+
+        #teacherFilterDropdown {
+            z-index: 9999;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        #teacherFilterDropdown.show {
+            display: block;
+        }
+
+        .card.shadow-sm.mb-4 {
+            overflow: visible !important;
+            pointer-events: auto;
+        }
+
+        .card.shadow-sm.mb-4:hover {
+            transform: none !important;
+            box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
+            cursor: default;
+        }
+
+        .card.shadow-sm.mb-4 .card-body {
+            overflow: visible !important;
         }
 
         .fc .fc-button-primary {
@@ -159,6 +243,99 @@
             });
 
             calendar.render();
+        });
+
+        function filterSectionsByGradeLevel() {
+            var gradeLevelId = document.getElementById('filterGradeLevel').value;
+            var sectionSelect = document.getElementById('filterSection');
+            var options = sectionSelect.querySelectorAll('option[data-grade-level-id]');
+
+            // Reset section selection when grade level changes
+            sectionSelect.value = '';
+
+            // Enable/disable section dropdown based on grade level selection
+            sectionSelect.disabled = !gradeLevelId;
+
+            options.forEach(function(option) {
+                if (!gradeLevelId || option.getAttribute('data-grade-level-id') === gradeLevelId) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+        }
+
+        // Apply filter on page load if grade level is pre-selected
+        document.addEventListener('DOMContentLoaded', function() {
+            var gradeLevelId = document.getElementById('filterGradeLevel').value;
+            if (gradeLevelId) {
+                var sectionSelect = document.getElementById('filterSection');
+                var options = sectionSelect.querySelectorAll('option[data-grade-level-id]');
+                options.forEach(function(option) {
+                    if (option.getAttribute('data-grade-level-id') !== gradeLevelId) {
+                        option.style.display = 'none';
+                    }
+                });
+            }
+
+            // Teacher searchable dropdown
+            const teachersList = @json($teachers->map(fn($t) => ['id' => $t->id, 'name' => $t->user->first_name . ' ' . $t->user->last_name]));
+            const teacherInput = document.getElementById('filterTeacherSearch');
+            const teacherHidden = document.getElementById('filterTeacherId');
+            const teacherMenu = document.getElementById('teacherFilterDropdown');
+
+            if (!teacherInput || !teacherHidden || !teacherMenu) return;
+
+            const allTeachersOption = {
+                id: '',
+                name: 'All Teachers'
+            };
+
+            const renderTeacherDropdown = (teachers) => {
+                teacherMenu.innerHTML = '';
+                if (teachers.length === 0) {
+                    teacherMenu.innerHTML = '<div class="dropdown-item text-muted">No teachers found</div>';
+                    return;
+                }
+                teachers.forEach(teacher => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'dropdown-item';
+                    item.textContent = teacher.name;
+                    item.dataset.id = teacher.id;
+                    item.addEventListener('click', () => {
+                        teacherInput.value = teacher.id ? teacher.name : '';
+                        teacherHidden.value = teacher.id;
+                        teacherMenu.classList.remove('show');
+                        document.getElementById('scheduleFilterForm').submit();
+                    });
+                    teacherMenu.appendChild(item);
+                });
+            };
+
+            teacherInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase().trim();
+                let filtered = teachersList.filter(t => t.name.toLowerCase().includes(query));
+                filtered = [allTeachersOption, ...filtered];
+                renderTeacherDropdown(filtered);
+                teacherMenu.classList.add('show');
+            });
+
+            teacherInput.addEventListener('focus', function() {
+                const query = this.value.toLowerCase().trim();
+                let filtered = query ?
+                    teachersList.filter(t => t.name.toLowerCase().includes(query)) :
+                    teachersList;
+                filtered = [allTeachersOption, ...filtered];
+                renderTeacherDropdown(filtered);
+                teacherMenu.classList.add('show');
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!teacherInput.contains(e.target) && !teacherMenu.contains(e.target)) {
+                    teacherMenu.classList.remove('show');
+                }
+            });
         });
     </script>
 @endpush
