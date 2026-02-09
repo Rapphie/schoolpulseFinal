@@ -27,28 +27,35 @@
         <div class="sidebar-overlay"></div>
 
         <main>
+            {{-- Toast notification container (fixed, top-right) --}}
+            <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1090;">
+            </div>
+
             @if (session('success'))
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <div class="alert alert-success alert-dismissible fade show session-alert" role="alert">
                     {{ session('success') }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
             @if (session('warning'))
-                <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+                <div class="alert alert-warning alert-dismissible fade show d-flex align-items-center session-alert"
+                    role="alert">
                     <i data-feather="alert-circle" class="icon-sm me-2"></i>
                     <span>{{ session('warning') }}</span>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
             @if (session('error'))
-                <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center session-alert"
+                    role="alert" style="border-left: 4px solid #dc3545; font-weight: 500;">
                     <i data-feather="alert-triangle" class="icon-sm me-2"></i>
                     {{ session('error') }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             @endif
             @if ($errors->any())
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show session-alert" role="alert"
+                    style="border-left: 4px solid #dc3545; font-weight: 500;">
                     <div class="d-flex align-items-start">
                         <i data-feather="alert-triangle" class="icon-sm me-2 mt-1"></i>
                         <div>
@@ -204,6 +211,71 @@
     </script>
 
     @stack('scripts')
+
+    <script>
+        /**
+         * Global toast notification helper.
+         * Usage: showToast('Score saved!', 'success');
+         *        showToast('Something went wrong.', 'danger');
+         */
+        window.showToast = function(message, type = 'info', duration = 5000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const icons = {
+                success: 'check-circle',
+                danger: 'alert-triangle',
+                warning: 'alert-circle',
+                info: 'info',
+            };
+            const bgColors = {
+                success: '#198754',
+                danger: '#dc3545',
+                warning: '#ffc107',
+                info: '#0d6efd',
+            };
+
+            const toastId = 'toast-' + Date.now();
+            const iconName = icons[type] || icons.info;
+            const bgColor = bgColors[type] || bgColors.info;
+            const textColor = type === 'warning' ? '#000' : '#fff';
+
+            const toastHTML = `
+                <div id="${toastId}" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true"
+                     style="background-color: ${bgColor}; color: ${textColor}; min-width: 300px;">
+                    <div class="d-flex">
+                        <div class="toast-body d-flex align-items-center gap-2">
+                            <i data-feather="${iconName}" style="width:18px;height:18px;"></i>
+                            <span>${message}</span>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', toastHTML);
+            const toastEl = document.getElementById(toastId);
+            if (typeof feather !== 'undefined') feather.replace();
+            const toast = new bootstrap.Toast(toastEl, {
+                delay: duration
+            });
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', function() {
+                toastEl.remove();
+            });
+        };
+
+        // Auto-scroll to session alerts so they are always visible
+        document.addEventListener('DOMContentLoaded', function() {
+            const alert = document.querySelector('.session-alert');
+            if (alert) {
+                alert.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>
