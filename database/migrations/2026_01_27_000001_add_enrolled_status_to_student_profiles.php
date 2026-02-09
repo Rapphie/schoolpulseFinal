@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -16,16 +15,17 @@ return new class extends Migration
     public function up()
     {
         // Ensure any unexpected/legacy values are normalized to a valid value
-        DB::statement("UPDATE student_profiles SET status = 'pending' WHERE status NOT IN ('active', pending,'enrolled','promoted','retained','transferred','transferee','dropped','graduated')");
+        DB::statement("UPDATE student_profiles SET status = 'pending' WHERE status NOT IN ('active','pending','enrolled','promoted','retained','transferred','transferee','dropped','graduated')");
 
         // Add 'enrolled' to permitted values. Keep default as 'active'.
-        DB::statement("ALTER TABLE student_profiles MODIFY COLUMN status ENUM('active', 'enrolled','promoted','retained','transferred','transferee','dropped','graduated') DEFAULT 'pending'");
+        DB::statement("ALTER TABLE student_profiles MODIFY COLUMN status ENUM('active','pending','enrolled','promoted','retained','transferred','transferee','dropped','graduated') DEFAULT 'pending'");
     }
 
     /**
      * Reverse the migrations.
      *
      * Removes the 'enrolled' value by reverting to prior enum set.
+     *
      * @return void
      */
     public function down()
