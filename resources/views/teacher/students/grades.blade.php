@@ -69,19 +69,33 @@
                                             $q3 = $grades->firstWhere('quarter', 3);
                                             $q4 = $grades->firstWhere('quarter', 4);
 
-                                            $total =
-                                                ($q1->grade ?? 0) +
-                                                ($q2->grade ?? 0) +
-                                                ($q3->grade ?? 0) +
-                                                ($q4->grade ?? 0);
-                                            $finalGrade = $total > 0 ? $total / 4 : '-';
+                                            // Ensure consistent display by applying the same
+                                            // transmutation guard used in the report card view.
+                                            // Grades stored via the current assessment system are
+                                            // already transmuted (60-100), but legacy/imported
+                                            // grades < 60 need re-transmutation for consistency.
+                                            $normalise = function ($gradeValue) {
+                                                if ($gradeValue !== null && $gradeValue < 60) {
+                                                    return \App\Services\GradeService::transmute($gradeValue);
+                                                }
+                                                return $gradeValue;
+                                            };
+
+                                            $g1 = $normalise($q1->grade ?? null);
+                                            $g2 = $normalise($q2->grade ?? null);
+                                            $g3 = $normalise($q3->grade ?? null);
+                                            $g4 = $normalise($q4->grade ?? null);
+
+                                            $existing = array_filter([$g1, $g2, $g3, $g4], fn($v) => $v !== null);
+                                            $finalGrade =
+                                                count($existing) > 0 ? array_sum($existing) / count($existing) : null;
                                         @endphp
-                                        <td class="text-center">{{ $q1->grade ?? '-' }}</td>
-                                        <td class="text-center">{{ $q2->grade ?? '-' }}</td>
-                                        <td class="text-center">{{ $q3->grade ?? '-' }}</td>
-                                        <td class="text-center">{{ $q4->grade ?? '-' }}</td>
+                                        <td class="text-center">{{ $g1 !== null ? round($g1) : '-' }}</td>
+                                        <td class="text-center">{{ $g2 !== null ? round($g2) : '-' }}</td>
+                                        <td class="text-center">{{ $g3 !== null ? round($g3) : '-' }}</td>
+                                        <td class="text-center">{{ $g4 !== null ? round($g4) : '-' }}</td>
                                         <td class="text-center">
-                                            {{ is_numeric($finalGrade) ? number_format($finalGrade, 2) : $finalGrade }}
+                                            {{ $finalGrade !== null ? number_format($finalGrade, 2) : '-' }}
                                         </td>
                                     </tr>
                                 @endforeach

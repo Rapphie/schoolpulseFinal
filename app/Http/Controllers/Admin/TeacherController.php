@@ -152,10 +152,10 @@ class TeacherController extends Controller
             $conflicts = collect();
 
             if ($sectionIds->isNotEmpty()) {
-                $sectionIds->each(function ($sectionId) use ($activeSchoolYear, $teacher, $conflicts) {
+                foreach ($sectionIds as $sectionId) {
                     $section = Section::with('gradeLevel')->find($sectionId);
                     if (! $section) {
-                        return;
+                        continue;
                     }
 
                     $class = Classes::firstOrCreate([
@@ -165,8 +165,6 @@ class TeacherController extends Controller
 
                     $gradeLevel = $section->gradeLevel;
                     $gradeValue = optional($gradeLevel)->level;
-                    // Grade levels 4, 5, 6 allow multi-section teachers
-                    // All other grades (1-3, 7+) should have 1:1 teacher-to-section ratio
                     $isRestrictedGrade = ! is_null($gradeValue) && ! in_array($gradeValue, [4, 5, 6]);
 
                     if ($isRestrictedGrade && $class->teacher_id && $class->teacher_id !== $teacher->id) {
@@ -174,24 +172,15 @@ class TeacherController extends Controller
                         $existingUser = optional($existingTeacher)->user;
                         $existingTeacherName = $existingUser
                             ? trim(($existingUser->first_name ?? '').' '.($existingUser->last_name ?? ''))
-                            : '';
+                            : 'another teacher';
                         $existingTeacherName = $existingTeacherName !== '' ? $existingTeacherName : 'another teacher';
 
-                        $gradeLabel = optional($gradeLevel)->name;
-                        if (! $gradeLabel && ! is_null($gradeValue)) {
-                            $gradeLabel = 'Grade '.$gradeValue;
-                        }
+                        $gradeLabel = optional($gradeLevel)->name ?? 'Grade '.$gradeValue;
+                        $conflicts->push("{$gradeLabel} - {$section->name} is already handled by {$existingTeacherName}.");
 
-                        $conflicts->push([
-                            'section' => $section->name,
-                            'grade' => $gradeLabel,
-                            'teacher' => $existingTeacherName,
-                        ]);
-
-                        return;
+                        continue;
                     }
 
-                    // For restricted grades, also check if this teacher is already assigned to another section in the same grade
                     if ($isRestrictedGrade) {
                         $existingAdvisory = Classes::where('teacher_id', $teacher->id)
                             ->where('school_year_id', $activeSchoolYear->id)
@@ -204,44 +193,36 @@ class TeacherController extends Controller
                             ->first();
 
                         if ($existingAdvisory) {
-                            $existingSection = $existingAdvisory->section;
                             $gradeLabel = optional($gradeLevel)->name ?? 'Grade '.$gradeValue;
+                            $conflicts->push("{$gradeLabel} - {$section->name}: Teacher is already assigned to ".optional($existingAdvisory->section)->name.'.');
 
-                            $conflicts->push([
-                                'section' => $section->name,
-                                'grade' => $gradeLabel,
-                                'teacher' => 'Teacher already assigned to '.optional($existingSection)->name,
-                            ]);
-
-                            return;
+                            continue;
                         }
                     }
 
                     $class->update(['teacher_id' => $teacher->id]);
-                });
+                }
+            }
+
+            if ($conflicts->isNotEmpty()) {
+                DB::rollBack();
+
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Advisory assignment failed: '.$conflicts->implode(' '));
             }
 
             Mail::to($user->email)->queue(new WelcomeEmail($user, $password));
             DB::commit();
-            $redirect = redirect()->route('admin.teachers.index')
+
+            return redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher created successfully.');
-
-            if ($sectionIds->isNotEmpty() && $conflicts->isNotEmpty()) {
-                $warningMessage = 'Skipped advisory assignment for: '.$conflicts->map(function ($conflict) {
-                    $gradeLabel = $conflict['grade'] ? $conflict['grade'].' - ' : '';
-
-                    return $gradeLabel.$conflict['section'].' (already handled by '.$conflict['teacher'].')';
-                })->implode('; ');
-
-                $redirect = $redirect->with('warning', $warningMessage);
-            }
-
-            return $redirect;
         } catch (\Throwable $th) {
             DB::rollBack();
 
             return redirect()->back()
-                ->with('error', 'An error has occured failed to save Teacher'.$th->getMessage());
+                ->withInput()
+                ->with('error', 'An error has occurred. Failed to save Teacher: '.$th->getMessage());
         }
     }
 

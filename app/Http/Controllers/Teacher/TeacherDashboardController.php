@@ -3,27 +3,26 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AbsentAlertMail;
 use App\Models\Attendance;
 use App\Models\Classes;
-use App\Models\GradeLevel;
+use App\Models\Enrollment;
+use App\Models\Grade;
 use App\Models\Schedule;
+use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
-use App\Models\User;
 use App\Models\Teacher;
-use App\Models\SchoolYear;
-use App\Models\Enrollment;
-use App\Models\Grade;
+use App\Models\User;
 use App\Services\GradeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
-use App\Mail\AbsentAlertMail;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class TeacherDashboardController extends Controller
@@ -34,7 +33,7 @@ class TeacherDashboardController extends Controller
             // Get the authenticated user and their teacher profile
             $teacher = Auth::user()->teacher;
 
-            if (!$teacher) {
+            if (! $teacher) {
                 // Handle cases where the user is not a teacher
                 abort(403, 'User is not a teacher.');
             }
@@ -42,7 +41,7 @@ class TeacherDashboardController extends Controller
             $activeSchoolYear = SchoolYear::active()->first();
 
             // If no active school year, return the view with a message and empty data
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return view('teacher.dashboard')->with('error', 'Data cannot be loaded because no school year is active.');
             }
 
@@ -54,7 +53,7 @@ class TeacherDashboardController extends Controller
                 ->pluck('id');
 
             $scheduledClassIds = $teacher->schedules()
-                ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                 ->pluck('class_id');
 
             $allClassIds = $advisoryClassIds->merge($scheduledClassIds)->unique();
@@ -81,7 +80,7 @@ class TeacherDashboardController extends Controller
             $currentTime = now()->format('H:i:s');
 
             $upcomingSchedules = $teacher->schedules()
-                ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                 ->whereJsonContains('day_of_week', $dayOfWeek)
                 ->whereTime('start_time', '>=', $currentTime)
                 ->with(['class.section.gradeLevel', 'subject'])
@@ -101,7 +100,7 @@ class TeacherDashboardController extends Controller
                 ->toArray();
 
             $grades = collect();
-            if (!empty($studentKeys)) {
+            if (! empty($studentKeys)) {
                 $grades = DB::table('grades')
                     ->select(DB::raw('COALESCE(student_profile_id, student_id) as pid'), DB::raw('AVG(grade) as average_grade'))
                     ->whereIn(DB::raw('COALESCE(student_profile_id, student_id)'), $studentKeys)
@@ -139,10 +138,12 @@ class TeacherDashboardController extends Controller
                 'subjects'
             ));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@index error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load dashboard: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@index error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load dashboard: '.$e->getMessage());
         }
     }
+
     private function dayToNumber($day)
     {
         switch (strtolower($day)) {
@@ -174,7 +175,7 @@ class TeacherDashboardController extends Controller
             $colorIndex = 0;
 
             foreach ($schedules as $schedule) {
-                if (!isset($subjectColors[$schedule->subject_id])) {
+                if (! isset($subjectColors[$schedule->subject_id])) {
                     $subjectColors[$schedule->subject_id] = $colorPalette[$colorIndex % count($colorPalette)];
                     $colorIndex++;
                 }
@@ -205,19 +206,22 @@ class TeacherDashboardController extends Controller
                     'borderColor' => $subjectColors[$schedule->subject_id],
                 ];
             }
+
             return view('teacher.schedules.index', ['events' => json_encode($events)]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@loggedTeacherSchedules error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load schedules: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@loggedTeacherSchedules error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load schedules: '.$e->getMessage());
         }
     }
+
     public function classes()
     {
         try {
             $teacher = Auth::user()->teacher;
             $activeSchoolYear = SchoolYear::active()->first();
 
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return view('teacher.classes')->with('error', 'No active school year has been set.');
             }
 
@@ -228,7 +232,7 @@ class TeacherDashboardController extends Controller
 
             // 2. Get IDs of classes where the teacher has a schedule
             $scheduledClassIds = $teacher->schedules()
-                ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+                ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                 ->pluck('class_id');
 
             // 3. Merge and get unique IDs, then fetch the full Class models
@@ -241,15 +245,17 @@ class TeacherDashboardController extends Controller
 
             return view('teacher.classes', compact('classes', 'teacher'));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@classes error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load classes: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@classes error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load classes: '.$e->getMessage());
         }
     }
+
     public function viewClass(Classes $class, Request $request)
     {
         try {
             $classId = $request->query('class_id');
-            if ($classId && (int)$classId !== (int)$class->id) {
+            if ($classId && (int) $classId !== (int) $class->id) {
                 $class = Classes::findOrFail($classId);
             }
 
@@ -259,7 +265,7 @@ class TeacherDashboardController extends Controller
                 'schoolYear',
                 'enrollments.student.guardian.user',
                 'schedules.subject',
-                'schedules.teacher.user'
+                'schedules.teacher.user',
             ]);
 
             $teacher = Auth::user()->teacher;
@@ -280,7 +286,7 @@ class TeacherDashboardController extends Controller
                     return [
                         'class_id' => $c->id,
                         'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
-                        'adviser' => $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A',
+                        'adviser' => $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name.' '.$c->teacher->user->last_name) : 'N/A',
                         'capacity' => $c->capacity,
                         'enrolled' => $c->enrollments->count(),
                     ];
@@ -300,7 +306,8 @@ class TeacherDashboardController extends Controller
                         $user = $candidate->user;
                         $last = $user ? strtolower($user->last_name) : '';
                         $first = $user ? strtolower($user->first_name) : '';
-                        return trim($last . ' ' . $first);
+
+                        return trim($last.' '.$first);
                     })
                     ->values();
             }
@@ -312,11 +319,12 @@ class TeacherDashboardController extends Controller
                 'isAdviser' => $isAdviser,
                 'subjects' => $subjects,
                 'assignableTeachers' => $assignableTeachers,
-                'sectionHistory' => $sectionHistory
+                'sectionHistory' => $sectionHistory,
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@viewClass error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load class view: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@viewClass error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load class view: '.$e->getMessage());
         }
     }
 
@@ -325,7 +333,7 @@ class TeacherDashboardController extends Controller
         try {
             $teacher = Auth::user()->teacher;
 
-            if (!$teacher || (int) $class->teacher_id !== (int) $teacher->id) {
+            if (! $teacher || (int) $class->teacher_id !== (int) $teacher->id) {
                 abort(403, 'Only the adviser can manage schedules for this class.');
             }
 
@@ -333,7 +341,7 @@ class TeacherDashboardController extends Controller
 
             // For Grade 1, 2, 3: Only allow editing existing schedules (no new ones), and teacher cannot be changed
             $gradeValue = optional($class->section->gradeLevel)->level;
-            $isLowerGrade = !is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]);
+            $isLowerGrade = ! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]);
 
             $validated = $request->validate([
                 'schedule_id' => 'nullable|exists:schedules,id',
@@ -356,7 +364,7 @@ class TeacherDashboardController extends Controller
             $section = $class->section;
             $gradeLevelId = $section?->grade_level_id;
 
-            if (!$gradeLevelId) {
+            if (! $gradeLevelId) {
                 return redirect()->back()
                     ->withInput()
                     ->with('error', 'Unable to determine the grade level for this class.');
@@ -422,12 +430,13 @@ class TeacherDashboardController extends Controller
                 $conflictDays = $conflict->day_of_week;
                 $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
                 $conflictMsg = sprintf(
-                    "Schedule conflicts with existing class schedule: %s (%s) %s - %s",
+                    'Schedule conflicts with existing class schedule: %s (%s) %s - %s',
                     optional($conflict->subject)->name ?? 'Subject',
                     $conflictLabel,
                     optional($conflict->start_time)?->format('g:i A') ?? $conflict->start_time,
                     optional($conflict->end_time)?->format('g:i A') ?? $conflict->end_time
                 );
+
                 return redirect()->back()->withInput()->with('error', $conflictMsg);
             }
 
@@ -448,19 +457,20 @@ class TeacherDashboardController extends Controller
                 $conflictDays = $tconflict->day_of_week;
                 $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
                 $conflictMsg = sprintf(
-                    "Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)",
+                    'Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)',
                     optional($tconflict->subject)->name ?? 'Subject',
                     $conflictLabel,
                     optional($tconflict->start_time)?->format('g:i A') ?? $tconflict->start_time,
                     optional($tconflict->end_time)?->format('g:i A') ?? $tconflict->end_time,
                     optional($tconflict->class->section)->name ?? 'Class'
                 );
+
                 return redirect()->back()->withInput()->with('error', $conflictMsg);
             }
 
             $message = 'Schedule assigned successfully.';
 
-            if (!empty($validated['schedule_id'])) {
+            if (! empty($validated['schedule_id'])) {
                 $schedule = $class->schedules()->where('id', $validated['schedule_id'])->firstOrFail();
                 $schedule->update($payload);
                 $message = 'Schedule updated successfully.';
@@ -479,8 +489,9 @@ class TeacherDashboardController extends Controller
 
             return redirect()->back()->with('success', $message);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@storeSchedule error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->withInput()->with('error', 'Unable to save schedule: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@storeSchedule error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->withInput()->with('error', 'Unable to save schedule: '.$e->getMessage());
         }
     }
 
@@ -489,7 +500,7 @@ class TeacherDashboardController extends Controller
         try {
             $teacher = Auth::user()->teacher;
 
-            if (!$teacher || (int) $class->teacher_id !== (int) $teacher->id) {
+            if (! $teacher || (int) $class->teacher_id !== (int) $teacher->id) {
                 abort(403, 'Only the adviser can remove schedules for this class.');
             }
 
@@ -501,7 +512,7 @@ class TeacherDashboardController extends Controller
             $class->loadMissing('section.gradeLevel');
             $gradeValue = optional($class->section->gradeLevel)->level;
 
-            if (!is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
                 return redirect()->back()->with('error', 'For Grade 1, 2, and 3, schedules cannot be deleted. They are automatically managed based on the adviser.');
             }
 
@@ -509,10 +520,12 @@ class TeacherDashboardController extends Controller
 
             return redirect()->back()->with('success', 'Schedule removed successfully.');
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@destroySchedule error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to remove schedule: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@destroySchedule error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to remove schedule: '.$e->getMessage());
         }
     }
+
     public function getStudentsForSection(Section $section)
     {
         try {
@@ -523,8 +536,9 @@ class TeacherDashboardController extends Controller
 
             return response()->json($students);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@getStudentsForSection error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@getStudentsForSection error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: '.$e->getMessage()], 500);
         }
     }
 
@@ -548,8 +562,9 @@ class TeacherDashboardController extends Controller
 
             return view('teacher.students', compact('sections', 'students'));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@students error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load students: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@students error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load students: '.$e->getMessage());
         }
     }
 
@@ -568,8 +583,9 @@ class TeacherDashboardController extends Controller
                 'classes' => $advisoryClasses,
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@grades error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load grades: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@grades error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load grades: '.$e->getMessage());
         }
     }
 
@@ -578,7 +594,7 @@ class TeacherDashboardController extends Controller
         try {
             $teacher = Auth::user()->teacher;
 
-            if (!$teacher || (int) $class->teacher_id !== (int) $teacher->id) {
+            if (! $teacher || (int) $class->teacher_id !== (int) $teacher->id) {
                 abort(403, 'You are not allowed to view grades for this class.');
             }
 
@@ -591,8 +607,9 @@ class TeacherDashboardController extends Controller
 
             return view('teacher.grades.show', compact('class', 'students'));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@showGrades error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load class grades: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@showGrades error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load class grades: '.$e->getMessage());
         }
     }
 
@@ -601,13 +618,13 @@ class TeacherDashboardController extends Controller
         try {
             $teacher = Auth::user()->teacher;
 
-            if (!$teacher || (int) $class->teacher_id !== (int) $teacher->id) {
+            if (! $teacher || (int) $class->teacher_id !== (int) $teacher->id) {
                 abort(403, 'You are not allowed to view grades for this class.');
             }
 
             // Verify the student is enrolled in this class
             $isEnrolled = $class->students()->where('students.id', $student->id)->exists();
-            if (!$isEnrolled) {
+            if (! $isEnrolled) {
                 abort(404, 'Student is not enrolled in this class.');
             }
 
@@ -639,7 +656,7 @@ class TeacherDashboardController extends Controller
                 'jan' => 21,
                 'feb' => 19,
                 'mar' => 23,
-                'apr' => 0
+                'apr' => 0,
             ];
 
             $monthMapping = [
@@ -653,7 +670,7 @@ class TeacherDashboardController extends Controller
                 1 => 'jan',
                 2 => 'feb',
                 3 => 'mar',
-                4 => 'apr'
+                4 => 'apr',
             ];
 
             $attendanceByMonth = Attendance::selectRaw('
@@ -709,8 +726,9 @@ class TeacherDashboardController extends Controller
                 'gradeHistory'
             ));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@studentGrades error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load student grades: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@studentGrades error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load student grades: '.$e->getMessage());
         }
     }
 
@@ -722,8 +740,9 @@ class TeacherDashboardController extends Controller
 
             return view('teacher.gradebook.quiz', compact('sections', 'subjects'));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@gradebookQuiz error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load gradebook (quiz): ' . $e->getMessage());
+            Log::error('TeacherDashboardController@gradebookQuiz error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load gradebook (quiz): '.$e->getMessage());
         }
     }
 
@@ -735,8 +754,9 @@ class TeacherDashboardController extends Controller
 
             return view('teacher.gradebook.exam', compact('sections', 'subjects'));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@gradebookExam error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load gradebook (exam): ' . $e->getMessage());
+            Log::error('TeacherDashboardController@gradebookExam error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load gradebook (exam): '.$e->getMessage());
         }
     }
 
@@ -769,17 +789,20 @@ class TeacherDashboardController extends Controller
             // Get unique sections (classes) from the schedules
             $sections = $schedules->pluck('class')->unique('id');
 
-            // Check if teacher is an adviser for grade level 1-6
+            // Check if teacher is a block adviser for grade level 1-3
+            // Only block advisers (Grades 1-3) should see the "Apply to All Subjects" toggle,
+            // since Grades 4-6 are departmentalized and require per-subject attendance.
             $isElementaryAdviser = $teacher->advisoryClasses()
                 ->where('school_year_id', $activeSchoolYear->id)
                 ->whereHas('section.gradeLevel', function ($query) {
-                    $query->whereBetween('level', [1, 6]);
+                    $query->whereBetween('level', [1, 3]);
                 })->exists();
 
             return view('teacher.attendance.take', compact('sections', 'teacherId', 'activeQuarter', 'isElementaryAdviser'));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@takeAttendance error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load attendance page: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@takeAttendance error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load attendance page: '.$e->getMessage());
         }
     }
 
@@ -791,7 +814,7 @@ class TeacherDashboardController extends Controller
             $teacherId = $teacher->id;
             $activeSchoolYear = SchoolYear::active()->first();
 
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return redirect()->back()->with('error', 'No active school year found.');
             }
 
@@ -845,10 +868,12 @@ class TeacherDashboardController extends Controller
                 'teacherClasses'
             ));
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@attendanceRecords error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->back()->with('error', 'Unable to load attendance records: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@attendanceRecords error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to load attendance records: '.$e->getMessage());
         }
     }
+
     /**
      * Delete attendance record
      */
@@ -878,7 +903,7 @@ class TeacherDashboardController extends Controller
                 ->where('attendances.school_year_id', $recordToDelete->school_year_id)
                 ->where(function ($q) use ($studentIds, $profileIds) {
                     $q->whereIn('attendances.student_id', $studentIds);
-                    if (!empty($profileIds)) {
+                    if (! empty($profileIds)) {
                         $q->orWhereIn('attendances.student_profile_id', $profileIds);
                     }
                 })
@@ -887,8 +912,9 @@ class TeacherDashboardController extends Controller
             return redirect()->route('teacher.attendance.records')
                 ->with('success', "Attendance record deleted successfully. {$deletedCount} entries were removed.");
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@deleteAttendanceRecord error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->route('teacher.attendance.records')->with('error', 'Unable to delete attendance record: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@deleteAttendanceRecord error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->route('teacher.attendance.records')->with('error', 'Unable to delete attendance record: '.$e->getMessage());
         }
     }
 
@@ -909,7 +935,7 @@ class TeacherDashboardController extends Controller
             $section = Classes::with('sections')->findOrFail($request->input('section_id'));
 
             $subject = null;
-            if (!$isAllDay) {
+            if (! $isAllDay) {
                 $subject = Subject::findOrFail($request->input('subject_id'));
             }
 
@@ -917,7 +943,7 @@ class TeacherDashboardController extends Controller
 
             $activeSchoolYear = SchoolYear::active()->first();
 
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return response()->json(['message' => 'No active school year found.'], 400);
             }
 
@@ -928,7 +954,7 @@ class TeacherDashboardController extends Controller
 
             // Get schedule for this class and subject if available
             $schedule = null;
-            if (!$isAllDay && $subject) {
+            if (! $isAllDay && $subject) {
                 $schedule = Schedule::where([
                     'class_id' => $class->id,
                     'subject_id' => $subject->id,
@@ -956,13 +982,13 @@ class TeacherDashboardController extends Controller
                 'date' => $date,
             ]);
 
-            if (!$isAllDay && $subject) {
+            if (! $isAllDay && $subject) {
                 $existingAttendanceQuery->where('subject_id', $subject->id);
             }
 
             $existingAttendanceQuery->where(function ($q) use ($studentIds, $profileIds) {
                 $q->whereIn('student_id', $studentIds);
-                if (!empty($profileIds)) {
+                if (! empty($profileIds)) {
                     $q->orWhereIn('student_profile_id', $profileIds);
                 }
             });
@@ -973,13 +999,13 @@ class TeacherDashboardController extends Controller
             $attendance = [];
             foreach ($existingAttendanceRows as $att) {
                 $resolvedStudentId = $att->student_id;
-                if (!$resolvedStudentId && $att->student_profile_id) {
+                if (! $resolvedStudentId && $att->student_profile_id) {
                     $resolvedStudentId = \App\Models\StudentProfile::find($att->student_profile_id)?->student_id;
                 }
                 if ($resolvedStudentId) {
                     // If all day, we might have multiple subjects. Just take the first one found or handle differently.
                     // For now, if all day, we just want to know if they were already marked at least once.
-                    if (!isset($attendance[$resolvedStudentId])) {
+                    if (! isset($attendance[$resolvedStudentId])) {
                         $attendance[$resolvedStudentId] = [
                             'status' => $att->status,
                             'remarks' => $att->remarks,
@@ -995,7 +1021,7 @@ class TeacherDashboardController extends Controller
                     'id' => $student->id,
                     'student_id' => $student->student_id ?? $student->lrn ?? 'N/A',
                     'name' => $student->full_name ?? $student->name,
-                    'attendance' => $attendance[$student->id] ?? null
+                    'attendance' => $attendance[$student->id] ?? null,
                 ];
             }
 
@@ -1003,11 +1029,12 @@ class TeacherDashboardController extends Controller
                 'section' => $section,
                 'subject' => $isAllDay ? ['name' => 'All Scheduled Subjects', 'code' => 'MULTIPLE'] : $subject,
                 'schedule' => $schedule,
-                'students' => $formattedStudents
+                'students' => $formattedStudents,
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@getStudents error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@getStudents error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: '.$e->getMessage()], 500);
         }
     }
 
@@ -1030,10 +1057,10 @@ class TeacherDashboardController extends Controller
                 ->orWhere('lrn', $barCode)
                 ->first();
 
-            if (!$student) {
+            if (! $student) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Student not found with this QR code'
+                    'message' => 'Student not found with this QR code',
                 ], 404);
             }
 
@@ -1041,13 +1068,13 @@ class TeacherDashboardController extends Controller
             if ($student->section_id != $request->input('section_id')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Student is not in the selected section'
+                    'message' => 'Student is not in the selected section',
                 ], 400);
             }
 
             $activeSchoolYear = SchoolYear::active()->first();
 
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return response()->json(['message' => 'No active school year found.'], 400);
             }
 
@@ -1069,11 +1096,12 @@ class TeacherDashboardController extends Controller
                 'success' => true,
                 'message' => 'Attendance recorded successfully',
                 'student_name' => $student->full_name,
-                'student_id' => $student->id
+                'student_id' => $student->id,
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@scanAttendance error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to record attendance: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@scanAttendance error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to record attendance: '.$e->getMessage()], 500);
         }
     }
 
@@ -1098,7 +1126,7 @@ class TeacherDashboardController extends Controller
             $isAllDay = $request->input('subject_id') === 'all';
             $activeSchoolYear = SchoolYear::active()->first();
 
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return response()->json(['message' => 'No active school year found.'], 400);
             }
 
@@ -1132,7 +1160,7 @@ class TeacherDashboardController extends Controller
             $remarksArray = $request->input('remarks', []);
 
             foreach ($statusArray as $studentId => $status) {
-                if (!is_numeric($studentId)) {
+                if (! is_numeric($studentId)) {
                     continue; // Skip if not a valid student ID
                 }
 
@@ -1161,11 +1189,12 @@ class TeacherDashboardController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Attendance saved successfully for ' . (count($subjectIds)) . ' subjects.'
+                'message' => 'Attendance saved successfully for '.(count($subjectIds)).' subjects.',
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@saveAttendance error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to save attendance: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@saveAttendance error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to save attendance: '.$e->getMessage()], 500);
         }
     }
 
@@ -1192,19 +1221,19 @@ class TeacherDashboardController extends Controller
 
         if ($consecutiveAbsences >= 3) {
             // Check if an email has been sent recently for this student to avoid spamming
-            $cacheKey = 'absent_alert_sent_' . $studentId;
+            $cacheKey = 'absent_alert_sent_'.$studentId;
             $lastSent = cache($cacheKey);
-            if (!$lastSent || now()->diffInHours($lastSent) >= 24) {
+            if (! $lastSent || now()->diffInHours($lastSent) >= 24) {
                 try {
                     // Send to teacher first (if available)
-                    if ($teacher && $teacher->user && !empty($teacher->user->email)) {
+                    if ($teacher && $teacher->user && ! empty($teacher->user->email)) {
                         Mail::to($teacher->user->email)->queue(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
                     }
 
                     // Also send a copy to the guardian if present and has an email
                     $guardian = $student->guardian ?? null;
                     $guardianUser = $guardian?->user;
-                    if ($guardianUser && !empty($guardianUser->email)) {
+                    if ($guardianUser && ! empty($guardianUser->email)) {
                         $guardianEmail = $guardianUser->email;
                         $teacherEmail = $teacher->user->email ?? null;
                         // avoid duplicate send if guardian and teacher share the same email
@@ -1213,7 +1242,7 @@ class TeacherDashboardController extends Controller
                         }
                     }
                 } catch (Throwable $e) {
-                    Log::error('Error sending absent alert: ' . $e->getMessage(), ['student_id' => $studentId, 'exception' => $e]);
+                    Log::error('Error sending absent alert: '.$e->getMessage(), ['student_id' => $studentId, 'exception' => $e]);
                 }
 
                 // Set cache to avoid re-sending within 24 hours
@@ -1238,11 +1267,12 @@ class TeacherDashboardController extends Controller
                 ->get();
 
             return response()->json([
-                'sections' => $sections
+                'sections' => $sections,
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@getSectionsByGradeLevel error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve sections: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@getSectionsByGradeLevel error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve sections: '.$e->getMessage()], 500);
         }
     }
 
@@ -1259,8 +1289,9 @@ class TeacherDashboardController extends Controller
             // This returns the simple list of grades that the new table structure needs
             return response()->json($grades);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@getGradesForSection error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve grades: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@getGradesForSection error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve grades: '.$e->getMessage()], 500);
         }
     }
 
@@ -1282,8 +1313,9 @@ class TeacherDashboardController extends Controller
             // Redirect back with a success message
             return redirect()->route('teacher.attendance.records')->with('success', 'Attendance record updated successfully.');
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@updateAttendance error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->route('teacher.attendance.records')->with('error', 'Unable to update attendance: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@updateAttendance error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->route('teacher.attendance.records')->with('error', 'Unable to update attendance: '.$e->getMessage());
         }
     }
 
@@ -1303,10 +1335,12 @@ class TeacherDashboardController extends Controller
             // Redirect back with a success message
             return redirect()->route('teacher.attendance.records')->with('success', 'Attendance record deleted successfully.');
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@destroyAttendance error: ' . $e->getMessage(), ['exception' => $e]);
-            return redirect()->route('teacher.attendance.records')->with('error', 'Unable to delete attendance: ' . $e->getMessage());
+            Log::error('TeacherDashboardController@destroyAttendance error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->route('teacher.attendance.records')->with('error', 'Unable to delete attendance: '.$e->getMessage());
         }
     }
+
     public function getStudentsBySection(Section $section)
     {
         try {
@@ -1318,7 +1352,7 @@ class TeacherDashboardController extends Controller
                 ->first();
 
             // If no class is found for that section in the current year, return no students
-            if (!$class) {
+            if (! $class) {
                 return response()->json([]);
             }
 
@@ -1330,16 +1364,17 @@ class TeacherDashboardController extends Controller
             // Format the data as expected by the DataTable in the view
             $studentData = $students->map(function ($student) {
                 return [
-                    'student_id'   => $student->student_id,
-                    'student_name' => $student->last_name . ', ' . $student->first_name,
-                    'gender'       => ucfirst($student->gender),
+                    'student_id' => $student->student_id,
+                    'student_name' => $student->last_name.', '.$student->first_name,
+                    'gender' => ucfirst($student->gender),
                 ];
             });
 
             return response()->json($studentData);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@getStudentsBySection error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@getStudentsBySection error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: '.$e->getMessage()], 500);
         }
     }
 
@@ -1347,7 +1382,7 @@ class TeacherDashboardController extends Controller
     {
         try {
             $activeSchoolYear = SchoolYear::active()->first();
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return response()->json(['success' => false, 'message' => 'No active school year found.'], 400);
             }
 
@@ -1425,11 +1460,12 @@ class TeacherDashboardController extends Controller
             return response()->json([
                 'stats' => $stats,
                 'student_details' => $studentDetails,
-                'trend_data' => $trendData
+                'trend_data' => $trendData,
             ]);
         } catch (Throwable $e) {
-            Log::error('TeacherDashboardController@getAttendanceSummary error: ' . $e->getMessage(), ['exception' => $e]);
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve summary: ' . $e->getMessage()], 500);
+            Log::error('TeacherDashboardController@getAttendanceSummary error: '.$e->getMessage(), ['exception' => $e]);
+
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve summary: '.$e->getMessage()], 500);
         }
     }
 }

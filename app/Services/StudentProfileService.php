@@ -16,18 +16,13 @@ class StudentProfileService
      *
      * This ensures each student has exactly one profile per school year,
      * capturing their grade level for that academic year.
-     *
-     * @param Student $student
-     * @param Classes $class
-     * @param int $schoolYearId
-     * @return StudentProfile
      */
     public function ensureProfileForEnrollment(Student $student, Classes $class, int $schoolYearId): StudentProfile
     {
         // Determine grade level from the class's section
         $gradeLevelId = $class->section?->grade_level_id;
 
-        if (!$gradeLevelId) {
+        if (! $gradeLevelId) {
             throw new \InvalidArgumentException('Cannot determine grade level: class has no section or section has no grade level.');
         }
 
@@ -56,8 +51,7 @@ class StudentProfileService
     /**
      * Create an enrollment with an automatically linked student profile.
      *
-     * @param array $enrollmentData Must include: student_id, class_id, school_year_id
-     * @return Enrollment
+     * @param  array  $enrollmentData  Must include: student_id, class_id, school_year_id
      */
     public function createEnrollmentWithProfile(array $enrollmentData): Enrollment
     {
@@ -71,7 +65,7 @@ class StudentProfileService
 
         $schoolYearId = $providedSchoolYearId ?? $classSchoolYearId;
 
-        if (!$schoolYearId) {
+        if (! $schoolYearId) {
             // Fallback to active school year if neither class nor explicit ID provides one
             $activeSchoolYear = SchoolYear::where('is_active', true)->first();
             if ($activeSchoolYear) {
@@ -83,12 +77,16 @@ class StudentProfileService
 
         $schoolYear = SchoolYear::find($schoolYearId);
 
-        if (!$schoolYear || (!$schoolYear->is_active && !$schoolYear->is_promotion_open)) {
+        if (! $schoolYear || (! $schoolYear->is_active && ! $schoolYear->is_promotion_open)) {
             throw new \RuntimeException('Enrollment for this school year is not open.');
         }
 
         // Ensure profile exists for the resolved school year
         $profile = $this->ensureProfileForEnrollment($student, $class, $schoolYearId);
+
+        // Auto-update the previous year's profile status to "promoted" if the student
+        // is advancing to a higher grade level in a new school year.
+        $this->markPreviousProfileAsPromoted($student, $schoolYearId, $profile->grade_level_id);
 
         // Add profile link to enrollment data
         $enrollmentData['student_profile_id'] = $profile->id;
@@ -98,11 +96,6 @@ class StudentProfileService
 
     /**
      * Update final average for a student profile (typically at end of school year).
-     *
-     * @param StudentProfile $profile
-     * @param float $average
-     * @param string|null $status
-     * @return StudentProfile
      */
     public function updateFinalAverage(StudentProfile $profile, float $average, ?string $status = null): StudentProfile
     {
@@ -118,9 +111,33 @@ class StudentProfileService
     }
 
     /**
+     * Mark the most recent previous profile as "promoted" when a student
+     * is enrolled into a higher grade level in a new school year.
+     */
+    private function markPreviousProfileAsPromoted(Student $student, int $currentSchoolYearId, int $newGradeLevelId): void
+    {
+        $previousProfile = StudentProfile::where('student_id', $student->id)
+            ->where('school_year_id', '!=', $currentSchoolYearId)
+            ->whereIn('status', ['enrolled', 'active', 'pending'])
+            ->orderByDesc('school_year_id')
+            ->first();
+
+        if (! $previousProfile) {
+            return;
+        }
+
+        $previousGradeLevel = $previousProfile->gradeLevel;
+        $newGradeLevel = \App\Models\GradeLevel::find($newGradeLevelId);
+
+        if ($previousGradeLevel && $newGradeLevel && $newGradeLevel->level > $previousGradeLevel->level) {
+            $previousProfile->update(['status' => 'promoted']);
+            Log::info("Student #{$student->id} profile #{$previousProfile->id} auto-marked as promoted.");
+        }
+    }
+
+    /**
      * Get grade level progression history for a student.
      *
-     * @param int $studentId
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getGradeHistory(int $studentId)

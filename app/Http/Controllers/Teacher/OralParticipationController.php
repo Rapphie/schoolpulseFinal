@@ -23,7 +23,7 @@ class OralParticipationController extends Controller
         $teacher = Auth::user()->teacher;
         $activeSchoolYear = SchoolYear::active()->first();
 
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             return view('teacher.oral-participation.list')->with('error', 'No active school year has been set.');
         }
 
@@ -37,7 +37,7 @@ class OralParticipationController extends Controller
 
         // Get IDs of classes where the teacher has a schedule
         $scheduledClassIds = $teacher->schedules()
-            ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+            ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
             ->pluck('class_id');
 
         // Merge and get unique IDs
@@ -95,12 +95,12 @@ class OralParticipationController extends Controller
             $selectedSubject = $subjects->first();
         }
 
-        if (!$selectedSubject) {
+        if (! $selectedSubject) {
             return redirect()->back()->with('error', 'No subjects found for this class.');
         }
 
         $teacher = Auth::user()->teacher;
-        if (!$teacher) {
+        if (! $teacher) {
             abort(403, 'You must be a registered teacher to manage oral participation.');
         }
 
@@ -119,7 +119,7 @@ class OralParticipationController extends Controller
         $studentsData = $students->map(function ($student) use ($allOralAssessments) {
             $studentData = [
                 'student' => $student,
-                'quarters' => []
+                'quarters' => [],
             ];
 
             // Process each quarter (1-4)
@@ -143,12 +143,12 @@ class OralParticipationController extends Controller
                 $studentData['quarters'][$quarter] = [
                     'score' => $hasParticipated ? $totalScore : null,
                     'max_score' => $totalMaxScore,
-                    'sessions_count' => $quarterAssessments->count()
+                    'sessions_count' => $quarterAssessments->count(),
                 ];
             }
 
             return $studentData;
-        })->groupBy(fn($item) => strtolower($item['student']->gender));
+        })->groupBy(fn ($item) => strtolower($item['student']->gender));
 
         return view('teacher.oral-participation.index', [
             'class' => $class,
@@ -173,10 +173,10 @@ class OralParticipationController extends Controller
             ]);
 
             $teacher = Auth::user()->teacher;
-            if (!$teacher) {
+            if (! $teacher) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authenticated user is not a teacher.'
+                    'message' => 'Authenticated user is not a teacher.',
                 ], 403);
             }
 
@@ -189,7 +189,7 @@ class OralParticipationController extends Controller
                     ->where('class_id', $class->id)
                     ->first();
 
-                if (!$assessment) {
+                if (! $assessment) {
                     continue; // Skip invalid assessments
                 }
 
@@ -200,14 +200,22 @@ class OralParticipationController extends Controller
                     AssessmentScore::where('assessment_id', $scoreData['assessment_id'])
                         ->where('student_id', $scoreData['student_id'])
                         ->delete();
+
                     continue;
                 }
 
                 // Validate score against max score
-                if ($assessment->max_score !== null && $score > $assessment->max_score) {
+                if ($assessment->max_score === null) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'A score exceeds its maximum allowed score.'
+                        'message' => 'Please set the maximum score (total items) before entering scores.',
+                    ], 422);
+                }
+
+                if ($score > $assessment->max_score) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'A score exceeds the maximum allowed score of '.$assessment->max_score.'.',
                     ], 422);
                 }
 
@@ -229,7 +237,7 @@ class OralParticipationController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "{$successCount} oral participation scores saved successfully.",
-                'saved_count' => $successCount
+                'saved_count' => $successCount,
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -262,10 +270,10 @@ class OralParticipationController extends Controller
 
         // Get active school year
         $activeSchoolYear = SchoolYear::active()->first();
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             return response()->json([
                 'success' => false,
-                'message' => 'No active school year found.'
+                'message' => 'No active school year found.',
             ], 404);
         }
 
@@ -275,7 +283,7 @@ class OralParticipationController extends Controller
 
         $assessment = $this->findOrMigrateOralParticipation($class->id, $request->subject_id, $request->quarter, $correctTeacherId);
 
-        if (!$assessment) {
+        if (! $assessment) {
             // Create Oral Participation dynamically
             $assessment = Assessment::create([
                 'class_id' => $class->id,
@@ -296,7 +304,7 @@ class OralParticipationController extends Controller
             'success' => true,
             'message' => 'Maximum score updated successfully!',
             'max_score' => $assessment->max_score,
-            'assessment_id' => $assessment->id
+            'assessment_id' => $assessment->id,
         ]);
     }
 
@@ -337,7 +345,9 @@ class OralParticipationController extends Controller
 
         // 1. Look for explicit type 'oral_participation'
         $explicit = (clone $query)->where('type', 'oral_participation')->first();
-        if ($explicit) return $explicit;
+        if ($explicit) {
+            return $explicit;
+        }
 
         // 2. Fallback: Find by "Strict Name" AND 'performance_tasks' (Previous Migration)
         $strictName = (clone $query)
@@ -348,6 +358,7 @@ class OralParticipationController extends Controller
         if ($strictName) {
             // Migrate to new type
             $strictName->update(['type' => 'oral_participation', 'name' => 'Oral Participation']);
+
             return $strictName;
         }
 
@@ -361,6 +372,7 @@ class OralParticipationController extends Controller
         if ($legacy) {
             // Migrate to new type
             $legacy->update(['type' => 'oral_participation', 'name' => 'Oral Participation']);
+
             return $legacy;
         }
 
@@ -374,7 +386,7 @@ class OralParticipationController extends Controller
     {
         $gradeLevelId = $request->grade_level_id;
 
-        if (!$gradeLevelId) {
+        if (! $gradeLevelId) {
             return response()->json(['sections' => []]);
         }
 
@@ -397,7 +409,7 @@ class OralParticipationController extends Controller
         ]);
 
         $teacher = Auth::user()->teacher;
-        if (!$teacher) {
+        if (! $teacher) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -406,7 +418,9 @@ class OralParticipationController extends Controller
 
         // Get the oral participation assessment (first performance task) for this quarter
         $assessment = $this->findOrMigrateOralParticipation($class->id, $subjectId, $quarter);
-        if ($assessment) $assessment->load('scores');
+        if ($assessment) {
+            $assessment->load('scores');
+        }
 
         // Get all students enrolled in this class
         $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get();
@@ -451,10 +465,10 @@ class OralParticipationController extends Controller
             ]);
 
             $teacher = Auth::user()->teacher;
-            if (!$teacher) {
+            if (! $teacher) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authenticated user is not a teacher.'
+                    'message' => 'Authenticated user is not a teacher.',
                 ], 403);
             }
 
@@ -464,10 +478,10 @@ class OralParticipationController extends Controller
 
             // Get active school year
             $activeSchoolYear = SchoolYear::active()->first();
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No active school year found.'
+                    'message' => 'No active school year found.',
                 ], 404);
             }
 
@@ -477,7 +491,7 @@ class OralParticipationController extends Controller
 
             $assessment = $this->findOrMigrateOralParticipation($class->id, $subjectId, $quarter, $correctTeacherId);
 
-            if (!$assessment) {
+            if (! $assessment) {
                 // Create Oral Participation dynamically
                 $assessment = Assessment::create([
                     'class_id' => $class->id,
@@ -504,7 +518,7 @@ class OralParticipationController extends Controller
                 if ($score > $maxScore) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Score for a student exceeds the maximum score of {$maxScore}."
+                        'message' => "Score for a student exceeds the maximum score of {$maxScore}.",
                     ], 422);
                 }
 
@@ -526,7 +540,7 @@ class OralParticipationController extends Controller
                 'success' => true,
                 'message' => "{$successCount} scores saved successfully.",
                 'saved_count' => $successCount,
-                'assessment_id' => $assessment->id
+                'assessment_id' => $assessment->id,
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -580,10 +594,10 @@ class OralParticipationController extends Controller
             ]);
 
             $teacher = Auth::user()->teacher;
-            if (!$teacher) {
+            if (! $teacher) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authenticated user is not a teacher.'
+                    'message' => 'Authenticated user is not a teacher.',
                 ], 403);
             }
 
@@ -593,10 +607,10 @@ class OralParticipationController extends Controller
 
             // Get active school year
             $activeSchoolYear = SchoolYear::active()->first();
-            if (!$activeSchoolYear) {
+            if (! $activeSchoolYear) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No active school year found.'
+                    'message' => 'No active school year found.',
                 ], 404);
             }
 
@@ -608,7 +622,7 @@ class OralParticipationController extends Controller
                 'subject_id' => $subjectId,
                 'teacher_id' => $correctTeacherId,
                 'school_year_id' => $activeSchoolYear->id,
-                'name' => 'Oral Participation - ' . now()->format('M d, Y'),
+                'name' => 'Oral Participation - '.now()->format('M d, Y'),
                 'type' => 'oral_participation',
                 'max_score' => $sessionMaxScore,
                 'quarter' => $quarter,
@@ -616,11 +630,15 @@ class OralParticipationController extends Controller
             ]);
 
             $successCount = 0;
+            $invalidScores = [];
             foreach ($request->scores as $scoreData) {
                 $score = $scoreData['score'];
 
                 if ($score > $sessionMaxScore) {
-                    // This shouldn't happen with frontend validation, but for safety
+                    $student = Student::find($scoreData['student_id']);
+                    $studentName = $student ? $student->first_name.' '.$student->last_name : 'Unknown';
+                    $invalidScores[] = $studentName.' ('.$score.'/'.$sessionMaxScore.')';
+
                     continue;
                 }
 
@@ -635,18 +653,26 @@ class OralParticipationController extends Controller
                 }
             }
 
+            if (! empty($invalidScores)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The following scores exceed the maximum of '.$sessionMaxScore.': '.implode(', ', $invalidScores),
+                ], 422);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => "Session created with max score of {$sessionMaxScore}. {$successCount} student scores recorded.",
                 'saved_count' => $successCount,
-                'assessment_id' => $assessment->id
+                'assessment_id' => $assessment->id,
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             $errors = $e->errors();
             $firstError = collect($errors)->flatten()->first();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed: ' . $firstError,
+                'message' => 'Validation failed: '.$firstError,
                 'errors' => $errors,
             ], 422);
         } catch (\Throwable $e) {
@@ -674,13 +700,14 @@ class OralParticipationController extends Controller
         $data = $students->map(function ($student) use ($assessment, $scores) {
             $scoreRecord = $scores->get($student->id);
             $score = $scoreRecord ? $scoreRecord->score : 0;
+
             return [
                 'student_id' => $student->id,
-                'student_name' => $student->last_name . ', ' . $student->first_name,
+                'student_name' => $student->last_name.', '.$student->first_name,
                 'gender' => $student->gender,
                 'score' => $score,
                 'max_score' => $assessment->max_score,
-                'percentage' => $assessment->max_score > 0 ? ($score / $assessment->max_score) * 100 : 0
+                'percentage' => $assessment->max_score > 0 ? ($score / $assessment->max_score) * 100 : 0,
             ];
         });
 
@@ -692,7 +719,7 @@ class OralParticipationController extends Controller
                 'max_score' => $assessment->max_score,
                 'quarter' => $assessment->quarter,
             ],
-            'scores' => $data
+            'scores' => $data,
         ]);
     }
 }

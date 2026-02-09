@@ -98,15 +98,15 @@
                     <!-- Time -->
                     <div>
                         <label for="start_time" class="block text-sm font-medium text-gray-700">From Time *</label>
-                        <input type="time" id="start_time" name="start_time"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
+                        <select id="start_time" name="start_time"
+                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required></select>
                     </div>
                     <div>
                         <label for="end_time" class="block text-sm font-medium text-gray-700">To Time *</label>
-                        <input type="time" id="end_time" name="end_time"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
+                        <select id="end_time" name="end_time"
+                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            required></select>
                     </div>
                 </div>
 
@@ -123,6 +123,63 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // ── Time dropdown population (15-min intervals, 7 AM – 5 PM) ──
+            function populateTimeDropdowns(startId, endId) {
+                const startSel = document.getElementById(startId);
+                const endSel = document.getElementById(endId);
+                if (!startSel || !endSel) return;
+                startSel.innerHTML = '<option value="">-- Select --</option>';
+                endSel.innerHTML = '<option value="">-- Select --</option>';
+                let cur = new Date();
+                cur.setHours(7, 0, 0, 0);
+                const stop = new Date();
+                stop.setHours(17, 0, 0, 0);
+                while (cur <= stop) {
+                    const h = cur.getHours(),
+                        m = cur.getMinutes();
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    const dh = h % 12 === 0 ? 12 : h % 12;
+                    const dm = m < 10 ? '0' + m : m;
+                    const label = `${dh}:${dm} ${ampm}`;
+                    const val = `${h < 10 ? '0'+h : h}:${dm}`;
+                    startSel.add(new Option(label, val));
+                    endSel.add(new Option(label, val));
+                    cur.setMinutes(m + 15);
+                }
+            }
+            populateTimeDropdowns('start_time', 'end_time');
+
+            // ── Subject duration auto-calc ──
+            const subjectsByGradeFlat = @json($subjects);
+            const subjectSelectForDuration = document.getElementById('subject_id');
+            const startTimeForDuration = document.getElementById('start_time');
+            const endTimeForDuration = document.getElementById('end_time');
+
+            function getSelectedDuration() {
+                if (!subjectSelectForDuration) return null;
+                const id = parseInt(subjectSelectForDuration.value, 10);
+                const subj = subjectsByGradeFlat.find(s => s.id === id);
+                return subj?.duration_minutes || null;
+            }
+
+            function autoCalcEndTime() {
+                const dur = getSelectedDuration();
+                if (!dur || !startTimeForDuration || !startTimeForDuration.value) return;
+                const [sh, sm] = startTimeForDuration.value.split(':').map(Number);
+                const end = new Date();
+                end.setHours(sh, sm + dur, 0, 0);
+                const eh = end.getHours(),
+                    em = end.getMinutes();
+                const endVal = `${eh < 10 ? '0'+eh : eh}:${em < 10 ? '0'+em : em}`;
+                if (endTimeForDuration) {
+                    const opt = Array.from(endTimeForDuration.options).find(o => o.value === endVal);
+                    if (opt) endTimeForDuration.value = endVal;
+                }
+            }
+
+            if (subjectSelectForDuration) subjectSelectForDuration.addEventListener('change', autoCalcEndTime);
+            if (startTimeForDuration) startTimeForDuration.addEventListener('change', autoCalcEndTime);
+
             const gradeLevelSelect = document.getElementById('grade_level_id');
             const sectionSelect = document.getElementById('section_id');
             const subjectSelect = document.getElementById('subject_id');

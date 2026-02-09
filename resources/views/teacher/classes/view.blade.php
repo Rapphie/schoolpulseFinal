@@ -368,14 +368,14 @@
                                     <div class="col-md-4 mb-3">
                                         <label for="schedule_start_time" class="form-label">Start Time <span
                                                 class="text-danger">*</span></label>
-                                        <input type="time" class="form-control" name="start_time"
-                                            id="schedule_start_time" required>
+                                        <select class="form-select" name="start_time" id="schedule_start_time"
+                                            required></select>
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label for="schedule_end_time" class="form-label">End Time <span
                                                 class="text-danger">*</span></label>
-                                        <input type="time" class="form-control" name="end_time"
-                                            id="schedule_end_time" required>
+                                        <select class="form-select" name="end_time" id="schedule_end_time"
+                                            required></select>
                                     </div>
                                     <div class="col-md-4 mb-3">
                                         <label for="schedule_room" class="form-label">Room (Optional)</label>
@@ -600,6 +600,32 @@
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', function() {
+                // ── Time dropdown population (15-min intervals, 7 AM – 5 PM) ──
+                function populateTimeDropdowns(startId, endId) {
+                    const startSel = document.getElementById(startId);
+                    const endSel = document.getElementById(endId);
+                    if (!startSel || !endSel) return;
+                    startSel.innerHTML = '<option value="">-- Select --</option>';
+                    endSel.innerHTML = '<option value="">-- Select --</option>';
+                    let cur = new Date();
+                    cur.setHours(7, 0, 0, 0);
+                    const stop = new Date();
+                    stop.setHours(17, 0, 0, 0);
+                    while (cur <= stop) {
+                        const h = cur.getHours(),
+                            m = cur.getMinutes();
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const dh = h % 12 === 0 ? 12 : h % 12;
+                        const dm = m < 10 ? '0' + m : m;
+                        const label = `${dh}:${dm} ${ampm}`;
+                        const val = `${h < 10 ? '0'+h : h}:${dm}`;
+                        startSel.add(new Option(label, val));
+                        endSel.add(new Option(label, val));
+                        cur.setMinutes(m + 15);
+                    }
+                }
+                populateTimeDropdowns('schedule_start_time', 'schedule_end_time');
+
                 const scheduleModal = document.getElementById('manageScheduleModal');
                 if (scheduleModal) {
                     const form = document.getElementById('manageScheduleForm');
@@ -682,8 +708,9 @@
                             }
 
                             if (roomInput) roomInput.value = room;
-                            if (startInput) startInput.value = startTime;
-                            if (endInput) endInput.value = endTime;
+                            if (startInput) startInput.value = startTime ? startTime.substring(0, 5) :
+                                '';
+                            if (endInput) endInput.value = endTime ? endTime.substring(0, 5) : '';
 
                             if (modalTitle) {
                                 modalTitle.textContent = scheduleId ? 'Update Schedule' :

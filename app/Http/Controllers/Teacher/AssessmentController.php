@@ -8,9 +8,9 @@ use App\Models\AssessmentScore;
 use App\Models\Classes;
 use App\Models\Grade;
 use App\Models\SchoolYear;
+use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
-use App\Models\Student;
 use App\Services\GradeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -50,12 +50,12 @@ class AssessmentController extends Controller
             $selectedSubject = $subjects->first();
         }
 
-        if (!$selectedSubject) {
+        if (! $selectedSubject) {
             return redirect()->back()->with('error', 'No subjects found for this class.');
         }
 
         $teacher = Auth::user()->teacher;
-        if (!$teacher) {
+        if (! $teacher) {
             abort(403, 'You must be a registered teacher to manage assessments.');
         }
 
@@ -82,7 +82,7 @@ class AssessmentController extends Controller
 
             if ($ops->isNotEmpty()) {
                 // Consolidate multiple OP sessions into one virtual assessment for the grade sheet
-                $consolidatedOP = new Assessment();
+                $consolidatedOP = new Assessment;
                 $consolidatedOP->id = -999; // Unique virtual ID to identify consolidated OP
                 $consolidatedOP->name = 'Oral Participation';
                 $consolidatedOP->type = 'oral_participation';
@@ -98,10 +98,10 @@ class AssessmentController extends Controller
         }
 
         // Organize data by student
-        $studentsData = $students->map(function ($student) use ($assessments, $selectedSubject, $class) {
+        $studentsData = $students->map(function ($student) use ($assessments, $class) {
             $studentData = [
                 'student' => $student,
-                'quarters' => []
+                'quarters' => [],
             ];
 
             // Process each quarter (1-4)
@@ -111,7 +111,7 @@ class AssessmentController extends Controller
                 $quarterData = [
                     'written_works' => [],
                     'performance_tasks' => [],
-                    'quarterly_assessments' => []
+                    'quarterly_assessments' => [],
                 ];
 
                 // Get scores for each assessment type
@@ -134,7 +134,7 @@ class AssessmentController extends Controller
                                 if ($profile) {
                                     $s = $op->scores->firstWhere('student_profile_id', $profile->id);
                                 }
-                                if (!$s) {
+                                if (! $s) {
                                     $s = $op->scores->firstWhere('student_id', $student->id);
                                 }
 
@@ -153,7 +153,7 @@ class AssessmentController extends Controller
                             if ($profile) {
                                 $score = $assessment->scores->firstWhere('student_profile_id', $profile->id);
                             }
-                            if (!$score) {
+                            if (! $score) {
                                 $score = $assessment->scores->firstWhere('student_id', $student->id);
                             }
                             $scoreValue = $score ? $score->score : null;
@@ -165,7 +165,7 @@ class AssessmentController extends Controller
                             'max_score' => $maxScoreValue,
                             'percentage' => $scoreValue !== null && $maxScoreValue > 0
                                 ? ($scoreValue / $maxScoreValue) * 100
-                                : null
+                                : null,
                         ];
                     }
                 }
@@ -192,10 +192,12 @@ class AssessmentController extends Controller
             'assessmentTypeLabels' => self::ASSESSMENT_TYPE_LABELS,
         ]);
     }
+
     public function create(Classes $class)
     {
         // Get subjects assigned to this class via schedules
         $subjects = $class->schedules()->with('subject')->get()->pluck('subject')->unique();
+
         return view('teacher.assessments.create', compact('class', 'subjects'));
     }
 
@@ -204,7 +206,7 @@ class AssessmentController extends Controller
         $teacher = Auth::user()->teacher;
         $activeSchoolYear = SchoolYear::active()->first();
 
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             return view('teacher.classes')->with('error', 'No active school year has been set.');
         }
 
@@ -215,7 +217,7 @@ class AssessmentController extends Controller
 
         // 2. Get IDs of classes where the teacher has a schedule
         $scheduledClassIds = $teacher->schedules()
-            ->whereHas('class', fn($q) => $q->where('school_year_id', $activeSchoolYear->id))
+            ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
             ->pluck('class_id');
 
         // 3. Merge and get unique IDs, then fetch the full Class models
@@ -228,6 +230,7 @@ class AssessmentController extends Controller
 
         return view('teacher.assessments.list', compact('classes', 'teacher'));
     }
+
     /**
      * Store a new assessment in the database.
      */
@@ -236,7 +239,7 @@ class AssessmentController extends Controller
         $userId = Auth::id();
         $teacher = Teacher::where('user_id', $userId)->first();
         // Check if the authenticated user is actually a teacher
-        if (!$teacher) {
+        if (! $teacher) {
             return redirect()->back()->with('error', 'You must be a registered teacher to create assessments.');
         }
         $request->validate([
@@ -278,12 +281,13 @@ class AssessmentController extends Controller
             if ($profile) {
                 $score = $scoresByProfile->get($profile->id);
             }
-            if (!$score) {
+            if (! $score) {
                 $score = $scoresByStudent->get($student->id);
             }
 
             // Provide a collection compatible with previous view expectations
             $student->setRelation('assessmentScores', $score ? collect([$score]) : collect());
+
             return $student;
         });
 
@@ -295,20 +299,21 @@ class AssessmentController extends Controller
      */
     public function updateScores(Request $request, Classes $class, Assessment $assessment)
     {
+        if ($assessment->max_score === null) {
+            return redirect()->back()->with('error', 'Please set the maximum score (total items) for this assessment before entering scores.');
+        }
+
         // Validate the incoming scores data
         $rules = [
             'scores' => 'required|array',
             'scores.*.student_id' => 'required|exists:students,id',
-            'scores.*.score' => ['nullable', 'numeric', 'min:0'],
+            'scores.*.score' => ['nullable', 'numeric', 'min:0', 'max:'.$assessment->max_score],
             'scores.*.remarks' => 'nullable|string|max:255',
         ];
 
-        $messages = [];
-
-        if ($assessment->max_score !== null) {
-            $rules['scores.*.score'][] = 'max:' . $assessment->max_score;
-            $messages['scores.*.score.max'] = 'The score for a student cannot exceed the maximum score of ' . $assessment->max_score . '.';
-        }
+        $messages = [
+            'scores.*.score.max' => 'The score for a student cannot exceed the maximum score of '.$assessment->max_score.'.',
+        ];
 
         $request->validate($rules, $messages);
 
@@ -328,6 +333,7 @@ class AssessmentController extends Controller
                             $q->orWhere('student_profile_id', $profile->id);
                         }
                     })->delete();
+
                 continue; // Move to the next student
             }
 
@@ -360,7 +366,7 @@ class AssessmentController extends Controller
         $this->recalculateQuarterGradesForSubjectQuarter(
             $class,
             $assessment->subject_id,
-            (int)$assessment->quarter,
+            (int) $assessment->quarter,
             $assessment->teacher_id,
             $class->school_year_id
         );
@@ -379,7 +385,7 @@ class AssessmentController extends Controller
         if (request()->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Assessment deleted successfully.'
+                'message' => 'Assessment deleted successfully.',
             ]);
         }
 
@@ -400,10 +406,10 @@ class AssessmentController extends Controller
             ]);
 
             $teacher = Auth::user()->teacher;
-            if (!$teacher) {
+            if (! $teacher) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Authenticated user is not a teacher.'
+                    'message' => 'Authenticated user is not a teacher.',
                 ], 403);
             }
 
@@ -417,21 +423,30 @@ class AssessmentController extends Controller
                     ->where('teacher_id', $teacher->id)
                     ->first();
 
-                if (!$assessment) {
+                if (! $assessment) {
                     continue; // Skip invalid assessments
                 }
 
                 // Validate score against max score
-                if ($assessment->max_score !== null && $gradeData['score'] > $assessment->max_score) {
+                if ($assessment->max_score === null) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'A score exceeds its maximum allowed score.'
+                        'message' => 'Please set the maximum score (total items) for "'.$assessment->name.'" before entering scores.',
+                    ], 422);
+                }
+
+                if ($gradeData['score'] > $assessment->max_score) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'A score exceeds the maximum allowed score of '.$assessment->max_score.'.',
                     ], 422);
                 }
 
                 // Update or create the assessment score
                 $student = Student::find($gradeData['student_id']);
-                if (!$student) continue;
+                if (! $student) {
+                    continue;
+                }
 
                 $profile = $assessment ? $student->profileFor($assessment->school_year_id) : null;
 
@@ -451,11 +466,11 @@ class AssessmentController extends Controller
 
                 $successCount++;
 
-                $key = $assessment->subject_id . '-' . $assessment->quarter;
-                if (!isset($affectedCombos[$key])) {
+                $key = $assessment->subject_id.'-'.$assessment->quarter;
+                if (! isset($affectedCombos[$key])) {
                     $affectedCombos[$key] = [
                         'subject_id' => $assessment->subject_id,
-                        'quarter' => (int)$assessment->quarter,
+                        'quarter' => (int) $assessment->quarter,
                         'teacher_id' => $assessment->teacher_id,
                     ];
                 }
@@ -475,14 +490,15 @@ class AssessmentController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "{$successCount} grades saved successfully.",
-                'saved_count' => $successCount
+                'saved_count' => $successCount,
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             $errors = $e->errors();
             $firstError = collect($errors)->flatten()->first();
+
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed: ' . $firstError,
+                'message' => 'Validation failed: '.$firstError,
                 'errors' => $errors,
             ], 422);
         } catch (\Throwable $e) {
@@ -513,12 +529,12 @@ class AssessmentController extends Controller
                 return [
                     'id' => $subject->id,
                     'name' => $subject->name,
-                    'code' => $subject->code ?? null
+                    'code' => $subject->code ?? null,
                 ];
             });
 
         return response()->json([
-            'subjects' => $subjects
+            'subjects' => $subjects,
         ]);
     }
 
@@ -557,7 +573,7 @@ class AssessmentController extends Controller
                 'max_score' => $assessment->max_score,
                 'type' => $assessment->type,
                 'quarter' => $assessment->quarter,
-            ]
+            ],
         ]);
     }
 
@@ -578,10 +594,10 @@ class AssessmentController extends Controller
             ->where('teacher_id', $teacher->id)
             ->first();
 
-        if (!$assessment) {
+        if (! $assessment) {
             return response()->json([
                 'success' => false,
-                'message' => 'Assessment not found or you do not have permission to edit it.'
+                'message' => 'Assessment not found or you do not have permission to edit it.',
             ], 403);
         }
 
@@ -591,7 +607,7 @@ class AssessmentController extends Controller
         $this->recalculateQuarterGradesForSubjectQuarter(
             $class,
             $assessment->subject_id,
-            (int)$assessment->quarter,
+            (int) $assessment->quarter,
             $assessment->teacher_id,
             $class->school_year_id
         );
@@ -599,7 +615,7 @@ class AssessmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Maximum score updated successfully!',
-            'max_score' => $assessment->max_score
+            'max_score' => $assessment->max_score,
         ]);
     }
 
@@ -667,7 +683,7 @@ class AssessmentController extends Controller
                 $match = [
                     'student_id' => $student->id,
                     'subject_id' => $subjectId,
-                    'quarter' => (string)$quarter,
+                    'quarter' => (string) $quarter,
                     'teacher_id' => $teacherId,
                     'school_year_id' => $schoolYearId,
                 ];
@@ -679,6 +695,7 @@ class AssessmentController extends Controller
                     'student_profile_id' => $profile ? $profile->id : null,
                 ]);
             }
+
             return;
         }
 
@@ -708,12 +725,12 @@ class AssessmentController extends Controller
                     if ($profile) {
                         $scoreModel = $assessment->scores->firstWhere('student_profile_id', $profile->id);
                     }
-                    if (!$scoreModel) {
+                    if (! $scoreModel) {
                         $scoreModel = $assessment->scores->firstWhere('student_id', $student->id);
                     }
 
-                    $scoreValue = $scoreModel ? (float)$scoreModel->score : 0.0;
-                    $maxScore = (float)$assessment->max_score;
+                    $scoreValue = $scoreModel ? (float) $scoreModel->score : 0.0;
+                    $maxScore = (float) $assessment->max_score;
                     if ($maxScore > 0) {
                         $totalScore += $scoreValue;
                         $totalMax += $maxScore;
@@ -733,7 +750,7 @@ class AssessmentController extends Controller
             $match = [
                 'student_id' => $student->id,
                 'subject_id' => $subjectId,
-                'quarter' => (string)$quarter,
+                'quarter' => (string) $quarter,
                 'teacher_id' => $teacherId,
                 'school_year_id' => $schoolYearId,
             ];
