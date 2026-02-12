@@ -65,9 +65,13 @@ class AssessmentController extends Controller
         $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get();
 
         // Get all assessments for the selected subject grouped by quarter and type
+        // Include oral_participation from any teacher so OP is consistent across all quarters/subjects
         $assessments = $class->assessments()
             ->where('subject_id', $selectedSubject->id)
-            ->where('teacher_id', $teacher->id)
+            ->where(function ($query) use ($teacher) {
+                $query->where('teacher_id', $teacher->id)
+                    ->orWhere('type', 'oral_participation');
+            })
             ->with('scores')
             ->orderBy('quarter')
             ->orderBy('type')

@@ -4,13 +4,14 @@ namespace App\Exports;
 
 use App\Models\Enrollment;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithColumnFormats;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class TeacherEnrolleesReport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class TeacherEnrolleesReport implements FromCollection, ShouldAutoSize, WithColumnFormats, WithHeadings, WithMapping, WithStyles
 {
     protected $teacherId;
 
@@ -21,6 +22,7 @@ class TeacherEnrolleesReport implements FromCollection, WithHeadings, WithMappin
 
     /**
      * Fetch all enrollments made by the specified teacher.
+     *
      * @return \Illuminate\Support\Collection
      */
     public function collection()
@@ -32,7 +34,6 @@ class TeacherEnrolleesReport implements FromCollection, WithHeadings, WithMappin
 
     /**
      * Define the headings for the export.
-     * @return array
      */
     public function headings(): array
     {
@@ -47,14 +48,14 @@ class TeacherEnrolleesReport implements FromCollection, WithHeadings, WithMappin
 
     /**
      * Map the data for each row.
-     * @param mixed $enrollment
-     * @return array
+     *
+     * @param  mixed  $enrollment
      */
     public function map($enrollment): array
     {
         return [
             $enrollment->student->lrn ?? 'N/A',
-            $enrollment->student->first_name . ' ' . $enrollment->student->last_name,
+            $enrollment->student->first_name.' '.$enrollment->student->last_name,
             optional($enrollment->class->section)->name ?? 'N/A',
             optional($enrollment->class->section->gradeLevel)->name ?? 'N/A',
             $enrollment->created_at->format('M d, Y'),
@@ -68,7 +69,17 @@ class TeacherEnrolleesReport implements FromCollection, WithHeadings, WithMappin
     {
         return [
             // Style the first row as bold text.
-            1    => ['font' => ['bold' => true]],
+            1 => ['font' => ['bold' => true]],
+        ];
+    }
+
+    /**
+     * Format the LRN column as text to prevent scientific notation.
+     */
+    public function columnFormats(): array
+    {
+        return [
+            'A' => NumberFormat::FORMAT_TEXT,
         ];
     }
 }

@@ -22,10 +22,15 @@ yarn-error.log
 /.vscode
 /.zed
 /.gemini
+/.junie
+/.codex
+CLAUDE.md
 GEMINI.md
+AGENTS.md
 /python/__pycache__
 /python/.venv
 /docs
 /.github
 python/utils/__pycache__
 todo.md
+boost.json

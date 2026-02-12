@@ -347,7 +347,10 @@ class ClassroomSectionController extends Controller
             ];
         });
 
-        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers', 'sectionHistory'));
+        $activeSchoolYear = SchoolYear::getActive();
+        $isEditable = $activeSchoolYear && $class->school_year_id === $activeSchoolYear->id;
+
+        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers', 'sectionHistory', 'isEditable'));
     }
 
     /**
@@ -746,10 +749,9 @@ class ClassroomSectionController extends Controller
             $gradesByQuarter = Grade::query()
                 ->where('student_id', $student->id)
                 ->where('school_year_id', $activeSchoolYear->id)
-                ->join('quarters', 'grades.quarter_id', '=', 'quarters.id')
-                ->select('quarters.name as quarter_name', DB::raw('AVG(grade) as average_grade'))
-                ->groupBy('quarters.name')
-                ->orderBy('quarters.name')
+                ->select('quarter as quarter_name', DB::raw('AVG(grade) as average_grade'))
+                ->groupBy('quarter')
+                ->orderBy('quarter')
                 ->get()
                 ->keyBy('quarter_name');
 

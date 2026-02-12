@@ -374,7 +374,7 @@
                                                 @php
                                                     $availableAssessments = $quarterAssessments->get($type, collect());
 
-                                                    if ($type === 'performance_task') {
+                                                    if ($type === 'performance_tasks') {
                                                         $opAssessment = $availableAssessments->firstWhere(
                                                             'type',
                                                             'oral_participation',
@@ -992,8 +992,8 @@
                     }
                 }
 
-                // The Final Grade is the average of the quarters with available grades.
-                const finalGrade = countedQuarters > 0 ? Math.round(total / countedQuarters) : null;
+                // The Final Grade is always the sum of all quarter grades divided by 4.
+                const finalGrade = countedQuarters > 0 ? Math.round(total / 4) : null;
                 $finalRow.find('.final-grade').text(finalGrade !== null ? finalGrade : '--');
                 const remarks = finalGrade !== null ? (finalGrade >= 75 ? 'PASSED' : 'FAILED') : '--';
                 $finalRow.find('.final-remarks').text(remarks);

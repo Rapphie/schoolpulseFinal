@@ -2,31 +2,27 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Exports\EnrolleesExport;
 use App\Exports\TeacherEnrolleesReport;
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Enrollment;
+use App\Models\Grade;
+use App\Models\GradeLevel;
 use App\Models\Guardian;
-use App\Models\Role;
+use App\Models\SchoolYear;
+use App\Models\Section;
 use App\Models\Student;
 use App\Models\User;
-use App\Models\Teacher;
-use App\Models\SchoolYear;
-use App\Models\GradeLevel;
-use App\Models\Attendance;
-use App\Models\Grade;
+use App\Services\StudentProfileService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use App\Models\Section;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Exports\EnrolleesExport;
 use Illuminate\Support\Facades\Mail;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Services\StudentProfileService;
 
 class EnrollmentController extends Controller
 {
@@ -41,8 +37,6 @@ class EnrollmentController extends Controller
     {
         $activeSchoolYear = SchoolYear::where('is_active', true)->first();
         $schoolYear = $activeSchoolYear ? $activeSchoolYear->name : 'current';
-
-
 
         return Excel::download(
             new EnrolleesExport($class->id, null, $class->school_year_id),
@@ -72,7 +66,7 @@ class EnrollmentController extends Controller
                 ->where('school_year_id', $currentSchoolYear->id)
                 ->with('class.section.gradeLevel', 'student')
                 ->get()
-                ->groupBy(fn($e) => $e->class_id) : collect();
+                ->groupBy(fn ($e) => $e->class_id) : collect();
 
             $classes = Classes::where('school_year_id', $currentSchoolYear->id)
                 ->with('section.gradeLevel', 'enrollments')
@@ -159,12 +153,13 @@ class EnrollmentController extends Controller
             'currentSchoolYear' => $currentSchoolYear,
             'previousSchoolYear' => $previousSchoolYear ?? null,
             'gradeLevels' => GradeLevel::orderBy('level')->get(),
-            'error' => !$currentSchoolYear ? 'No school year found.' : null,
+            'error' => ! $currentSchoolYear ? 'No school year found.' : null,
             'currentTeacherId' => $teacher?->id,
             'allSchoolYears' => $allSchoolYears,
             'activeSchoolYearId' => $activeSchoolYear?->id,
         ]);
     }
+
     public function create()
     {
         $currentSchoolYear = SchoolYear::where('is_active', true)->first();
@@ -172,12 +167,12 @@ class EnrollmentController extends Controller
         // Get the school year that ended immediately before the current school year started
         $previousSchoolYear = $currentSchoolYear
             ? SchoolYear::where('id', '!=', $currentSchoolYear->id)
-            ->where('end_date', '<', $currentSchoolYear->start_date)
-            ->orderBy('end_date', 'desc')
-            ->first()
+                ->where('end_date', '<', $currentSchoolYear->start_date)
+                ->orderBy('end_date', 'desc')
+                ->first()
             : null;
 
-        if (!$previousSchoolYear || !$currentSchoolYear) {
+        if (! $previousSchoolYear || ! $currentSchoolYear) {
             return redirect()->back()->with('error', 'Previous or current school year not found.');
         }
 
@@ -192,7 +187,7 @@ class EnrollmentController extends Controller
         ]);
     }
 
-    public function store(Request $request, Classes $class)
+    public function store(Request $request, ?Classes $class = null)
     {
         // 1. Validate all the fields from the "Enroll New Student" modal
         $validated = $request->validate([
@@ -225,7 +220,7 @@ class EnrollmentController extends Controller
         $resolvedClass = $class && $class->exists ? $class : Classes::findOrFail($validated['class_id']);
 
         // Ensure class has a valid school year
-        if (!$resolvedClass->school_year_id) {
+        if (! $resolvedClass->school_year_id) {
             return redirect()->back()->with('error', 'Selected class does not represent a valid school year.');
         }
 
@@ -237,7 +232,7 @@ class EnrollmentController extends Controller
 
             DB::transaction(function () use ($validated, $plainPassword, $resolvedClass, $enrollmentStatus) {
                 $teacher = optional(Auth::user())->teacher;
-                if (!$teacher) {
+                if (! $teacher) {
                     throw new \RuntimeException('Teacher profile missing for the current user.');
                 }
 
@@ -272,7 +267,7 @@ class EnrollmentController extends Controller
                 ]);
 
                 // 6. Create the final Enrollment Record, linking the Student to the Class
-                $profileService = new StudentProfileService();
+                $profileService = new StudentProfileService;
                 $profileService->createEnrollmentWithProfile([
                     'student_id' => $student->id,
                     'class_id' => $resolvedClass->id,
@@ -286,9 +281,10 @@ class EnrollmentController extends Controller
             });
 
             $statusLabel = $enrollmentStatus === 'transferee' ? ' (Transferee)' : '';
-            return redirect()->back()->with('success', 'Student enrolled successfully' . $statusLabel . '.');
+
+            return redirect()->back()->with('success', 'Student enrolled successfully'.$statusLabel.'.');
         } catch (\Throwable $th) {
-            return redirect()->back()->with('error', 'Error student enrolment failed.' . $th->getMessage());
+            return redirect()->back()->with('error', 'Error student enrolment failed.'.$th->getMessage());
         }
     }
 
@@ -306,7 +302,7 @@ class EnrollmentController extends Controller
             $class = Classes::findOrFail($request->class_id);
             $schoolYear = $class->schoolYear;
 
-            if (!$schoolYear || (!$schoolYear->is_active && !$schoolYear->is_promotion_open)) {
+            if (! $schoolYear || (! $schoolYear->is_active && ! $schoolYear->is_promotion_open)) {
                 return redirect()->route('teacher.enrollment.index')->with('error', 'Enrollment for this school year is not open.');
             }
 
@@ -337,10 +333,10 @@ class EnrollmentController extends Controller
 
             if (count($studentIds) > $availableSlots) {
                 return redirect()->route('teacher.enrollment.index')
-                    ->with('error', "Not enough slots available. Class has {$availableSlots} slots but trying to enroll " . count($studentIds) . " students.");
+                    ->with('error', "Not enough slots available. Class has {$availableSlots} slots but trying to enroll ".count($studentIds).' students.');
             }
 
-            $profileService = new StudentProfileService();
+            $profileService = new StudentProfileService;
             $teacherId = Auth::user()->teacher->id;
             $enrolledCount = 0;
             $skippedCount = 0;
@@ -350,8 +346,9 @@ class EnrollmentController extends Controller
             DB::transaction(function () use ($studentIds, $studentUpdates, $class, $targetSchoolYearId, $profileService, $teacherId, $enrollmentStatus, &$enrolledCount, &$skippedCount, &$updatedCount, &$errors) {
                 foreach ($studentIds as $studentId) {
                     $student = Student::find($studentId);
-                    if (!$student) {
+                    if (! $student) {
                         $errors[] = "Student ID {$studentId} not found";
+
                         continue;
                     }
 
@@ -360,11 +357,12 @@ class EnrollmentController extends Controller
                     if ($isAlreadyEnrolled) {
                         $skippedCount++;
                         $errors[] = "{$student->first_name} {$student->last_name} is already enrolled";
+
                         continue;
                     }
 
                     // Apply student updates if provided
-                    if (isset($studentUpdates[$studentId]) && !empty($studentUpdates[$studentId])) {
+                    if (isset($studentUpdates[$studentId]) && ! empty($studentUpdates[$studentId])) {
                         // ...existing code...
                         $updates = $studentUpdates[$studentId];
 
@@ -376,7 +374,7 @@ class EnrollmentController extends Controller
                                 $studentData[$field] = $updates[$field];
                             }
                         }
-                        if (!empty($studentData)) {
+                        if (! empty($studentData)) {
                             $student->update($studentData);
                         }
 
@@ -406,7 +404,7 @@ class EnrollmentController extends Controller
                                 if (isset($updates['guardian_email']) && $updates['guardian_email'] !== '') {
                                     $userUpdates['email'] = $updates['guardian_email'];
                                 }
-                                if (!empty($userUpdates)) {
+                                if (! empty($userUpdates)) {
                                     $guardianUser->update($userUpdates);
                                 }
                             }
@@ -419,7 +417,7 @@ class EnrollmentController extends Controller
                             if (isset($updates['guardian_relationship']) && $updates['guardian_relationship'] !== '') {
                                 $guardianUpdates['relationship'] = $updates['guardian_relationship'];
                             }
-                            if (!empty($guardianUpdates)) {
+                            if (! empty($guardianUpdates)) {
                                 $guardian->update($guardianUpdates);
                             }
                         }
@@ -452,7 +450,7 @@ class EnrollmentController extends Controller
 
             return redirect()->route('teacher.enrollment.index')->with('success', $message);
         } catch (\Throwable $e) {
-            return redirect()->route('teacher.enrollment.index')->with('error', 'Failed to enroll students: ' . $e->getMessage());
+            return redirect()->route('teacher.enrollment.index')->with('error', 'Failed to enroll students: '.$e->getMessage());
         }
     }
 
@@ -466,7 +464,7 @@ class EnrollmentController extends Controller
 
         $validated = $request->validate([
             // Student fields
-            'lrn' => 'nullable|string|max:12|unique:students,lrn,' . $student->id,
+            'lrn' => 'nullable|string|max:12|unique:students,lrn,'.$student->id,
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'gender' => 'required|in:male,female',
@@ -480,7 +478,7 @@ class EnrollmentController extends Controller
             // Guardian fields
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required|email|max:255' . ($guardianUser ? '|unique:users,email,' . $guardianUser->id : '|unique:users,email'),
+            'guardian_email' => 'required|email|max:255'.($guardianUser ? '|unique:users,email,'.$guardianUser->id : '|unique:users,email'),
             'guardian_phone' => 'required|string|max:20',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
@@ -531,7 +529,7 @@ class EnrollmentController extends Controller
                 ]);
             });
         } catch (\Throwable $e) {
-            return back()->with('error', 'Failed to update student: ' . $e->getMessage());
+            return back()->with('error', 'Failed to update student: '.$e->getMessage());
         }
 
         return back()->with('success', 'Student updated successfully.');
@@ -570,7 +568,7 @@ class EnrollmentController extends Controller
 
             // Ensure the adviser is enrolling into a class for the active school year
             $currentSchoolYear = SchoolYear::where('is_active', true)->first();
-            if (!$currentSchoolYear) {
+            if (! $currentSchoolYear) {
                 return back()->with('error', 'No active school year found.');
             }
 
@@ -621,7 +619,7 @@ class EnrollmentController extends Controller
                 ]);
 
                 // 6. Create the final Enrollment Record, linking the Student to the Class
-                $profileService = new StudentProfileService();
+                $profileService = new StudentProfileService;
                 $profileService->createEnrollmentWithProfile([
                     'student_id' => $student->id,
                     'class_id' => $class->id,
@@ -633,18 +631,20 @@ class EnrollmentController extends Controller
 
             return redirect()->back()->with('success', 'Student enrolled successfully.');
         } catch (\Throwable $th) {
-            return redirect()->back()->with('error', 'Error student enrolment failed.' . $th->getMessage());
+            return redirect()->back()->with('error', 'Error student enrolment failed.'.$th->getMessage());
         }
     }
+
     public function enrollment()
     {
 
         return view('teacher.enrollment.index');
     }
+
     public function exportAll()
     {
         $teacher = Auth::user()->teacher;
-        if (!$teacher) {
+        if (! $teacher) {
             return redirect()->back()->with('error', 'Teacher profile not found.');
         }
 
@@ -686,7 +686,7 @@ class EnrollmentController extends Controller
             $attendanceSummary = Attendance::query()
                 ->where('student_id', $student->id)
                 ->where('school_year_id', $activeSchoolYear->id)
-                ->selectRaw("status, COUNT(*) as total")
+                ->selectRaw('status, COUNT(*) as total')
                 ->groupBy('status')
                 ->pluck('total', 'status');
 

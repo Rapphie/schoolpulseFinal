@@ -15,15 +15,26 @@
                 <h1 class="h3 mb-0 text-gray-800">Manage: {{ $section->gradeLevel->name }}-{{ $section->name }}</h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
-            <form action="{{ route('admin.sections.destroy', $class) }}" method="POST"
-                onsubmit="return confirm('Are you sure you want to delete this section? This action cannot be undone.');">
-                @csrf
-                @method('DELETE')
-                <button type="button" class="btn btn-outline-secondary btn-lg me-2" data-bs-toggle="modal"
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal"
                     data-bs-target="#sectionHistoryModal">History</button>
-                <button type="submit" class="btn btn-outline-danger btn-lg">Delete</button>
-            </form>
+                @if ($isEditable)
+                    <form action="{{ route('admin.sections.destroy', $class) }}" method="POST"
+                        onsubmit="return confirm('Are you sure you want to delete this section? This action cannot be undone.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-outline-danger btn-lg">Delete</button>
+                    </form>
+                @endif
+            </div>
         </div>
+
+        @if (!$isEditable)
+            <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+                <i class="fas fa-info-circle me-2"></i>
+                <div>You are viewing a historical school year (<strong>{{ $class->schoolYear->name }}</strong>). Editing is disabled.</div>
+            </div>
+        @endif
 
         <div class="row">
             <!-- Adviser Card -->
@@ -45,20 +56,22 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card-footer text-center d-flex justify-content-center gap-2">
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                            data-bs-target="#assignAdviserModal">
-                            {{ $class->teacher ? 'Change' : 'Assign' }} Adviser
-                        </button>
-                        @if ($class->teacher)
-                            <form action="{{ route('admin.sections.adviser.remove', $class) }}" method="POST"
-                                onsubmit="return confirm('Are you sure you want to remove the adviser from this class?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove Adviser</button>
-                            </form>
-                        @endif
-                    </div>
+                    @if ($isEditable)
+                        <div class="card-footer text-center d-flex justify-content-center gap-2">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                data-bs-target="#assignAdviserModal">
+                                {{ $class->teacher ? 'Change' : 'Assign' }} Adviser
+                            </button>
+                            @if ($class->teacher)
+                                <form action="{{ route('admin.sections.adviser.remove', $class) }}" method="POST"
+                                    onsubmit="return confirm('Are you sure you want to remove the adviser from this class?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove Adviser</button>
+                                </form>
+                            @endif
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -77,12 +90,14 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card-footer text-center">
-                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
-                            data-bs-target="#updateCapacityModal">
-                            Update Capacity
-                        </button>
-                    </div>
+                    @if ($isEditable)
+                        <div class="card-footer text-center">
+                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
+                                data-bs-target="#updateCapacityModal">
+                                Update Capacity
+                            </button>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -91,10 +106,12 @@
         <div class="card shadow mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Enrolled Students</h6>
-                <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
-                    data-bs-target="#enrollStudentModal">
-                    <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
-                </button>
+                @if ($isEditable)
+                    <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
+                        data-bs-target="#enrollStudentModal">
+                        <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
+                    </button>
+                @endif
             </div>
             <div class="card-body">
                 @if ($class->enrollments->isNotEmpty())
@@ -124,6 +141,7 @@
                                                 View
                                             </a>
 
+                                            @if ($isEditable)
                                             <button class="btn btn-sm btn-outline-secondary edit-student-btn"
                                                 data-bs-toggle="modal" data-bs-target="#editStudentModal"
                                                 data-update-url="{{ route('admin.students.update', $enrollment->student) }}"
@@ -153,6 +171,7 @@
                                                 @method('DELETE')
                                                 <button class="btn btn-sm btn-outline-danger">Delete</button>
                                             </form>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -222,6 +241,7 @@
                                                     {!! $endTimeDisplay ?? '<em>Not Set</em>' !!}</small>
                                             </td>
                                             <td class="align-middle text-center">
+                                                @if ($isEditable)
                                                 <div class="d-flex justify-content-center gap-2 align-items-center">
                                                     <button class="btn btn-sm btn-outline-secondary edit-schedule-btn"
                                                         data-bs-toggle="modal" data-bs-target="#editScheduleModal"
@@ -249,21 +269,28 @@
                                                         </form>
                                                     @endif
                                                 </div>
+                                                @else
+                                                    <span class="text-muted"><em>View only</em></span>
+                                                @endif
                                             </td>
                                         @else
                                             <td class="text-muted"><em>Not Assigned</em></td>
                                             <td class="text-muted"><em>Not Set</em></td>
                                             <td class="text-center">
-                                                @if (!$isLowerGrade)
-                                                    <button class="btn btn-sm btn-primary assign-schedule-btn"
-                                                        data-bs-toggle="modal" data-bs-target="#addScheduleModal"
-                                                        data-subject-id="{{ $subject->id }}"
-                                                        data-subject-name="{{ $subject->name }}">
-                                                        Assign Schedule
-                                                    </button>
+                                                @if ($isEditable)
+                                                    @if (!$isLowerGrade)
+                                                        <button class="btn btn-sm btn-primary assign-schedule-btn"
+                                                            data-bs-toggle="modal" data-bs-target="#addScheduleModal"
+                                                            data-subject-id="{{ $subject->id }}"
+                                                            data-subject-name="{{ $subject->name }}">
+                                                            Assign Schedule
+                                                        </button>
+                                                    @else
+                                                        <span class="text-muted"><em>Assign an adviser to auto-create
+                                                                schedules</em></span>
+                                                    @endif
                                                 @else
-                                                    <span class="text-muted"><em>Assign an adviser to auto-create
-                                                            schedules</em></span>
+                                                    <span class="text-muted"><em>—</em></span>
                                                 @endif
                                             </td>
                                         @endif
@@ -282,6 +309,7 @@
         </div>
     </div>
 
+    @if ($isEditable)
     <!-- Edit Student Modal -->
     <div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel"
         aria-hidden="true">
@@ -434,7 +462,9 @@
             </div>
         </div>
     </div>
+    @endif
 
+    @if ($isEditable)
     <!-- Enroll New Student Modal -->
     <div class="modal fade" id="enrollStudentModal" tabindex="-1" aria-labelledby="enrollStudentModalLabel"
         aria-hidden="true">
@@ -604,7 +634,9 @@
             </div>
         </div>
     </div>
+    @endif
 
+    @if ($isEditable)
     <!-- Add Schedule Modal -->
     <div class="modal fade" id="addScheduleModal" tabindex="-1" aria-labelledby="addScheduleModalLabel"
         aria-hidden="true">
@@ -683,6 +715,9 @@
             </div>
         </div>
     </div>
+    @endif
+
+    @if ($isEditable)
     <!-- Edit Schedule Modal -->
     <div class="modal fade" id="editScheduleModal" tabindex="-1" aria-labelledby="editScheduleModalLabel"
         aria-hidden="true">
@@ -753,6 +788,9 @@
             </div>
         </div>
     </div>
+    @endif
+
+    @if ($isEditable)
     <!-- Assign Adviser Modal -->
     <div class="modal fade" id="assignAdviserModal" tabindex="-1" aria-labelledby="assignAdviserModalLabel"
         aria-hidden="true">
@@ -786,7 +824,9 @@
             </div>
         </div>
     </div>
+    @endif
 
+    @if ($isEditable)
     <!-- Update Capacity Modal -->
     <div class="modal fade" id="updateCapacityModal" tabindex="-1" aria-labelledby="updateCapacityModalLabel"
         aria-hidden="true">
@@ -815,6 +855,7 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection
 
 

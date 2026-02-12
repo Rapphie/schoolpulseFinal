@@ -7,15 +7,19 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithColumnFormats;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class EnrolleesExport implements FromCollection, WithMapping, WithHeadings, ShouldAutoSize, WithStyles
+class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnFormats, WithHeadings, WithMapping, WithStyles
 {
     private ?int $classId;
+
     private $gradeLevel;
+
     private ?int $schoolYearId;
 
     public function __construct(?int $classId = null, $gradeLevel = null, ?int $schoolYearId = null)
@@ -73,10 +77,10 @@ class EnrolleesExport implements FromCollection, WithMapping, WithHeadings, Shou
         $section = optional(optional($enrollment->class)->section);
         $gradeLevel = optional($section->gradeLevel);
         $schoolYearName = optional($enrollment->schoolYear)->name ?? 'N/A';
-        $gradeLabel = $gradeLevel->name ?? ($gradeLevel && $gradeLevel->level ? 'Grade ' . $gradeLevel->level : 'N/A');
+        $gradeLabel = $gradeLevel->name ?? ($gradeLevel && $gradeLevel->level ? 'Grade '.$gradeLevel->level : 'N/A');
         $student = $enrollment->student;
         $teacher = $enrollment->teacher ?? optional($enrollment->class)->teacher;
-        $teacherName = $teacher ? (optional($teacher->user)->full_name ?? 'Teacher #' . $teacher->id) : 'N/A';
+        $teacherName = $teacher ? (optional($teacher->user)->full_name ?? 'Teacher #'.$teacher->id) : 'N/A';
         $enrollmentDate = $enrollment->enrollment_date
             ? Carbon::parse($enrollment->enrollment_date)
             : ($enrollment->created_at ? Carbon::parse($enrollment->created_at) : null);
@@ -87,7 +91,7 @@ class EnrolleesExport implements FromCollection, WithMapping, WithHeadings, Shou
             $section->name ?? 'N/A',
             optional($enrollment->class)->id ?? 'N/A',
             $student->lrn ?? 'N/A',
-            $student ? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) : 'N/A',
+            $student ? trim(($student->first_name ?? '').' '.($student->last_name ?? '')) : 'N/A',
             $student->gender ?? 'N/A',
             ucfirst($enrollment->status ?? 'enrolled'),
             $enrollmentDate ? $enrollmentDate->format('M d, Y') : 'N/A',
@@ -98,6 +102,16 @@ class EnrolleesExport implements FromCollection, WithMapping, WithHeadings, Shou
     public function styles(Worksheet $sheet)
     {
         $highestColumn = $sheet->getHighestColumn();
-        $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:'.$highestColumn.'1')->getFont()->setBold(true);
+    }
+
+    /**
+     * Format the Student LRN column as text to prevent scientific notation.
+     */
+    public function columnFormats(): array
+    {
+        return [
+            'E' => NumberFormat::FORMAT_TEXT,
+        ];
     }
 }

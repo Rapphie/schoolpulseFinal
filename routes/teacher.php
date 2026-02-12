@@ -1,16 +1,16 @@
 <?php
 
 use App\Http\Controllers\ClassRecordController;
+use App\Http\Controllers\ReportCardController;
 use App\Http\Controllers\ReportCardOutputController;
 use App\Http\Controllers\Teacher\AnalyticsController;
-use App\Http\Controllers\Teacher\LeastLearnedController;
-use App\Http\Controllers\Teacher\TeacherDashboardController;
-use App\Http\Controllers\Teacher\EnrollmentController;
 use App\Http\Controllers\Teacher\AssessmentController;
+use App\Http\Controllers\Teacher\EnrollmentController;
+use App\Http\Controllers\Teacher\LeastLearnedController;
 use App\Http\Controllers\Teacher\OralParticipationController;
 use App\Http\Controllers\Teacher\StudentController;
+use App\Http\Controllers\Teacher\TeacherDashboardController;
 use App\Http\Controllers\TeacherSectionsController;
-use App\Http\Controllers\ReportCardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -47,7 +47,6 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::get('enrollment/export', [EnrollmentController::class, 'export'])->name('enrollment.export');
             Route::get('enrollment/class/{class}', [EnrollmentController::class, 'getEnrollmentsByClass'])->name('enrollment.class');
             Route::post('enrollment/store-past-student', [EnrollmentController::class, 'storePastStudent'])->name('enrollment.storePastStudent');
-            Route::post('/classes/{class}/enroll', [EnrollmentController::class, 'store'])->name('enrollment.store');
             Route::post('/enrollment', [EnrollmentController::class, 'store'])->name('enrollment.store');
         });
 
