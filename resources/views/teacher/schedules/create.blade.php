@@ -149,37 +149,6 @@
             }
             populateTimeDropdowns('start_time', 'end_time');
 
-            // ── Subject duration auto-calc ──
-            const subjectsByGradeFlat = @json($subjects);
-            const subjectSelectForDuration = document.getElementById('subject_id');
-            const startTimeForDuration = document.getElementById('start_time');
-            const endTimeForDuration = document.getElementById('end_time');
-
-            function getSelectedDuration() {
-                if (!subjectSelectForDuration) return null;
-                const id = parseInt(subjectSelectForDuration.value, 10);
-                const subj = subjectsByGradeFlat.find(s => s.id === id);
-                return subj?.duration_minutes || null;
-            }
-
-            function autoCalcEndTime() {
-                const dur = getSelectedDuration();
-                if (!dur || !startTimeForDuration || !startTimeForDuration.value) return;
-                const [sh, sm] = startTimeForDuration.value.split(':').map(Number);
-                const end = new Date();
-                end.setHours(sh, sm + dur, 0, 0);
-                const eh = end.getHours(),
-                    em = end.getMinutes();
-                const endVal = `${eh < 10 ? '0'+eh : eh}:${em < 10 ? '0'+em : em}`;
-                if (endTimeForDuration) {
-                    const opt = Array.from(endTimeForDuration.options).find(o => o.value === endVal);
-                    if (opt) endTimeForDuration.value = endVal;
-                }
-            }
-
-            if (subjectSelectForDuration) subjectSelectForDuration.addEventListener('change', autoCalcEndTime);
-            if (startTimeForDuration) startTimeForDuration.addEventListener('change', autoCalcEndTime);
-
             const gradeLevelSelect = document.getElementById('grade_level_id');
             const sectionSelect = document.getElementById('section_id');
             const subjectSelect = document.getElementById('subject_id');

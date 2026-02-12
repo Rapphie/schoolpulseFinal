@@ -21,13 +21,9 @@ class AdminDashboardController extends Controller
     {
         $schoolYears = SchoolYear::all();
 
-        // Get the active school year
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
-
-        // If no active school year, use the latest one as a fallback
-        if (! $activeSchoolYear) {
-            $activeSchoolYear = SchoolYear::latest('end_date')->first();
-        }
+        // Effective active school year for current admin session.
+        $activeSchoolYear = SchoolYear::getActive();
+        $realActiveSchoolYear = SchoolYear::getRealActive();
 
         // Cache dashboard metrics for 2 minutes to reduce database load
         $cacheKey = 'admin_dashboard_metrics_'.($activeSchoolYear?->id ?? 'none');
@@ -211,12 +207,14 @@ class AdminDashboardController extends Controller
             'recentActivities' => $recentActivities,
             'upcomingEvents' => $upcomingEvents,
             'slotsPerGrade' => $slotsPerGrade,
+            'realActiveSchoolYear' => $realActiveSchoolYear,
+            'viewSchoolYearId' => SchoolYear::getAdminViewSchoolYearId(),
         ]);
     }
 
     public function getChartData()
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
 
         $enrollmentQuery = Enrollment::select(DB::raw('COUNT(*) as count'), 'grade_levels.name as grade_level_name')
             ->join('classes', 'enrollments.class_id', '=', 'classes.id')
@@ -336,8 +334,15 @@ class AdminDashboardController extends Controller
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
             }
 
-            // Get the currently active school year (this will be the "previous" school year)
-            $previousActiveSchoolYear = SchoolYear::where('is_active', true)->first();
+            $continuityError = SchoolYear::validateContinuity($startDate, $endDate);
+            if ($continuityError) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', $continuityError);
+            }
+
+            // Get the real globally active school year (for class duplication source).
+            $previousActiveSchoolYear = SchoolYear::getRealActive();
 
             // Create the new school year record. The model's event will handle the 'is_active' logic.
             $newSchoolYear = SchoolYear::create([
@@ -346,6 +351,10 @@ class AdminDashboardController extends Controller
                 'end_date' => $data['end_date'],
                 'is_active' => $data['is_active'],
             ]);
+
+            if (! empty($data['is_active'])) {
+                SchoolYear::clearAdminViewSchoolYear();
+            }
 
             // If there was a previous active school year, duplicate its classes for the new school year
             if ($previousActiveSchoolYear) {
@@ -427,11 +436,19 @@ class AdminDashboardController extends Controller
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
             }
 
+            $continuityError = SchoolYear::validateContinuity($startDate, $endDate, (int) $id);
+            if ($continuityError) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', $continuityError);
+            }
+
             $data['name'] = $startDate->format('Y').'-'.$endDate->format('Y');
 
             if ($request->input('is_active')) {
                 // Set all other school years to inactive
                 SchoolYear::where('id', '!=', $id)->update(['is_active' => false]);
+                SchoolYear::clearAdminViewSchoolYear();
             }
 
             $schoolYear->update($data);
@@ -499,5 +516,52 @@ class AdminDashboardController extends Controller
 
         return redirect()->route('admin.dashboard')
             ->with('success', "Promotion for {$schoolYear->name} has been {$status}.");
+    }
+
+    public function viewSchoolYear(int $id)
+    {
+        $schoolYear = SchoolYear::findOrFail($id);
+        $realActiveSchoolYear = SchoolYear::getRealActive();
+
+        if ($realActiveSchoolYear && $realActiveSchoolYear->id === $schoolYear->id) {
+            SchoolYear::clearAdminViewSchoolYear();
+
+            return redirect()->route('admin.dashboard')
+                ->with('success', "You are now viewing the active school year ({$schoolYear->name}).");
+        }
+
+        SchoolYear::setAdminViewSchoolYear($schoolYear->id);
+
+        return redirect()->route('admin.dashboard')
+            ->with('warning', "Viewing {$schoolYear->name} in admin-only view mode for this session. Other users are not affected.");
+    }
+
+    public function clearViewedSchoolYear()
+    {
+        SchoolYear::clearAdminViewSchoolYear();
+
+        return redirect()->route('admin.dashboard')
+            ->with('success', 'Returned to the globally active school year.');
+    }
+
+    public function setSchoolYearActive(Request $request, int $id)
+    {
+        $request->validate([
+            'confirmation' => ['required', 'string', 'in:CONFIRM'],
+        ], [
+            'confirmation.in' => 'You must type CONFIRM to set a school year as active.',
+        ]);
+
+        $schoolYear = SchoolYear::findOrFail($id);
+
+        DB::transaction(function () use ($schoolYear) {
+            SchoolYear::query()->where('is_active', true)->update(['is_active' => false]);
+            $schoolYear->update(['is_active' => true]);
+        });
+
+        SchoolYear::clearAdminViewSchoolYear();
+
+        return redirect()->route('admin.dashboard')
+            ->with('success', "{$schoolYear->name} is now the active school year for all users.");
     }
 }

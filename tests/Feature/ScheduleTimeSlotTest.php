@@ -223,7 +223,7 @@ class ScheduleTimeSlotTest extends TestCase
         }
     }
 
-    public function test_assign_adviser_uses_subject_duration_for_end_time(): void
+    public function test_assign_adviser_nulls_subject_duration_and_uses_60_minute_slots(): void
     {
         $env = $this->buildTestEnvironment(2);
 
@@ -248,12 +248,15 @@ class ScheduleTimeSlotTest extends TestCase
             ->where('subject_id', $subject->id)
             ->first();
 
+        $subject->refresh();
+        $this->assertNull($subject->duration_minutes);
+
         if ($schedule) {
             $startTime = strtotime($schedule->start_time);
             $endTime = strtotime($schedule->end_time);
             $actualDuration = ($endTime - $startTime) / 60;
 
-            $this->assertEquals(45, $actualDuration, 'End time should be start_time + subject duration_minutes');
+            $this->assertEquals(60, $actualDuration, 'End time should use the fixed 60-minute slot.');
         }
     }
 

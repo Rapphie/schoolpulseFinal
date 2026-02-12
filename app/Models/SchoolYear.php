@@ -5,9 +5,12 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class SchoolYear extends Model
 {
+    public const ADMIN_VIEW_SCHOOL_YEAR_SESSION_KEY = 'admin_view_school_year_id';
+
     protected $fillable = [
         'name',
         'start_date',
@@ -121,10 +124,30 @@ class SchoolYear extends Model
      */
     public static function getActive(): ?self
     {
-        $active = static::where('is_active', true)->first();
+        $viewSchoolYearId = static::getAdminViewSchoolYearId();
+        if ($viewSchoolYearId) {
+            $viewSchoolYear = static::query()->find($viewSchoolYearId);
+            if ($viewSchoolYear) {
+                return $viewSchoolYear;
+            }
+
+            static::clearAdminViewSchoolYear();
+        }
+
+        return static::getRealActive();
+    }
+
+    /**
+     * Get the real globally active school year (ignores admin view mode).
+     *
+     * @return static|null
+     */
+    public static function getRealActive(): ?self
+    {
+        $active = static::query()->where('is_active', true)->first();
 
         if (! $active) {
-            $active = static::latest('end_date')->first();
+            $active = static::query()->latest('end_date')->first();
         }
 
         return $active;
@@ -135,10 +158,69 @@ class SchoolYear extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
+        $viewSchoolYearId = static::getAdminViewSchoolYearId();
+        if ($viewSchoolYearId) {
+            return $query->whereKey($viewSchoolYearId);
+        }
+
         return $query->where('is_active', true)
             ->orWhereHas('quarters', function ($q) {
                 $q->where('is_manually_set_active', true);
             });
+    }
+
+    /**
+     * Set admin session-scoped school year view override.
+     */
+    public static function setAdminViewSchoolYear(int $schoolYearId): void
+    {
+        if (! app()->bound('request')) {
+            return;
+        }
+
+        if (! request()->hasSession()) {
+            return;
+        }
+
+        request()->session()->put(self::ADMIN_VIEW_SCHOOL_YEAR_SESSION_KEY, $schoolYearId);
+    }
+
+    /**
+     * Clear admin session-scoped school year view override.
+     */
+    public static function clearAdminViewSchoolYear(): void
+    {
+        if (! app()->bound('request')) {
+            return;
+        }
+
+        if (! request()->hasSession()) {
+            return;
+        }
+
+        request()->session()->forget(self::ADMIN_VIEW_SCHOOL_YEAR_SESSION_KEY);
+    }
+
+    /**
+     * Get admin session-scoped school year view override id.
+     */
+    public static function getAdminViewSchoolYearId(): ?int
+    {
+        if (! app()->bound('request')) {
+            return null;
+        }
+
+        if (! request()->hasSession()) {
+            return null;
+        }
+
+        if (! Auth::check() || ! Auth::user()->hasRole('admin')) {
+            return null;
+        }
+
+        $schoolYearId = request()->session()->get(self::ADMIN_VIEW_SCHOOL_YEAR_SESSION_KEY);
+
+        return is_numeric($schoolYearId) ? (int) $schoolYearId : null;
     }
 
     /*
@@ -183,6 +265,47 @@ class SchoolYear extends Model
     }
 
     /**
+     * Validate that school years remain contiguous with no date gaps.
+     *
+     * @param  string|Carbon  $startDate
+     * @param  string|Carbon  $endDate
+     * @param  int|null  $excludeId  ID to exclude (for updates)
+     */
+    public static function validateContinuity($startDate, $endDate, ?int $excludeId = null): ?string
+    {
+        $start = Carbon::parse($startDate)->startOfDay();
+        $end = Carbon::parse($endDate)->startOfDay();
+
+        $previousYear = static::query()
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->whereDate('end_date', '<', $start->toDateString())
+            ->orderBy('end_date', 'desc')
+            ->first();
+
+        if ($previousYear) {
+            $expectedStart = Carbon::parse($previousYear->end_date)->addDay()->toDateString();
+            if ($start->toDateString() !== $expectedStart) {
+                return "School year must start on {$expectedStart} so it directly follows {$previousYear->name}.";
+            }
+        }
+
+        $nextYear = static::query()
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->whereDate('start_date', '>', $end->toDateString())
+            ->orderBy('start_date')
+            ->first();
+
+        if ($nextYear) {
+            $expectedEnd = Carbon::parse($nextYear->start_date)->subDay()->toDateString();
+            if ($end->toDateString() !== $expectedEnd) {
+                return "School year must end on {$expectedEnd} so it directly precedes {$nextYear->name}.";
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Check if this school year has any related data (enrollments, grades, etc.)
      * Note: Empty classes (without enrollments) are allowed to be deleted with the school year.
      */
@@ -200,7 +323,7 @@ class SchoolYear extends Model
      */
     public static function previous(): ?self
     {
-        $active = static::active()->first();
+        $active = static::getActive();
 
         if (! $active) {
             return static::orderBy('end_date', 'desc')->first();
@@ -228,7 +351,7 @@ class SchoolYear extends Model
      */
     public static function getCurrentQuarter(): ?SchoolYearQuarter
     {
-        $activeSchoolYear = static::active()->first();
+        $activeSchoolYear = static::getActive();
         if (! $activeSchoolYear) {
             return null;
         }

@@ -33,6 +33,9 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         Route::put('/school-year/{id}', [AdminDashboardController::class, 'updateSchoolYear'])->name('school-year.update');
         Route::delete('/school-year/{id}', [AdminDashboardController::class, 'deleteSchoolYear'])->name('school-year.delete');
         Route::post('/school-year/{id}/toggle-promotion', [AdminDashboardController::class, 'togglePromotion'])->name('school-year.toggle-promotion');
+        Route::post('/school-year/{id}/view', [AdminDashboardController::class, 'viewSchoolYear'])->name('school-year.view');
+        Route::post('/school-year/view/reset', [AdminDashboardController::class, 'clearViewedSchoolYear'])->name('school-year.view.reset');
+        Route::post('/school-year/{id}/set-active', [AdminDashboardController::class, 'setSchoolYearActive'])->name('school-year.set-active');
 
         // School Year Quarters
         Route::prefix('school-year/{schoolYear}/quarters')->name('school-year.quarters.')->group(function () {

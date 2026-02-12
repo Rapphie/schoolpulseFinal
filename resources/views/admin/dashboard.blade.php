@@ -24,14 +24,24 @@
                 'actionText' => 'Add School Year',
             ];
         } else {
-            // Check if no active school year
-            if (!$activeSchoolYear || !$activeSchoolYear->is_active) {
+            // Check if no real globally active school year
+            if (!$realActiveSchoolYear || !$realActiveSchoolYear->is_active) {
                 $warnings[] = [
                     'type' => 'warning',
                     'icon' => 'alert-triangle',
                     'title' => 'No Active School Year',
                     'message' =>
                         'No school year is currently set as active. Please activate a school year to enable full system functionality.',
+                    'action' => null,
+                    'actionText' => null,
+                ];
+            } elseif (($viewSchoolYearId ?? null) && $activeSchoolYear && $realActiveSchoolYear && $activeSchoolYear->id !== $realActiveSchoolYear->id) {
+                $warnings[] = [
+                    'type' => 'info',
+                    'icon' => 'eye',
+                    'title' => 'Admin View Mode Enabled',
+                    'message' =>
+                        "You are viewing \"{$activeSchoolYear->name}\" for this session only. The real active school year for all users remains \"{$realActiveSchoolYear->name}\".",
                     'action' => null,
                     'actionText' => null,
                 ];
@@ -252,9 +262,18 @@
                             <div class="card h-100 border-0 bg-soft-primary">
                                 <div class="card-body">
                                     @if ($activeSchoolYear)
-                                        <h6 class="text-primary fw-bold">Current School Year</h6>
+                                        <h6 class="text-primary fw-bold">
+                                            {{ ($viewSchoolYearId ?? null) ? 'Viewed School Year' : 'Current School Year' }}
+                                        </h6>
                                         <h3 id="currentSchoolYear">{{ $activeSchoolYear->name }}</h3>
-                                        <p class="mb-2">Status: <span class="badge bg-success">Active</span></p>
+                                        <p class="mb-2">
+                                            Status:
+                                            @if (($viewSchoolYearId ?? null))
+                                                <span class="badge bg-warning text-dark">Viewing (Admin Session)</span>
+                                            @else
+                                                <span class="badge bg-success">Active</span>
+                                            @endif
+                                        </p>
                                         <p class="mb-2">Duration:
                                             {{ \Carbon\Carbon::parse($activeSchoolYear->start_date)->format('F j, Y') }}
                                             -
@@ -347,6 +366,8 @@
                                         <td>
                                             @if ($year->is_active)
                                                 <span class="badge bg-success">Active</span>
+                                            @elseif (($viewSchoolYearId ?? null) === $year->id)
+                                                <span class="badge bg-warning text-dark">Viewing (Admin)</span>
                                             @else
                                                 <span class="badge bg-secondary">Inactive</span>
                                             @endif
@@ -1027,8 +1048,9 @@
                             </div>
 
                             <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox"
+                                <input class="form-check-input edit-set-active-checkbox" type="checkbox"
                                     id="editIsCurrentYear{{ $year->id }}" name="is_active"
+                                    data-year-id="{{ $year->id }}" data-year-name="{{ $year->name }}"
                                     {{ $year->is_active ? 'checked' : '' }}>
                                 <label class="form-check-label" for="editIsCurrentYear{{ $year->id }}">
                                     Set as current school year
@@ -1318,6 +1340,51 @@
         </div>
     </div>
 
+    <div class="modal fade" id="schoolYearModeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">School Year Action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">
+                        You selected <strong id="schoolYearModeName">this school year</strong>.
+                    </p>
+                    <div class="alert alert-warning mb-3">
+                        Setting a school year as active affects all users (admin, teachers, and guardians).
+                    </div>
+                    <p class="mb-3">
+                        Use <strong>View</strong> if you only want to browse this school year in your admin session
+                        without changing the global active school year.
+                    </p>
+                    <div class="border rounded p-3 bg-light">
+                        <label for="setActiveConfirmationInput" class="form-label mb-1">
+                            Type <strong>CONFIRM</strong> to enable Set Active:
+                        </label>
+                        <input type="text" class="form-control" id="setActiveConfirmationInput"
+                            placeholder="Type CONFIRM">
+                        <small class="text-muted">Exact value required: CONFIRM</small>
+                    </div>
+                </div>
+                <div class="modal-footer d-flex justify-content-between">
+                    <form id="viewSchoolYearForm" method="POST" action="" class="m-0">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-primary">
+                            View Only (Admin Session)
+                        </button>
+                    </form>
+                    <form id="setActiveSchoolYearForm" method="POST" action="" class="m-0">
+                        @csrf
+                        <input type="hidden" name="confirmation" id="setActiveConfirmationHidden" value="">
+                        <button type="submit" class="btn btn-danger" id="confirmSetActiveBtn" disabled>
+                            Set Active For All Users
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="deleteSchoolYearModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1386,6 +1453,39 @@
             }
             const Chart = window.Chart;
             const bootstrap = window.bootstrap;
+            const schoolYearModeModalEl = document.getElementById('schoolYearModeModal');
+            const schoolYearModeName = document.getElementById('schoolYearModeName');
+            const viewSchoolYearForm = document.getElementById('viewSchoolYearForm');
+            const setActiveSchoolYearForm = document.getElementById('setActiveSchoolYearForm');
+            const setActiveConfirmationInput = document.getElementById('setActiveConfirmationInput');
+            const setActiveConfirmationHidden = document.getElementById('setActiveConfirmationHidden');
+            const confirmSetActiveBtn = document.getElementById('confirmSetActiveBtn');
+
+            const prepareSchoolYearModeModal = (yearId, yearName) => {
+                if (!schoolYearModeName || !viewSchoolYearForm || !setActiveSchoolYearForm) {
+                    return;
+                }
+
+                schoolYearModeName.textContent = yearName;
+                viewSchoolYearForm.action = `/admin/school-year/${yearId}/view`;
+                setActiveSchoolYearForm.action = `/admin/school-year/${yearId}/set-active`;
+
+                if (setActiveConfirmationInput && confirmSetActiveBtn && setActiveConfirmationHidden) {
+                    setActiveConfirmationInput.value = '';
+                    setActiveConfirmationHidden.value = '';
+                    confirmSetActiveBtn.disabled = true;
+                }
+            };
+
+            const openSchoolYearModeModal = (yearId, yearName) => {
+                if (!schoolYearModeModalEl || !yearId) {
+                    return;
+                }
+
+                prepareSchoolYearModeModal(yearId, yearName);
+                const modeModal = new bootstrap.Modal(schoolYearModeModalEl);
+                modeModal.show();
+            };
 
             // Auto-open Add School Year modal if there are validation errors for the add form
             @if ($errors->any() && old('start_date') && !old('_method'))
@@ -1495,13 +1595,13 @@
             // Prepare school years + quarters data for the timeline (PHP -> JSON)
             @php
                 $jsSchoolYears = collect($schoolYears)
-                    ->map(function ($year) {
+                    ->map(function ($year) use ($viewSchoolYearId) {
                         return [
                             'id' => $year->id,
                             'name' => $year->name,
                             'startDate' => \Carbon\Carbon::parse($year->start_date)->format('Y-m-d'),
                             'endDate' => \Carbon\Carbon::parse($year->end_date)->format('Y-m-d'),
-                            'isCurrent' => (bool) $year->is_active,
+                            'isCurrent' => $viewSchoolYearId ? (int) $viewSchoolYearId === (int) $year->id : (bool) $year->is_active,
                             'quarters' => $year
                                 ->quarters()
                                 ->orderBy('quarter')
@@ -1637,9 +1737,18 @@
                 const schoolYearTableBody = document.getElementById('schoolYearTableBody');
                 if (!schoolYearTableBody) return;
 
+                if (setActiveConfirmationInput && confirmSetActiveBtn && setActiveConfirmationHidden) {
+                    setActiveConfirmationInput.addEventListener('input', function() {
+                        const typedValue = this.value.trim();
+                        setActiveConfirmationHidden.value = typedValue;
+                        confirmSetActiveBtn.disabled = typedValue !== 'CONFIRM';
+                    });
+                }
+
                 schoolYearTableBody.addEventListener('click', function(event) {
-                    if (event.target.classList.contains('delete-year-btn')) {
-                        const button = event.target;
+                    const deleteButton = event.target.closest('.delete-year-btn');
+                    if (deleteButton) {
+                        const button = deleteButton;
                         const yearId = button.dataset.yearId;
                         const deleteForm = document.getElementById('deleteSchoolYearForm');
                         deleteForm.action = `/admin/school-year/${yearId}`;
@@ -1738,6 +1847,7 @@
                     const dateRangePreview = form.querySelector('.edit-date-range-preview');
                     const startDateInput = form.querySelector('.edit-start-date');
                     const endDateInput = form.querySelector('.edit-end-date');
+                    const setAsCurrentCheckbox = form.querySelector('.edit-set-active-checkbox');
 
                     function updateEditModalDates() {
                         const startYear = parseInt(startYearSelect.value);
@@ -1775,6 +1885,21 @@
                         startMonthSelect.disabled = !this.checked;
                         endMonthSelect.disabled = !this.checked;
                     });
+
+                    if (setAsCurrentCheckbox) {
+                        setAsCurrentCheckbox.addEventListener('change', function() {
+                            if (!this.checked) {
+                                return;
+                            }
+
+                            this.checked = false;
+                            const yearId = this.dataset.yearId;
+                            const previewLabel = schoolYearPreview?.textContent?.trim() || '';
+                            const parsedYearName = previewLabel.replace(/^S\.Y\.\s*/, '');
+                            const yearName = parsedYearName || this.dataset.yearName || 'Selected School Year';
+                            openSchoolYearModeModal(yearId, yearName);
+                        });
+                    }
                 });
             }
 

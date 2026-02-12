@@ -17,6 +17,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\StudentProfileService;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 
 class ClassroomSectionController extends Controller
 {
@@ -69,7 +71,14 @@ class ClassroomSectionController extends Controller
         $request->merge(['grade_level_id' => $gradeLevelId]);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('sections', 'name')->where(function (QueryBuilder $query) use ($gradeLevelId) {
+                    $query->where('grade_level_id', $gradeLevelId);
+                }),
+            ],
             'grade_level_id' => 'required|integer|exists:grade_levels,id',
             'teacher_id' => 'nullable|exists:teachers,id',
             'capacity' => 'nullable|integer|min:1|max:60',
@@ -141,6 +150,9 @@ class ClassroomSectionController extends Controller
             return redirect()->route('admin.sections.index')->with('success', 'Section created successfully.');
         } catch (QueryException $exception) {
             DB::rollBack();
+            if (str_contains($exception->getMessage(), 'sections_name_grade_level_id_unique')) {
+                return back()->withInput()->with('error', 'A section with this name already exists for the selected grade level.');
+            }
             if (str_contains($exception->getMessage(), 'classes_section_id_school_year_id_unique')) {
                 return back()->withInput()->with('error', 'This section already exists for the current school year.');
             }
@@ -200,7 +212,14 @@ class ClassroomSectionController extends Controller
         $request->merge(['grade_level_id' => $gradeLevelId]);
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('sections', 'name')->where(function (QueryBuilder $query) use ($gradeLevelId) {
+                    $query->where('grade_level_id', $gradeLevelId);
+                })->ignore($section->id),
+            ],
             'grade_level_id' => 'required|integer|exists:grade_levels,id',
             'teacher_id' => 'nullable|exists:teachers,id',
             'description' => 'nullable|string',
@@ -219,7 +238,7 @@ class ClassroomSectionController extends Controller
             $newTeacherId = $validated['teacher_id'] ?? $class->teacher_id;
 
             if ($newTeacherId && $newTeacherId != $class->teacher_id) {
-                $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+                $activeSchoolYear = SchoolYear::getActive();
                 $gradeLevel = $class->section->gradeLevel;
 
                 // Workload check: if a teacher is a block adviser, they have a full load.
@@ -368,7 +387,7 @@ class ClassroomSectionController extends Controller
             $gradeLevel = $class->section->gradeLevel ?? null;
             $gradeValue = optional($gradeLevel)->level;
 
-            $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+            $activeSchoolYear = SchoolYear::getActive();
             $teacherId = $validated['teacher_id'];
 
             // Teacher availability and workload checks
@@ -414,13 +433,17 @@ class ClassroomSectionController extends Controller
                 $currentStart = strtotime('07:00');
 
                 foreach ($subjects as $subject) {
+                    if (! is_null($subject->duration_minutes)) {
+                        $subject->update(['duration_minutes' => null]);
+                    }
+
                     // Check if schedule already exists for this subject in this class
                     $existingSchedule = Schedule::where('class_id', $class->id)
                         ->where('subject_id', $subject->id)
                         ->first();
 
                     if (! $existingSchedule) {
-                        $durationMinutes = $subject->duration_minutes ?? 60;
+                        $durationMinutes = 60;
                         $startTime = date('H:i', $currentStart);
                         $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
                         $currentStart += $durationMinutes * 60;
@@ -631,7 +654,7 @@ class ClassroomSectionController extends Controller
             }
 
             // Ensure the class belongs to the active school year
-            $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+            $activeSchoolYear = SchoolYear::getActive();
             if (! $activeSchoolYear) {
                 return back()->with('error', 'No active school year found.')->with('error_form', 'enroll');
             }
@@ -717,7 +740,7 @@ class ClassroomSectionController extends Controller
             'profiles.enrollments.class.section',
         ]);
 
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
         $activeEnrollment = null;
         $activeProfile = null;
         $attendanceSummary = null;

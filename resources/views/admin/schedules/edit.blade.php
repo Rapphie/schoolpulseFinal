@@ -1,251 +1,209 @@
 @extends('base')
 
+@section('title', 'Edit Schedule')
+
 @section('content')
-    <div class="container mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-4">
-            <h1 class="text-2xl font-bold">Edit Schedule</h1>
-            <a href="{{ route('admin.schedules.index') }}"
-                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Back to Schedules</a>
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{{ route('admin.schedules.index') }}">Schedules</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Edit Schedule</li>
+                </ol>
+            </nav>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-lg">
-            <form action="{{ route('admin.schedules.update', $schedule) }}" method="POST">
-                @csrf
-                @method('PUT')
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Row 1 -->
-                    <div>
-                        <label for="section_id" class="block text-sm font-medium text-gray-700">Student Group *</label>
-                        <select id="section_id" name="section_id"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
-                            <option value="">Select a group</option>
-                            @foreach ($sections as $section)
-                                <option value="{{ $section->id }}" data-grade-level-id="{{ $section->grade_level_id }}"
-                                    {{ $schedule->section_id == $section->id ? 'selected' : '' }}>{{ $section->name }}
-                                </option>
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Update Schedule Entry</h6>
+            </div>
+            <div class="card-body">
+                <form action="{{ route('admin.schedules.update', $schedule) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="grade_level_id" class="form-label">1. Select Grade Level <span class="text-danger">*</span></label>
+                            <select class="form-select" id="grade_level_id" required>
+                                <option value="">-- Select a grade level --</option>
+                                @foreach ($gradeLevels as $grade)
+                                    <option value="{{ $grade->id }}">{{ $grade->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="class_id" class="form-label">2. Select Class <span class="text-danger">*</span></label>
+                            <select class="form-select" id="class_id" name="class_id" required disabled>
+                                <option value="">-- Select a grade level first --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="subject_id" class="form-label">3. Select Subject <span class="text-danger">*</span></label>
+                            <select class="form-select" id="subject_id" name="subject_id" required disabled>
+                                <option value="">-- Select a grade level first --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="teacher_id" class="form-label">4. Assign Teacher <span class="text-danger">*</span></label>
+                            <select class="form-select" id="teacher_id" name="teacher_id">
+                                <option value="">-- Select a teacher --</option>
+                                @foreach ($teachers as $teacher)
+                                    <option value="{{ $teacher->id }}" {{ $schedule->teacher_id == $teacher->id ? 'selected' : '' }}>
+                                        {{ optional($teacher->user)->first_name ? optional($teacher->user)->first_name . ' ' . optional($teacher->user)->last_name : 'Teacher #' . $teacher->id }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    @php
+                        $selectedDays = collect($schedule->day_of_week ?? [])->map(fn($day) => strtolower((string) $day))->all();
+                    @endphp
+
+                    <div class="mb-3">
+                        <label class="form-label">5. Day(s) of the Week <span class="text-danger">*</span></label>
+                        <div>
+                            @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as $day)
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="day_of_week[]" value="{{ $day }}"
+                                        id="day_{{ $day }}" {{ in_array($day, $selectedDays, true) ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="day_{{ $day }}">{{ ucfirst($day) }}</label>
+                                </div>
                             @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label for="school_year" class="block text-sm font-medium text-gray-700">Academic Year</label>
-                        <input type="text" id="school_year" name="school_year" value="{{ $schedule->school_year }}"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-gray-100 rounded-md shadow-sm"
-                            readonly>
+                        </div>
                     </div>
 
-                    <!-- Row 2 -->
-                    <div>
-                        <label for="subject_id" class="block text-sm font-medium text-gray-700">Course *</label>
-                        <select id="subject_id" name="subject_id"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
-                            <option value="">Select a course</option>
-                            {{-- Options will be populated by JavaScript --}}
-                        </select>
-                    </div>
-                    <div>
-                        <label for="quarter" class="block text-sm font-medium text-gray-700">Academic Term</label>
-                        <select id="quarter" name="quarter"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
-                            <option value="1" {{ $schedule->quarter == 1 ? 'selected' : '' }}>Term 1</option>
-                            <option value="2" {{ $schedule->quarter == 2 ? 'selected' : '' }}>Term 2</option>
-                            <option value="3" {{ $schedule->quarter == 3 ? 'selected' : '' }}>Term 3</option>
-                            <option value="4" {{ $schedule->quarter == 4 ? 'selected' : '' }}>Term 4</option>
-                        </select>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="start_time" class="form-label">Start Time <span class="text-danger">*</span></label>
+                            <select class="form-select" id="start_time" name="start_time" required></select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="end_time" class="form-label">End Time <span class="text-danger">*</span></label>
+                            <select class="form-select" id="end_time" name="end_time" required></select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="room" class="form-label">Room (Optional)</label>
+                            <input type="text" class="form-control" id="room" name="room" value="{{ $schedule->room }}">
+                        </div>
                     </div>
 
-                    <!-- Row 3 -->
-                    <div>
-                        <label for="grade_level" class="block text-sm font-medium text-gray-700">Program</label>
-                        <input type="text" id="grade_level" name="grade_level"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-gray-100 rounded-md shadow-sm"
-                            readonly>
+                    <div class="d-flex justify-content-end mt-4">
+                        <a href="{{ route('admin.schedules.index') }}" class="btn btn-secondary me-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Update Schedule</button>
                     </div>
-                    <div></div> <!-- Empty cell for alignment -->
-
-                    <!-- Divider -->
-                    <div class="col-span-2 my-4 border-t border-gray-200"></div>
-
-                    <!-- Row 4 -->
-                    <div>
-                        <label for="teacher_id" class="block text-sm font-medium text-gray-700">Instructor *</label>
-                        <select id="teacher_id" name="teacher_id"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
-                            <option value="">Select an instructor</option>
-                            @foreach ($teachers as $teacher)
-                                <option value="{{ $teacher->id }}"
-                                    {{ $schedule->teacher_id == $teacher->id ? 'selected' : '' }}>
-                                    {{ $teacher->first_name }} {{ $teacher->last_name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label for="room" class="block text-sm font-medium text-gray-700">Room *</label>
-                        <input type="text" id="room" name="room" value="{{ $schedule->room }}"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required>
-                    </div>
-
-                    <!-- Row 5 -->
-                    <div>
-                        <label for="instructor_name" class="block text-sm font-medium text-gray-700">Instructor Name</label>
-                        <input type="text" id="instructor_name" name="instructor_name"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-gray-100 rounded-md shadow-sm"
-                            readonly>
-                    </div>
-                    <div>
-                        <label for="class_schedule_color" class="block text-sm font-medium text-gray-700">Class Schedule
-                            Color</label>
-                        <select id="class_schedule_color" name="class_schedule_color"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                            <option value="orange">Orange</option>
-                            <option value="blue">Blue</option>
-                            <option value="green">Green</option>
-                            <option value="red">Red</option>
-                        </select>
-                    </div>
-
-                    <!-- Divider -->
-                    <div class="col-span-2 my-4 border-t border-gray-200"></div>
-
-                    <!-- Row 6: Days of the week -->
-                    <div class="col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Day of the Week</label>
-                        <select name="day_of_week"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                            <option value="Monday" {{ $schedule->day_of_week == 'Monday' ? 'selected' : '' }}>Monday
-                            </option>
-                            <option value="Tuesday" {{ $schedule->day_of_week == 'Tuesday' ? 'selected' : '' }}>Tuesday
-                            </option>
-                            <option value="Wednesday" {{ $schedule->day_of_week == 'Wednesday' ? 'selected' : '' }}>
-                                Wednesday</option>
-                            <option value="Thursday" {{ $schedule->day_of_week == 'Thursday' ? 'selected' : '' }}>Thursday
-                            </option>
-                            <option value="Friday" {{ $schedule->day_of_week == 'Friday' ? 'selected' : '' }}>Friday
-                            </option>
-                            <option value="Saturday" {{ $schedule->day_of_week == 'Saturday' ? 'selected' : '' }}>Saturday
-                            </option>
-                            <option value="Sunday" {{ $schedule->day_of_week == 'Sunday' ? 'selected' : '' }}>Sunday
-                            </option>
-                        </select>
-                    </div>
-
-                    <!-- Row 7: Time -->
-                    <div>
-                        <label for="start_time" class="block text-sm font-medium text-gray-700">From Time *</label>
-                        <select id="start_time" name="start_time"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required></select>
-                    </div>
-                    <div>
-                        <label for="end_time" class="block text-sm font-medium text-gray-700">To Time *</label>
-                        <select id="end_time" name="end_time"
-                            class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            required></select>
-                    </div>
-                </div>
-
-                <div class="mt-8 flex justify-end">
-                    <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-                        Update Schedule
-                    </button>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
+@endsection
 
+@push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // ── Time dropdown population (15-min intervals, 7 AM – 5 PM) ──
-            function populateTimeDropdowns(startId, endId) {
-                const startSel = document.getElementById(startId);
-                const endSel = document.getElementById(endId);
-                if (!startSel || !endSel) return;
-                startSel.innerHTML = '<option value="">-- Select --</option>';
-                endSel.innerHTML = '<option value="">-- Select --</option>';
-                let cur = new Date();
-                cur.setHours(7, 0, 0, 0);
+            const gradeLevelSelect = document.getElementById('grade_level_id');
+            const classSelect = document.getElementById('class_id');
+            const subjectSelect = document.getElementById('subject_id');
+            const startTimeSelect = document.getElementById('start_time');
+            const endTimeSelect = document.getElementById('end_time');
+
+            const classes = @json($classes->values());
+            const subjects = @json($subjects->values());
+            const schedule = @json([
+                'class_id' => $schedule->class_id,
+                'subject_id' => $schedule->subject_id,
+                'start_time' => optional($schedule->start_time)->format('H:i:s'),
+                'end_time' => optional($schedule->end_time)->format('H:i:s'),
+            ]);
+
+            function populateTimeDropdowns() {
+                startTimeSelect.innerHTML = '<option value="">-- Select --</option>';
+                endTimeSelect.innerHTML = '<option value="">-- Select --</option>';
+
+                const cursor = new Date();
+                cursor.setHours(7, 0, 0, 0);
+
                 const stop = new Date();
                 stop.setHours(17, 0, 0, 0);
-                while (cur <= stop) {
-                    const h = cur.getHours(),
-                        m = cur.getMinutes();
-                    const ampm = h >= 12 ? 'PM' : 'AM';
-                    const dh = h % 12 === 0 ? 12 : h % 12;
-                    const dm = m < 10 ? '0' + m : m;
-                    const label = `${dh}:${dm} ${ampm}`;
-                    const val = `${h < 10 ? '0'+h : h}:${dm}`;
-                    startSel.add(new Option(label, val));
-                    endSel.add(new Option(label, val));
-                    cur.setMinutes(m + 15);
-                }
-            }
-            populateTimeDropdowns('start_time', 'end_time');
 
-            const sectionSelect = document.getElementById('section_id');
-            const subjectSelect = document.getElementById('subject_id');
-            const gradeLevelInput = document.getElementById('grade_level');
-            const teacherSelect = document.getElementById('teacher_id');
-            const instructorNameInput = document.getElementById('instructor_name');
+                while (cursor <= stop) {
+                    const hours = cursor.getHours();
+                    const minutes = cursor.getMinutes();
+                    const amPm = hours >= 12 ? 'PM' : 'AM';
+                    const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+                    const displayMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
+                    const label = `${displayHours}:${displayMinutes} ${amPm}`;
+                    const value = `${hours < 10 ? '0' + hours : hours}:${displayMinutes}`;
 
-            const subjects = @json($subjects->groupBy('grade_level_id'));
-            const gradeLevels = @json($gradeLevels->keyBy('id'));
-            const teachers = @json($teachers->keyBy('id'));
-            const schedule = @json($schedule);
+                    startTimeSelect.add(new Option(label, value));
+                    endTimeSelect.add(new Option(label, value));
 
-            // Pre-select existing time values
-            const startTimeSel = document.getElementById('start_time');
-            const endTimeSel = document.getElementById('end_time');
-            if (startTimeSel && schedule.start_time) {
-                startTimeSel.value = schedule.start_time.substring(0, 5);
-            }
-            if (endTimeSel && schedule.end_time) {
-                endTimeSel.value = schedule.end_time.substring(0, 5);
-            }
-
-            function populateSubjects() {
-                const selectedOption = sectionSelect.options[sectionSelect.selectedIndex];
-                const gradeLevelId = selectedOption.getAttribute('data-grade-level-id');
-
-                // Update Program/Grade Level field
-                if (gradeLevelId && gradeLevels[gradeLevelId]) {
-                    gradeLevelInput.value = gradeLevels[gradeLevelId].name;
-                } else {
-                    gradeLevelInput.value = '';
+                    cursor.setMinutes(minutes + 15);
                 }
 
-                // Update Subjects dropdown
-                subjectSelect.innerHTML = '<option value="">Select a course</option>';
-                if (gradeLevelId && subjects[gradeLevelId]) {
-                    subjects[gradeLevelId].forEach(function(subject) {
-                        const option = new Option(subject.name, subject.id);
-                        if (schedule.subject_id == subject.id) {
-                            option.selected = true;
-                        }
-                        subjectSelect.add(option);
-                    });
-                    subjectSelect.disabled = false;
-                } else {
+                const startTime = (schedule.start_time || '').substring(0, 5);
+                const endTime = (schedule.end_time || '').substring(0, 5);
+                if (startTime) {
+                    startTimeSelect.value = startTime;
+                }
+                if (endTime) {
+                    endTimeSelect.value = endTime;
+                }
+            }
+
+            function populateByGrade(selectedGradeLevelId) {
+                classSelect.innerHTML = '<option value="">-- Select a class --</option>';
+                subjectSelect.innerHTML = '<option value="">-- Select a subject --</option>';
+
+                if (!selectedGradeLevelId) {
+                    classSelect.disabled = true;
                     subjectSelect.disabled = true;
+                    return;
+                }
+
+                const gradeLevelId = parseInt(selectedGradeLevelId, 10);
+
+                const filteredClasses = classes.filter(item =>
+                    item.section && item.section.grade_level_id === gradeLevelId
+                );
+                filteredClasses.forEach(item => {
+                    const gradeName = item.section && item.section.grade_level ? item.section.grade_level.name : 'Grade';
+                    const sectionName = item.section ? item.section.name : `Class ${item.id}`;
+                    classSelect.add(new Option(`${gradeName} - ${sectionName}`, item.id));
+                });
+
+                const filteredSubjects = subjects.filter(item => item.grade_level_id === gradeLevelId);
+                filteredSubjects.forEach(item => {
+                    subjectSelect.add(new Option(item.name, item.id));
+                });
+
+                classSelect.disabled = filteredClasses.length === 0;
+                subjectSelect.disabled = filteredSubjects.length === 0;
+
+                if (schedule.class_id) {
+                    classSelect.value = String(schedule.class_id);
+                }
+                if (schedule.subject_id) {
+                    subjectSelect.value = String(schedule.subject_id);
                 }
             }
 
-            sectionSelect.addEventListener('change', populateSubjects);
-
-            teacherSelect.addEventListener('change', function() {
-                const selectedOption = this.options[this.selectedIndex];
-                instructorNameInput.value = selectedOption.text;
+            gradeLevelSelect.addEventListener('change', function() {
+                populateByGrade(this.value);
             });
 
-            // Initial population
-            populateSubjects();
-            const selectedTeacherOption = teacherSelect.options[teacherSelect.selectedIndex];
-            if (selectedTeacherOption) {
-                instructorNameInput.value = selectedTeacherOption.text;
+            const currentClass = classes.find(item => item.id === Number(schedule.class_id));
+            const currentGradeLevelId = currentClass && currentClass.section ? currentClass.section.grade_level_id : null;
+            if (currentGradeLevelId) {
+                gradeLevelSelect.value = String(currentGradeLevelId);
+                populateByGrade(currentGradeLevelId);
             }
+
+            populateTimeDropdowns();
         });
     </script>
-@endsection
+@endpush

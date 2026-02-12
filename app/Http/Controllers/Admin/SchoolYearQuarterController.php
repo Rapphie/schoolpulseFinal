@@ -214,6 +214,8 @@ class SchoolYearQuarterController extends Controller
             $quarter->update(['is_manually_set_active' => true]);
         });
 
+        SchoolYear::clearAdminViewSchoolYear();
+
         return redirect()->back()->with('success', "{$quarter->name} of {$schoolYear->name} is now the active period.");
     }
 

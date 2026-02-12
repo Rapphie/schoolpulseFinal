@@ -22,6 +22,12 @@ class PanelFeedbackFixesTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+    }
+
     /**
      * Helper to get or skip test dependencies.
      *
@@ -426,5 +432,242 @@ class PanelFeedbackFixesTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Apply to All Subjects of the Day');
+    }
+
+    public function test_oral_participation_update_max_score_uses_subject_teacher_attribution(): void
+    {
+        $data = $this->getBaseTestData();
+        $activeSchoolYear = $data['schoolYear'];
+        $adviser = $data['teacher'];
+
+        $subjectTeacher = Teacher::whereHas('user')
+            ->where('id', '!=', $adviser->id)
+            ->first();
+
+        if (! $subjectTeacher) {
+            $subjectTeacherUser = User::factory()->create([
+                'role_id' => 2,
+                'temporary_password' => null,
+            ]);
+
+            $subjectTeacher = Teacher::create([
+                'user_id' => $subjectTeacherUser->id,
+                'phone' => '09'.fake()->numerify('#########'),
+                'gender' => 'male',
+                'date_of_birth' => '1990-01-01',
+                'address' => 'Test Address',
+                'qualification' => 'Bachelor of Education',
+                'status' => 'active',
+            ]);
+        }
+
+        $gradeLevel = GradeLevel::where('level', 4)->first() ?? GradeLevel::first();
+        if (! $gradeLevel) {
+            $this->markTestSkipped('No grade level available.');
+        }
+
+        $section = Section::create([
+            'name' => 'OP-ATTR-'.uniqid(),
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Oral participation attribution test section',
+        ]);
+
+        $class = Classes::create([
+            'section_id' => $section->id,
+            'school_year_id' => $activeSchoolYear->id,
+            'teacher_id' => $adviser->id,
+            'capacity' => 40,
+        ]);
+
+        $subject = Subject::create([
+            'name' => 'OP Subject '.uniqid(),
+            'code' => 'OP'.uniqid(),
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Attribution test subject',
+            'is_active' => true,
+        ]);
+
+        Schedule::create([
+            'class_id' => $class->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $subjectTeacher->id,
+            'day_of_week' => ['monday'],
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'room' => 'A1',
+        ]);
+
+        $response = $this->actingAs($adviser->user)->postJson(
+            route('teacher.oral-participation.updateMaxScore', $class),
+            [
+                'subject_id' => $subject->id,
+                'quarter' => 1,
+                'max_score' => 10,
+            ]
+        );
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['success' => true]);
+
+        $assessment = Assessment::where('class_id', $class->id)
+            ->where('subject_id', $subject->id)
+            ->where('quarter', 1)
+            ->where('type', 'oral_participation')
+            ->first();
+
+        $this->assertNotNull($assessment);
+        $this->assertEquals($subjectTeacher->id, $assessment->teacher_id);
+    }
+
+    public function test_enrollment_index_keeps_highest_grade_students_with_enrolled_status_eligible(): void
+    {
+        $data = $this->getBaseTestData();
+        $currentSchoolYear = $data['schoolYear'];
+        $teacher = $data['teacher'];
+
+        $highestGradeLevel = GradeLevel::orderBy('level', 'desc')->first();
+        if (! $highestGradeLevel) {
+            $this->markTestSkipped('No grade levels found.');
+        }
+
+        $previousStart = $currentSchoolYear->start_date->copy()->subYear();
+        $previousEnd = $currentSchoolYear->start_date->copy()->subDay();
+
+        $previousSchoolYear = SchoolYear::create([
+            'name' => $previousStart->format('Y').'-'.$previousEnd->format('Y').'-test',
+            'start_date' => $previousStart->toDateString(),
+            'end_date' => $previousEnd->toDateString(),
+            'is_active' => false,
+        ]);
+
+        $section = Section::create([
+            'name' => 'ENR-ELIG-'.uniqid(),
+            'grade_level_id' => $highestGradeLevel->id,
+            'description' => 'Enrollment eligibility test section',
+        ]);
+
+        $class = Classes::create([
+            'section_id' => $section->id,
+            'school_year_id' => $previousSchoolYear->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 40,
+        ]);
+
+        $student = Student::create([
+            'lrn' => fake()->unique()->numerify('############'),
+            'student_id' => 'ENR-'.uniqid(),
+            'first_name' => 'Eligible',
+            'last_name' => 'Student',
+            'gender' => 'male',
+            'birthdate' => '2014-01-01',
+        ]);
+
+        StudentProfile::create([
+            'student_id' => $student->id,
+            'school_year_id' => $previousSchoolYear->id,
+            'grade_level_id' => $highestGradeLevel->id,
+            'status' => 'enrolled',
+        ]);
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'class_id' => $class->id,
+            'school_year_id' => $previousSchoolYear->id,
+            'teacher_id' => $teacher->id,
+            'enrollment_date' => now(),
+            'status' => 'enrolled',
+        ]);
+
+        $response = $this->actingAs($teacher->user)
+            ->get(route('teacher.enrollment.index', ['school_year_id' => $currentSchoolYear->id]));
+
+        $response->assertStatus(200);
+        $response->assertSee('Eligible');
+        $response->assertSee('Student');
+    }
+
+    public function test_attendance_records_default_summary_range_is_last_fourteen_days(): void
+    {
+        $teacher = Teacher::whereHas('user')
+            ->whereHas('schedules')
+            ->first();
+
+        if (! $teacher) {
+            $this->markTestSkipped('No teacher with schedule found.');
+        }
+
+        $expectedFrom = now()->subDays(13)->toDateString();
+        $expectedTo = now()->toDateString();
+
+        $response = $this->actingAs($teacher->user)->get(route('teacher.attendance.records'));
+
+        $response->assertStatus(200);
+        $response->assertViewHas('defaultSummaryDateFrom', $expectedFrom);
+        $response->assertViewHas('defaultSummaryDateTo', $expectedTo);
+    }
+
+    public function test_schedule_update_accepts_class_based_payload(): void
+    {
+        $data = $this->getBaseTestData();
+        $activeSchoolYear = $data['schoolYear'];
+        $teacher = $data['teacher'];
+
+        $adminUser = User::where('role_id', 1)->first();
+        if (! $adminUser) {
+            $this->markTestSkipped('No admin user found.');
+        }
+
+        $gradeLevel = GradeLevel::where('level', '>=', 4)->orderBy('level')->first() ?? GradeLevel::first();
+        if (! $gradeLevel) {
+            $this->markTestSkipped('No grade level found.');
+        }
+
+        $section = Section::create([
+            'name' => 'SCH-UPD-'.uniqid(),
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Schedule update test section',
+        ]);
+
+        $class = Classes::create([
+            'section_id' => $section->id,
+            'school_year_id' => $activeSchoolYear->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 40,
+        ]);
+
+        $subject = Subject::create([
+            'name' => 'Schedule Subject '.uniqid(),
+            'code' => 'SS'.uniqid(),
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Schedule test subject',
+            'is_active' => true,
+        ]);
+
+        $schedule = Schedule::create([
+            'class_id' => $class->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $teacher->id,
+            'day_of_week' => ['monday'],
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'room' => 'Old Room',
+        ]);
+
+        $response = $this->actingAs($adminUser)->put(route('admin.schedules.update', $schedule), [
+            'class_id' => $class->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $teacher->id,
+            'day_of_week' => ['tuesday'],
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'room' => 'New Room',
+        ]);
+
+        $response->assertRedirect(route('admin.schedules.index'));
+
+        $schedule->refresh();
+        $this->assertEquals('New Room', $schedule->room);
+        $this->assertEquals('09:00:00', $schedule->start_time->format('H:i:s'));
+        $this->assertEquals(['tuesday'], $schedule->day_of_week);
     }
 }

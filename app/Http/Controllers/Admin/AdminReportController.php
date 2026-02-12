@@ -2,28 +2,23 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\EnrolleesExport;
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Enrollment;
-use App\Models\Student;
-use App\Models\Section;
-use App\Models\Subject;
 use App\Models\Grade;
-use App\Models\Teacher;
-use App\Models\Attendance;
+use App\Models\GradeLevel;
 use App\Models\LLC;
 use App\Models\SchoolYear;
-use App\Models\GradeLevel;
-use Illuminate\Http\Request;
+use App\Models\Section;
+use App\Models\Student;
+use App\Models\Subject;
 use Carbon\Carbon;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\EnrolleesExport;
-use App\Exports\AttendanceExport;
-use App\Exports\GradesExport;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Models\Schedule;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AdminReportController extends Controller
 {
@@ -36,8 +31,7 @@ class AdminReportController extends Controller
             ->orderByDesc('start_date')
             ->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -99,7 +93,7 @@ class AdminReportController extends Controller
 
         $classBreakdown = $enrollmentRows->map(function ($row) {
             $sectionName = $row->section_name ?? 'Section';
-            $gradeLabel = $row->grade_name ?: ($row->grade_level ? 'Grade ' . $row->grade_level : 'Unassigned');
+            $gradeLabel = $row->grade_name ?: ($row->grade_level ? 'Grade '.$row->grade_level : 'Unassigned');
 
             return [
                 'class_id' => $row->class_id,
@@ -108,7 +102,7 @@ class AdminReportController extends Controller
                 'grade_id' => $row->grade_id,
                 'grade_level' => $row->grade_level,
                 'grade_name' => $gradeLabel,
-                'label' => trim($sectionName . ' (' . $gradeLabel . ')'),
+                'label' => trim($sectionName.' ('.$gradeLabel.')'),
                 'students_count' => (int) $row->students_count,
             ];
         });
@@ -178,6 +172,7 @@ class AdminReportController extends Controller
             'totals' => $classBreakdown->pluck('students_count')->values()->toArray(),
             'colors' => $classBreakdown->map(function ($section) use ($gradeColorMap) {
                 $gradeKey = $section['grade_id'] ?? 'unassigned';
+
                 return $gradeColorMap->get($gradeKey, 'rgba(13,110,253,0.7)');
             })->values()->toArray(),
         ];
@@ -214,7 +209,7 @@ class AdminReportController extends Controller
                     return $row->ym;
                 }
             })->toArray(),
-            'totals' => $monthlyTrendRows->pluck('total')->map(fn($value) => (int) $value)->toArray(),
+            'totals' => $monthlyTrendRows->pluck('total')->map(fn ($value) => (int) $value)->toArray(),
         ];
 
         $totalStudents = (int) $classBreakdown->sum('students_count');
@@ -247,8 +242,7 @@ class AdminReportController extends Controller
             ->orderByDesc('start_date')
             ->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -341,10 +335,10 @@ class AdminReportController extends Controller
                 return [
                     'student_id' => $row->student_id,
                     'lrn' => $row->lrn ?? 'N/A',
-                    'full_name' => $row->last_name . ', ' . $row->first_name,
+                    'full_name' => $row->last_name.', '.$row->first_name,
                     'gender' => ucfirst($row->gender ?? 'N/A'),
                     'section' => $row->section_name ?? 'Unassigned',
-                    'grade' => $row->grade_name ?? ('Grade ' . ($row->grade_level ?? 'N/A')),
+                    'grade' => $row->grade_name ?? ('Grade '.($row->grade_level ?? 'N/A')),
                     'enrollment_date' => $row->enrollment_date ? Carbon::parse($row->enrollment_date)->format('M d, Y') : 'N/A',
                 ];
             })->toArray(),
@@ -403,10 +397,10 @@ class AdminReportController extends Controller
                 'class_id' => $row->class_id,
                 'section_id' => $row->section_id,
                 'section_name' => $row->section_name ?? 'Section',
-                'grade' => $row->grade_name ?? ('Grade ' . ($row->grade_level ?? 'N/A')),
+                'grade' => $row->grade_name ?? ('Grade '.($row->grade_level ?? 'N/A')),
                 'grade_level' => $row->grade_level,
                 'adviser' => $row->adviser_first_name
-                    ? $row->adviser_first_name . ' ' . $row->adviser_last_name
+                    ? $row->adviser_first_name.' '.$row->adviser_last_name
                     : 'Not Assigned',
                 'students_count' => (int) $row->students_count,
                 'capacity' => $row->capacity ?? 'N/A',
@@ -420,7 +414,7 @@ class AdminReportController extends Controller
 
         if ($mode === 'largest') {
             // Filter only the section(s) with the maximum student count
-            $sections = $sections->filter(fn($s) => $s['students_count'] === $maxStudents)->values();
+            $sections = $sections->filter(fn ($s) => $s['students_count'] === $maxStudents)->values();
         } elseif ($mode === 'average') {
             // Sort by student count descending to show distribution
             $sections = $sections->sortByDesc('students_count')->values();
@@ -435,15 +429,14 @@ class AdminReportController extends Controller
         ];
     }
 
-
     public function exportEnrollees(Request $request)
     {
         $grade = $request->input('grade');
         $format = $request->input('format', 'xlsx');
         $schoolYearId = $request->input('school_year_id');
 
-        if (!$schoolYearId) {
-            $fallbackYear = SchoolYear::query()->where('is_active', true)->first()
+        if (! $schoolYearId) {
+            $fallbackYear = SchoolYear::getActive()
                 ?? SchoolYear::query()->orderByDesc('end_date')->first();
             $schoolYearId = $fallbackYear?->id;
         }
@@ -452,7 +445,7 @@ class AdminReportController extends Controller
 
         $filenameParts = ['enrollees_report'];
         if ($grade) {
-            $filenameParts[] = 'grade_' . $grade;
+            $filenameParts[] = 'grade_'.$grade;
         }
         if ($schoolYearLabel) {
             $filenameParts[] = str_replace(' ', '_', strtolower($schoolYearLabel));
@@ -464,21 +457,19 @@ class AdminReportController extends Controller
 
         switch ($format) {
             case 'csv':
-                return Excel::download($export, $filename . '.csv', \Maatwebsite\Excel\Excel::CSV);
+                return Excel::download($export, $filename.'.csv', \Maatwebsite\Excel\Excel::CSV);
             case 'xlsx':
             default:
-                return Excel::download($export, $filename . '.xlsx');
+                return Excel::download($export, $filename.'.xlsx');
         }
     }
-
 
     public function attendanceReport(Request $request)
     {
         $gradeLevels = GradeLevel::orderBy('level')->get();
         $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -489,14 +480,14 @@ class AdminReportController extends Controller
         $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
         // Enforce grade selection before narrowing down to a specific class
-        if ($selectedClassId && !$selectedGradeLevelId) {
+        if ($selectedClassId && ! $selectedGradeLevelId) {
             $selectedClassId = null;
         }
 
         $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
         $classOptionsMap = $classes
-            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
-            ->map(fn($group) => $group->map(fn($class) => [
+            ->groupBy(fn ($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn ($group) => $group->map(fn ($class) => [
                 'id' => $class['id'],
                 'label' => $class['label'],
             ])->values())
@@ -538,8 +529,7 @@ class AdminReportController extends Controller
         $gradeLevels = GradeLevel::orderBy('level')->get();
         $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -549,14 +539,14 @@ class AdminReportController extends Controller
         $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
         $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
-        if ($selectedClassId && !$selectedGradeLevelId) {
+        if ($selectedClassId && ! $selectedGradeLevelId) {
             $selectedClassId = null;
         }
 
         $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
         $classOptionsMap = $classes
-            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
-            ->map(fn($group) => $group->map(fn($class) => [
+            ->groupBy(fn ($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn ($group) => $group->map(fn ($class) => [
                 'id' => $class['id'],
                 'label' => $class['label'],
             ])->values())
@@ -661,9 +651,9 @@ class AdminReportController extends Controller
             ->leftJoin('classes', 'attendances.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
             ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($schoolYearId, fn($q) => $q->where('attendances.school_year_id', $schoolYearId))
-            ->when($gradeLevelId, fn($q) => $q->where('grade_levels.id', $gradeLevelId))
-            ->when($classId, fn($q) => $q->where('attendances.class_id', $classId))
+            ->when($schoolYearId, fn ($q) => $q->where('attendances.school_year_id', $schoolYearId))
+            ->when($gradeLevelId, fn ($q) => $q->where('grade_levels.id', $gradeLevelId))
+            ->when($classId, fn ($q) => $q->where('attendances.class_id', $classId))
             ->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present,
@@ -678,8 +668,8 @@ class AdminReportController extends Controller
                     'id' => $row->id,
                     'student_id' => $row->student_id,
                     'lrn' => $row->lrn ?? 'N/A',
-                    'full_name' => $row->last_name . ', ' . $row->first_name,
-                    'grade' => $row->grade_name ?? ('Grade ' . ($row->grade_level ?? 'N/A')),
+                    'full_name' => $row->last_name.', '.$row->first_name,
+                    'grade' => $row->grade_name ?? ('Grade '.($row->grade_level ?? 'N/A')),
                     'section' => $row->section_name ?? 'Unassigned',
                     'subject' => $row->subject_name ?? 'N/A',
                     'date' => $row->date ? Carbon::parse($row->date)->format('M d, Y') : 'N/A',
@@ -708,8 +698,8 @@ class AdminReportController extends Controller
         $classId = $request->input('class_id');
         $status = $request->input('status');
 
-        if (!$schoolYearId) {
-            $fallbackYear = SchoolYear::query()->where('is_active', true)->first()
+        if (! $schoolYearId) {
+            $fallbackYear = SchoolYear::getActive()
                 ?? SchoolYear::query()->orderByDesc('end_date')->first();
             $schoolYearId = $fallbackYear?->id;
         }
@@ -735,21 +725,19 @@ class AdminReportController extends Controller
 
         switch ($format) {
             case 'csv':
-                return Excel::download($export, $filename . '.csv', \Maatwebsite\Excel\Excel::CSV);
+                return Excel::download($export, $filename.'.csv', \Maatwebsite\Excel\Excel::CSV);
             case 'xlsx':
             default:
-                return Excel::download($export, $filename . '.xlsx');
+                return Excel::download($export, $filename.'.xlsx');
         }
     }
-
 
     public function grades(Request $request)
     {
         $gradeLevels = GradeLevel::orderBy('level')->get();
         $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -759,14 +747,14 @@ class AdminReportController extends Controller
         $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
         $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
-        if ($selectedClassId && !$selectedGradeLevelId) {
+        if ($selectedClassId && ! $selectedGradeLevelId) {
             $selectedClassId = null;
         }
 
         $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
         $classOptionsMap = $classes
-            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
-            ->map(fn($group) => $group->map(fn($class) => [
+            ->groupBy(fn ($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn ($group) => $group->map(fn ($class) => [
                 'id' => $class['id'],
                 'label' => $class['label'],
             ])->values())
@@ -808,8 +796,7 @@ class AdminReportController extends Controller
         $gradeLevels = GradeLevel::orderBy('level')->get();
         $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -819,14 +806,14 @@ class AdminReportController extends Controller
         $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
         $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
-        if ($selectedClassId && !$selectedGradeLevelId) {
+        if ($selectedClassId && ! $selectedGradeLevelId) {
             $selectedClassId = null;
         }
 
         $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
         $classOptionsMap = $classes
-            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
-            ->map(fn($group) => $group->map(fn($class) => [
+            ->groupBy(fn ($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn ($group) => $group->map(fn ($class) => [
                 'id' => $class['id'],
                 'label' => $class['label'],
             ])->values())
@@ -910,9 +897,9 @@ class AdminReportController extends Controller
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
             ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($schoolYearId, fn($q) => $q->where('grades.school_year_id', $schoolYearId))
-            ->when($gradeLevelId, fn($q) => $q->where('grade_levels.id', $gradeLevelId))
-            ->when($classId, fn($q) => $q->where('classes.id', $classId));
+            ->when($schoolYearId, fn ($q) => $q->where('grades.school_year_id', $schoolYearId))
+            ->when($gradeLevelId, fn ($q) => $q->where('grade_levels.id', $gradeLevelId))
+            ->when($classId, fn ($q) => $q->where('classes.id', $classId));
 
         // Get summary stats
         $summaryQuery = Grade::query()
@@ -923,17 +910,17 @@ class AdminReportController extends Controller
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
             ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($schoolYearId, fn($q) => $q->where('grades.school_year_id', $schoolYearId))
-            ->when($gradeLevelId, fn($q) => $q->where('grade_levels.id', $gradeLevelId))
-            ->when($classId, fn($q) => $q->where('classes.id', $classId))
-            ->selectRaw("
+            ->when($schoolYearId, fn ($q) => $q->where('grades.school_year_id', $schoolYearId))
+            ->when($gradeLevelId, fn ($q) => $q->where('grade_levels.id', $gradeLevelId))
+            ->when($classId, fn ($q) => $q->where('classes.id', $classId))
+            ->selectRaw('
                 COUNT(*) as total,
                 AVG(grades.grade) as average,
                 MAX(grades.grade) as highest,
                 MIN(grades.grade) as lowest,
                 SUM(CASE WHEN grades.grade >= 75 THEN 1 ELSE 0 END) as passing,
                 SUM(CASE WHEN grades.grade < 75 THEN 1 ELSE 0 END) as failing
-            ")
+            ')
             ->first();
 
         $total = (int) ($summaryQuery->total ?? 0);
@@ -960,7 +947,7 @@ class AdminReportController extends Controller
                     DB::raw('AVG(grades.grade) as average'),
                     DB::raw('MAX(grades.grade) as highest'),
                     DB::raw('MIN(grades.grade) as lowest'),
-                    DB::raw("SUM(CASE WHEN grades.grade >= 75 THEN 1 ELSE 0 END) as passing")
+                    DB::raw('SUM(CASE WHEN grades.grade >= 75 THEN 1 ELSE 0 END) as passing')
                 )
                 ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
                 ->leftJoin('enrollments', function ($join) {
@@ -970,9 +957,9 @@ class AdminReportController extends Controller
                 ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
                 ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
                 ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-                ->when($schoolYearId, fn($q) => $q->where('grades.school_year_id', $schoolYearId))
-                ->when($gradeLevelId, fn($q) => $q->where('grade_levels.id', $gradeLevelId))
-                ->when($classId, fn($q) => $q->where('classes.id', $classId))
+                ->when($schoolYearId, fn ($q) => $q->where('grades.school_year_id', $schoolYearId))
+                ->when($gradeLevelId, fn ($q) => $q->where('grade_levels.id', $gradeLevelId))
+                ->when($classId, fn ($q) => $q->where('classes.id', $classId))
                 ->groupBy('subjects.id', 'subjects.name')
                 ->orderByDesc('average')
                 ->get();
@@ -980,6 +967,7 @@ class AdminReportController extends Controller
             return [
                 'subjects' => $subjectStats->map(function ($row) {
                     $passingRate = $row->records > 0 ? round(($row->passing / $row->records) * 100, 1) : 0;
+
                     return [
                         'subject_id' => $row->subject_id,
                         'subject_name' => $row->subject_name,
@@ -1012,12 +1000,13 @@ class AdminReportController extends Controller
             'records' => $records->map(function ($row) {
                 $status = $row->grade >= 75 ? 'Passing' : 'Failing';
                 $statusClass = $row->grade >= 75 ? 'success' : 'danger';
+
                 return [
                     'id' => $row->id,
                     'student_id' => $row->student_id,
                     'lrn' => $row->lrn ?? 'N/A',
-                    'full_name' => $row->last_name . ', ' . $row->first_name,
-                    'grade_level' => $row->grade_level_name ?? ('Grade ' . ($row->grade_level ?? 'N/A')),
+                    'full_name' => $row->last_name.', '.$row->first_name,
+                    'grade_level' => $row->grade_level_name ?? ('Grade '.($row->grade_level ?? 'N/A')),
                     'section' => $row->section_name ?? 'Unassigned',
                     'subject' => $row->subject_name ?? 'N/A',
                     'quarter' => $row->quarter ?? 'N/A',
@@ -1048,8 +1037,8 @@ class AdminReportController extends Controller
         $classId = $request->input('class_id');
         $filterType = $request->input('filter');
 
-        if (!$schoolYearId) {
-            $fallbackYear = SchoolYear::query()->where('is_active', true)->first()
+        if (! $schoolYearId) {
+            $fallbackYear = SchoolYear::getActive()
                 ?? SchoolYear::query()->orderByDesc('end_date')->first();
             $schoolYearId = $fallbackYear?->id;
         }
@@ -1075,21 +1064,19 @@ class AdminReportController extends Controller
 
         switch ($format) {
             case 'csv':
-                return Excel::download($export, $filename . '.csv', \Maatwebsite\Excel\Excel::CSV);
+                return Excel::download($export, $filename.'.csv', \Maatwebsite\Excel\Excel::CSV);
             case 'xlsx':
             default:
-                return Excel::download($export, $filename . '.xlsx');
+                return Excel::download($export, $filename.'.xlsx');
         }
     }
-
 
     public function cumulative(Request $request)
     {
         $gradeLevels = GradeLevel::orderBy('level')->get();
         $schoolYears = SchoolYear::orderByDesc('start_date')->get();
 
-        $activeSchoolYear = $schoolYears->firstWhere('is_active', true)
-            ?? $schoolYears->first();
+        $activeSchoolYear = SchoolYear::getActive() ?? $schoolYears->first();
 
         $selectedSchoolYearId = (int) $request->input('school_year_id', $activeSchoolYear?->id);
         $currentSchoolYear = $schoolYears->firstWhere('id', $selectedSchoolYearId)
@@ -1099,14 +1086,14 @@ class AdminReportController extends Controller
         $selectedGradeLevelId = $request->filled('grade_level_id') ? (int) $request->input('grade_level_id') : null;
         $selectedClassId = $request->filled('class_id') ? (int) $request->input('class_id') : null;
 
-        if ($selectedClassId && !$selectedGradeLevelId) {
+        if ($selectedClassId && ! $selectedGradeLevelId) {
             $selectedClassId = null;
         }
 
         $classes = $this->fetchClassesForSchoolYear($selectedSchoolYearId);
         $classOptionsMap = $classes
-            ->groupBy(fn($class) => $class['grade_level_id'] ?? 'unassigned')
-            ->map(fn($group) => $group->map(fn($class) => [
+            ->groupBy(fn ($class) => $class['grade_level_id'] ?? 'unassigned')
+            ->map(fn ($group) => $group->map(fn ($class) => [
                 'id' => $class['id'],
                 'label' => $class['label'],
             ])->values())
@@ -1148,8 +1135,8 @@ class AdminReportController extends Controller
         $gradeLevelId = $request->input('grade_level_id');
         $classId = $request->input('class_id');
 
-        if (!$schoolYearId) {
-            $fallbackYear = SchoolYear::query()->where('is_active', true)->first()
+        if (! $schoolYearId) {
+            $fallbackYear = SchoolYear::getActive()
                 ?? SchoolYear::query()->orderByDesc('end_date')->first();
             $schoolYearId = $fallbackYear?->id;
         }
@@ -1175,13 +1162,12 @@ class AdminReportController extends Controller
                 return Excel::download(new \App\Exports\EnrolleesExport(
                     $schoolYearId ? (int) $schoolYearId : null,
                     $gradeLevelId ? (int) $gradeLevelId : null
-                ), $filename . '.csv', \Maatwebsite\Excel\Excel::CSV);
+                ), $filename.'.csv', \Maatwebsite\Excel\Excel::CSV);
             case 'xlsx':
             default:
-                return Excel::download($export, $filename . '.xlsx');
+                return Excel::download($export, $filename.'.xlsx');
         }
     }
-
 
     private function buildAttendanceAnalyticsPayload(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
     {
@@ -1209,6 +1195,7 @@ class AdminReportController extends Controller
 
         $statusCounts = collect($statusCounts)->mapWithKeys(function ($total, $status) {
             $key = $status ? strtolower($status) : 'unknown';
+
             return [$key => (int) $total];
         });
 
@@ -1244,7 +1231,7 @@ class AdminReportController extends Controller
 
         $monthlyTrend = [
             'labels' => $monthlyRows->map(function ($row) {
-                if (!$row->ym) {
+                if (! $row->ym) {
                     return 'N/A';
                 }
 
@@ -1254,28 +1241,28 @@ class AdminReportController extends Controller
                     return $row->ym;
                 }
             })->toArray(),
-            'present' => $monthlyRows->map(fn($row) => (int) $row->present_total)->toArray(),
-            'absent' => $monthlyRows->map(fn($row) => (int) $row->absent_total)->toArray(),
-            'late' => $monthlyRows->map(fn($row) => (int) $row->late_total)->toArray(),
+            'present' => $monthlyRows->map(fn ($row) => (int) $row->present_total)->toArray(),
+            'absent' => $monthlyRows->map(fn ($row) => (int) $row->absent_total)->toArray(),
+            'late' => $monthlyRows->map(fn ($row) => (int) $row->late_total)->toArray(),
         ];
 
         $recentStartDate = Carbon::now()->subDays(13)->toDateString();
 
         $recentRows = (clone $baseQuery)
             ->select(
-                DB::raw("DATE(COALESCE(attendances.date, attendances.created_at)) as day"),
+                DB::raw('DATE(COALESCE(attendances.date, attendances.created_at)) as day'),
                 DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present_total"),
                 DB::raw("SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) as absent_total"),
                 DB::raw('COUNT(*) as total_records')
             )
-            ->whereRaw("DATE(COALESCE(attendances.date, attendances.created_at)) >= ?", [$recentStartDate])
+            ->whereRaw('DATE(COALESCE(attendances.date, attendances.created_at)) >= ?', [$recentStartDate])
             ->groupBy('day')
             ->orderBy('day')
             ->get();
 
         $dailySparkline = [
             'labels' => $recentRows->map(function ($row) {
-                if (!$row->day) {
+                if (! $row->day) {
                     return 'N/A';
                 }
 
@@ -1285,8 +1272,8 @@ class AdminReportController extends Controller
                     return $row->day;
                 }
             })->toArray(),
-            'present' => $recentRows->map(fn($row) => (int) $row->present_total)->toArray(),
-            'absent' => $recentRows->map(fn($row) => (int) $row->absent_total)->toArray(),
+            'present' => $recentRows->map(fn ($row) => (int) $row->present_total)->toArray(),
+            'absent' => $recentRows->map(fn ($row) => (int) $row->absent_total)->toArray(),
             'attendance_rate' => $recentRows->map(function ($row) {
                 return $row->total_records > 0
                     ? round(($row->present_total / $row->total_records) * 100, 1)
@@ -1336,7 +1323,7 @@ class AdminReportController extends Controller
                 DB::raw("SUM(CASE WHEN attendances.status = 'late' THEN 1 ELSE 0 END) as late_total"),
                 DB::raw('COUNT(*) as total_records')
             )
-            ->whereRaw("DATE(COALESCE(attendances.date, attendances.created_at)) = ?", [$todayDate])
+            ->whereRaw('DATE(COALESCE(attendances.date, attendances.created_at)) = ?', [$todayDate])
             ->first();
 
         $todaySnapshot = [
@@ -1364,7 +1351,6 @@ class AdminReportController extends Controller
             'todaySnapshot' => $todaySnapshot,
         ];
     }
-
 
     private function buildCumulativeAnalyticsPayload(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
     {
@@ -1434,7 +1420,6 @@ class AdminReportController extends Controller
         ];
     }
 
-
     private function buildEnrollmentSnapshot(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
     {
         $baseQuery = Enrollment::query()
@@ -1474,7 +1459,7 @@ class AdminReportController extends Controller
             ->get();
 
         $gradeBreakdown = $gradeBreakdownRows->map(function ($row) use ($totalStudents) {
-            $label = $row->grade_name ?: ($row->grade_value ? 'Grade ' . $row->grade_value : 'Unassigned');
+            $label = $row->grade_name ?: ($row->grade_value ? 'Grade '.$row->grade_value : 'Unassigned');
 
             return [
                 'grade_level_id' => (int) ($row->grade_level_id ?? 0),
@@ -1538,7 +1523,7 @@ class AdminReportController extends Controller
 
         $monthlyTrend = [
             'labels' => $monthlyRows->map(function ($row) {
-                if (!$row->ym) {
+                if (! $row->ym) {
                     return 'N/A';
                 }
 
@@ -1548,7 +1533,7 @@ class AdminReportController extends Controller
                     return $row->ym;
                 }
             })->toArray(),
-            'totals' => $monthlyRows->map(fn($row) => (int) ($row->total ?? 0))->toArray(),
+            'totals' => $monthlyRows->map(fn ($row) => (int) ($row->total ?? 0))->toArray(),
         ];
 
         return [
@@ -1565,10 +1550,9 @@ class AdminReportController extends Controller
         ];
     }
 
-
     private function fetchClassesForSchoolYear(?int $schoolYearId): Collection
     {
-        if (!$schoolYearId) {
+        if (! $schoolYearId) {
             return collect();
         }
 
@@ -1588,7 +1572,7 @@ class AdminReportController extends Controller
             ->orderBy('sections.name')
             ->get()
             ->map(function ($row) {
-                $gradeLabel = $row->grade_label ?? ($row->grade_level ? 'Grade ' . $row->grade_level : 'Unassigned');
+                $gradeLabel = $row->grade_label ?? ($row->grade_level ? 'Grade '.$row->grade_level : 'Unassigned');
 
                 return [
                     'id' => (int) $row->id,
@@ -1596,11 +1580,10 @@ class AdminReportController extends Controller
                     'section_name' => $row->section_name,
                     'grade_level_id' => $row->grade_level_id ? (int) $row->grade_level_id : null,
                     'grade_label' => $gradeLabel,
-                    'label' => trim(($row->section_name ?? 'Class') . ' (' . $gradeLabel . ')'),
+                    'label' => trim(($row->section_name ?? 'Class').' ('.$gradeLabel.')'),
                 ];
             });
     }
-
 
     private function buildGradesAnalyticsPayload(?int $schoolYearId, ?int $gradeLevelId, ?int $classId): array
     {
@@ -1654,11 +1637,11 @@ class AdminReportController extends Controller
         ];
 
         $distributionRow = (clone $baseQuery)
-            ->selectRaw("SUM(CASE WHEN grades.grade >= 90 THEN 1 ELSE 0 END) as g90")
-            ->selectRaw("SUM(CASE WHEN grades.grade >= 85 AND grades.grade < 90 THEN 1 ELSE 0 END) as g85")
-            ->selectRaw("SUM(CASE WHEN grades.grade >= 75 AND grades.grade < 85 THEN 1 ELSE 0 END) as g75")
-            ->selectRaw("SUM(CASE WHEN grades.grade >= 70 AND grades.grade < 75 THEN 1 ELSE 0 END) as g70")
-            ->selectRaw("SUM(CASE WHEN grades.grade < 70 THEN 1 ELSE 0 END) as gBelow70")
+            ->selectRaw('SUM(CASE WHEN grades.grade >= 90 THEN 1 ELSE 0 END) as g90')
+            ->selectRaw('SUM(CASE WHEN grades.grade >= 85 AND grades.grade < 90 THEN 1 ELSE 0 END) as g85')
+            ->selectRaw('SUM(CASE WHEN grades.grade >= 75 AND grades.grade < 85 THEN 1 ELSE 0 END) as g75')
+            ->selectRaw('SUM(CASE WHEN grades.grade >= 70 AND grades.grade < 75 THEN 1 ELSE 0 END) as g70')
+            ->selectRaw('SUM(CASE WHEN grades.grade < 70 THEN 1 ELSE 0 END) as gBelow70')
             ->first();
 
         $gradeDistribution = collect([
@@ -1686,8 +1669,8 @@ class AdminReportController extends Controller
             ->get();
 
         $quarterTrend = [
-            'labels' => $quarterTrendRows->map(fn($row) => $row->quarter ?? 'N/A')->toArray(),
-            'averages' => $quarterTrendRows->map(fn($row) => round((float) ($row->avg_grade ?? 0), 1))->toArray(),
+            'labels' => $quarterTrendRows->map(fn ($row) => $row->quarter ?? 'N/A')->toArray(),
+            'averages' => $quarterTrendRows->map(fn ($row) => round((float) ($row->avg_grade ?? 0), 1))->toArray(),
         ];
 
         $subjectLeaderboard = (clone $baseQuery)
@@ -1715,7 +1698,7 @@ class AdminReportController extends Controller
             ->limit(6)
             ->get()
             ->map(function ($row) {
-                $name = trim(($row->first_name ?? '') . ' ' . ($row->last_name ?? ''));
+                $name = trim(($row->first_name ?? '').' '.($row->last_name ?? ''));
 
                 return [
                     'student_id' => (int) $row->student_id,
@@ -1754,7 +1737,7 @@ class AdminReportController extends Controller
             ->orderBy('grade_levels.level')
             ->get()
             ->map(function ($row) {
-                $label = $row->grade_name ?: ($row->grade_value ? 'Grade ' . $row->grade_value : 'Grade Level');
+                $label = $row->grade_name ?: ($row->grade_value ? 'Grade '.$row->grade_value : 'Grade Level');
 
                 return [
                     'grade_level_id' => (int) $row->grade_level_id,
@@ -1774,11 +1757,6 @@ class AdminReportController extends Controller
             'gradeLevelBreakdown' => $gradeLevelBreakdown,
         ];
     }
-
-
-
-
-
 
     public function leastLearned(Request $request)
     {
@@ -1835,6 +1813,7 @@ class AdminReportController extends Controller
 
         return $map[$quarter] ?? 1;
     }
+
     /**
      * Map grading period inputs to the stored quarter format.
      */
@@ -1855,6 +1834,6 @@ class AdminReportController extends Controller
             return $value; // already in desired format
         }
 
-        return $map[strtolower((string)$value)] ?? $value;
+        return $map[strtolower((string) $value)] ?? $value;
     }
 }

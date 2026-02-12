@@ -454,4 +454,36 @@ class PanelFeedbackRemainingFixesTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHas('error');
     }
+
+    public function test_section_creation_rejects_duplicate_name_within_same_grade_level(): void
+    {
+        $this->ensureRole('admin', 1);
+
+        $adminUser = User::factory()->create(['role_id' => 1, 'temporary_password' => null]);
+        $schoolYear = SchoolYear::firstOrCreate(
+            ['name' => '2025-2026-test-remaining'],
+            ['start_date' => '2025-06-01', 'end_date' => '2026-03-31', 'is_active' => true]
+        );
+
+        $gradeLevel = GradeLevel::firstOrCreate(['level' => 3], ['name' => 'Grade 3', 'description' => 'G3']);
+        $existingSection = Section::firstOrCreate(
+            ['name' => 'Duplicate-Section-Test', 'grade_level_id' => $gradeLevel->id],
+            ['description' => 'Duplicate check section']
+        );
+
+        Classes::firstOrCreate(
+            ['section_id' => $existingSection->id, 'school_year_id' => $schoolYear->id],
+            ['teacher_id' => null, 'capacity' => 40]
+        );
+
+        $response = $this->actingAs($adminUser)
+            ->post(route('admin.sections.store'), [
+                'name' => 'Duplicate-Section-Test',
+                'grade_level_id' => $gradeLevel->id,
+                'capacity' => 40,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertInvalid(['name']);
+    }
 }

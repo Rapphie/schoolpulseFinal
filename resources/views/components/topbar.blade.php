@@ -1,6 +1,13 @@
 @php
-    $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+    $currentSchoolYear = \App\Models\SchoolYear::getActive();
+    $realActiveSchoolYear = \App\Models\SchoolYear::getRealActive();
     $currentQuarter = \App\Models\SchoolYear::getCurrentQuarter();
+    $isAdmin = Auth::check() && Auth::user()->hasRole('admin');
+    $isAdminViewMode = $isAdmin &&
+        session()->has(\App\Models\SchoolYear::ADMIN_VIEW_SCHOOL_YEAR_SESSION_KEY) &&
+        $currentSchoolYear &&
+        $realActiveSchoolYear &&
+        (int) $currentSchoolYear->id !== (int) $realActiveSchoolYear->id;
 @endphp
 <div class="top-bar">
     <button id="toggleBtn" class="hamburger" aria-label="Toggle sidebar" title="Toggle sidebar">
@@ -12,6 +19,15 @@
         <span class="text-white ms-3" style="font-size: 0.9rem;">
             SY{{ $currentSchoolYear->name }} ({{ $currentQuarter ? $currentQuarter->name : 'No Active Quarter' }})
         </span>
+    @endif
+    @if ($isAdminViewMode)
+        <span class="badge bg-warning text-dark ms-2">Admin View Mode</span>
+        <form method="POST" action="{{ route('admin.school-year.view.reset') }}" class="ms-2">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-light">
+                Back To Active SY ({{ $realActiveSchoolYear->name }})
+            </button>
+        </form>
     @endif
     <div class="ms-auto d-flex align-items-center" style="gap: 1.5rem;">
         <div class="text-white time-container">

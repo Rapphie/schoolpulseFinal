@@ -56,7 +56,7 @@ class TeacherController extends Controller
      */
     public function show(User $teacher)
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
 
         $advisoryClasses = collect();
         $scheduledSubjects = collect();
@@ -95,7 +95,7 @@ class TeacherController extends Controller
      */
     public function store(Request $request)
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
 
         if (! $activeSchoolYear) {
             return redirect()->back()
@@ -231,7 +231,7 @@ class TeacherController extends Controller
      */
     public function edit(User $teacher)
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
 
         $advisoryClasses = collect();
         $scheduledSubjects = collect();

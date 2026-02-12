@@ -151,7 +151,7 @@ class SectionController extends Controller
             'teacher_id' => 'required|exists:teachers,id',
         ]);
 
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
         $teacherId = $validated['teacher_id'];
 
         if ($activeSchoolYear) {
@@ -214,7 +214,7 @@ class SectionController extends Controller
             return back()->with('error', 'For Grade 1, 2, and 3, schedules are automatically managed. You cannot manually add schedules.');
         }
 
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getActive();
         $assignedTeacherId = $validated['teacher_id'];
 
         if ($activeSchoolYear) {

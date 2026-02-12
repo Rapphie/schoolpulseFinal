@@ -276,6 +276,296 @@
             }
         });
     </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const oldInputState = @json(session()->getOldInput() ?? []);
+            const errorMessagesState = @json($errors->messages());
+            window.__modalFormState = {
+                oldInputState,
+                errorMessagesState
+            };
+
+            const hasOldInput = oldInputState && Object.keys(oldInputState).length > 0;
+            const hasErrors = errorMessagesState && Object.keys(errorMessagesState).length > 0;
+            if (!hasOldInput && !hasErrors) {
+                return;
+            }
+
+            let targetForm = null;
+
+            const escapeSelectorName = function(name) {
+                if (window.CSS && typeof window.CSS.escape === 'function') {
+                    return window.CSS.escape(name);
+                }
+
+                return name.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~\\])/g, '\\$1');
+            };
+
+            const dotToBracketName = function(key) {
+                const parts = String(key).split('.');
+                if (parts.length <= 1) {
+                    return String(key);
+                }
+
+                return parts.reduce(function(carry, part, index) {
+                    return index === 0 ? part : carry + '[' + part + ']';
+                }, '');
+            };
+
+            const normalizeNameToDot = function(name) {
+                return String(name)
+                    .replace(/\[\]/g, '')
+                    .replace(/\]/g, '')
+                    .replace(/\[/g, '.')
+                    .replace(/^\./, '');
+            };
+
+            const flattenObject = function(value, prefix, output) {
+                if (Array.isArray(value)) {
+                    if (prefix) {
+                        output[prefix] = value;
+                    }
+
+                    value.forEach(function(item, index) {
+                        const key = prefix ? prefix + '.' + index : String(index);
+                        flattenObject(item, key, output);
+                    });
+
+                    return;
+                }
+
+                if (value !== null && typeof value === 'object') {
+                    Object.keys(value).forEach(function(key) {
+                        const nestedPrefix = prefix ? prefix + '.' + key : key;
+                        flattenObject(value[key], nestedPrefix, output);
+                    });
+
+                    return;
+                }
+
+                if (prefix) {
+                    output[prefix] = value;
+                }
+            };
+
+            const isTruthyValue = function(value) {
+                if (typeof value === 'boolean') {
+                    return value;
+                }
+
+                const normalized = String(value).toLowerCase();
+
+                return ['1', 'true', 'yes', 'on'].includes(normalized);
+            };
+
+            const applyFieldValue = function(field, value, fieldIndexes) {
+                if (!field || value === undefined || value === null) {
+                    return;
+                }
+
+                const fieldType = String(field.type || '').toLowerCase();
+
+                if (fieldType === 'password' || fieldType === 'file') {
+                    return;
+                }
+
+                if (field.tagName === 'SELECT' && field.multiple) {
+                    const values = Array.isArray(value) ? value.map(String) : [String(value)];
+                    Array.from(field.options).forEach(function(option) {
+                        option.selected = values.includes(String(option.value));
+                    });
+
+                    return;
+                }
+
+                if (fieldType === 'checkbox') {
+                    if (Array.isArray(value)) {
+                        field.checked = value.map(String).includes(String(field.value));
+
+                        return;
+                    }
+
+                    if (field.value && field.value !== 'on') {
+                        field.checked = String(value) === String(field.value);
+                    } else {
+                        field.checked = isTruthyValue(value);
+                    }
+
+                    return;
+                }
+
+                if (fieldType === 'radio') {
+                    field.checked = String(value) === String(field.value);
+
+                    return;
+                }
+
+                if (field.name.endsWith('[]') && Array.isArray(value)) {
+                    const indexKey = field.name;
+                    const index = fieldIndexes[indexKey] || 0;
+                    const itemValue = value[index];
+
+                    if (itemValue !== undefined && itemValue !== null && typeof itemValue !== 'object') {
+                        field.value = itemValue;
+                    }
+
+                    fieldIndexes[indexKey] = index + 1;
+
+                    return;
+                }
+
+                if (typeof value !== 'object') {
+                    field.value = value;
+                }
+            };
+
+            const queryFormFields = function(scope) {
+                const root = scope || document;
+
+                return root.querySelectorAll('form input[name], form select[name], form textarea[name]');
+            };
+
+            if (!hasErrors) {
+                return;
+            }
+
+            const getFieldsByErrorKey = function(key, scope) {
+                const candidates = new Set([
+                    String(key),
+                    dotToBracketName(key),
+                    String(key).split('.')[0] + '[]',
+                ]);
+
+                const root = scope || document;
+                const matches = [];
+                candidates.forEach(function(candidate) {
+                    const escapedName = escapeSelectorName(candidate);
+                    root.querySelectorAll('[name="' + escapedName + '"]').forEach(function(field) {
+                        matches.push(field);
+                    });
+                });
+
+                return Array.from(new Set(matches));
+            };
+
+            const resolveVisibleField = function(field) {
+                if (!field) {
+                    return null;
+                }
+
+                const fieldType = String(field.type || '').toLowerCase();
+                if (fieldType !== 'hidden') {
+                    return field;
+                }
+
+                const container = field.closest(
+                    '.mb-3, .form-group, .input-group, .position-relative, .col, [class*="col-"]'
+                ) || field.parentElement;
+
+                if (!container) {
+                    return field;
+                }
+
+                const preferredVisibleControl = container.querySelector(
+                    'select, input:not([type="hidden"]), textarea, button.dropdown-toggle, [data-bs-toggle="dropdown"]'
+                );
+
+                return preferredVisibleControl || field;
+            };
+
+            if (hasErrors) {
+                Object.keys(errorMessagesState).some(function(key) {
+                    const fields = getFieldsByErrorKey(key, document);
+                    const fieldWithForm = fields.find(function(field) {
+                        return Boolean(field.closest('form'));
+                    });
+
+                    if (fieldWithForm) {
+                        targetForm = fieldWithForm.closest('form');
+
+                        return true;
+                    }
+
+                    return false;
+                });
+            }
+
+            if (hasOldInput) {
+                const flattenedOldInput = {};
+                flattenObject(oldInputState, '', flattenedOldInput);
+
+                const fieldIndexes = {};
+                queryFormFields(targetForm || document).forEach(function(field) {
+                    const name = field.getAttribute('name');
+                    if (!name || name === '_token' || name === '_method') {
+                        return;
+                    }
+
+                    const dotName = normalizeNameToDot(name);
+                    const oldValue = flattenedOldInput[dotName];
+                    if (oldValue === undefined) {
+                        return;
+                    }
+
+                    applyFieldValue(field, oldValue, fieldIndexes);
+                });
+            }
+
+            let modalToOpen = null;
+
+            Object.keys(errorMessagesState).forEach(function(key) {
+                const messageList = errorMessagesState[key] || [];
+                const firstMessage = Array.isArray(messageList) && messageList.length > 0 ? messageList[0] : null;
+                const fields = getFieldsByErrorKey(key, targetForm || document);
+
+                fields.forEach(function(field) {
+                    if (targetForm && field.closest('form') !== targetForm) {
+                        return;
+                    }
+
+                    const visibleField = resolveVisibleField(field);
+                    if (!visibleField) {
+                        return;
+                    }
+
+                    visibleField.classList.add('is-invalid');
+                    if (visibleField.tagName === 'BUTTON') {
+                        visibleField.classList.add('border', 'border-danger');
+                    }
+                    field.setAttribute('aria-invalid', 'true');
+
+                    const feedbackTarget = visibleField.closest('.input-group') || visibleField;
+                    const feedbackFieldName = visibleField.getAttribute('name') || field.getAttribute('name') || key;
+                    const escapedFeedbackFieldName = escapeSelectorName(feedbackFieldName);
+                    const existingFeedback = feedbackTarget.parentElement
+                        ? feedbackTarget.parentElement.querySelector(
+                            '.invalid-feedback.auto-invalid-feedback[data-error-for="' + escapedFeedbackFieldName + '"]'
+                        )
+                        : null;
+
+                    if (firstMessage && !existingFeedback) {
+                        const feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback d-block auto-invalid-feedback';
+                        feedback.setAttribute('data-error-for', feedbackFieldName);
+                        feedback.textContent = firstMessage;
+                        feedbackTarget.insertAdjacentElement('afterend', feedback);
+                    }
+
+                    if (!modalToOpen) {
+                        const modal = field.closest('.modal');
+                        if (modal) {
+                            modalToOpen = modal;
+                        }
+                    }
+                });
+            });
+
+            if (modalToOpen && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                bootstrap.Modal.getOrCreateInstance(modalToOpen).show();
+            }
+        });
+    </script>
 </body>
 
 </html>

@@ -86,10 +86,6 @@
                             <input type="text" class="form-control" name="room">
                         </div>
                     </div>
-                    <div id="duration-hint" class="mb-3 d-none">
-                        <small class="text-info"><i data-feather="info" class="feather-sm me-1"></i><span
-                                id="duration-hint-text"></span></small>
-                    </div>
                     <div class="d-flex justify-content-end mt-4">
                         <a href="{{ route('admin.schedules.index') }}" class="btn btn-secondary me-2">Cancel</a>
                         <button type="submit" class="btn btn-primary">Save Schedule</button>
@@ -128,45 +124,6 @@
                 }
             }
             populateTimeDropdowns('start_time', 'end_time');
-
-            // ── Subject duration auto-calc ──
-            const subjects = @json($subjects);
-            const subjectSelect = document.getElementById('subject_id');
-            const startTime = document.getElementById('start_time');
-            const endTime = document.getElementById('end_time');
-            const hint = document.getElementById('duration-hint');
-            const hintText = document.getElementById('duration-hint-text');
-
-            function getSelectedDuration() {
-                if (!subjectSelect) return null;
-                const id = parseInt(subjectSelect.value, 10);
-                const subj = subjects.find(s => s.id === id);
-                return subj?.duration_minutes || null;
-            }
-
-            function autoCalcEndTime() {
-                const dur = getSelectedDuration();
-                if (dur && hint && hintText) {
-                    hint.classList.remove('d-none');
-                    hintText.textContent = `This subject has a recommended duration of ${dur} minutes.`;
-                } else if (hint) {
-                    hint.classList.add('d-none');
-                }
-                if (!dur || !startTime || !startTime.value) return;
-                const [sh, sm] = startTime.value.split(':').map(Number);
-                const end = new Date();
-                end.setHours(sh, sm + dur, 0, 0);
-                const eh = end.getHours(),
-                    em = end.getMinutes();
-                const endVal = `${eh < 10 ? '0'+eh : eh}:${em < 10 ? '0'+em : em}`;
-                if (endTime) {
-                    const opt = Array.from(endTime.options).find(o => o.value === endVal);
-                    if (opt) endTime.value = endVal;
-                }
-            }
-
-            if (subjectSelect) subjectSelect.addEventListener('change', autoCalcEndTime);
-            if (startTime) startTime.addEventListener('change', autoCalcEndTime);
 
             const gradeLevelSelect = document.getElementById('grade_level_id');
             const classSelect = document.getElementById('class_id');

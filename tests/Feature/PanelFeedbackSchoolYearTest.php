@@ -18,6 +18,12 @@ class PanelFeedbackSchoolYearTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+    }
+
     /**
      * Helper to get or skip test dependencies.
      *
@@ -171,6 +177,55 @@ class PanelFeedbackSchoolYearTest extends TestCase
         $response = $this->actingAs($data['admin'])->post(route('admin.school-year.store'), [
             'start_date' => $activeSchoolYear->start_date->format('Y-m-d'),
             'end_date' => $activeSchoolYear->end_date->format('Y-m-d'),
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+    }
+
+    public function test_school_year_creation_requires_contiguous_dates(): void
+    {
+        $data = $this->getBaseTestData();
+
+        SchoolYear::create([
+            'name' => '2080-2081-test',
+            'start_date' => '2080-06-01',
+            'end_date' => '2081-03-31',
+            'is_active' => false,
+        ]);
+
+        $response = $this->actingAs($data['admin'])->post(route('admin.school-year.store'), [
+            'start_date' => '2081-06-01',
+            'end_date' => '2082-03-31',
+            'is_active' => false,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+    }
+
+    public function test_school_year_update_requires_contiguous_dates(): void
+    {
+        $data = $this->getBaseTestData();
+
+        SchoolYear::create([
+            'name' => '2083-2084-test',
+            'start_date' => '2083-06-01',
+            'end_date' => '2084-03-31',
+            'is_active' => false,
+        ]);
+
+        $editableYear = SchoolYear::create([
+            'name' => '2084-2085-test',
+            'start_date' => '2084-04-01',
+            'end_date' => '2085-03-31',
+            'is_active' => false,
+        ]);
+
+        $response = $this->actingAs($data['admin'])->put(route('admin.school-year.update', $editableYear->id), [
+            'start_date' => '2084-06-01',
+            'end_date' => '2085-03-31',
+            'is_active' => false,
         ]);
 
         $response->assertRedirect();

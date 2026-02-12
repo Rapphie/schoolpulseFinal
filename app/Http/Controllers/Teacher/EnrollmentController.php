@@ -125,9 +125,9 @@ class EnrollmentController extends Controller
 
                     // If the student's last profile was at the highest grade level, check if they graduated
                     if ($lastProfile && $lastProfile->grade_level_id === $highestGradeLevel->id) {
-                        // Students who dropped, retained, pending, or active can still be re-enrolled
+                        // Students who dropped, retained, pending, or enrolled can still be re-enrolled
                         // Only exclude those who were promoted (graduated)
-                        return in_array($lastProfile->status, ['dropped', 'retained', 'active', 'pending']);
+                        return in_array($lastProfile->status, ['dropped', 'retained', 'enrolled', 'pending']);
                     }
 
                     return true;

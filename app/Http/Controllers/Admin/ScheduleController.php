@@ -282,12 +282,19 @@ class ScheduleController extends Controller
     public function edit(Schedule $schedule)
     {
         try {
-            $sections = Section::all();
-            $subjects = Subject::all();
-            $teachers = Teacher::all();
-            $gradeLevels = GradeLevel::all();
+            $schedule->load('class.section.gradeLevel', 'subject', 'teacher.user');
+            $schoolYearId = $schedule->class?->school_year_id ?? SchoolYear::active()->first()?->id;
 
-            return view('admin.schedules.edit', compact('schedule', 'sections', 'subjects', 'teachers', 'gradeLevels'));
+            $classes = Classes::query()
+                ->when($schoolYearId, fn ($query) => $query->where('school_year_id', $schoolYearId))
+                ->with('section.gradeLevel')
+                ->get();
+
+            $subjects = Subject::with('gradeLevel')->get();
+            $teachers = Teacher::with('user')->get();
+            $gradeLevels = GradeLevel::orderBy('level')->get();
+
+            return view('admin.schedules.edit', compact('schedule', 'classes', 'subjects', 'teachers', 'gradeLevels'));
         } catch (Throwable $e) {
             Log::error('ScheduleController@edit error: '.$e->getMessage(), ['exception' => $e]);
 
@@ -301,42 +308,38 @@ class ScheduleController extends Controller
     public function update(Request $request, Schedule $schedule)
     {
         try {
-            // Load grade level to check if this is a Grade 1, 2, or 3 section
-            $schedule->load('class.section.gradeLevel');
-            $gradeValue = optional($schedule->class->section->gradeLevel)->level;
+            $validated = $request->validate([
+                'class_id' => 'required|exists:classes,id',
+                'subject_id' => 'required|exists:subjects,id',
+                'day_of_week' => 'required|array|min:1',
+                'day_of_week.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday',
+                'start_time' => 'required|date_format:H:i',
+                'end_time' => 'required|date_format:H:i|after:start_time',
+                'room' => 'nullable|string|max:255',
+            ]);
+
+            $targetClass = Classes::with('section.gradeLevel')->findOrFail((int) $validated['class_id']);
+            $gradeValue = optional($targetClass->section->gradeLevel)->level;
             $isLowerGrade = ! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]);
 
-            // For Grade 1, 2, 3: teacher cannot be changed
             if ($isLowerGrade) {
-                $request->validate([
-                    'section_id' => 'required|exists:sections,id',
-                    'subject_id' => 'required|exists:subjects,id',
-                    'day_of_week' => 'required|array',
-                    'start_time' => 'required|date_format:H:i',
-                    'end_time' => 'required|date_format:H:i|after:start_time',
-                    'room' => 'nullable|string',
-                ]);
-
-                // Only update schedule details, keep the teacher as the adviser
-                $schedule->update([
-                    'day_of_week' => $request->day_of_week,
-                    'start_time' => $request->start_time,
-                    'end_time' => $request->end_time,
-                    'room' => $request->room,
-                ]);
+                $validated['teacher_id'] = $targetClass->teacher_id ?? $schedule->teacher_id;
             } else {
-                $request->validate([
-                    'section_id' => 'required|exists:sections,id',
-                    'subject_id' => 'required|exists:subjects,id',
+                $teacherData = $request->validate([
                     'teacher_id' => 'required|exists:teachers,id',
-                    'day_of_week' => 'required|array',
-                    'start_time' => 'required|date_format:H:i',
-                    'end_time' => 'required|date_format:H:i|after:start_time',
-                    'room' => 'nullable|string',
                 ]);
-
-                $schedule->update($request->all());
+                $validated['teacher_id'] = (int) $teacherData['teacher_id'];
             }
+
+            $schedule->update([
+                'class_id' => (int) $validated['class_id'],
+                'subject_id' => (int) $validated['subject_id'],
+                'teacher_id' => $validated['teacher_id'],
+                'day_of_week' => array_values($validated['day_of_week']),
+                'start_time' => $validated['start_time'],
+                'end_time' => $validated['end_time'],
+                'room' => $validated['room'] ?? null,
+            ]);
 
             return redirect()->route('admin.schedules.index')->with('success', 'Schedule updated successfully.');
         } catch (ValidationException $e) {

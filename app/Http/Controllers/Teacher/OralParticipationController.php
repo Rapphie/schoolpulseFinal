@@ -266,8 +266,6 @@ class OralParticipationController extends Controller
             'max_score' => 'required|numeric|min:1|max:1000',
         ]);
 
-        $teacher = Auth::user()->teacher;
-
         // Get active school year
         $activeSchoolYear = SchoolYear::active()->first();
         if (! $activeSchoolYear) {
@@ -288,7 +286,7 @@ class OralParticipationController extends Controller
             $assessment = Assessment::create([
                 'class_id' => $class->id,
                 'subject_id' => $request->subject_id,
-                'teacher_id' => $teacher->id,
+                'teacher_id' => $correctTeacherId,
                 'school_year_id' => $activeSchoolYear->id,
                 'name' => 'Oral Participation',
                 'type' => 'oral_participation',

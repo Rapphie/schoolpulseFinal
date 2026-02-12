@@ -860,12 +860,17 @@ class TeacherDashboardController extends Controller
                 ->with('section') // Eager load the section for display
                 ->get();
 
+            $defaultSummaryDateTo = Carbon::today()->toDateString();
+            $defaultSummaryDateFrom = Carbon::today()->subDays(13)->toDateString();
+
             return view('teacher.attendance.records', compact(
                 'gradeLevels',
                 'subjects',
                 'sections',
                 'attendanceRecords',
-                'teacherClasses'
+                'teacherClasses',
+                'defaultSummaryDateFrom',
+                'defaultSummaryDateTo'
             ));
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@attendanceRecords error: '.$e->getMessage(), ['exception' => $e]);
@@ -1388,8 +1393,15 @@ class TeacherDashboardController extends Controller
 
             $classId = $request->input('class_id');
             $subjectId = $request->input('subject_id');
-            $dateFrom = $request->input('date_from');
-            $dateTo = $request->input('date_to');
+            $dateToInput = $request->input('date_to');
+            $dateFromInput = $request->input('date_from');
+
+            $dateTo = $dateToInput ? Carbon::parse($dateToInput)->toDateString() : Carbon::today()->toDateString();
+            $dateFrom = $dateFromInput ? Carbon::parse($dateFromInput)->toDateString() : Carbon::parse($dateTo)->subDays(13)->toDateString();
+
+            if ($dateFrom > $dateTo) {
+                $dateFrom = Carbon::parse($dateTo)->subDays(13)->toDateString();
+            }
 
             $attendanceQuery = Attendance::where('class_id', $classId)
                 ->where('school_year_id', $activeSchoolYear->id)

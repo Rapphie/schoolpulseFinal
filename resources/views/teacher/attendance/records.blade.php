@@ -165,11 +165,13 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="summary-date-from" class="form-label">Date From</label>
-                                <input type="date" id="summary-date-from" class="form-control">
+                                <input type="date" id="summary-date-from" class="form-control"
+                                    value="{{ $defaultSummaryDateFrom ?? '' }}">
                             </div>
                             <div class="col-md-6">
                                 <label for="summary-date-to" class="form-label">Date To</label>
-                                <input type="date" id="summary-date-to" class="form-control">
+                                <input type="date" id="summary-date-to" class="form-control"
+                                    value="{{ $defaultSummaryDateTo ?? '' }}">
                             </div>
                             <div class="col-12 mt-2">
                                 <div class="btn-group btn-group-sm w-100" role="group">
@@ -314,6 +316,15 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const defaultSummaryDateFrom = @json($defaultSummaryDateFrom ?? null);
+            const defaultSummaryDateTo = @json($defaultSummaryDateTo ?? null);
+
+            if (defaultSummaryDateFrom && defaultSummaryDateTo) {
+                $('#summary-date-from').val(defaultSummaryDateFrom);
+                $('#summary-date-to').val(defaultSummaryDateTo);
+                $('.quick-date[data-days="14"]').addClass('active');
+            }
+
             // Initialize DataTable
             const table = $('#attendanceTable').DataTable({
                 responsive: true,
