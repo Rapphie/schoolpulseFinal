@@ -198,9 +198,9 @@ class ScheduleTimeSlotTest extends TestCase
         $this->assertEquals(90, $subject->duration_minutes);
     }
 
-    // ─── Auto-Schedule Default Time Tests ──────────────────────────────
+    // ─── Auto-Schedule Time Reset Tests ────────────────────────────────
 
-    public function test_assign_adviser_creates_schedules_with_valid_default_times(): void
+    public function test_assign_adviser_creates_schedules_with_null_times(): void
     {
         $env = $this->buildTestEnvironment(1);
 
@@ -216,14 +216,12 @@ class ScheduleTimeSlotTest extends TestCase
             ->get();
 
         foreach ($schedules as $schedule) {
-            $this->assertNotEquals('00:00:00', $schedule->start_time, 'Schedule should not have 00:00 start_time');
-            $this->assertNotEquals('00:00:00', $schedule->end_time, 'Schedule should not have 00:00 end_time');
-            $this->assertNotEquals('00:00', $schedule->start_time, 'Schedule should not have 00:00 start_time');
-            $this->assertNotEquals('00:00', $schedule->end_time, 'Schedule should not have 00:00 end_time');
+            $this->assertNull($schedule->start_time, 'Schedule start_time should be null after adviser auto-assignment');
+            $this->assertNull($schedule->end_time, 'Schedule end_time should be null after adviser auto-assignment');
         }
     }
 
-    public function test_assign_adviser_nulls_subject_duration_and_uses_60_minute_slots(): void
+    public function test_assign_adviser_nulls_subject_duration_and_schedule_times(): void
     {
         $env = $this->buildTestEnvironment(2);
 
@@ -250,17 +248,12 @@ class ScheduleTimeSlotTest extends TestCase
 
         $subject->refresh();
         $this->assertNull($subject->duration_minutes);
-
-        if ($schedule) {
-            $startTime = strtotime($schedule->start_time);
-            $endTime = strtotime($schedule->end_time);
-            $actualDuration = ($endTime - $startTime) / 60;
-
-            $this->assertEquals(60, $actualDuration, 'End time should use the fixed 60-minute slot.');
-        }
+        $this->assertNotNull($schedule);
+        $this->assertNull($schedule->start_time);
+        $this->assertNull($schedule->end_time);
     }
 
-    public function test_assign_adviser_defaults_to_60_minutes_without_duration(): void
+    public function test_assign_adviser_sets_null_times_when_subject_has_no_duration(): void
     {
         $env = $this->buildTestEnvironment(3);
 
@@ -285,16 +278,12 @@ class ScheduleTimeSlotTest extends TestCase
             ->where('subject_id', $subject->id)
             ->first();
 
-        if ($schedule) {
-            $startTime = strtotime($schedule->start_time);
-            $endTime = strtotime($schedule->end_time);
-            $actualDuration = ($endTime - $startTime) / 60;
-
-            $this->assertEquals(60, $actualDuration, 'Should default to 60 minutes when subject has no duration');
-        }
+        $this->assertNotNull($schedule);
+        $this->assertNull($schedule->start_time);
+        $this->assertNull($schedule->end_time);
     }
 
-    public function test_assign_adviser_creates_staggered_non_overlapping_schedules(): void
+    public function test_assign_adviser_sets_null_times_for_multiple_schedules(): void
     {
         $env = $this->buildTestEnvironment(1);
 
@@ -319,21 +308,13 @@ class ScheduleTimeSlotTest extends TestCase
 
         $schedules = Schedule::where('class_id', $env['class']->id)
             ->where('teacher_id', $env['teacher']->id)
-            ->orderBy('start_time')
             ->get();
 
         $this->assertGreaterThanOrEqual(3, $schedules->count(), 'Should have created schedules for all subjects');
 
-        // Verify no two schedules overlap
-        for ($i = 1; $i < $schedules->count(); $i++) {
-            $prevEnd = $schedules[$i - 1]->end_time->format('H:i');
-            $currStart = $schedules[$i]->start_time->format('H:i');
-
-            $this->assertGreaterThanOrEqual(
-                strtotime($prevEnd),
-                strtotime($currStart),
-                "Schedule {$i} starts at {$currStart} which is before previous schedule ends at {$prevEnd}"
-            );
+        foreach ($schedules as $schedule) {
+            $this->assertNull($schedule->start_time);
+            $this->assertNull($schedule->end_time);
         }
     }
 }

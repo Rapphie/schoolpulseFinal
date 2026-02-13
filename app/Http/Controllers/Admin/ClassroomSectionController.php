@@ -449,7 +449,6 @@ class ClassroomSectionController extends Controller
             // For Grade 1, 2, 3: Auto-create schedules for all subjects assigned to the adviser
             if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
                 $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
-                $currentStart = strtotime('07:00');
 
                 foreach ($subjects as $subject) {
                     if (! is_null($subject->duration_minutes)) {
@@ -462,23 +461,21 @@ class ClassroomSectionController extends Controller
                         ->first();
 
                     if (! $existingSchedule) {
-                        $durationMinutes = 60;
-                        $startTime = date('H:i', $currentStart);
-                        $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
-                        $currentStart += $durationMinutes * 60;
-
                         Schedule::create([
                             'class_id' => $class->id,
                             'subject_id' => $subject->id,
                             'teacher_id' => $teacherId,
                             'day_of_week' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-                            'start_time' => $startTime,
-                            'end_time' => $endTime,
+                            'start_time' => null,
+                            'end_time' => null,
                             'room' => null,
                         ]);
                     } else {
-                        // Update existing schedule to use the new adviser
-                        $existingSchedule->update(['teacher_id' => $teacherId]);
+                        $existingSchedule->update([
+                            'teacher_id' => $teacherId,
+                            'start_time' => null,
+                            'end_time' => null,
+                        ]);
                     }
                 }
             }

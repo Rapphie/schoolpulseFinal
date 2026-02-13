@@ -241,8 +241,8 @@
                                                             ? $schedule->end_time->format('g:i A')
                                                             : null;
                                                 @endphp
-                                                <small class="text-muted">{!! $startTimeDisplay ?? '<em>Not Set</em>' !!} -
-                                                    {!! $endTimeDisplay ?? '<em>Not Set</em>' !!}</small>
+                                                <small class="text-muted">{!! $startTimeDisplay ?? '<em>Not set</em>' !!} -
+                                                    {!! $endTimeDisplay ?? '<em>Not set</em>' !!}</small>
                                             </td>
                                             <td class="align-middle text-center">
                                                 @if ($isEditable)
@@ -279,7 +279,7 @@
                                             </td>
                                         @else
                                             <td class="text-muted"><em>Not Assigned</em></td>
-                                            <td class="text-muted"><em>Not Set</em></td>
+                                            <td class="text-muted"><em>Not set</em></td>
                                             <td class="text-center">
                                                 @if ($isEditable)
                                                     @if (!$isLowerGrade)
@@ -925,21 +925,21 @@
 
                 editModalEl.addEventListener('show.bs.modal', function(event) {
                     const button = event.relatedTarget;
+                    const updateUrl = button?.getAttribute('data-update-url');
+                    const teacherId = button?.getAttribute('data-teacher-id');
+                    const days = button?.getAttribute('data-days');
                     const startTime = button?.getAttribute('data-start-time');
                     const endTime = button?.getAttribute('data-end-time');
-                    const room = button?.getAttribute('data-room');
                     const subjectId = button?.getAttribute('data-subject-id');
                     const subjectName = button?.getAttribute('data-subject-name');
                     const isLowerGrade = button?.getAttribute('data-is-lower-grade') === 'true';
 
                     const form = document.getElementById('editScheduleForm');
                     const teacherSelect = document.getElementById('edit_teacher_id');
-                    const teacherLabel = document.querySelector('label[for="edit_teacher_id"]');
                     const subjectInput = document.getElementById('edit_subject_id');
                     const subjectDisplay = document.getElementById('edit_subject_display');
                     const startInput = document.getElementById('edit_start_time');
                     const endInput = document.getElementById('edit_end_time');
-                    const roomInput = document.getElementById('edit_room');
 
                     // Set form action
                     if (form && updateUrl) {
@@ -992,10 +992,9 @@
                         cb.checked = dayArray.includes(cb.value.toLowerCase());
                     });
 
-                    // Populate times and room
+                    // Populate times
                     if (startInput) startInput.value = startTime || '';
                     if (endInput) endInput.value = endTime || '';
-                    if (roomInput) roomInput.value = room || '';
                 });
 
                 editModalEl.addEventListener('hidden.bs.modal', function() {
@@ -1017,7 +1016,6 @@
                     document.getElementById('edit_teacher_id').value = '';
                     document.getElementById('edit_start_time').value = '';
                     document.getElementById('edit_end_time').value = '';
-                    document.getElementById('edit_room').value = '';
                     document.querySelectorAll('.edit-day-checkbox').forEach(cb => cb.checked = false);
                 });
             })();
