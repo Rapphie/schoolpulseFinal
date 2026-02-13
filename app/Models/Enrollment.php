@@ -11,6 +11,7 @@ class Enrollment extends Model
         'class_id',
         'school_year_id',
         'teacher_id',
+        'enrolled_by_user_id',
         'student_profile_id',
         'enrollment_date',
         'status',
@@ -24,9 +25,15 @@ class Enrollment extends Model
     {
         return $this->belongsTo(Student::class);
     }
+
     public function teacher()
     {
         return $this->belongsTo(Teacher::class);
+    }
+
+    public function enrolledByUser()
+    {
+        return $this->belongsTo(User::class, 'enrolled_by_user_id');
     }
 
     public function class()

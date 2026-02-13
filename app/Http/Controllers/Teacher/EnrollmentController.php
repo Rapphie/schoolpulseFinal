@@ -16,6 +16,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\StudentProfileService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -46,8 +47,9 @@ class EnrollmentController extends Controller
 
     public function index(Request $request)
     {
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getRealActive();
         $targetSchoolYearId = $request->input('school_year_id');
+        $isAdminContext = $this->isAdminEnrollmentContext();
 
         // Determine the "current" school year context for the view.
         // If the user selected a year, use it. Otherwise use the active year.
@@ -56,17 +58,44 @@ class EnrollmentController extends Controller
             : $activeSchoolYear;
 
         $teacher = Auth::user()->teacher ?? null;
+        $allSchoolYears = $isAdminContext
+            ? SchoolYear::query()->orderBy('start_date', 'desc')->get()
+            : SchoolYear::query()
+                ->where('is_active', true)
+                ->orWhere('is_promotion_open', true)
+                ->orderBy('start_date', 'desc')
+                ->get();
+
+        if ($allSchoolYears->isEmpty()) {
+            $allSchoolYears = SchoolYear::query()->orderBy('start_date', 'desc')->get();
+        }
+
+        if (! $currentSchoolYear && $allSchoolYears->isNotEmpty()) {
+            $currentSchoolYear = $allSchoolYears->first();
+        }
+
+        $isEnrollmentReadOnly = $isAdminContext
+            && $currentSchoolYear
+            && (! $activeSchoolYear || (int) $currentSchoolYear->id !== (int) $activeSchoolYear->id);
+
         $teacherEnrollments = collect();
         $classes = collect();
         $studentsToEnroll = collect();
         $previousSchoolYear = null;
 
         if ($currentSchoolYear) {
-            $teacherEnrollments = $teacher ? Enrollment::where('teacher_id', $teacher->id)
-                ->where('school_year_id', $currentSchoolYear->id)
-                ->with('class.section.gradeLevel', 'student')
-                ->get()
-                ->groupBy(fn ($e) => $e->class_id) : collect();
+            if ($isAdminContext) {
+                $teacherEnrollments = Enrollment::where('school_year_id', $currentSchoolYear->id)
+                    ->with('class.section.gradeLevel', 'student')
+                    ->get()
+                    ->groupBy(fn ($e) => $e->class_id);
+            } else {
+                $teacherEnrollments = $teacher ? Enrollment::where('teacher_id', $teacher->id)
+                    ->where('school_year_id', $currentSchoolYear->id)
+                    ->with('class.section.gradeLevel', 'student')
+                    ->get()
+                    ->groupBy(fn ($e) => $e->class_id) : collect();
+            }
 
             $classes = Classes::where('school_year_id', $currentSchoolYear->id)
                 ->with('section.gradeLevel', 'enrollments')
@@ -141,11 +170,6 @@ class EnrollmentController extends Controller
             ])->values();
         }
 
-        // Get all school years for the selector
-        $allSchoolYears = SchoolYear::where('is_active', true)
-            ->orWhere('is_promotion_open', true)
-            ->orderBy('start_date', 'desc')->get();
-
         return view('teacher.enrollment.index', [
             'classes' => $classes,
             'students' => $studentsToEnroll,
@@ -157,6 +181,14 @@ class EnrollmentController extends Controller
             'currentTeacherId' => $teacher?->id,
             'allSchoolYears' => $allSchoolYears,
             'activeSchoolYearId' => $activeSchoolYear?->id,
+            'isAdminEnrollmentContext' => $isAdminContext,
+            'enrollmentIndexRoute' => $this->getEnrollmentRouteName('index'),
+            'enrollmentExportAllRoute' => $this->getEnrollmentRouteName('exportAll'),
+            'enrollmentExportMineRoute' => $isAdminContext ? $this->getEnrollmentRouteName('exportMine') : null,
+            'enrollmentStoreRoute' => $this->getEnrollmentRouteName('store'),
+            'enrollmentStorePastStudentRoute' => $this->getEnrollmentRouteName('storePastStudent'),
+            'isEnrollmentReadOnly' => $isEnrollmentReadOnly,
+            'enrollmentOwnerLabel' => 'My Enrollments',
         ]);
     }
 
@@ -221,21 +253,25 @@ class EnrollmentController extends Controller
 
         // Ensure class has a valid school year
         if (! $resolvedClass->school_year_id) {
-            return redirect()->back()->with('error', 'Selected class does not represent a valid school year.');
+            return redirect()->back()->withInput()->with('error', 'Selected class does not represent a valid school year.');
+        }
+
+        if ($response = $this->denyAdminEnrollmentForNonActiveSchoolYear((int) $resolvedClass->school_year_id)) {
+            return $response;
         }
 
         // Determine enrollment status (default to 'enrolled')
         $enrollmentStatus = $validated['enrollment_status'] ?? 'enrolled';
+        $enrollmentTeacherId = $this->resolveEnrollmentTeacherId($resolvedClass);
+
+        if (! $enrollmentTeacherId && ! $this->isAdminEnrollmentContext()) {
+            return redirect()->back()->withInput()->with('error', 'Selected class has no assigned adviser. Please assign an adviser first.');
+        }
 
         try {
             $plainPassword = '12345678';
 
-            DB::transaction(function () use ($validated, $plainPassword, $resolvedClass, $enrollmentStatus) {
-                $teacher = optional(Auth::user())->teacher;
-                if (! $teacher) {
-                    throw new \RuntimeException('Teacher profile missing for the current user.');
-                }
-
+            DB::transaction(function () use ($validated, $plainPassword, $resolvedClass, $enrollmentStatus, $enrollmentTeacherId) {
                 $guardianUser = User::create([
                     'first_name' => $validated['guardian_first_name'],
                     'last_name' => $validated['guardian_last_name'],
@@ -272,7 +308,8 @@ class EnrollmentController extends Controller
                     'student_id' => $student->id,
                     'class_id' => $resolvedClass->id,
                     'school_year_id' => $resolvedClass->school_year_id,
-                    'teacher_id' => $teacher->id,
+                    'teacher_id' => $enrollmentTeacherId,
+                    'enrolled_by_user_id' => Auth::id(),
                     'status' => $enrollmentStatus,
                 ]);
                 if ($guardianUser) {
@@ -284,12 +321,24 @@ class EnrollmentController extends Controller
 
             return redirect()->back()->with('success', 'Student enrolled successfully'.$statusLabel.'.');
         } catch (\Throwable $th) {
-            return redirect()->back()->with('error', 'Error student enrolment failed.'.$th->getMessage());
+            return redirect()->back()->withInput()->with('error', 'Error student enrolment failed.'.$th->getMessage());
         }
     }
 
     public function storePastStudent(Request $request)
     {
+        $indexRoute = $this->getEnrollmentRouteName('index');
+        $indexRouteParameters = [];
+
+        if ($request->filled('class_id')) {
+            $requestedClassSchoolYearId = Classes::query()
+                ->whereKey($request->input('class_id'))
+                ->value('school_year_id');
+            if ($requestedClassSchoolYearId) {
+                $indexRouteParameters = ['school_year_id' => $requestedClassSchoolYearId];
+            }
+        }
+
         // Validate the incoming request - student_id can be single or comma-separated
         $request->validate([
             'student_id' => 'required|string',
@@ -301,16 +350,21 @@ class EnrollmentController extends Controller
         try {
             $class = Classes::findOrFail($request->class_id);
             $schoolYear = $class->schoolYear;
+            $indexRouteParameters = ['school_year_id' => $class->school_year_id];
+
+            if ($response = $this->denyAdminEnrollmentForNonActiveSchoolYear((int) $class->school_year_id)) {
+                return $response;
+            }
 
             if (! $schoolYear || (! $schoolYear->is_active && ! $schoolYear->is_promotion_open)) {
-                return redirect()->route('teacher.enrollment.index')->with('error', 'Enrollment for this school year is not open.');
+                return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Enrollment for this school year is not open.');
             }
 
             // Parse student IDs (can be single ID or comma-separated list)
             $studentIds = array_filter(array_map('intval', explode(',', $request->student_id)));
 
             if (empty($studentIds)) {
-                return redirect()->route('teacher.enrollment.index')->with('error', 'No valid students selected.');
+                return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'No valid students selected.');
             }
 
             // Parse student updates if provided
@@ -332,12 +386,16 @@ class EnrollmentController extends Controller
             $availableSlots = $class->capacity - $currentEnrolled;
 
             if (count($studentIds) > $availableSlots) {
-                return redirect()->route('teacher.enrollment.index')
+                return redirect()->route($indexRoute, $indexRouteParameters)
+                    ->withInput()
                     ->with('error', "Not enough slots available. Class has {$availableSlots} slots but trying to enroll ".count($studentIds).' students.');
             }
 
             $profileService = new StudentProfileService;
-            $teacherId = Auth::user()->teacher->id;
+            $teacherId = $this->resolveEnrollmentTeacherId($class);
+            if (! $teacherId && ! $this->isAdminEnrollmentContext()) {
+                return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Selected class has no assigned adviser. Please assign an adviser first.');
+            }
             $enrolledCount = 0;
             $skippedCount = 0;
             $updatedCount = 0;
@@ -431,6 +489,7 @@ class EnrollmentController extends Controller
                         'class_id' => $class->id,
                         'school_year_id' => $targetSchoolYearId,
                         'teacher_id' => $teacherId,
+                        'enrolled_by_user_id' => Auth::id(),
                         'enrollment_date' => now(),
                         'status' => $enrollmentStatus,
                     ]);
@@ -448,9 +507,9 @@ class EnrollmentController extends Controller
                 $message .= " ({$skippedCount} skipped - already enrolled)";
             }
 
-            return redirect()->route('teacher.enrollment.index')->with('success', $message);
+            return redirect()->route($indexRoute, $indexRouteParameters)->with('success', $message);
         } catch (\Throwable $e) {
-            return redirect()->route('teacher.enrollment.index')->with('error', 'Failed to enroll students: '.$e->getMessage());
+            return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Failed to enroll students: '.$e->getMessage());
         }
     }
 
@@ -625,6 +684,7 @@ class EnrollmentController extends Controller
                     'class_id' => $class->id,
                     'school_year_id' => $class->school_year_id,
                     'teacher_id' => Auth::user()->teacher->id,
+                    'enrolled_by_user_id' => Auth::id(),
                     'status' => 'enrolled',
                 ]);
             });
@@ -643,6 +703,18 @@ class EnrollmentController extends Controller
 
     public function exportAll()
     {
+        if ($this->isAdminEnrollmentContext()) {
+            $schoolYearId = request()->integer('school_year_id');
+            if (! $schoolYearId) {
+                $schoolYearId = SchoolYear::getRealActive()?->id;
+            }
+
+            $schoolYearName = $schoolYearId ? optional(SchoolYear::find($schoolYearId))->name : 'current';
+            $fileName = 'all_enrollees_SY_'.str_replace(' ', '_', $schoolYearName).'.xlsx';
+
+            return Excel::download(new EnrolleesExport(null, null, $schoolYearId), $fileName);
+        }
+
         $teacher = Auth::user()->teacher;
         if (! $teacher) {
             return redirect()->back()->with('error', 'Teacher profile not found.');
@@ -653,6 +725,73 @@ class EnrollmentController extends Controller
         $fileName = "{$teacher->user->last_name}_All_Enrollees_SY_{$schoolYear}.xlsx";
 
         return Excel::download(new TeacherEnrolleesReport($teacher->id), $fileName);
+    }
+
+    public function exportMine()
+    {
+        if (! $this->isAdminEnrollmentContext()) {
+            return redirect()->back()->with('error', 'Only admins can download this report.');
+        }
+
+        $adminUserId = Auth::id();
+        $activeSchoolYear = SchoolYear::getRealActive();
+
+        if (! $activeSchoolYear) {
+            return redirect()->back()->with('error', 'No active school year found.');
+        }
+
+        $fileName = 'admin_'.$adminUserId.'_enrollees_SY_'.str_replace(' ', '_', $activeSchoolYear->name).'.xlsx';
+
+        return Excel::download(new EnrolleesExport(null, null, $activeSchoolYear->id, $adminUserId), $fileName);
+    }
+
+    private function isAdminEnrollmentContext(): bool
+    {
+        return (bool) (Auth::user()?->hasRole('admin'));
+    }
+
+    private function getEnrollmentRouteName(string $action): string
+    {
+        if ($this->isAdminEnrollmentContext()) {
+            return match ($action) {
+                'index' => 'admin.enrollment.index',
+                'exportAll' => 'admin.enrollment.exportAll',
+                'exportMine' => 'admin.enrollment.exportMine',
+                'store' => 'admin.enrollment.page.store',
+                'storePastStudent' => 'admin.enrollment.page.storePastStudent',
+                default => 'admin.enrollment.index',
+            };
+        }
+
+        return 'teacher.enrollment.'.$action;
+    }
+
+    private function resolveEnrollmentTeacherId(?Classes $class = null): ?int
+    {
+        $authenticatedTeacherId = Auth::user()?->teacher?->id;
+        if ($authenticatedTeacherId) {
+            return $authenticatedTeacherId;
+        }
+
+        return $class?->teacher_id;
+    }
+
+    private function denyAdminEnrollmentForNonActiveSchoolYear(int $schoolYearId): ?RedirectResponse
+    {
+        if (! $this->isAdminEnrollmentContext()) {
+            return null;
+        }
+
+        $activeSchoolYearId = SchoolYear::getRealActive()?->id;
+
+        if (! $activeSchoolYearId || (int) $schoolYearId === (int) $activeSchoolYearId) {
+            return null;
+        }
+
+        return redirect()
+            ->route('admin.enrollment.index', ['school_year_id' => $schoolYearId])
+            ->withInput()
+            ->with('error', 'Enrollment is view-only for non-active school years. Select the current active school year to enroll.');
     }
 
     /**

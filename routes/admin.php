@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\TeacherController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Teacher\EnrollmentController as TeacherEnrollmentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,6 +51,14 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         });
 
         // Class Management
+        Route::prefix('enrollment')->name('enrollment.')->group(function () {
+            Route::get('/', [TeacherEnrollmentController::class, 'index'])->name('index');
+            Route::get('/export-all', [TeacherEnrollmentController::class, 'exportAll'])->name('exportAll');
+            Route::get('/export-mine', [TeacherEnrollmentController::class, 'exportMine'])->name('exportMine');
+            Route::post('/', [TeacherEnrollmentController::class, 'store'])->name('page.store');
+            Route::post('/store-past-student', [TeacherEnrollmentController::class, 'storePastStudent'])->name('page.storePastStudent');
+        });
+
         Route::post('/classes/{class}/assign-adviser', [ClassroomSectionController::class, 'assignClassAdviser'])->name('sections.adviser.assign');
         Route::delete('/classes/{class}/remove-adviser', [ClassroomSectionController::class, 'removeClassAdviser'])->name('sections.adviser.remove');
         Route::put('/classes/{class}/update-capacity', [ClassroomSectionController::class, 'updateCapacity'])->name('sections.capacity.update');

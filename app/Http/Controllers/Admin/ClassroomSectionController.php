@@ -324,23 +324,35 @@ class ClassroomSectionController extends Controller
             'teacher.user',
             'schoolYear',
             'enrollments.student.guardian.user',
+            'enrollments.teacher.user',
+            'enrollments.enrolledByUser',
             'schedules.subject',
             'schedules.teacher.user',
         ];
 
         $classId = $request->query('class_id');
+        $schoolYearId = $request->query('school_year_id');
 
         if ($classId) {
             $class = Classes::where('section_id', $section->id)
                 ->with($relations)
                 ->findOrFail($classId);
+        } elseif ($schoolYearId) {
+            $class = Classes::where('section_id', $section->id)
+                ->where('school_year_id', $schoolYearId)
+                ->with($relations)
+                ->first();
         } else {
             $class = $this->findActiveClass($section, $relations);
         }
 
         if (! $class) {
+            $errorMessage = $schoolYearId
+                ? 'No class found for this section in the selected school year.'
+                : 'No active class found for this section in the current school year.';
+
             return redirect()->route('admin.sections.index')
-                ->with('error', 'No active class found for this section in the current school year.');
+                ->with('error', $errorMessage);
         }
 
         $subjects = Subject::where('grade_level_id', $section->grade_level_id)->orderBy('name')->get();
@@ -366,10 +378,17 @@ class ClassroomSectionController extends Controller
             ];
         });
 
-        $activeSchoolYear = SchoolYear::getActive();
-        $isEditable = $activeSchoolYear && $class->school_year_id === $activeSchoolYear->id;
+        $activeSchoolYear = SchoolYear::getRealActive();
+        $isEditable = $activeSchoolYear && (int) $class->school_year_id === (int) $activeSchoolYear->id;
 
-        return view('admin.sections.manage', compact('section', 'class', 'subjects', 'teachers', 'sectionHistory', 'isEditable'));
+        return view('admin.sections.manage', compact(
+            'section',
+            'class',
+            'subjects',
+            'teachers',
+            'sectionHistory',
+            'isEditable'
+        ));
     }
 
     /**
@@ -710,6 +729,7 @@ class ClassroomSectionController extends Controller
                     'class_id' => $class->id,
                     'school_year_id' => $class->school_year_id,
                     'teacher_id' => $class->teacher_id,
+                    'enrolled_by_user_id' => auth()->id(),
                     'status' => $validated['status'] ?? 'enrolled',
                 ]);
             });

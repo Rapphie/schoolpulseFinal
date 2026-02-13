@@ -183,7 +183,7 @@ class PanelFeedbackSchoolYearTest extends TestCase
         $response->assertSessionHas('error');
     }
 
-    public function test_school_year_creation_requires_contiguous_dates(): void
+    public function test_school_year_creation_allows_non_contiguous_dates(): void
     {
         $data = $this->getBaseTestData();
 
@@ -201,10 +201,16 @@ class PanelFeedbackSchoolYearTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        $response->assertSessionHas('error');
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('school_years', [
+            'name' => '2081-2082',
+            'start_date' => '2081-06-01',
+            'end_date' => '2082-03-31',
+        ]);
     }
 
-    public function test_school_year_update_requires_contiguous_dates(): void
+    public function test_school_year_update_allows_non_contiguous_dates(): void
     {
         $data = $this->getBaseTestData();
 
@@ -229,7 +235,14 @@ class PanelFeedbackSchoolYearTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        $response->assertSessionHas('error');
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('school_years', [
+            'id' => $editableYear->id,
+            'name' => '2084-2085',
+            'start_date' => '2084-06-01',
+            'end_date' => '2085-03-31',
+        ]);
     }
 
     // ========================================================================

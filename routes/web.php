@@ -1,13 +1,12 @@
 <?php
 
-use App\Http\Controllers\EmailController;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ChangePasswordController;
-use App\Http\Controllers\Admin\AdminDashboardController;
-use App\Http\Controllers\Teacher\TeacherDashboardController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\ForgotPasswordController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\EmailController;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
 // use App\Http\Controllers\DevAttendanceController; // Commented out - controller doesn't exist
 
 /*
@@ -27,7 +26,7 @@ Route::post('login', [LoginController::class, 'authenticate'])->name('authentica
 Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
 Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout-account');
 
 // Email Routes
 Route::get('/teacher/welcome-email', [EmailController::class, 'sendTeacherWelcomeEmail'])->name('teacher.send.welcome');
@@ -50,6 +49,7 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
                 return redirect()->route('guardian.dashboard');
             }
         }
+
         return redirect()->route('login');
     })->name('dashboard');
 
@@ -66,10 +66,10 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
 */
 
 // Load role-specific routes
-require __DIR__ . '/admin.php';      // Admin routes
-require __DIR__ . '/teacher.php';    // Teacher routes
-require __DIR__ . '/guardian.php';   // Guardian routes
-require __DIR__ . '/shared.php';     // Shared routes (profile, settings, reports)
+require __DIR__.'/admin.php';      // Admin routes
+require __DIR__.'/teacher.php';    // Teacher routes
+require __DIR__.'/guardian.php';   // Guardian routes
+require __DIR__.'/shared.php';     // Shared routes (profile, settings, reports)
 
 // Fallback route for unmatched URLs -> returns 404 view
 Route::fallback(function () {

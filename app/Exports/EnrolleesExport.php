@@ -22,11 +22,14 @@ class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnForma
 
     private ?int $schoolYearId;
 
-    public function __construct(?int $classId = null, $gradeLevel = null, ?int $schoolYearId = null)
+    private ?int $enrolledByUserId;
+
+    public function __construct(?int $classId = null, $gradeLevel = null, ?int $schoolYearId = null, ?int $enrolledByUserId = null)
     {
         $this->classId = $classId;
         $this->gradeLevel = $gradeLevel;
         $this->schoolYearId = $schoolYearId;
+        $this->enrolledByUserId = $enrolledByUserId;
     }
 
     public function collection(): Collection
@@ -37,6 +40,7 @@ class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnForma
                 'class.section.gradeLevel',
                 'class.teacher.user',
                 'teacher.user',
+                'enrolledByUser',
                 'schoolYear',
             ])
             ->when($this->classId, function ($query) {
@@ -49,6 +53,9 @@ class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnForma
             })
             ->when($this->schoolYearId, function ($query) {
                 $query->where('school_year_id', $this->schoolYearId);
+            })
+            ->when($this->enrolledByUserId, function ($query) {
+                $query->where('enrolled_by_user_id', $this->enrolledByUserId);
             })
             ->orderByDesc('school_year_id')
             ->orderBy('class_id')
@@ -68,7 +75,7 @@ class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnForma
             'Gender',
             'Enrollment Status',
             'Enrollment Date',
-            'Adviser / Teacher',
+            'Enrolled By',
         ];
     }
 
@@ -79,8 +86,11 @@ class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnForma
         $schoolYearName = optional($enrollment->schoolYear)->name ?? 'N/A';
         $gradeLabel = $gradeLevel->name ?? ($gradeLevel && $gradeLevel->level ? 'Grade '.$gradeLevel->level : 'N/A');
         $student = $enrollment->student;
-        $teacher = $enrollment->teacher ?? optional($enrollment->class)->teacher;
-        $teacherName = $teacher ? (optional($teacher->user)->full_name ?? 'Teacher #'.$teacher->id) : 'N/A';
+        $enrolledByName = optional($enrollment->enrolledByUser)->full_name;
+        if (! $enrolledByName) {
+            $enrolledByTeacher = $enrollment->teacher ?? optional($enrollment->class)->teacher;
+            $enrolledByName = $enrolledByTeacher ? (optional($enrolledByTeacher->user)->full_name ?? 'Teacher #'.$enrolledByTeacher->id) : 'N/A';
+        }
         $enrollmentDate = $enrollment->enrollment_date
             ? Carbon::parse($enrollment->enrollment_date)
             : ($enrollment->created_at ? Carbon::parse($enrollment->created_at) : null);
@@ -95,7 +105,7 @@ class EnrolleesExport implements FromCollection, ShouldAutoSize, WithColumnForma
             $student->gender ?? 'N/A',
             ucfirst($enrollment->status ?? 'enrolled'),
             $enrollmentDate ? $enrollmentDate->format('M d, Y') : 'N/A',
-            $teacherName,
+            $enrolledByName,
         ];
     }
 

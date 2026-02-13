@@ -334,13 +334,6 @@ class AdminDashboardController extends Controller
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
             }
 
-            $continuityError = SchoolYear::validateContinuity($startDate, $endDate);
-            if ($continuityError) {
-                return redirect()->back()
-                    ->withInput()
-                    ->with('error', $continuityError);
-            }
-
             // Get the real globally active school year (for class duplication source).
             $previousActiveSchoolYear = SchoolYear::getRealActive();
 
@@ -434,13 +427,6 @@ class AdminDashboardController extends Controller
                 return redirect()->back()
                     ->withInput()
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
-            }
-
-            $continuityError = SchoolYear::validateContinuity($startDate, $endDate, (int) $id);
-            if ($continuityError) {
-                return redirect()->back()
-                    ->withInput()
-                    ->with('error', $continuityError);
             }
 
             $data['name'] = $startDate->format('Y').'-'.$endDate->format('Y');

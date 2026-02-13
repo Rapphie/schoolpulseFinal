@@ -6,6 +6,50 @@
     <link rel="stylesheet" href="{{ asset('css/enrollment/enrollment.css') }}">
 @endpush
 
+@php
+    $enrollmentIndexRoute = $enrollmentIndexRoute ?? 'teacher.enrollment.index';
+    $enrollmentExportAllRoute = $enrollmentExportAllRoute ?? 'teacher.enrollment.exportAll';
+    $enrollmentExportMineRoute = $enrollmentExportMineRoute ?? null;
+    $enrollmentStoreRoute = $enrollmentStoreRoute ?? 'teacher.enrollment.store';
+    $enrollmentStorePastStudentRoute = $enrollmentStorePastStudentRoute ?? 'teacher.enrollment.storePastStudent';
+    $enrollmentOwnerLabel = $enrollmentOwnerLabel ?? 'My Enrollments';
+    $isEnrollmentReadOnly = $isEnrollmentReadOnly ?? false;
+    $isAdminEnrollmentContext = $isAdminEnrollmentContext ?? false;
+    $oldWizardInput = [
+        'student_type' => old('student_type', ''),
+        'student_id' => old('student_id', ''),
+        'class_id' => old('class_id', ''),
+        'enrollment_status' => old('enrollment_status', 'enrolled'),
+    ];
+    $profileWizardFields = [
+        'lrn',
+        'first_name',
+        'last_name',
+        'gender',
+        'birthdate',
+        'address',
+        'distance_km',
+        'transportation',
+        'family_income',
+        'guardian_first_name',
+        'guardian_last_name',
+        'guardian_email',
+        'guardian_phone',
+        'guardian_relationship',
+    ];
+    $profileFieldsWithErrors = collect($profileWizardFields)
+        ->filter(fn(string $field): bool => $errors->has($field))
+        ->values()
+        ->all();
+    $wizardErrorHints = [
+        'hasAnyErrors' => $errors->any(),
+        'hasProfileErrors' => ! empty($profileFieldsWithErrors),
+        'hasClassError' => $errors->has('class_id'),
+        'hasStudentSelectionError' => $errors->has('student_id'),
+        'profileFieldsWithErrors' => $profileFieldsWithErrors,
+    ];
+@endphp
+
 @section('content')
     <div class="container-fluid">
         <!-- Header -->
@@ -13,15 +57,15 @@
             <div>
                 <div class="d-flex align-items-center gap-2">
                     <h4 class="mb-0">Student Enrollment</h4>
-                    @if (isset($allSchoolYears))
-                        <form action="{{ route('teacher.enrollment.index') }}" method="GET">
+                    @if (isset($allSchoolYears) && $allSchoolYears->isNotEmpty())
+                        <form action="{{ route($enrollmentIndexRoute) }}" method="GET">
                             <select name="school_year_id" class="form-select form-select-sm"
-                                style="width: auto; font-weight: bold;" onchange="this.form.submit()">
+                                style="width: auto; min-width: 180px; font-weight: bold;" onchange="this.form.submit()">
                                 @foreach ($allSchoolYears as $sy)
                                     <option value="{{ $sy->id }}"
                                         {{ isset($currentSchoolYear) && $currentSchoolYear->id == $sy->id ? 'selected' : '' }}>
                                         {{ $sy->name }}
-                                        {{ isset($activeSchoolYearId) && $sy->id == $activeSchoolYearId ? '(Active)' : '' }}
+                                        {{ isset($activeSchoolYearId) && $sy->id == $activeSchoolYearId ? '(Current Active)' : '' }}
                                     </option>
                                 @endforeach
                             </select>
@@ -35,15 +79,29 @@
                 @endif
             </div>
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
-                    data-bs-target="#enrollmentModal">
-                    My Enrollments
-                </button>
-                <a href="{{ route('teacher.enrollment.exportAll') }}" class="btn btn-outline-secondary btn-sm">
-                    Export
+                @if ($isAdminEnrollmentContext && $enrollmentExportMineRoute)
+                    <a href="{{ route($enrollmentExportMineRoute) }}" class="btn btn-outline-secondary btn-sm" id="myEnrollmentsDownloadButton">
+                        My Enrollments
+                    </a>
+                @else
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="enrollmentListButton"
+                        data-bs-toggle="modal" data-bs-target="#enrollmentModal"
+                        data-readonly="{{ $isEnrollmentReadOnly ? 'true' : 'false' }}" {{ $isEnrollmentReadOnly ? 'disabled' : '' }}>
+                        {{ $enrollmentOwnerLabel }}
+                    </button>
+                @endif
+                <a href="{{ route($enrollmentExportAllRoute, ['school_year_id' => $currentSchoolYear?->id]) }}"
+                    class="btn btn-outline-secondary btn-sm">
+                    Download Enrollees
                 </a>
             </div>
         </div>
+
+        @if ($isEnrollmentReadOnly)
+            <div class="alert alert-warning py-2" id="enrollmentViewModeAlert">
+                Viewing a non-active school year. Enrollment actions are disabled in view mode.
+            </div>
+        @endif
 
         <!-- Quick Stats -->
         <div class="row mb-3 g-2">
@@ -110,7 +168,7 @@
             <div class="col-md-3 col-6">
                 <div class="quick-stat enrolled h-100">
                     <div class="stat-value">{{ $teacherEnrollments->flatten()->count() }}</div>
-                    <div class="stat-label">My Enrollments</div>
+                    <div class="stat-label">{{ $enrollmentOwnerLabel }}</div>
                     <div class="mt-2 border-top pt-2" style="max-height: 100px; overflow-y: auto;">
                         @php
                             $myEnrollmentsByGrade = $teacherEnrollments
@@ -172,8 +230,9 @@
             </div>
         @else
             <!-- Enrollment Wizard -->
-            <div class="card">
-                <div class="card-body">
+            <div class="card {{ $isEnrollmentReadOnly ? 'opacity-75' : '' }}" id="enrollmentWizardCard"
+                data-readonly="{{ $isEnrollmentReadOnly ? 'true' : 'false' }}">
+                <div class="card-body {{ $isEnrollmentReadOnly ? 'pe-none' : '' }}">
                     <!-- Stepper -->
                     <div class="wizard-stepper">
                         <div class="wizard-step active" data-step="1">
@@ -194,13 +253,14 @@
                         </div>
                     </div>
 
-                    <form id="enrollmentForm" action="{{ route('teacher.enrollment.store') }}" method="POST">
+                    <form id="enrollmentForm" action="{{ route($enrollmentStoreRoute) }}" method="POST">
                         @csrf
-                        <input type="hidden" name="student_type" id="studentTypeInput" value="">
-                        <input type="hidden" name="student_id" id="studentIdInput" value="">
-                        <input type="hidden" name="class_id" id="classIdInput" value="">
-                        <input type="hidden" name="student_updates" id="studentUpdatesInput" value="">
-                        <input type="hidden" name="enrollment_status" id="enrollmentStatusInput" value="enrolled">
+                        <input type="hidden" name="student_type" id="studentTypeInput" value="{{ old('student_type', '') }}">
+                        <input type="hidden" name="student_id" id="studentIdInput" value="{{ old('student_id', '') }}">
+                        <input type="hidden" name="class_id" id="classIdInput" value="{{ old('class_id', '') }}">
+                        <input type="hidden" name="student_updates" id="studentUpdatesInput" value="{{ old('student_updates', '') }}">
+                        <input type="hidden" name="enrollment_status" id="enrollmentStatusInput"
+                            value="{{ old('enrollment_status', 'enrolled') }}">
 
                         <!-- Step 1: Student Type Selection -->
                         <div class="wizard-panel active" data-panel="1">
@@ -1076,7 +1136,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="enrollmentModalLabel">
-                    My Enrollments This Year
+                    {{ $enrollmentOwnerLabel }} This Year
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -1251,6 +1311,7 @@
                 ->values();
         @endphp
         const allStudents = @json($studentsJson);
+        const isEnrollmentReadOnly = @json($isEnrollmentReadOnly);
 
         // All classes data
         const allClasses = @json($classesJson);
@@ -1260,6 +1321,8 @@
 
         // Previous school year ID for filtering returning students
         const previousSchoolYearId = @json($previousSchoolYear?->id);
+        const oldWizardInput = @json($oldWizardInput);
+        const wizardErrorHints = @json($wizardErrorHints);
 
         // DOM elements
         const wizardSteps = document.querySelectorAll('.wizard-step');
@@ -1285,6 +1348,13 @@
         // Initialize feather icons
         if (typeof feather !== 'undefined') {
             feather.replace();
+        }
+
+        if (isEnrollmentReadOnly) {
+            document.querySelectorAll('#enrollmentWizardCard button').forEach((button) => {
+                button.disabled = true;
+                button.classList.add('disabled');
+            });
         }
 
         // Helper function to enable/disable required fields in new student form
@@ -1374,11 +1444,11 @@
 
             // Update form action for returning/enroll students and toggle required fields
             if (state.studentType === 'returning' || state.studentType === 'enroll') {
-                enrollmentForm.action = '{{ route('teacher.enrollment.storePastStudent') }}';
+                enrollmentForm.action = '{{ route($enrollmentStorePastStudentRoute) }}';
                 // Ensure new student form fields are disabled for returning/enroll students
                 toggleNewStudentFormRequired(false);
             } else {
-                enrollmentForm.action = '{{ route('teacher.enrollment.store') }}';
+                enrollmentForm.action = '{{ route($enrollmentStoreRoute) }}';
             }
 
             // Step 4: Update summary
@@ -2811,6 +2881,103 @@
             }
         }
 
+        function restoreWizardFromOldInput() {
+            const oldStudentType = (oldWizardInput.student_type || '').trim();
+            const oldStudentIds = String(oldWizardInput.student_id || '')
+                .split(',')
+                .map((value) => parseInt(value, 10))
+                .filter((value) => !Number.isNaN(value));
+            const oldClassId = parseInt(oldWizardInput.class_id || '', 10);
+            const oldEnrollmentStatus = (oldWizardInput.enrollment_status || '').trim();
+            const hasWizardState = oldStudentType || oldStudentIds.length > 0 || !Number.isNaN(oldClassId);
+
+            if (!hasWizardState && !wizardErrorHints.hasAnyErrors) {
+                return;
+            }
+
+            if (oldStudentType) {
+                const typeCard = document.querySelector(`.student-type-card[data-type="${oldStudentType}"]`);
+                if (typeCard) {
+                    typeCard.click();
+                }
+            } else if (wizardErrorHints.hasProfileErrors) {
+                const newStudentTypeCard = document.querySelector('.student-type-card[data-type="new"]');
+                if (newStudentTypeCard) {
+                    newStudentTypeCard.click();
+                }
+            }
+
+            if (oldStudentIds.length > 0) {
+                const oldSelectedStudents = allStudents.filter((student) => oldStudentIds.includes(student.id));
+                state.selectedStudentIds = oldStudentIds;
+                state.selectedStudentsData = oldSelectedStudents;
+                state.selectedStudentId = oldStudentIds[0] ?? null;
+                state.selectedStudentData = oldSelectedStudents[0] ?? null;
+                studentIdInput.value = oldStudentIds.join(',');
+                step1Next.disabled = false;
+                step2Next.disabled = false;
+                updateSelectedCounter();
+                updateExistingProfileCounter();
+                filterAndRenderStudents();
+                filterAndRenderExistingProfiles();
+            }
+
+            if (!Number.isNaN(oldClassId)) {
+                const oldClassData = allClasses.find((schoolClass) => schoolClass.id === oldClassId);
+                if (oldClassData) {
+                    state.selectedClassId = oldClassId;
+                    state.selectedClassData = oldClassData;
+                    classIdInput.value = String(oldClassId);
+                    const selectedClassCard = document.querySelector(`.class-card[data-class-id="${oldClassId}"]`);
+                    if (selectedClassCard && selectedClassCard.dataset.full !== '1') {
+                        classCards.forEach((card) => card.classList.remove('selected'));
+                        selectedClassCard.classList.add('selected');
+                        step3Next.disabled = false;
+                    }
+                }
+            }
+
+            let targetStep = 1;
+            if (wizardErrorHints.hasProfileErrors) {
+                targetStep = 2;
+            } else if (wizardErrorHints.hasClassError) {
+                targetStep = 3;
+            } else if (wizardErrorHints.hasStudentSelectionError) {
+                targetStep = state.studentType === 'enroll' ? 2 : 1;
+            } else if (state.studentType === 'new') {
+                targetStep = state.selectedClassId ? 4 : 2;
+            } else if ((state.studentType === 'returning' || state.studentType === 'enroll') && state
+                .selectedStudentIds.length > 0) {
+                targetStep = state.selectedClassId ? 4 : 3;
+            } else if (state.studentType) {
+                targetStep = 2;
+            }
+
+            goToStep(targetStep);
+            highlightProfileValidationErrors();
+
+            if (oldEnrollmentStatus) {
+                enrollmentStatusInput.value = oldEnrollmentStatus;
+                const statusRadio = document.querySelector(`.enrollment-status-radio[value="${oldEnrollmentStatus}"]`);
+                if (statusRadio) {
+                    statusRadio.checked = true;
+                }
+            }
+        }
+
+        function highlightProfileValidationErrors() {
+            if (!wizardErrorHints.hasProfileErrors || !Array.isArray(wizardErrorHints.profileFieldsWithErrors)) {
+                return;
+            }
+
+            wizardErrorHints.profileFieldsWithErrors.forEach((fieldName) => {
+                const field = document.querySelector(`#newStudentForm [name="${fieldName}"]`);
+                if (field) {
+                    field.classList.add('is-invalid');
+                }
+            });
+        }
+
         // Form submission
         enrollmentForm?.addEventListener('submit', function(e) {
             const submitBtn = document.getElementById('submitEnrollment');
@@ -2912,6 +3079,8 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="loading-spinner me-2"></span>Processing...';
         });
+
+        restoreWizardFromOldInput();
 
         // Handle collapsible toggle
         document.querySelectorAll('.collapsible-header').forEach(header => {

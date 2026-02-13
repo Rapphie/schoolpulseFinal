@@ -22,7 +22,7 @@
                     data-bs-dismiss="modal">
                     <i data-feather="x" class="feather-sm me-1"></i> Cancel
                 </button>
-                <form action="{{ route('logout') }}" method="POST" class="d-inline">
+                <form action="{{ route('logout-account') }}" method="POST" class="d-inline">
                     @csrf
                     <button type="submit" class="btn btn-danger d-flex align-items-center">
                         <i data-feather="log-out" class="feather-sm me-1"></i> Logout

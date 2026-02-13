@@ -15,7 +15,7 @@
                 <h1 class="h3 mb-0 text-gray-800">Manage: {{ $section->gradeLevel->name }}-{{ $section->name }}</h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
                 <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal"
                     data-bs-target="#sectionHistoryModal">History</button>
                 @if ($isEditable)
@@ -107,10 +107,10 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Enrolled Students</h6>
                 @if ($isEditable)
-                    <button class="btn btn-sm btn-primary d-flex align-items-center" data-bs-toggle="modal"
-                        data-bs-target="#enrollStudentModal">
+                    <a class="btn btn-sm btn-primary d-flex align-items-center"
+                        href="{{ route('admin.enrollment.index', ['school_year_id' => $class->school_year_id]) }}">
                         <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
-                    </button>
+                    </a>
                 @endif
             </div>
             <div class="card-body">
@@ -123,6 +123,7 @@
                                     <th>Name</th>
                                     <th>Gender</th>
                                     <th>Guardian</th>
+                                    <th>Enrolled By</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -135,6 +136,9 @@
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
                                         <td>{{ $enrollment->student->guardian->user->first_name ?? 'N/A' }}
                                             {{ $enrollment->student->guardian->user->last_name ?? '' }}</td>
+                                        <td>
+                                            {{ $enrollment->enrolledByUser?->full_name ?? $enrollment->teacher?->user?->full_name ?? $class->teacher?->user?->full_name ?? 'N/A' }}
+                                        </td>
                                         <td class="d-flex flex-wrap gap-2">
                                             <a class="btn btn-sm btn-outline-primary"
                                                 href="{{ route('admin.students.show', $enrollment->student) }}">
@@ -457,178 +461,6 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save changes</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    @if ($isEditable)
-    <!-- Enroll New Student Modal -->
-    <div class="modal fade" id="enrollStudentModal" tabindex="-1" aria-labelledby="enrollStudentModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="enrollStudentModalLabel">Enroll New Student in {{ $section->name }}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form action="{{ route('admin.enrollment.store', $class) }}" method="POST">
-                    @csrf
-                    <div class="modal-body">
-                        <input type="hidden" name="_form" value="enroll">
-                        @if (session('error'))
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                {{ session('error') }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                            </div>
-                        @endif
-
-                        @if ($errors->any())
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                <ul class="mb-0">
-                                    @foreach ($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"
-                                    aria-label="Close"></button>
-                            </div>
-                        @endif
-                        <input type="hidden" name="class_id" value="{{ $class->id }}">
-                        <h6 class="mb-3 border-bottom pb-2">Student Information</h6>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label for="lrn" class="form-label">LRN</label>
-                                <input type="text" class="form-control" id="lrn" name="lrn"
-                                    value="{{ old('lrn') }}">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="first_name" class="form-label">First Name <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="first_name" name="first_name"
-                                    value="{{ old('first_name') }}" required>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="last_name" class="form-label">Last Name <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="last_name" name="last_name"
-                                    value="{{ old('last_name') }}" required>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="gender" class="form-label">Gender <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-select" id="gender" name="gender" required>
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="birthdate" class="form-label">Birthdate <span
-                                        class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="birthdate" name="birthdate"
-                                    value="{{ old('birthdate') }}" required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="address" class="form-label">Address</label>
-                            <textarea class="form-control" id="address" name="address" rows="2">{{ old('address') }}</textarea>
-                        </div>
-
-                        <h6 class="mt-4 mb-3 border-bottom pb-2">Additional Information (For Analytics)</h6>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label for="distance_km" class="form-label">Distance from School (km)</label>
-                                <input type="number" step="0.01" min="0" class="form-control"
-                                    id="distance_km" name="distance_km" value="{{ old('distance_km') }}"
-                                    placeholder="e.g., 2.5">
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="transportation" class="form-label">Mode of Transportation</label>
-                                <select class="form-select" id="transportation" name="transportation">
-                                    <option value="" {{ old('transportation') == '' ? 'selected' : '' }}>-- Select
-                                        --</option>
-                                    <option value="Walk" {{ old('transportation') == 'Walk' ? 'selected' : '' }}>Walk
-                                    </option>
-                                    <option value="Bicycle" {{ old('transportation') == 'Bicycle' ? 'selected' : '' }}>
-                                        Bicycle</option>
-                                    <option value="Motorcycle"
-                                        {{ old('transportation') == 'Motorcycle' ? 'selected' : '' }}>Motorcycle</option>
-                                    <option value="Tricycle" {{ old('transportation') == 'Tricycle' ? 'selected' : '' }}>
-                                        Tricycle</option>
-                                    <option value="Jeepney" {{ old('transportation') == 'Jeepney' ? 'selected' : '' }}>
-                                        Jeepney</option>
-                                    <option value="Bus" {{ old('transportation') == 'Bus' ? 'selected' : '' }}>Bus
-                                    </option>
-                                    <option value="Private Vehicle"
-                                        {{ old('transportation') == 'Private Vehicle' ? 'selected' : '' }}>Private Vehicle
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="family_income" class="form-label">Socioeconomic Status</label>
-                                <select class="form-select" id="family_income" name="family_income">
-                                    <option value="" {{ old('family_income') == '' ? 'selected' : '' }}>-- Select
-                                        --
-                                    </option>
-                                    <option value="Low" {{ old('family_income') == 'Low' ? 'selected' : '' }}>Low
-                                    </option>
-                                    <option value="Medium" {{ old('family_income') == 'Medium' ? 'selected' : '' }}>
-                                        Medium
-                                    </option>
-                                    <option value="High" {{ old('family_income') == 'High' ? 'selected' : '' }}>High
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <h6 class="mt-4 mb-3 border-bottom pb-2">Guardian Information</h6>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="guardian_first_name" class="form-label">First Name <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="guardian_first_name"
-                                    name="guardian_first_name" value="{{ old('guardian_first_name') }}" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="guardian_last_name" class="form-label">Last Name <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="guardian_last_name"
-                                    name="guardian_last_name" value="{{ old('guardian_last_name') }}" required>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="guardian_email" class="form-label">Email <span
-                                        class="text-danger">*</span></label>
-                                <input type="email" class="form-control" id="guardian_email" name="guardian_email"
-                                    value="{{ old('guardian_email') }}" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="guardian_phone" class="form-label">Phone <span
-                                        class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="guardian_phone" name="guardian_phone"
-                                    value="{{ old('guardian_phone') }}" required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="guardian_relationship" class="form-label">Relationship to Student <span
-                                    class="text-danger">*</span></label>
-                            <select class="form-select" id="guardian_relationship" name="guardian_relationship" required>
-                                <option value="parent">Parent</option>
-                                <option value="sibling">Sibling</option>
-                                <option value="relative">Relative</option>
-                                <option value="guardian">Guardian</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Enroll Student</button>
                     </div>
                 </form>
             </div>
@@ -1239,23 +1071,6 @@
                 });
             })();
         </script>
-        @if (($errors->any() && old('_form') === 'enroll') || session('error_form') === 'enroll')
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    try {
-                        var modalEl = document.getElementById('enrollStudentModal');
-                        if (modalEl) {
-                            var modal = new bootstrap.Modal(modalEl);
-                            modal.show();
-                        }
-                    } catch (e) {
-                        // fail silently if bootstrap not available on the page load
-                        console.warn('Could not show enroll modal automatically:', e);
-                    }
-                });
-            </script>
-        @endif
-
         <script>
             (function() {
                 // Teacher data for the combobox

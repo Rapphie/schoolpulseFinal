@@ -79,7 +79,7 @@ class ManageSectionReadOnlyTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->get(route('admin.sections.manage', [
                 'section' => $data['section'],
-                'class_id' => $data['historicalClass']->id,
+                'school_year_id' => $data['historicalSchoolYear']->id,
             ]));
 
         $response->assertStatus(200);
@@ -95,7 +95,7 @@ class ManageSectionReadOnlyTest extends TestCase
         $response = $this->actingAs($this->admin)
             ->get(route('admin.sections.manage', [
                 'section' => $data['section'],
-                'class_id' => $data['historicalClass']->id,
+                'school_year_id' => $data['historicalSchoolYear']->id,
             ]));
 
         $response->assertStatus(200);
@@ -114,5 +114,104 @@ class ManageSectionReadOnlyTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Assign Adviser');
         $response->assertSee('Update Capacity');
+    }
+
+    public function test_manage_page_links_enroll_to_admin_enrollment_page(): void
+    {
+        $data = $this->createSectionWithHistory();
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.sections.manage', $data['section']));
+
+        $response->assertStatus(200);
+        $response->assertSee('Enroll New Student');
+        $response->assertDontSee('Download Enrollees');
+        $response->assertSee('admin/enrollment?school_year_id='.$data['activeSchoolYear']->id, false);
+        $response->assertDontSee('id="enrollStudentModal"', false);
+    }
+
+    public function test_admin_enrollment_page_shows_school_year_filter_and_download_button(): void
+    {
+        $this->createSectionWithHistory();
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.enrollment.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Student Enrollment');
+        $response->assertSee('My Enrollments');
+        $response->assertSee('Download Enrollees');
+        $response->assertSee('admin/enrollment/export-mine', false);
+        $response->assertSee('name="school_year_id"', false);
+        $response->assertSee('(Current Active)');
+    }
+
+    public function test_admin_enrollment_school_year_filter_includes_selected_closed_year(): void
+    {
+        $data = $this->createSectionWithHistory();
+        $data['activeSchoolYear']->update([
+            'is_active' => false,
+            'is_promotion_open' => false,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.enrollment.index', [
+                'school_year_id' => $data['activeSchoolYear']->id,
+            ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('name="school_year_id"', false);
+        $response->assertSee($data['activeSchoolYear']->name);
+    }
+
+    public function test_admin_enrollment_non_active_school_year_is_view_mode(): void
+    {
+        $data = $this->createSectionWithHistory();
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.enrollment.index', [
+                'school_year_id' => $data['historicalSchoolYear']->id,
+            ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('My Enrollments');
+        $response->assertSee('Download Enrollees');
+        $response->assertSee('id="enrollmentViewModeAlert"', false);
+        $response->assertSee('data-readonly="true"', false);
+    }
+
+    public function test_admin_enrollment_uses_real_active_fallback_for_view_mode_check(): void
+    {
+        $data = $this->createSectionWithHistory();
+
+        $data['activeSchoolYear']->update([
+            'is_active' => false,
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('admin.enrollment.index', [
+                'school_year_id' => $data['activeSchoolYear']->id,
+            ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('My Enrollments');
+        $response->assertDontSee('id="enrollmentViewModeAlert"', false);
+        $response->assertSee('data-readonly="false"', false);
+    }
+
+    public function test_admin_cannot_store_past_student_in_non_active_school_year(): void
+    {
+        $data = $this->createSectionWithHistory();
+
+        $response = $this->actingAs($this->admin)
+            ->post(route('admin.enrollment.page.storePastStudent'), [
+                'student_id' => '999999',
+                'class_id' => $data['historicalClass']->id,
+            ]);
+
+        $response->assertRedirect(route('admin.enrollment.index', [
+            'school_year_id' => $data['historicalSchoolYear']->id,
+        ]));
+        $response->assertSessionHas('error', 'Enrollment is view-only for non-active school years. Select the current active school year to enroll.');
     }
 }
