@@ -355,7 +355,7 @@
 
             let formData = new FormData(this);
 
-            fetch('{{ route('teacher.class-record.upload') }}', {
+            fetch('{{ route('admin.class-record.upload') }}', {
                     method: 'POST',
                     body: formData,
                     headers: {
@@ -414,7 +414,7 @@
                 return;
             }
 
-            fetch('{{ route('teacher.class-record.save') }}', {
+            fetch('{{ route('admin.class-record.save') }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

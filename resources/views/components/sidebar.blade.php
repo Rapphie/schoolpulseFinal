@@ -55,7 +55,7 @@
                     </ul>
                 </li>
                 <li class="nav-item mb-3 dropdown position-static w-100">
-                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.schedule.*') || request()->routeIs('admin.sections.*') ? 'active' : 'link-dark' }} dropdown-toggle"
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('admin.schedules.*') || request()->routeIs('admin.sections.*') ? 'active' : 'link-dark' }} dropdown-toggle"
                         href="#" id="sectionsDropdown" role="button" data-bs-toggle="dropdown"
                         aria-expanded="false" style="width: 100%;">
                         <i data-feather="grid" class="me-2"></i>

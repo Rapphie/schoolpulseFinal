@@ -53,8 +53,8 @@
             <ul class="dropdown-menu dropdown-menu-end text-small shadow" aria-labelledby="userDropdown">
                 <li><a class="dropdown-item" href="{{ route('profile') }}"><i data-feather="user"
                             class="icon-sm me-2"></i>My Profile</a></li>
-                @if (Auth::user()->role === 'admin')
-                    <li><a class="dropdown-item" href="{{ url('/admin/settings') }}"><i data-feather="settings"
+                @if (Auth::user()->hasRole('admin'))
+                    <li><a class="dropdown-item" href="{{ route('admin.settings.index') }}"><i data-feather="settings"
                                 class="icon-sm me-2"></i>Settings</a></li>
                 @endif
                 <li>

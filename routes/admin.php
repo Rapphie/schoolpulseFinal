@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SubjectController;
 use App\Http\Controllers\Admin\TeacherController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ClassRecordController;
 use App\Http\Controllers\Teacher\EnrollmentController as TeacherEnrollmentController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,6 +66,8 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         Route::post('/classes/{class}/store-schedule', [ClassroomSectionController::class, 'storeSchedule'])->name('sections.schedule.store');
         // Use the admin ClassroomSectionController to handle enrollments created from the admin class view
         Route::post('/classes/{class}/enroll', [ClassroomSectionController::class, 'enrollStudent'])->name('enrollment.store');
+        Route::post('/class-record/upload', [ClassRecordController::class, 'upload'])->name('class-record.upload');
+        Route::post('/class-record/save', [ClassRecordController::class, 'saveClassRecord'])->name('class-record.save');
         Route::get('/students/{student}', [ClassroomSectionController::class, 'showStudent'])->name('students.show');
         Route::get('/students/{student}/edit', [ClassroomSectionController::class, 'editStudent'])->name('students.edit');
         Route::put('/students/{student}', [ClassroomSectionController::class, 'updateStudent'])->name('students.update');
