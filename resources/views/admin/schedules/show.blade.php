@@ -10,16 +10,25 @@
 
         <div class="bg-white p-6 rounded-lg shadow-lg">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <p><strong>Section:</strong> {{ $schedule->section->name }}</p>
-                <p><strong>Subject:</strong> {{ $schedule->subject->name }}</p>
-                <p><strong>Teacher:</strong> {{ $schedule->teacher->user->first_name }}
-                    {{ $schedule->teacher->user->last_name }}</p>
-                <p><strong>Day of Week:</strong> {{ $schedule->day_of_week }}</p>
-                <p><strong>Start Time:</strong> {{ date('h:i A', strtotime($schedule->start_time)) }}</p>
-                <p><strong>End Time:</strong> {{ date('h:i A', strtotime($schedule->end_time)) }}</p>
-                <p><strong>Room:</strong> {{ $schedule->room }}</p>
-                <p><strong>School Year:</strong> {{ $schedule->school_year }}</p>
-                <p><strong>Quarter:</strong> {{ $schedule->quarter }}</p>
+                @php
+                    $sectionLabel = trim(implode(' - ', array_filter([
+                        $schedule->class?->section?->gradeLevel?->name,
+                        $schedule->class?->section?->name,
+                    ])));
+                    $days = is_array($schedule->day_of_week) ? implode(', ', array_map('ucfirst', $schedule->day_of_week)) : 'N/A';
+                @endphp
+                <p><strong>Section:</strong> {{ $sectionLabel !== '' ? $sectionLabel : 'N/A' }}</p>
+                <p><strong>Subject:</strong> {{ $schedule->subject?->name ?? 'N/A' }}</p>
+                <p><strong>Teacher:</strong>
+                    {{ trim(($schedule->teacher?->user?->first_name ?? '') . ' ' . ($schedule->teacher?->user?->last_name ?? '')) ?: 'N/A' }}
+                </p>
+                <p><strong>Day of Week:</strong> {{ $days }}</p>
+                <p><strong>Start Time:</strong>
+                    {{ $schedule->start_time ? $schedule->start_time->format('h:i A') : 'N/A' }}</p>
+                <p><strong>End Time:</strong> {{ $schedule->end_time ? $schedule->end_time->format('h:i A') : 'N/A' }}</p>
+                <p><strong>Room:</strong> {{ $schedule->room ?: 'N/A' }}</p>
+                <p><strong>School Year:</strong> {{ $schedule->class?->schoolYear?->name ?? 'N/A' }}</p>
+                <p><strong>Quarter:</strong> N/A</p>
             </div>
         </div>
     </div>

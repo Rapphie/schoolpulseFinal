@@ -103,6 +103,15 @@
 @endsection
 
 @push('scripts')
+    @php
+        $schedulePayload = [
+            'class_id' => $schedule->class_id,
+            'subject_id' => $schedule->subject_id,
+            'start_time' => optional($schedule->start_time)->format('H:i:s'),
+            'end_time' => optional($schedule->end_time)->format('H:i:s'),
+        ];
+    @endphp
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const gradeLevelSelect = document.getElementById('grade_level_id');
@@ -113,12 +122,7 @@
 
             const classes = @json($classes->values());
             const subjects = @json($subjects->values());
-            const schedule = @json([
-                'class_id' => $schedule->class_id,
-                'subject_id' => $schedule->subject_id,
-                'start_time' => optional($schedule->start_time)->format('H:i:s'),
-                'end_time' => optional($schedule->end_time)->format('H:i:s'),
-            ]);
+            const schedule = @json($schedulePayload);
 
             function populateTimeDropdowns() {
                 startTimeSelect.innerHTML = '<option value="">-- Select --</option>';

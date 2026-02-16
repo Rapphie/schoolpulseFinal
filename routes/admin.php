@@ -78,7 +78,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         Route::get('subjects/grade/{gradeLevel}', [SubjectController::class, 'getSubjectsByGradeLevel'])->name('subjects.by_grade_level');
 
         // Analytics
-        Route::get('analytics', [AdminController::class, 'dashboard'])->name('analytics.show');
+        Route::get('analytics', [AdminDashboardController::class, 'dashboard'])->name('analytics.show');
 
         // Sections Management
         Route::prefix('sections')->name('sections.')->group(function () {

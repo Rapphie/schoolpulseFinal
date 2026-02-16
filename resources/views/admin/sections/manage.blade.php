@@ -583,9 +583,17 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label mb-0">Day(s) of the Week</label>
-                            <div class="small text-muted mb-2">Select the days for this schedule.</div>
-                            <div id="editDaySelector">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label mb-0">Day(s) of the Week</label>
+                                <button class="btn btn-link btn-sm p-0" type="button"
+                                    data-day-toggle="#editDaySelector" aria-expanded="false"
+                                    aria-controls="editDaySelector" data-hide-label="Hide days">
+                                    Change days
+                                </button>
+                            </div>
+                            <p class="small text-muted mb-2">Defaults to Monday through Friday. Expand if you need to
+                                adjust.</p>
+                            <div id="editDaySelector" class="day-selector d-none">
                                 @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $day)
                                     <div class="form-check form-check-inline">
                                         <input class="form-check-input edit-day-checkbox" type="checkbox"
@@ -688,10 +696,8 @@
         </div>
     </div>
     @endif
-@endsection
 
-
-<!-- Section/Class History Modal (moved from @section('modals')) -->
+    <!-- Section/Class History Modal (moved from @section('modals')) -->
     <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -721,6 +727,7 @@
             </div>
         </div>
     </div>
+@endsection
 
     @push('scripts')
         <script>

@@ -295,7 +295,7 @@ class AssessmentController extends Controller
             return $student;
         });
 
-        return view('teacher.assessments.scores.edit', compact('class', 'assessment', 'students'));
+        return view('teacher.assessments.edit', compact('class', 'assessment', 'students', 'scores'));
     }
 
     /**

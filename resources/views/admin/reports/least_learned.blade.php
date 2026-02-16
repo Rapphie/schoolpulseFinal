@@ -128,7 +128,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse($llcItems as $item)
+                                @forelse ($llcItems as $item)
                                     @php
                                         $masteryRate = $llcData
                                             ? (($llcData->total_students - $item->students_wrong) /
@@ -158,43 +158,25 @@
                                                     {{ number_format($masteryRate, 1) }}%
                                                 </div>
                                             </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center">
+                                            @if ($selectedSection && $selectedSubject)
+                                                No LLC data found for the selected filters.
+                                            @else
+                                                Please select a section and subject to view LLC data.
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
-                    <span class="small">45% mastery</span>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-primary">View Details</button>
-                    </td>
-                    </tr>
-                    <tr>
-                        <td>SCI3Q2-b</td>
-                        <td>Describe the characteristics of solids, liquids, and gases</td>
-                        <td>Science</td>
-                        <td>Grade 3</td>
-                        <td>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="text-center">
-                            @if ($selectedSection && $selectedSubject)
-                                No LLC data found for the selected filters.
-                            @else
-                                Please select a section and subject to view LLC data.
-                            @endif
-                        </td>
-                    </tr>
-                    @endforelse
-                    </tbody>
-                    </table>
                 </div>
             </div>
         </div>
-    </div>
-    </div>
-    </tbody>
-    </table>
-    </div>
-    </div>
     </div>
 @endsection
 
@@ -275,7 +257,6 @@
                     }
                 });
             @endif
-            alert('Exporting report...');
         });
     </script>
 @endpush

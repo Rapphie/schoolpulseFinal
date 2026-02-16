@@ -30,13 +30,13 @@ class EnrolleesExportTest extends TestCase
 
     public function test_enrollees_export_csv_includes_enrolled_by_column_and_value(): void
     {
-        $schoolYear = SchoolYear::where('is_active', true)->first()
-            ?? SchoolYear::create([
-                'name' => '2099-2100',
-                'start_date' => '2099-06-01',
-                'end_date' => '2100-03-31',
-                'is_active' => true,
-            ]);
+        $suffix = uniqid();
+        $schoolYear = SchoolYear::create([
+            'name' => '2099-2100-'.$suffix,
+            'start_date' => '2099-06-01',
+            'end_date' => '2100-03-31',
+            'is_active' => false,
+        ]);
 
         $gradeLevel = GradeLevel::first()
             ?? GradeLevel::create([
@@ -45,7 +45,7 @@ class EnrolleesExportTest extends TestCase
             ]);
 
         $section = Section::create([
-            'name' => 'EXP-SEC',
+            'name' => 'EXP-SEC-'.$suffix,
             'grade_level_id' => $gradeLevel->id,
             'description' => 'Export test section',
         ]);
@@ -79,8 +79,8 @@ class EnrolleesExportTest extends TestCase
         ]);
 
         $student = Student::create([
-            'student_id' => 'EXP-001',
-            'lrn' => '123456789012',
+            'student_id' => 'EXP-001-'.$suffix,
+            'lrn' => fake()->unique()->numerify('############'),
             'first_name' => 'Sample',
             'last_name' => 'Student',
             'gender' => 'female',
@@ -104,22 +104,30 @@ class EnrolleesExportTest extends TestCase
         ]));
 
         $response->assertStatus(200);
-        $csvContent = $response->streamedContent();
+        $contentDisposition = (string) $response->headers->get('content-disposition');
+        $this->assertStringContainsString('.csv', $contentDisposition);
 
-        $this->assertStringContainsString('Enrolled By', $csvContent);
-        $this->assertStringContainsString('Enroll Teacher', $csvContent);
-        $this->assertStringContainsString('Sample Student', $csvContent);
+        $export = new EnrolleesExport(null, null, $schoolYear->id);
+        $rows = $export->collection();
+        $targetEnrollment = $rows->firstWhere('student_id', $student->id);
+
+        $this->assertNotNull($targetEnrollment);
+        $this->assertContains('Enrolled By', $export->headings());
+
+        $mapped = $export->map($targetEnrollment);
+        $this->assertSame('Sample Student', $mapped[5]);
+        $this->assertSame('Enroll Teacher', $mapped[9]);
     }
 
     public function test_enrollees_export_collection_can_filter_by_enrolled_by_user_id(): void
     {
-        $schoolYear = SchoolYear::where('is_active', true)->first()
-            ?? SchoolYear::create([
-                'name' => '2099-2100',
-                'start_date' => '2099-06-01',
-                'end_date' => '2100-03-31',
-                'is_active' => true,
-            ]);
+        $suffix = uniqid();
+        $schoolYear = SchoolYear::create([
+            'name' => '2099-2100-filter-'.$suffix,
+            'start_date' => '2099-06-01',
+            'end_date' => '2100-03-31',
+            'is_active' => false,
+        ]);
 
         $gradeLevel = GradeLevel::first()
             ?? GradeLevel::create([
@@ -128,7 +136,7 @@ class EnrolleesExportTest extends TestCase
             ]);
 
         $section = Section::create([
-            'name' => 'EXP-SEC-2',
+            'name' => 'EXP-SEC-2-'.$suffix,
             'grade_level_id' => $gradeLevel->id,
             'description' => 'Export test section 2',
         ]);
@@ -164,8 +172,8 @@ class EnrolleesExportTest extends TestCase
         ]);
 
         $studentOne = Student::create([
-            'student_id' => 'EXP-101',
-            'lrn' => '123456789013',
+            'student_id' => 'EXP-101-'.$suffix,
+            'lrn' => fake()->unique()->numerify('############'),
             'first_name' => 'Mine',
             'last_name' => 'Student',
             'gender' => 'female',
@@ -182,8 +190,8 @@ class EnrolleesExportTest extends TestCase
         ]);
 
         $studentTwo = Student::create([
-            'student_id' => 'EXP-102',
-            'lrn' => '123456789014',
+            'student_id' => 'EXP-102-'.$suffix,
+            'lrn' => fake()->unique()->numerify('############'),
             'first_name' => 'Other',
             'last_name' => 'Student',
             'gender' => 'male',

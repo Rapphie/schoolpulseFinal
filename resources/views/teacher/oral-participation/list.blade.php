@@ -276,15 +276,12 @@
                             <i class="fas fa-spinner fa-spin fa-2x text-success"></i>
                             <p class="mt-2">Loading students...</p>
                         </div>
-                    </div>">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    {{-- <a href="#" id="goToFullPage" class="btn btn-outline-success" style="display: none;">
-                        <i class="fas fa-external-link-alt me-1"></i> Open Full Page
-                    </a> --}}
-                    <button type="button" class="btn btn-success" id="modalSaveScores" style="display: none;">
-                        <i class="fas fa-s
+                    </div>
                 </div>
-                <div class="modal-footerave me-1"></i>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="modalSaveScores" style="display: none;">
+                        <i class="fas fa-save me-1"></i>
                         Save Scores
                     </button>
                 </div>
@@ -402,8 +399,6 @@
                 document.getElementById('modalStudentsList').style.display = 'none';
                 document.getElementById('modalLoadingStudents').style.display = 'none';
                 document.getElementById('modalSaveScores').style.display = 'none';
-                const goToFullPage = document.getElementById('goToFullPage');
-                if (goToFullPage) goToFullPage.style.display = 'none';
                 document.getElementById('totalPointsDisplay').textContent = '0';
                 currentSubjectId = null;
                 currentSubjectName = null;
@@ -416,11 +411,6 @@
                 document.getElementById('step1SubjectSelection').style.display = 'none';
                 document.getElementById('step2ScoreEntry').style.display = 'block';
                 document.getElementById('selectedSubjectBadge').textContent = subjectName;
-                const goToFullPage = document.getElementById('goToFullPage');
-                if (goToFullPage) {
-                    goToFullPage.href = `/teacher/oral-participation/${currentClassId}?subject_id=${subjectId}`;
-                    goToFullPage.style.display = 'inline-block';
-                }
 
                 // Auto-load students when subject is selected
                 loadStudents();

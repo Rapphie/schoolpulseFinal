@@ -268,6 +268,8 @@ class ScheduleController extends Controller
     public function show(Schedule $schedule)
     {
         try {
+            $schedule->load('class.section.gradeLevel', 'class.schoolYear', 'subject', 'teacher.user');
+
             return view('admin.schedules.show', compact('schedule'));
         } catch (Throwable $e) {
             Log::error('ScheduleController@show error: '.$e->getMessage(), ['exception' => $e]);

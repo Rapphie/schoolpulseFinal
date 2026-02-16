@@ -27,7 +27,7 @@ class SubjectController extends Controller
      */
     public function create()
     {
-        //
+        return redirect()->route('admin.subjects.index');
     }
 
     /**
@@ -83,7 +83,7 @@ class SubjectController extends Controller
      */
     public function edit(Subject $subject)
     {
-        //
+        return view('admin.subjects.edit', compact('subject'));
     }
 
     /**

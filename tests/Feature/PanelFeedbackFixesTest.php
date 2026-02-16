@@ -9,6 +9,7 @@ use App\Models\GradeLevel;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
 use App\Models\Section;
+use App\Models\Setting;
 use App\Models\Student;
 use App\Models\StudentProfile;
 use App\Models\Subject;
@@ -16,6 +17,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use App\Services\StudentProfileService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class PanelFeedbackFixesTest extends TestCase
@@ -26,6 +28,9 @@ class PanelFeedbackFixesTest extends TestCase
     {
         parent::setUp();
         $this->withoutVite();
+
+        Setting::updateOrCreate(['key' => 'teacher_enrollment'], ['value' => '1']);
+        Cache::forget('sidebar_settings');
     }
 
     /**
