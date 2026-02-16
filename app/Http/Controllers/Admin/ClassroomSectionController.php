@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\StudentProfileService;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -1016,7 +1017,15 @@ class ClassroomSectionController extends Controller
         $active = SchoolYear::getActive();
 
         if (! $active) {
-            abort(404, 'No school year found. Please create one first in the dashboard.');
+            $message = 'No school year found. Please create one first in the dashboard.';
+
+            if (request()->expectsJson()) {
+                abort(404, $message);
+            }
+
+            throw new HttpResponseException(
+                redirect()->route('admin.dashboard')->with('error', $message)
+            );
         }
 
         return $active;
