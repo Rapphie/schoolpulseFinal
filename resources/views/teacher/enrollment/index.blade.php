@@ -253,7 +253,7 @@
                         </div>
                     </div>
 
-                    <form id="enrollmentForm" action="{{ route($enrollmentStoreRoute) }}" method="POST">
+                    <form id="enrollmentForm" action="{{ route($enrollmentStoreRoute) }}" method="POST" novalidate>
                         @csrf
                         <input type="hidden" name="student_type" id="studentTypeInput" value="{{ old('student_type', '') }}">
                         <input type="hidden" name="student_id" id="studentIdInput" value="{{ old('student_id', '') }}">

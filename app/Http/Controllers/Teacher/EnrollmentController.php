@@ -245,7 +245,7 @@ class EnrollmentController extends Controller
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
 
             // Enrollment status
-            'enrollment_status' => 'nullable|string|in:enrolled,transferee',
+            'enrollment_status' => 'nullable|string|in:enrolled,transferred',
         ]);
 
         // Resolve the class via route-model binding or fallback to validated class_id
@@ -289,7 +289,7 @@ class EnrollmentController extends Controller
 
                 // 5. Create the Student Record, linked to the new Guardian
                 $student = Student::create([
-                    'lrn' => $validated['lrn'],
+                    'lrn' => $validated['lrn'] ?? null,
                     'student_id' => Student::generateStudentId(),
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
@@ -317,7 +317,7 @@ class EnrollmentController extends Controller
                 }
             });
 
-            $statusLabel = $enrollmentStatus === 'transferee' ? ' (Transferee)' : '';
+            $statusLabel = $enrollmentStatus === 'transferred' ? ' (Transferee)' : '';
 
             return redirect()->back()->with('success', 'Student enrolled successfully'.$statusLabel.'.');
         } catch (\Throwable $th) {
@@ -344,7 +344,7 @@ class EnrollmentController extends Controller
             'student_id' => 'required|string',
             'class_id' => 'required|exists:classes,id',
             'student_updates' => 'nullable|string', // JSON string of student updates
-            'enrollment_status' => 'nullable|string|in:enrolled,transferee',
+            'enrollment_status' => 'nullable|string|in:enrolled,transferred',
         ]);
 
         try {
@@ -665,7 +665,7 @@ class EnrollmentController extends Controller
                 // 5. Create the Student Record, linked to the new Guardian
                 $student = Student::create([
                     'student_id' => Student::generateStudentId(),
-                    'lrn' => $validated['lrn'],
+                    'lrn' => $validated['lrn'] ?? null,
                     'first_name' => $validated['first_name'],
                     'last_name' => $validated['last_name'],
                     'gender' => $validated['gender'],

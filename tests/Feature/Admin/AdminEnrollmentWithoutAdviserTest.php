@@ -123,7 +123,7 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
                 'guardian_email' => 'wizard.restore.'.Str::lower(Str::random(8)).'@example.com',
                 'guardian_phone' => '09120000001',
                 'guardian_relationship' => 'parent',
-                'enrollment_status' => 'transferee',
+                'enrollment_status' => 'transferred',
             ]);
 
         $response->assertRedirect(route('admin.enrollment.index', ['school_year_id' => $closedSchoolYear->id]));
@@ -131,7 +131,7 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
         $response->assertSessionHasInput('student_type', 'new');
         $response->assertSessionHasInput('class_id', (string) $closedClass->id);
         $response->assertSessionHasInput('first_name', 'Wizard');
-        $response->assertSessionHasInput('enrollment_status', 'transferee');
+        $response->assertSessionHasInput('enrollment_status', 'transferred');
         $this->assertTrue($activeSchoolYear->is_active);
     }
 
