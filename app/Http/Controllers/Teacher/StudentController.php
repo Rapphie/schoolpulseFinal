@@ -230,7 +230,7 @@ class StudentController extends Controller
 
         $currentSchoolYear = SchoolYear::where('is_active', true)->first();
 
-        if (!$currentSchoolYear) {
+        if (! $currentSchoolYear) {
             return redirect()->back()->with('error', 'No active school year found.');
         }
 
@@ -288,7 +288,7 @@ class StudentController extends Controller
         } catch (\Throwable $th) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to create student profile: ' . $th->getMessage());
+                ->with('error', 'Failed to create student profile: '.$th->getMessage());
         }
     }
 
@@ -317,7 +317,7 @@ class StudentController extends Controller
 
         if ($currentSchoolYear && $teacher) {
             $currentEnrollment = $student->enrollments->where('school_year_id', $currentSchoolYear->id)->first();
-            if ($currentEnrollment && $currentEnrollment->class && (int)$currentEnrollment->class->teacher_id === (int)$teacher->id) {
+            if ($currentEnrollment && $currentEnrollment->class && (int) $currentEnrollment->class->teacher_id === (int) $teacher->id) {
                 $isAdviser = true;
                 $studentClass = $currentEnrollment->class;
 
@@ -331,7 +331,7 @@ class StudentController extends Controller
                     return [
                         'class_id' => $c->id,
                         'school_year' => $c->schoolYear ? $c->schoolYear->name : 'N/A',
-                        'adviser' => $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name . ' ' . $c->teacher->user->last_name) : 'N/A',
+                        'adviser' => $c->teacher && $c->teacher->user ? ($c->teacher->user->first_name.' '.$c->teacher->user->last_name) : 'N/A',
                         'capacity' => $c->capacity,
                         'enrolled' => $c->enrollments->count(),
                     ];
@@ -360,11 +360,33 @@ class StudentController extends Controller
                 ];
             });
 
+        // Build daily attendance trend for the current school year (last 30 days max)
+        $attendanceTrend = [];
+        if ($currentSchoolYear) {
+            $attendanceTrend = $student->attendances
+                ->where('school_year_id', $currentSchoolYear->id)
+                ->whereNotNull('date')
+                ->groupBy(fn ($a) => $a->date->format('Y-m-d'))
+                ->sortKeys()
+                ->map(function ($dayRecords, $date) {
+                    return [
+                        'date' => $date,
+                        'present' => $dayRecords->where('status', 'present')->count(),
+                        'absent' => $dayRecords->where('status', 'absent')->count(),
+                        'late' => $dayRecords->where('status', 'late')->count(),
+                        'total' => $dayRecords->count(),
+                    ];
+                })
+                ->values()
+                ->toArray();
+        }
+
         return view('teacher.students.show', [
             'student' => $student,
             'currentSchoolYear' => $currentSchoolYear,
             'gradesByYear' => $gradesByYear,
             'attendanceByYear' => $attendanceByYear,
+            'attendanceTrend' => $attendanceTrend,
             'isAdviser' => $isAdviser,
             'sectionHistory' => $sectionHistory,
             'studentClass' => $studentClass,
@@ -383,7 +405,7 @@ class StudentController extends Controller
             },
             'enrollments' => function ($query) use ($sy) {
                 $query->where('school_year_id', $sy->id)->with('class.section.gradeLevel');
-            }
+            },
         ]);
 
         $profile = StudentProfile::where('student_id', $student->id)
@@ -396,7 +418,6 @@ class StudentController extends Controller
         // Group grades by subject for easy display
         $gradesBySubject = $grades->groupBy('subject.name');
 
-
         return view('teacher.students.grades', [
             'student' => $student,
             'schoolYear' => $sy,
@@ -405,7 +426,6 @@ class StudentController extends Controller
             'profile' => $profile,
         ]);
     }
-
 
     /**
      * Show the form for editing the specified student profile.
@@ -427,7 +447,7 @@ class StudentController extends Controller
     public function update(Request $request, Student $student)
     {
         $validated = $request->validate([
-            'lrn' => 'nullable|string|max:12|unique:students,lrn,' . $student->id,
+            'lrn' => 'nullable|string|max:12|unique:students,lrn,'.$student->id,
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'gender' => 'required|in:male,female',
@@ -440,7 +460,7 @@ class StudentController extends Controller
             // Guardian fields
             'guardian_first_name' => 'nullable|string|max:255',
             'guardian_last_name' => 'nullable|string|max:255',
-            'guardian_email' => 'nullable|email|max:255|unique:users,email,' . ($student->guardian?->user_id ?? 'NULL'),
+            'guardian_email' => 'nullable|email|max:255|unique:users,email,'.($student->guardian?->user_id ?? 'NULL'),
             'guardian_phone' => 'nullable|string|max:20',
             'guardian_relationship' => 'nullable|in:parent,sibling,relative,guardian',
         ]);
@@ -480,7 +500,7 @@ class StudentController extends Controller
         } catch (\Throwable $th) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to update student profile: ' . $th->getMessage());
+                ->with('error', 'Failed to update student profile: '.$th->getMessage());
         }
     }
 }

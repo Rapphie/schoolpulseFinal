@@ -38,6 +38,11 @@ class StudentProfileService
             ]
         );
 
+        // If the profile already existed with 'pending' status, update it to 'enrolled'
+        if (! $profile->wasRecentlyCreated && $profile->status === 'pending') {
+            $profile->update(['status' => 'enrolled']);
+        }
+
         // If profile already existed but grade level differs (e.g., transfer to different grade),
         // update it if the new enrollment is more recent or specific
         if ($profile->grade_level_id !== $gradeLevelId && $profile->wasRecentlyCreated === false) {
@@ -90,6 +95,10 @@ class StudentProfileService
 
         // Add profile link to enrollment data
         $enrollmentData['student_profile_id'] = $profile->id;
+
+        if (! array_key_exists('enrollment_date', $enrollmentData) || ! $enrollmentData['enrollment_date']) {
+            $enrollmentData['enrollment_date'] = now()->toDateString();
+        }
 
         return Enrollment::create($enrollmentData);
     }

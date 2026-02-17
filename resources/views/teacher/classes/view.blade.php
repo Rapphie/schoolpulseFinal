@@ -275,11 +275,26 @@
                                 </thead>
                                 <tbody>
                                     @foreach ($class->schedules as $schedule)
+                                        @php
+                                            $startTimeDisplay =
+                                                $schedule->start_time && $schedule->start_time->format('H:i') !== '00:00'
+                                                    ? $schedule->start_time->format('g:i A')
+                                                    : null;
+                                            $endTimeDisplay =
+                                                $schedule->end_time && $schedule->end_time->format('H:i') !== '00:00'
+                                                    ? $schedule->end_time->format('g:i A')
+                                                    : null;
+                                        @endphp
                                         <tr>
                                             <td>{{ $schedule->subject->name }}</td>
                                             <td>{{ $schedule->day_names_label }}</td>
-                                            <td>{{ $schedule->start_time?->format('g:i A') }} -
-                                                {{ $schedule->end_time?->format('g:i A') }}</td>
+                                            <td>
+                                                @if ($startTimeDisplay && $endTimeDisplay)
+                                                    {{ $startTimeDisplay }} - {{ $endTimeDisplay }}
+                                                @else
+                                                    <span class="text-muted">Not Set</span>
+                                                @endif
+                                            </td>
                                             <td>
                                                 {{ $schedule->teacher->user->first_name }}
                                                 {{ $schedule->teacher->user->last_name }}

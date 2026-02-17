@@ -270,8 +270,20 @@ class TeacherDashboardController extends Controller
         try {
             $userId = Auth::id();
             $teacherId = Teacher::where('user_id', $userId)->value('id');
+            $activeSchoolYear = SchoolYear::active()->first();
 
-            $schedules = Schedule::where('teacher_id', $teacherId)->get();
+            $schedules = Schedule::query()
+                ->where('teacher_id', $teacherId)
+                ->whereNotNull('start_time')
+                ->whereNotNull('end_time')
+                ->whereTime('start_time', '!=', '00:00:00')
+                ->whereTime('end_time', '!=', '00:00:00')
+                ->when($activeSchoolYear, function ($query) use ($activeSchoolYear) {
+                    $query->whereHas('class', function ($classQuery) use ($activeSchoolYear) {
+                        $classQuery->where('school_year_id', $activeSchoolYear->id);
+                    });
+                })
+                ->get();
             $events = [];
             $subjectColors = [];
             $colorPalette = ['#4C51BF', '#6B46C1', '#9F7AEA', '#ED64A6', '#F56565', '#ED8936', '#ECC94B', '#48BB78', '#38B2AC', '#4299E1'];

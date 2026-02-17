@@ -4,6 +4,7 @@
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/enrollment/enrollment.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/DataTables/datatables.min.css') }}">
 @endpush
 
 @php
@@ -15,6 +16,7 @@
     $enrollmentOwnerLabel = $enrollmentOwnerLabel ?? 'My Enrollments';
     $isEnrollmentReadOnly = $isEnrollmentReadOnly ?? false;
     $isAdminEnrollmentContext = $isAdminEnrollmentContext ?? false;
+    $errors = $errors ?? new \Illuminate\Support\MessageBag();
     $oldWizardInput = [
         'student_type' => old('student_type', ''),
         'student_id' => old('student_id', ''),
@@ -43,7 +45,7 @@
         ->all();
     $wizardErrorHints = [
         'hasAnyErrors' => $errors->any(),
-        'hasProfileErrors' => ! empty($profileFieldsWithErrors),
+        'hasProfileErrors' => !empty($profileFieldsWithErrors),
         'hasClassError' => $errors->has('class_id'),
         'hasStudentSelectionError' => $errors->has('student_id'),
         'profileFieldsWithErrors' => $profileFieldsWithErrors,
@@ -80,13 +82,15 @@
             </div>
             <div class="d-flex gap-2">
                 @if ($isAdminEnrollmentContext && $enrollmentExportMineRoute)
-                    <a href="{{ route($enrollmentExportMineRoute) }}" class="btn btn-outline-secondary btn-sm" id="myEnrollmentsDownloadButton">
+                    <a href="{{ route($enrollmentExportMineRoute) }}" class="btn btn-outline-secondary btn-sm"
+                        id="myEnrollmentsDownloadButton">
                         My Enrollments
                     </a>
                 @else
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="enrollmentListButton"
                         data-bs-toggle="modal" data-bs-target="#enrollmentModal"
-                        data-readonly="{{ $isEnrollmentReadOnly ? 'true' : 'false' }}" {{ $isEnrollmentReadOnly ? 'disabled' : '' }}>
+                        data-readonly="{{ $isEnrollmentReadOnly ? 'true' : 'false' }}"
+                        {{ $isEnrollmentReadOnly ? 'disabled' : '' }}>
                         {{ $enrollmentOwnerLabel }}
                     </button>
                 @endif
@@ -255,10 +259,13 @@
 
                     <form id="enrollmentForm" action="{{ route($enrollmentStoreRoute) }}" method="POST" novalidate>
                         @csrf
-                        <input type="hidden" name="student_type" id="studentTypeInput" value="{{ old('student_type', '') }}">
-                        <input type="hidden" name="student_id" id="studentIdInput" value="{{ old('student_id', '') }}">
+                        <input type="hidden" name="student_type" id="studentTypeInput"
+                            value="{{ old('student_type', '') }}">
+                        <input type="hidden" name="student_id" id="studentIdInput"
+                            value="{{ old('student_id', '') }}">
                         <input type="hidden" name="class_id" id="classIdInput" value="{{ old('class_id', '') }}">
-                        <input type="hidden" name="student_updates" id="studentUpdatesInput" value="{{ old('student_updates', '') }}">
+                        <input type="hidden" name="student_updates" id="studentUpdatesInput"
+                            value="{{ old('student_updates', '') }}">
                         <input type="hidden" name="enrollment_status" id="enrollmentStatusInput"
                             value="{{ old('enrollment_status', 'enrolled') }}">
 
@@ -1137,6 +1144,9 @@
             <div class="modal-header">
                 <h5 class="modal-title" id="enrollmentModalLabel">
                     {{ $enrollmentOwnerLabel }} This Year
+                    <span class="badge bg-secondary ms-2" id="myEnrollmentsMatchCount">
+                        {{ $teacherEnrollments->flatten()->count() }} students
+                    </span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -1147,10 +1157,15 @@
                         <p class="text-muted small">Students you enroll will appear here.</p>
                     </div>
                 @else
+                    <div class="mb-3">
+                        <label for="enrollmentModalSearch" class="form-label mb-1">Search Students</label>
+                        <input type="text" id="enrollmentModalSearch" class="form-control"
+                            placeholder="Search by LRN or student name">
+                    </div>
                     <div class="accordion" id="enrollmentAccordion">
                         @foreach ($teacherEnrollments as $classId => $enrollments)
                             @php $class = $enrollments->first()->class; @endphp
-                            <div class="accordion-item">
+                            <div class="accordion-item" data-class-id="{{ $classId }}">
                                 <h2 class="accordion-header">
                                     <button class="accordion-button {{ $loop->first ? '' : 'collapsed' }}"
                                         type="button" data-bs-toggle="collapse"
@@ -1158,7 +1173,8 @@
                                         <span
                                             class="badge bg-primary me-2">{{ $class->section->gradeLevel->name }}</span>
                                         {{ $class->section->name }}
-                                        <span class="badge bg-secondary ms-2">{{ $enrollments->count() }}
+                                        <span class="badge bg-secondary ms-2 js-enrollment-count"
+                                            data-class-id="{{ $classId }}">{{ $enrollments->count() }}
                                             students</span>
                                     </button>
                                 </h2>
@@ -1166,7 +1182,8 @@
                                     class="accordion-collapse collapse {{ $loop->first ? 'show' : '' }}"
                                     data-bs-parent="#enrollmentAccordion">
                                     <div class="accordion-body p-0">
-                                        <table class="table table-hover mb-0">
+                                        <table class="table table-hover mb-0 js-my-enrollments-datatable"
+                                            id="myEnrollmentsTable{{ $classId }}">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>LRN</th>
@@ -1198,6 +1215,7 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('css/DataTables/datatables.min.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // State management
@@ -1211,6 +1229,119 @@
             selectedClassId: null,
             selectedClassData: null
         };
+
+        const enrollmentModal = document.getElementById('enrollmentModal');
+        const enrollmentModalSearch = document.getElementById('enrollmentModalSearch');
+        const myEnrollmentDataTables = [];
+
+        function formatStudentCount(count) {
+            return `${count} student${count === 1 ? '' : 's'}`;
+        }
+
+        function updateMyEnrollmentCountBadges() {
+            if (!window.jQuery || !$.fn.DataTable) {
+                return;
+            }
+
+            let totalMatchedStudents = 0;
+
+            $('#enrollmentModal table.js-my-enrollments-datatable').each(function() {
+                if (!$.fn.DataTable.isDataTable(this)) {
+                    return;
+                }
+
+                const table = $(this).DataTable();
+                const classId = this.id.replace('myEnrollmentsTable', '');
+                const matchedStudents = table.rows({
+                    search: 'applied'
+                }).count();
+
+                totalMatchedStudents += matchedStudents;
+
+                const classCountBadge = document.querySelector(
+                    `.js-enrollment-count[data-class-id="${classId}"]`
+                );
+
+                if (classCountBadge) {
+                    classCountBadge.textContent = formatStudentCount(matchedStudents);
+                }
+            });
+
+            const totalCountBadge = document.getElementById('myEnrollmentsMatchCount');
+            if (totalCountBadge) {
+                totalCountBadge.textContent = formatStudentCount(totalMatchedStudents);
+            }
+        }
+
+        function initializeMyEnrollmentDataTables() {
+            if (!window.jQuery || !$.fn.DataTable) {
+                return;
+            }
+
+            $('#enrollmentModal table.js-my-enrollments-datatable').each(function() {
+                if ($.fn.DataTable.isDataTable(this)) {
+                    return;
+                }
+
+                const dataTable = $(this).DataTable({
+                    pageLength: 10,
+                    lengthChange: false,
+                    searching: true,
+                    info: true,
+                    autoWidth: false,
+                    order: [
+                        [2, 'desc']
+                    ],
+                    dom: 'rtip'
+                });
+
+                dataTable.on('draw', updateMyEnrollmentCountBadges);
+                myEnrollmentDataTables.push(dataTable);
+            });
+
+            updateMyEnrollmentCountBadges();
+        }
+
+        function searchMyEnrollmentDataTables(query) {
+            myEnrollmentDataTables.forEach((table) => {
+                table.search(query).draw();
+            });
+
+            updateMyEnrollmentCountBadges();
+        }
+
+        enrollmentModal?.addEventListener('shown.bs.modal', function() {
+            initializeMyEnrollmentDataTables();
+            searchMyEnrollmentDataTables(enrollmentModalSearch?.value?.trim() || '');
+
+            if (!window.jQuery || !$.fn.DataTable) {
+                return;
+            }
+
+            $('#enrollmentModal table.js-my-enrollments-datatable').each(function() {
+                if ($.fn.DataTable.isDataTable(this)) {
+                    $(this).DataTable().columns.adjust();
+                }
+            });
+        });
+
+        enrollmentModalSearch?.addEventListener('input', function() {
+            searchMyEnrollmentDataTables(this.value);
+        });
+
+        document.querySelectorAll('#enrollmentAccordion .accordion-collapse').forEach((collapseElement) => {
+            collapseElement.addEventListener('shown.bs.collapse', function() {
+                if (!window.jQuery || !$.fn.DataTable) {
+                    return;
+                }
+
+                $(this).find('table.js-my-enrollments-datatable').each(function() {
+                    if ($.fn.DataTable.isDataTable(this)) {
+                        $(this).DataTable().columns.adjust();
+                    }
+                });
+            });
+        });
 
         // All returning students data for search
         @php
@@ -1616,40 +1747,49 @@
                     // Ensure the student_id hidden input is set for single returning student
                     studentIdInput.value = state.selectedStudentIds.join(',');
                 } else {
-                    // New student - show static view
-                    document.getElementById('singleEditModeToggle').style.display = 'none';
-                    document.getElementById('staticStudentInfo').style.display = 'block';
-                    document.getElementById('editableStudentInfo').style.display = 'none';
-                    document.getElementById('staticGuardianInfo').style.display = 'block';
-                    document.getElementById('editableGuardianInfo').style.display = 'none';
+                    // New student - show editable view for review
+                    document.getElementById('singleEditModeToggle').style.display = 'flex';
+                    document.getElementById('staticStudentInfo').style.display = 'none';
+                    document.getElementById('editableStudentInfo').style.display = 'block';
+                    document.getElementById('staticGuardianInfo').style.display = 'none';
+                    document.getElementById('editableGuardianInfo').style.display = 'block';
                     document.getElementById('classHistoryCard').style.display = 'none';
 
-                    const firstName = document.getElementById('first_name').value;
-                    const lastName = document.getElementById('last_name').value;
-                    document.getElementById('summaryStudentName').textContent = firstName + ' ' + lastName;
-                    document.getElementById('summaryStudentLrn').textContent = document.getElementById('lrn')
-                        .value || 'N/A';
-                    document.getElementById('summaryStudentGender').textContent = document.getElementById(
-                            'gender')
-                        .value;
-                    document.getElementById('summaryStudentBirthdate').textContent = document.getElementById(
-                        'birthdate').value;
-                    document.getElementById('summaryStudentAddress').textContent = document.getElementById(
-                        'address').value || 'N/A';
+                    // Populate editable fields from step 2 form values
+                    document.getElementById('editFirstName').value = document.getElementById('first_name')
+                    .value;
+                    document.getElementById('editLastName').value = document.getElementById('last_name').value;
+                    document.getElementById('editLrn').value = document.getElementById('lrn').value;
+                    document.getElementById('editGender').value = document.getElementById('gender').value;
+                    document.getElementById('editBirthdate').value = document.getElementById('birthdate').value;
+                    document.getElementById('editAddress').value = document.getElementById('address').value;
+
+                    // Populate guardian fields from step 2
+                    document.getElementById('editGuardianFirstName').value = document.getElementById(
+                        'guardian_first_name').value;
+                    document.getElementById('editGuardianLastName').value = document.getElementById(
+                        'guardian_last_name').value;
+                    document.getElementById('editGuardianRelationship').value = document.getElementById(
+                        'guardian_relationship').value;
+                    document.getElementById('editGuardianEmail').value = document.getElementById(
+                        'guardian_email').value;
+                    document.getElementById('editGuardianPhone').value = document.getElementById(
+                        'guardian_phone').value;
 
                     // Guardian info
                     document.getElementById('guardianSummaryCard').style.display = 'block';
-                    document.getElementById('summaryGuardianName').textContent =
-                        document.getElementById('guardian_first_name').value + ' ' +
-                        document.getElementById('guardian_last_name').value;
-                    document.getElementById('summaryGuardianRelationship').textContent =
-                        document.getElementById('guardian_relationship').value;
-                    document.getElementById('summaryGuardianEmail').textContent =
-                        document.getElementById('guardian_email').value;
-                    document.getElementById('summaryGuardianPhone').textContent =
-                        document.getElementById('guardian_phone').value;
                     document.getElementById('guardianEmailNote').textContent =
                         'An email with login credentials will be sent to the guardian.';
+
+                    // Setup single edit mode toggle listener
+                    const editSwitch = document.getElementById('singleEditModeSwitch');
+                    editSwitch.checked = false;
+                    editSwitch.onchange = function() {
+                        const fields = document.querySelectorAll('.single-edit-field');
+                        fields.forEach(field => {
+                            field.disabled = !this.checked;
+                        });
+                    };
                 }
 
                 // Class info for single student
@@ -2928,7 +3068,8 @@
                     state.selectedClassId = oldClassId;
                     state.selectedClassData = oldClassData;
                     classIdInput.value = String(oldClassId);
-                    const selectedClassCard = document.querySelector(`.class-card[data-class-id="${oldClassId}"]`);
+                    const selectedClassCard = document.querySelector(
+                        `.class-card[data-class-id="${oldClassId}"]`);
                     if (selectedClassCard && selectedClassCard.dataset.full !== '1') {
                         classCards.forEach((card) => card.classList.remove('selected'));
                         selectedClassCard.classList.add('selected');
@@ -2958,7 +3099,8 @@
 
             if (oldEnrollmentStatus) {
                 enrollmentStatusInput.value = oldEnrollmentStatus;
-                const statusRadio = document.querySelector(`.enrollment-status-radio[value="${oldEnrollmentStatus}"]`);
+                const statusRadio = document.querySelector(
+                    `.enrollment-status-radio[value="${oldEnrollmentStatus}"]`);
                 if (statusRadio) {
                     statusRadio.checked = true;
                 }
@@ -2966,7 +3108,8 @@
         }
 
         function highlightProfileValidationErrors() {
-            if (!wizardErrorHints.hasProfileErrors || !Array.isArray(wizardErrorHints.profileFieldsWithErrors)) {
+            if (!wizardErrorHints.hasProfileErrors || !Array.isArray(wizardErrorHints
+                .profileFieldsWithErrors)) {
                 return;
             }
 
@@ -3073,6 +3216,33 @@
                 if (!confirm(confirmMsg)) {
                     e.preventDefault();
                     return;
+                }
+            }
+
+            // For new students, sync editable field values back to step 2 form fields
+            if (state.studentType === 'new') {
+                const editSwitch = document.getElementById('singleEditModeSwitch');
+                if (editSwitch && editSwitch.checked) {
+                    const newStudentFieldMap = {
+                        'editFirstName': 'first_name',
+                        'editLastName': 'last_name',
+                        'editLrn': 'lrn',
+                        'editGender': 'gender',
+                        'editBirthdate': 'birthdate',
+                        'editAddress': 'address',
+                        'editGuardianFirstName': 'guardian_first_name',
+                        'editGuardianLastName': 'guardian_last_name',
+                        'editGuardianRelationship': 'guardian_relationship',
+                        'editGuardianEmail': 'guardian_email',
+                        'editGuardianPhone': 'guardian_phone',
+                    };
+                    Object.entries(newStudentFieldMap).forEach(([editId, formId]) => {
+                        const editField = document.getElementById(editId);
+                        const formField = document.getElementById(formId);
+                        if (editField && formField) {
+                            formField.value = editField.value;
+                        }
+                    });
                 }
             }
 

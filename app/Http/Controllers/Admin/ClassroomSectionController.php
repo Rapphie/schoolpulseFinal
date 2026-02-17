@@ -22,6 +22,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -467,15 +468,15 @@ class ClassroomSectionController extends Controller
                             'subject_id' => $subject->id,
                             'teacher_id' => $teacherId,
                             'day_of_week' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-                            'start_time' => null,
-                            'end_time' => null,
+                            'start_time' => '00:00',
+                            'end_time' => '00:00',
                             'room' => null,
                         ]);
                     } else {
                         $existingSchedule->update([
                             'teacher_id' => $teacherId,
-                            'start_time' => null,
-                            'end_time' => null,
+                            'start_time' => '00:00',
+                            'end_time' => '00:00',
                         ]);
                     }
                 }
@@ -640,6 +641,25 @@ class ClassroomSectionController extends Controller
     }
 
     /**
+     * Show the full-page enrollment form for a specific class.
+     */
+    public function createEnrollment(Classes $class)
+    {
+        $class->load(['section.gradeLevel', 'schoolYear', 'enrollments']);
+
+        $section = $class->section;
+        $activeSchoolYear = SchoolYear::getRealActive();
+        $enrolledCount = $class->enrollments->count();
+
+        return view('admin.enrollment.create', compact(
+            'class',
+            'section',
+            'activeSchoolYear',
+            'enrolledCount'
+        ));
+    }
+
+    /**
      * Enroll a brand-new student directly from the admin class view (uses Classes model).
      */
     public function enrollStudent(Request $request, Classes $class)
@@ -727,7 +747,7 @@ class ClassroomSectionController extends Controller
                     'class_id' => $class->id,
                     'school_year_id' => $class->school_year_id,
                     'teacher_id' => $class->teacher_id,
-                    'enrolled_by_user_id' => auth()->id(),
+                    'enrolled_by_user_id' => Auth::id(),
                     'status' => $validated['status'] ?? 'enrolled',
                 ]);
             });
@@ -737,10 +757,10 @@ class ClassroomSectionController extends Controller
                 Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
             }
         } catch (\Throwable $throwable) {
-            return back()->with('error', 'Failed to add student: '.$throwable->getMessage())->with('error_form', 'enroll');
+            return back()->withInput()->with('error', 'Failed to add student: '.$throwable->getMessage());
         }
 
-        return back()->with('success', 'Student enrolled successfully.');
+        return redirect()->route('admin.sections.manage', $class->section)->with('success', 'Student enrolled successfully.');
     }
 
     /**

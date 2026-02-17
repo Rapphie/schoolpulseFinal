@@ -284,12 +284,12 @@
                     </div>
                 </div>
 
-                <!-- Grade Level History -->
+                <!-- Grades History -->
                 <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header">
                         <h6 class="mb-0">
                             <i data-feather="trending-up" class="icon-sm me-2"></i>
-                            Grade Level History
+                            Grades History
                         </h6>
                     </div>
                     <div class="card-body p-0">
@@ -297,104 +297,162 @@
                             <div class="text-center py-4">
                                 <i data-feather="file-text" class="text-muted mb-2"
                                     style="width: 32px; height: 32px;"></i>
-                                <p class="text-muted mb-0">No grade level history available.</p>
+                                <p class="text-muted mb-0">No grades history available.</p>
                             </div>
                         @else
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>School Year</th>
-                                            <th>Grade Level</th>
-                                            <th>Section</th>
-                                            <th>Final Average</th>
-                                            <th>Status</th>
-                                            <th>Attendance</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($student->profiles as $profile)
-                                            @php
-                                                $enrollment = $student->enrollments
-                                                    ->where('school_year_id', $profile->school_year_id)
-                                                    ->first();
-                                                $attendance = $attendanceByYear[$profile->school_year_id] ?? null;
-                                            @endphp
-                                            <tr>
-                                                <td>
-                                                    <strong>{{ $profile->schoolYear->name ?? 'N/A' }}</strong>
-                                                    @if ($profile->is_current)
-                                                        <span class="badge bg-primary ms-1">Current</span>
-                                                    @endif
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-light text-dark">
-                                                        {{ $profile->gradeLevel->name ?? 'N/A' }}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    @if ($enrollment && $enrollment->class && $enrollment->class->section)
-                                                        {{ $enrollment->class->section->name }}
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                                <td>
-                                                    @if ($profile->final_average)
-                                                        <span
-                                                            class="fw-medium {{ $profile->final_average >= 75 ? 'text-success' : 'text-danger' }}">
-                                                            {{ number_format($profile->final_average, 2) }}
+                            <div class="accordion accordion-flush" id="gradesHistoryAccordion">
+                                @foreach ($student->profiles as $profileIndex => $profile)
+                                    @php
+                                        $enrollment = $student->enrollments
+                                            ->where('school_year_id', $profile->school_year_id)
+                                            ->first();
+                                        $attendance = $attendanceByYear[$profile->school_year_id] ?? null;
+                                        $yearGrades =
+                                            $student->grades->where('school_year_id', $profile->school_year_id) ??
+                                            collect();
+                                        $statusColors = [
+                                            'pending' => 'bg-secondary',
+                                            'active' => 'bg-info',
+                                            'enrolled' => 'bg-info',
+                                            'promoted' => 'bg-success',
+                                            'retained' => 'bg-warning text-dark',
+                                            'dropped' => 'bg-danger',
+                                            'graduated' => 'bg-primary',
+                                        ];
+                                        $statusColor = $statusColors[$profile->status] ?? 'bg-secondary';
+                                    @endphp
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="gradesHeading{{ $profileIndex }}">
+                                            <button class="accordion-button {{ $profileIndex === 0 ? '' : 'collapsed' }}"
+                                                type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#gradesCollapse{{ $profileIndex }}"
+                                                aria-expanded="{{ $profileIndex === 0 ? 'true' : 'false' }}"
+                                                aria-controls="gradesCollapse{{ $profileIndex }}">
+                                                <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <strong>{{ $profile->schoolYear->name ?? 'N/A' }}</strong>
+                                                        @if ($profile->is_current)
+                                                            <span class="badge bg-primary">Current</span>
+                                                        @endif
+                                                        <span class="badge bg-light text-dark">
+                                                            {{ $profile->gradeLevel->name ?? 'N/A' }}
                                                         </span>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                                <td>
-                                                    @php
-                                                        $statusColors = [
-                                                            'pending' => 'bg-secondary',
-                                                            'active' => 'bg-info',
-                                                            'enrolled' => 'bg-info',
-                                                            'promoted' => 'bg-success',
-                                                            'retained' => 'bg-warning text-dark',
-                                                            'dropped' => 'bg-danger',
-                                                            'graduated' => 'bg-primary',
-                                                        ];
-                                                        $statusColor =
-                                                            $statusColors[$profile->status] ?? 'bg-secondary';
-                                                    @endphp
-                                                    <span class="badge {{ $statusColor }}">
-                                                        {{ ucfirst($profile->status ?? 'active') }}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    @if ($attendance)
-                                                        <div class="attendance-mini">
-                                                            <span class="text-success"
-                                                                title="Present">{{ $attendance['present'] }}</span>
-                                                            <span class="text-muted">/</span>
-                                                            <span class="text-danger"
-                                                                title="Absent">{{ $attendance['absent'] }}</span>
-                                                            <span class="text-muted">/</span>
-                                                            <span class="text-warning"
-                                                                title="Late">{{ $attendance['late'] }}</span>
-                                                        </div>
-                                                        <small class="text-muted">P/A/L</small>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                                <td>
+                                                        @if ($enrollment && $enrollment->class && $enrollment->class->section)
+                                                            <span
+                                                                class="text-muted small">{{ $enrollment->class->section->name }}</span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        @if ($profile->final_average)
+                                                            <span
+                                                                class="fw-medium {{ $profile->final_average >= 75 ? 'text-success' : 'text-danger' }}">
+                                                                {{ number_format($profile->final_average, 2) }}
+                                                            </span>
+                                                        @endif
+                                                        <span class="badge {{ $statusColor }}">
+                                                            {{ ucfirst($profile->status ?? 'active') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        </h2>
+                                        <div id="gradesCollapse{{ $profileIndex }}"
+                                            class="accordion-collapse collapse {{ $profileIndex === 0 ? 'show' : '' }}"
+                                            aria-labelledby="gradesHeading{{ $profileIndex }}"
+                                            data-bs-parent="#gradesHistoryAccordion">
+                                            <div class="accordion-body p-0">
+                                                @if ($yearGrades->isEmpty())
+                                                    <div class="text-center py-3">
+                                                        <p class="text-muted mb-0">No grade records for this school
+                                                            year.</p>
+                                                    </div>
+                                                @else
+                                                    <div class="table-responsive">
+                                                        <table class="table table-hover mb-0">
+                                                            <thead class="table-light">
+                                                                <tr>
+                                                                    <th>Subject</th>
+                                                                    <th class="text-center">1st</th>
+                                                                    <th class="text-center">2nd</th>
+                                                                    <th class="text-center">3rd</th>
+                                                                    <th class="text-center">4th</th>
+                                                                    <th class="text-center">Final</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach ($yearGrades->groupBy('subject_id') as $subjectId => $subjectGrades)
+                                                                    @php
+                                                                        $subject = $subjectGrades->first()->subject;
+                                                                        $g1 = $subjectGrades
+                                                                            ->where('quarter', 1)
+                                                                            ->first();
+                                                                        $g2 = $subjectGrades
+                                                                            ->where('quarter', 2)
+                                                                            ->first();
+                                                                        $g3 = $subjectGrades
+                                                                            ->where('quarter', 3)
+                                                                            ->first();
+                                                                        $g4 = $subjectGrades
+                                                                            ->where('quarter', 4)
+                                                                            ->first();
+                                                                        $final = $subjectGrades
+                                                                            ->where('quarter', 5)
+                                                                            ->first();
+                                                                    @endphp
+                                                                    <tr>
+                                                                        <td>{{ $subject->name ?? 'Unknown' }}</td>
+                                                                        <td class="text-center">
+                                                                            {{ $g1->grade ?? '-' }}</td>
+                                                                        <td class="text-center">
+                                                                            {{ $g2->grade ?? '-' }}</td>
+                                                                        <td class="text-center">
+                                                                            {{ $g3->grade ?? '-' }}</td>
+                                                                        <td class="text-center">
+                                                                            {{ $g4->grade ?? '-' }}</td>
+                                                                        <td class="text-center fw-bold">
+                                                                            {{ $final->grade ?? '-' }}</td>
+                                                                    </tr>
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                @endif
+                                                <div
+                                                    class="px-3 py-2 bg-light border-top d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        @if ($profile->final_average)
+                                                            <span class="small">
+                                                                <strong>General Average:</strong>
+                                                                <span
+                                                                    class="{{ $profile->final_average >= 75 ? 'text-success' : 'text-danger' }} fw-medium">
+                                                                    {{ number_format($profile->final_average, 2) }}
+                                                                </span>
+                                                            </span>
+                                                        @endif
+                                                        @if ($attendance)
+                                                            <span class="small">
+                                                                <strong>Attendance:</strong>
+                                                                <span class="text-success"
+                                                                    title="Present">{{ $attendance['present'] }}</span>
+                                                                <span class="text-muted">/</span>
+                                                                <span class="text-danger"
+                                                                    title="Absent">{{ $attendance['absent'] }}</span>
+                                                                <span class="text-muted">/</span>
+                                                                <span class="text-warning"
+                                                                    title="Late">{{ $attendance['late'] }}</span>
+                                                                <span class="text-muted small">(P/A/L)</span>
+                                                            </span>
+                                                        @endif
+                                                    </div>
                                                     <a href="{{ route('teacher.students.grades', ['student' => $student->id, 'sy' => $profile->school_year_id]) }}"
                                                         class="btn btn-outline-primary btn-sm">
-                                                        <i data-feather="eye" class="icon-sm"></i>
+                                                        <i data-feather="eye" class="icon-sm me-1"></i> View Details
                                                     </a>
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
                             </div>
                         @endif
                     </div>
@@ -462,6 +520,37 @@
                                     </tbody>
                                 </table>
                             </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- Attendance Trend -->
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i data-feather="activity" class="icon-sm me-2"></i>
+                            Attendance Trend
+                        </h6>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Attendance trend range">
+                            <button type="button" class="btn btn-outline-primary attendance-range-btn" data-days="3">3
+                                Days</button>
+                            <button type="button" class="btn btn-outline-primary attendance-range-btn active"
+                                data-days="7">7 Days</button>
+                            <button type="button" class="btn btn-outline-primary attendance-range-btn" data-days="14">14
+                                Days</button>
+                            <button type="button" class="btn btn-outline-primary attendance-range-btn" data-days="30">1
+                                Month</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (empty($attendanceTrend))
+                            <div class="text-center py-4">
+                                <i data-feather="bar-chart-2" class="text-muted mb-2"
+                                    style="width: 32px; height: 32px;"></i>
+                                <p class="text-muted mb-0">No attendance data available for the current school year.</p>
+                            </div>
+                        @else
+                            <canvas id="attendanceTrendChart" height="260"></canvas>
                         @endif
                     </div>
                 </div>
@@ -592,4 +681,95 @@
             }
         });
     </script>
+
+    @if (!empty($attendanceTrend))
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const allData = @json($attendanceTrend);
+                let chartInstance = null;
+
+                function renderChart(days) {
+                    const filtered = allData.slice(-days);
+                    const labels = filtered.map(d => {
+                        const date = new Date(d.date);
+                        return date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                        });
+                    });
+
+                    const config = {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                    label: 'Present',
+                                    data: filtered.map(d => d.present),
+                                    borderColor: '#198754',
+                                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                                    fill: true,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'Late',
+                                    data: filtered.map(d => d.late),
+                                    borderColor: '#ffc107',
+                                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                    fill: true,
+                                    tension: 0.3
+                                },
+                                {
+                                    label: 'Absent',
+                                    data: filtered.map(d => d.absent),
+                                    borderColor: '#dc3545',
+                                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                    fill: true,
+                                    tension: 0.3
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1,
+                                        precision: 0
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    if (chartInstance) {
+                        chartInstance.destroy();
+                    }
+
+                    const ctx = document.getElementById('attendanceTrendChart');
+                    if (ctx) {
+                        chartInstance = new Chart(ctx, config);
+                    }
+                }
+
+                renderChart(7);
+
+                document.querySelectorAll('.attendance-range-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('.attendance-range-btn').forEach(b => b
+                            .classList.remove('active'));
+                        this.classList.add('active');
+                        renderChart(parseInt(this.dataset.days));
+                    });
+                });
+            });
+        </script>
+    @endif
 @endpush
