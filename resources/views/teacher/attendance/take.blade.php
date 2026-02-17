@@ -149,18 +149,15 @@
                 <div class="dropdown d-inline-block me-2">
                     <button type="button" class="btn btn-success btn-sm dropdown-toggle" id="markAllDropdown"
                         data-bs-toggle="dropdown" aria-expanded="false">
-                        <div class="d-flex align-content-center"><i data-feather="check-square"></i> Mark All</div>
+                        <i data-feather="check-square" class="align-middle"></i> Mark All
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="markAllDropdown">
-                        <li><a class="dropdown-item mark-all-status" href="#" data-status="present">Mark All
-                                Present</a></li>
-                        <li><a class="dropdown-item mark-all-status" href="#" data-status="absent">Mark All
-                                Absent</a></li>
-                        <li><a class="dropdown-item mark-all-status" href="#" data-status="late">Mark All
-                                Late</a>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="present">Present</a>
                         </li>
-                        <li><a class="dropdown-item mark-all-status" href="#" data-status="excused">Mark All
-                                Excused</a></li>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="absent">Absent</a></li>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="late">Late</a></li>
+                        <li><a class="dropdown-item mark-all-status" href="#" data-status="excused">Excused</a>
+                        </li>
                     </ul>
                 </div>
             </div>
