@@ -634,17 +634,25 @@ class AssessmentController extends Controller
             'quarterly_assessments' => 'Quarterly Assessment',
         ];
 
+        // Fetch all existing counts in a single query instead of 12 individual COUNT queries
+        $existingCounts = Assessment::where('class_id', $class->id)
+            ->where('subject_id', $subject->id)
+            ->where('teacher_id', $teacher->id)
+            ->selectRaw('quarter, type, COUNT(*) as cnt')
+            ->groupBy('quarter', 'type')
+            ->get()
+            ->groupBy('quarter')
+            ->map(fn ($group) => $group->pluck('cnt', 'type'));
+
+        $newAssessments = [];
+
         for ($quarter = 1; $quarter <= 4; $quarter++) {
             foreach (self::DEFAULT_ASSESSMENT_COUNTS as $type => $requiredCount) {
-                $existingCount = Assessment::where('class_id', $class->id)
-                    ->where('subject_id', $subject->id)
-                    ->where('teacher_id', $teacher->id)
-                    ->where('quarter', $quarter)
-                    ->where('type', $type)
-                    ->count();
+                $existingCount = (int) ($existingCounts->get($quarter)?->get($type) ?? 0);
 
                 for ($sequence = $existingCount + 1; $sequence <= $requiredCount; $sequence++) {
-                    $class->assessments()->create([
+                    $newAssessments[] = [
+                        'class_id' => $class->id,
                         'subject_id' => $subject->id,
                         'teacher_id' => $teacher->id,
                         'school_year_id' => $class->school_year_id,
@@ -653,9 +661,15 @@ class AssessmentController extends Controller
                         'max_score' => null,
                         'quarter' => $quarter,
                         'assessment_date' => now(),
-                    ]);
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
                 }
             }
+        }
+
+        if (! empty($newAssessments)) {
+            Assessment::insert($newAssessments);
         }
     }
 

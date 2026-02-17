@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Schedule extends Model
 {
@@ -25,25 +26,21 @@ class Schedule extends Model
         'day_of_week' => 'array',
     ];
 
-
-    public function class()
+    public function class(): BelongsTo
     {
         return $this->belongsTo(Classes::class);
     }
 
-    public function subject()
+    public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
     }
 
-    public function teacher()
+    public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class);
     }
 
-    /**
-     * Normalized, human-readable day names regardless of storage format.
-     */
     public function getDayNamesAttribute(): array
     {
         $days = $this->day_of_week;
@@ -61,12 +58,13 @@ class Schedule extends Model
             $days = $days->all();
         }
 
-        if (!is_array($days)) {
+        if (! is_array($days)) {
             $days = [];
         }
 
         $days = array_map(static function ($day) {
             $normalized = ucfirst(trim((string) $day));
+
             return $normalized !== '' ? $normalized : null;
         }, $days);
 
@@ -76,6 +74,7 @@ class Schedule extends Model
     public function getDayNamesLabelAttribute(): string
     {
         $names = $this->day_names;
+
         return $names ? implode(', ', $names) : 'Not Set';
     }
 }

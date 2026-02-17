@@ -273,6 +273,7 @@ class TeacherDashboardController extends Controller
             $activeSchoolYear = SchoolYear::active()->first();
 
             $schedules = Schedule::query()
+                ->with(['subject', 'class.section'])
                 ->where('teacher_id', $teacherId)
                 ->whereNotNull('start_time')
                 ->whereNotNull('end_time')
@@ -918,6 +919,7 @@ class TeacherDashboardController extends Controller
                 )
                 ->orderBy('attendances.date', 'desc')
                 ->orderBy('students.last_name', 'asc')
+                ->limit(500)
                 ->get();
 
             // Get relevant Grade Levels, Sections, and Subjects for the teacher
@@ -1282,24 +1284,18 @@ class TeacherDashboardController extends Controller
 
     private function checkAbsences($studentId, $teacherId)
     {
-        $student = Student::find($studentId);
-        $teacher = Teacher::find($teacherId);
+        // Check for 3 consecutive absences using a single query
+        $threeDaysAgo = now()->subDays(2)->toDateString();
+        $today = now()->toDateString();
 
-        // Check for 3 consecutive absences
-        $consecutiveAbsences = 0;
-        for ($i = 0; $i < 3; $i++) {
-            $date = now()->subDays($i)->toDateString();
-            $attendance = Attendance::where('student_id', $studentId)
-                ->where('date', $date)
-                ->where('status', 'absent')
-                ->first();
+        $absentDays = Attendance::where('student_id', $studentId)
+            ->whereBetween('date', [$threeDaysAgo, $today])
+            ->where('status', 'absent')
+            ->distinct('date')
+            ->count('date');
 
-            if ($attendance) {
-                $consecutiveAbsences++;
-            } else {
-                break;
-            }
-        }
+        // Only proceed if absent all 3 days
+        $consecutiveAbsences = $absentDays;
 
         if ($consecutiveAbsences >= 3) {
             // Check if an email has been sent recently for this student to avoid spamming
@@ -1307,6 +1303,9 @@ class TeacherDashboardController extends Controller
             $lastSent = cache($cacheKey);
             if (! $lastSent || now()->diffInHours($lastSent) >= 24) {
                 try {
+                    $student = Student::find($studentId);
+                    $teacher = Teacher::with('user')->find($teacherId);
+
                     // Send to teacher first (if available)
                     if ($teacher && $teacher->user && ! empty($teacher->user->email)) {
                         Mail::to($teacher->user->email)->queue(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
@@ -1495,37 +1494,36 @@ class TeacherDashboardController extends Controller
                 'excused_count' => (clone $attendanceQuery)->where('status', 'excused')->count(),
             ];
 
-            // Get student details
-            $students = Student::whereIn('id', function ($query) use ($classId) {
-                $query->select('student_id')
-                    ->from('enrollments')
-                    ->where('class_id', $classId);
-            })->get();
+            // Get student details with attendance counts in a single aggregate query
+            $studentAttendanceQuery = Attendance::where('attendances.class_id', $classId)
+                ->where('attendances.school_year_id', $activeSchoolYear->id)
+                ->whereBetween('attendances.date', [$dateFrom, $dateTo]);
 
-            $studentDetails = [];
-            foreach ($students as $student) {
-                $studentAttendanceQuery = Attendance::where('student_id', $student->id)
-                    ->where('class_id', $classId)
-                    ->where('school_year_id', $activeSchoolYear->id)
-                    ->whereBetween('date', [$dateFrom, $dateTo]);
-
-                if ($subjectId !== 'all') {
-                    $studentAttendanceQuery->where('subject_id', $subjectId);
-                }
-
-                $studentAttendance = $studentAttendanceQuery->get();
-
-                $absentCount = $studentAttendance->where('status', 'absent')->count();
-
-                $studentDetails[] = [
-                    'first_name' => $student->first_name,
-                    'last_name' => $student->last_name,
-                    'present_count' => $studentAttendance->where('status', 'present')->count(),
-                    'late_count' => $studentAttendance->where('status', 'late')->count(),
-                    'absent_count' => $absentCount,
-                    'is_at_risk' => $absentCount >= 3, // At risk if 3 or more absences in the period
-                ];
+            if ($subjectId !== 'all') {
+                $studentAttendanceQuery->where('attendances.subject_id', $subjectId);
             }
+
+            $studentDetails = $studentAttendanceQuery
+                ->join('students', 'attendances.student_id', '=', 'students.id')
+                ->select(
+                    'students.first_name',
+                    'students.last_name',
+                    DB::raw("SUM(CASE WHEN attendances.status = 'present' THEN 1 ELSE 0 END) as present_count"),
+                    DB::raw("SUM(CASE WHEN attendances.status = 'late' THEN 1 ELSE 0 END) as late_count"),
+                    DB::raw("SUM(CASE WHEN attendances.status = 'absent' THEN 1 ELSE 0 END) as absent_count")
+                )
+                ->groupBy('attendances.student_id', 'students.first_name', 'students.last_name')
+                ->get()
+                ->map(fn ($row) => [
+                    'first_name' => $row->first_name,
+                    'last_name' => $row->last_name,
+                    'present_count' => (int) $row->present_count,
+                    'late_count' => (int) $row->late_count,
+                    'absent_count' => (int) $row->absent_count,
+                    'is_at_risk' => (int) $row->absent_count >= 3,
+                ])
+                ->values()
+                ->toArray();
 
             // Get trend data (attendance counts per day)
             $trendDataQuery = Attendance::where('class_id', $classId)

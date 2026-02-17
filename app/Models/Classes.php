@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Classes extends Model
 {
@@ -13,44 +16,50 @@ class Classes extends Model
         'capacity',
 
     ];
+
     protected $table = 'classes';
 
-    public function section()
+    public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
     }
-    public function sections()
+
+    public function sections(): BelongsTo
     {
         return $this->belongsTo(Section::class);
     }
-    public function schoolYear()
+
+    public function schoolYear(): BelongsTo
     {
         return $this->belongsTo(SchoolYear::class, 'school_year_id');
     }
-    public function teacher()
+
+    public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class);
     }
 
-    public function enrollments()
+    public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class, 'class_id');
     }
 
-    public function schedules()
+    public function schedules(): HasMany
     {
         return $this->hasMany(Schedule::class, 'class_id');
     }
 
-    public function assessments()
+    public function assessments(): HasMany
     {
         return $this->hasMany(Assessment::class, 'class_id');
     }
-    public function students()
+
+    public function students(): BelongsToMany
     {
         return $this->belongsToMany(Student::class, 'enrollments', 'class_id', 'student_id');
     }
-    public function subject()
+
+    public function subject(): BelongsTo
     {
         return $this->belongsTo(Subject::class);
     }

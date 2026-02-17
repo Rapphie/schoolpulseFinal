@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GradeLevel extends Model
 {
@@ -19,16 +20,13 @@ class GradeLevel extends Model
         'level' => 'integer',
     ];
 
-    /**
-     * Get the sections for this grade level
-     */
-    public function sections()
+    public function sections(): HasMany
     {
         return $this->hasMany(Section::class);
     }
-    public function enrollments()
+
+    public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
-        
     }
 }

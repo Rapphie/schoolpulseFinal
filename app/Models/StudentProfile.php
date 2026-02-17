@@ -75,7 +75,8 @@ class StudentProfile extends Model
      */
     public function getIsCurrentAttribute(): bool
     {
-        $activeYear = SchoolYear::where('is_active', true)->first();
+        $activeYear = SchoolYear::getRealActive();
+
         return $activeYear && $this->school_year_id === $activeYear->id;
     }
 

@@ -26,7 +26,7 @@ class AdminDashboardController extends Controller
         $realActiveSchoolYear = SchoolYear::getRealActive();
 
         // Cache dashboard metrics for 2 minutes to reduce database load
-        $cacheKey = 'admin_dashboard_metrics_'.($activeSchoolYear?->id ?? 'none');
+        $cacheKey = 'admin_dashboard_metrics_' . ($activeSchoolYear?->id ?? 'none');
         $metrics = Cache::remember($cacheKey, 120, function () use ($activeSchoolYear) {
             $enrolledStudents = 0;
             $transferStudents = 0;
@@ -82,7 +82,7 @@ class AdminDashboardController extends Controller
 
         // Today's attendance - use aggregate query instead of fetching all records
         $todayDate = Carbon::today()->toDateString();
-        $attendanceStats = Cache::remember('admin_attendance_today_'.$todayDate, 60, function () use ($todayDate) {
+        $attendanceStats = Cache::remember('admin_attendance_today_' . $todayDate, 60, function () use ($todayDate) {
             return Attendance::where('date', $todayDate)
                 ->selectRaw("
                     SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count,
@@ -111,14 +111,14 @@ class AdminDashboardController extends Controller
                 return [
                     'type' => 'Enrollment',
                     'created_at' => $e->created_at,
-                    'description' => 'New student '.$e->status,
+                    'description' => 'New student ' . $e->status,
                 ];
             });
             $recentAssessments = \App\Models\Assessment::latest()->take(5)->get()->map(function ($a) {
                 return [
                     'type' => 'Assessment',
                     'created_at' => $a->created_at,
-                    'description' => $a->name.' (Q'.$a->quarter.')',
+                    'description' => $a->name . ' (Q' . $a->quarter . ')',
                 ];
             });
             $recentAbsences = Attendance::where('status', 'absent')->latest()->take(5)->get()->map(function ($at) {
@@ -129,8 +129,7 @@ class AdminDashboardController extends Controller
                 ];
             });
 
-            return collect($recentEnrollments)->merge($recentAssessments)->merge($recentAbsences)
-                ->sortByDesc('created_at')->take(10)->values();
+            return collect($recentEnrollments)->merge($recentAssessments)->merge($recentAbsences)->sortByDesc('created_at')->take(10)->values();
         });
 
         // Cache events table check - this only needs to happen once
@@ -152,7 +151,7 @@ class AdminDashboardController extends Controller
         $slotsPerGrade = collect();
         if ($activeSchoolYear) {
             $slotsPerGrade = Cache::remember(
-                'slots_per_grade_'.$activeSchoolYear->id,
+                'slots_per_grade_' . $activeSchoolYear->id,
                 120,
                 function () use ($activeSchoolYear) {
                     return Classes::where('classes.school_year_id', $activeSchoolYear->id)
@@ -337,58 +336,69 @@ class AdminDashboardController extends Controller
             // Get the real globally active school year (for class duplication source).
             $previousActiveSchoolYear = SchoolYear::getRealActive();
 
-            // Create the new school year record. The model's event will handle the 'is_active' logic.
-            $newSchoolYear = SchoolYear::create([
-                'name' => $startDate->format('Y').'-'.$endDate->format('Y'),
-                'start_date' => $data['start_date'],
-                'end_date' => $data['end_date'],
-                'is_active' => $data['is_active'],
-            ]);
+            // Wrap class/schedule duplication in a transaction for data integrity
+            $newSchoolYear = DB::transaction(function () use ($data, $startDate, $endDate, $previousActiveSchoolYear) {
+                $newSchoolYear = SchoolYear::create([
+                    'name' => $startDate->format('Y') . '-' . $endDate->format('Y'),
+                    'start_date' => $data['start_date'],
+                    'end_date' => $data['end_date'],
+                    'is_active' => $data['is_active'],
+                ]);
 
-            if (! empty($data['is_active'])) {
-                SchoolYear::clearAdminViewSchoolYear();
-            }
+                // If there was a previous active school year, duplicate its classes for the new school year
+                if ($previousActiveSchoolYear) {
+                    $previousClasses = Classes::where('school_year_id', $previousActiveSchoolYear->id)
+                        ->with('section.gradeLevel')
+                        ->get();
 
-            // If there was a previous active school year, duplicate its classes for the new school year
-            if ($previousActiveSchoolYear) {
-                $previousClasses = Classes::where('school_year_id', $previousActiveSchoolYear->id)
-                    ->with('section.gradeLevel')
-                    ->get();
+                    foreach ($previousClasses as $class) {
+                        $newClass = Classes::create([
+                            'section_id' => $class->section_id,
+                            'school_year_id' => $newSchoolYear->id,
+                            'teacher_id' => $class->teacher_id,
+                            'capacity' => $class->capacity,
+                        ]);
 
-                foreach ($previousClasses as $class) {
-                    $newClass = Classes::create([
-                        'section_id' => $class->section_id,
-                        'school_year_id' => $newSchoolYear->id,
-                        'teacher_id' => $class->teacher_id,
-                        'capacity' => $class->capacity,
-                    ]);
+                        // For Grade 1, 2, 3: Auto-create schedules with the adviser as teacher for all subjects
+                        $gradeLevel = optional($class->section)->gradeLevel;
+                        $gradeValue = optional($gradeLevel)->level;
 
-                    // For Grade 1, 2, 3: Auto-create schedules with the adviser as teacher for all subjects
-                    $gradeLevel = optional($class->section)->gradeLevel;
-                    $gradeValue = optional($gradeLevel)->level;
+                        if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]) && $class->teacher_id) {
+                            $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
+                            $currentStart = strtotime('07:00');
+                            $scheduleRows = [];
 
-                    if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]) && $class->teacher_id) {
-                        $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
-                        $currentStart = strtotime('07:00');
+                            foreach ($subjects as $subject) {
+                                $durationMinutes = $subject->duration_minutes ?? 60;
+                                $startTime = date('H:i', $currentStart);
+                                $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
+                                $currentStart += $durationMinutes * 60;
 
-                        foreach ($subjects as $subject) {
-                            $durationMinutes = $subject->duration_minutes ?? 60;
-                            $startTime = date('H:i', $currentStart);
-                            $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
-                            $currentStart += $durationMinutes * 60;
+                                $scheduleRows[] = [
+                                    'class_id' => $newClass->id,
+                                    'subject_id' => $subject->id,
+                                    'teacher_id' => $class->teacher_id,
+                                    'day_of_week' => json_encode(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']),
+                                    'start_time' => $startTime,
+                                    'end_time' => $endTime,
+                                    'room' => null,
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ];
+                            }
 
-                            Schedule::create([
-                                'class_id' => $newClass->id,
-                                'subject_id' => $subject->id,
-                                'teacher_id' => $class->teacher_id,
-                                'day_of_week' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-                                'start_time' => $startTime,
-                                'end_time' => $endTime,
-                                'room' => null,
-                            ]);
+                            if (! empty($scheduleRows)) {
+                                Schedule::insert($scheduleRows);
+                            }
                         }
                     }
                 }
+
+                return $newSchoolYear;
+            });
+
+            if (! empty($data['is_active'])) {
+                SchoolYear::clearAdminViewSchoolYear();
             }
 
             return redirect()->back()->with('success', 'Successfully added school year!');
@@ -397,7 +407,7 @@ class AdminDashboardController extends Controller
         } catch (\Throwable $th) {
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to create school year: '.$th->getMessage());
+                ->with('error', 'Failed to create school year: ' . $th->getMessage());
         }
     }
 
@@ -429,7 +439,7 @@ class AdminDashboardController extends Controller
                     ->with('error', "Date range overlaps with existing school year: {$overlapping->name} ({$overlapStart} - {$overlapEnd})");
             }
 
-            $data['name'] = $startDate->format('Y').'-'.$endDate->format('Y');
+            $data['name'] = $startDate->format('Y') . '-' . $endDate->format('Y');
 
             if ($request->input('is_active')) {
                 // Set all other school years to inactive
@@ -441,7 +451,7 @@ class AdminDashboardController extends Controller
 
             return redirect()->route('admin.dashboard')->with('success', 'School Year updated successfully.');
         } catch (\Throwable $th) {
-            return redirect()->route('admin.dashboard')->with('error', 'Error: '.$th->getMessage());
+            return redirect()->route('admin.dashboard')->with('error', 'Error: ' . $th->getMessage());
         }
     }
 
@@ -462,22 +472,17 @@ class AdminDashboardController extends Controller
                     ->with('error', 'Cannot delete school year with existing enrollments, grades, or attendance records. Please remove related data first.');
             }
 
-            // Delete associated classes and their schedules (empty classes without enrollments)
-            $classes = $schoolYear->classes;
-            foreach ($classes as $class) {
-                // Delete schedules for this class
-                Schedule::where('class_id', $class->id)->delete();
-                $class->delete();
-            }
-
-            // Delete quarters
+            // Bulk delete associated classes, schedules, and quarters
+            $classIds = $schoolYear->classes()->pluck('id');
+            Schedule::whereIn('class_id', $classIds)->delete();
+            Classes::whereIn('id', $classIds)->delete();
             $schoolYear->quarters()->delete();
 
             $schoolYear->delete();
 
             return redirect()->route('admin.dashboard')->with('success', 'School Year deleted successfully.');
         } catch (\Throwable $th) {
-            return redirect()->route('admin.dashboard')->with('error', 'Error: '.$th->getMessage());
+            return redirect()->route('admin.dashboard')->with('error', 'Error: ' . $th->getMessage());
         }
     }
 
@@ -492,8 +497,8 @@ class AdminDashboardController extends Controller
         if (! $schoolYear->is_promotion_open && ! $schoolYear->canOpenPromotion()) {
             return redirect()->route('admin.dashboard')
                 ->with('error', 'Promotion can only be opened after the school year has ended ('
-                    .$schoolYear->end_date->format('M d, Y').'). '
-                    .'Please wait until the school year concludes to prevent data loss.');
+                    . $schoolYear->end_date->format('M d, Y') . '). '
+                    . 'Please wait until the school year concludes to prevent data loss.');
         }
 
         $schoolYear->update(['is_promotion_open' => ! $schoolYear->is_promotion_open]);

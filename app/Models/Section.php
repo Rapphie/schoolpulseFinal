@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Section extends Model
 {
@@ -19,21 +22,18 @@ class Section extends Model
         'grade_level_id' => 'integer',
     ];
 
-    /**
-     * Get the grade level that this section belongs to
-     */
-    public function gradeLevel()
+    public function gradeLevel(): BelongsTo
     {
         return $this->belongsTo(GradeLevel::class);
     }
 
-    public function schedules()
+    public function schedules(): HasManyThrough
     {
         return $this->hasManyThrough(Schedule::class, Classes::class);
     }
 
-    public function classes()
+    public function classes(): HasMany
     {
-        return $this->hasMany(SchoolClass::class);
+        return $this->hasMany(Classes::class);
     }
 }

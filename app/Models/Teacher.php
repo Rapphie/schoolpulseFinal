@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Collection;
 
 class Teacher extends Model
@@ -22,46 +25,47 @@ class Teacher extends Model
         'status',
     ];
 
-    public function schedules()
+    public function schedules(): HasMany
     {
         return $this->hasMany(Schedule::class);
     }
 
-    public function attendances()
+    public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);
     }
 
-    public function grades()
+    public function grades(): HasMany
     {
         return $this->hasMany(Grade::class);
     }
 
-    public function llcs()
+    public function llcs(): HasMany
     {
         return $this->hasMany(LLC::class);
     }
 
-    public function advisoryClasses()
+    public function advisoryClasses(): HasMany
     {
         return $this->hasMany(Classes::class);
     }
-    public function enrollments()
+
+    public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
     }
 
-    public function classes()
+    public function classes(): HasMany
     {
         return $this->hasMany(Classes::class);
     }
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function subjects()
+    public function subjects(): HasManyThrough
     {
         return $this->hasManyThrough(Subject::class, Schedule::class, 'teacher_id', 'id', 'id', 'subject_id');
     }
@@ -97,23 +101,20 @@ class Teacher extends Model
             return null;
         }
 
-        if (!preg_match('/^grade\b/i', $gradeLevelName)) {
-            return 'Grade ' . $gradeLevelName;
+        if (! preg_match('/^grade\b/i', $gradeLevelName)) {
+            return 'Grade '.$gradeLevelName;
         }
 
         return $gradeLevelName;
     }
 
-    /**
-     * Advisory grade levels shown as numbers only when possible (e.g. "7" instead of "Grade 7").
-     */
     public function getAdvisoryGradeLevelsAttribute(): Collection
     {
         $this->loadMissing('classes.section.gradeLevel');
 
         return $this->classes
-            ->map(fn($class) => optional(optional($class->section)->gradeLevel)->name)
-            ->map(fn($name) => self::normalizeGradeLevelNumberOrName($name))
+            ->map(fn ($class) => optional(optional($class->section)->gradeLevel)->name)
+            ->map(fn ($name) => self::normalizeGradeLevelNumberOrName($name))
             ->filter()
             ->unique()
             ->values();
@@ -129,7 +130,7 @@ class Teacher extends Model
         $preview = $gradeLevels->take(3);
         $text = $preview->implode(', ');
         if ($gradeLevels->count() > 3) {
-            $text .= ' (+' . ($gradeLevels->count() - 3) . ' more)';
+            $text .= ' (+'.($gradeLevels->count() - 3).' more)';
         }
 
         return (string) $text;
@@ -140,8 +141,8 @@ class Teacher extends Model
         $this->loadMissing('classes.section.gradeLevel');
 
         return $this->classes
-            ->map(fn($class) => optional($class->section)->name)
-            ->map(fn($name) => trim((string) $name))
+            ->map(fn ($class) => optional($class->section)->name)
+            ->map(fn ($name) => trim((string) $name))
             ->filter()
             ->unique()
             ->values();
@@ -157,15 +158,12 @@ class Teacher extends Model
         $preview = $sections->take(3);
         $text = $preview->implode(', ');
         if ($sections->count() > 3) {
-            $text .= ' (+' . ($sections->count() - 3) . ' more)';
+            $text .= ' (+'.($sections->count() - 3).' more)';
         }
 
         return (string) $text;
     }
 
-    /**
-     * Advisory list formatted as "Grade X - SectionName".
-     */
     public function getAdvisorySectionsWithGradeAttribute(): Collection
     {
         $this->loadMissing('classes.section.gradeLevel');
@@ -188,7 +186,7 @@ class Teacher extends Model
                     return $gradeLevelName;
                 }
 
-                return $gradeLevelName . ' - ' . $sectionName;
+                return $gradeLevelName.' - '.$sectionName;
             })
             ->filter()
             ->unique()

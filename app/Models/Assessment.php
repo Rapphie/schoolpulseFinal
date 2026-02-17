@@ -25,7 +25,7 @@ class Assessment extends Model
 
     public function class(): BelongsTo
     {
-        return $this->belongsTo(SchoolClass::class, 'class_id');
+        return $this->belongsTo(Classes::class, 'class_id');
     }
 
     public function subject(): BelongsTo

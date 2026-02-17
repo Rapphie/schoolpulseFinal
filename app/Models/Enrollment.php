@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Enrollment extends Model
 {
@@ -21,35 +22,32 @@ class Enrollment extends Model
         'enrollment_date' => 'date',
     ];
 
-    public function student()
+    public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
     }
 
-    public function teacher()
+    public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class);
     }
 
-    public function enrolledByUser()
+    public function enrolledByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'enrolled_by_user_id');
     }
 
-    public function class()
+    public function class(): BelongsTo
     {
         return $this->belongsTo(Classes::class, 'class_id');
     }
 
-    public function schoolYear()
+    public function schoolYear(): BelongsTo
     {
         return $this->belongsTo(SchoolYear::class, 'school_year_id');
     }
 
-    /**
-     * The student profile this enrollment is linked to.
-     */
-    public function studentProfile()
+    public function studentProfile(): BelongsTo
     {
         return $this->belongsTo(StudentProfile::class);
     }

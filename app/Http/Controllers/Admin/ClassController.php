@@ -3,14 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\SchoolClass;
+use App\Models\Classes;
 use Illuminate\Http\Request;
 
 class ClassController extends Controller
 {
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -19,8 +16,7 @@ class ClassController extends Controller
             'teacher_id' => 'nullable|exists:teachers,id',
         ]);
 
-        // Check if a class with the same section and school year already exists
-        $existingClass = SchoolClass::where('section_id', $validated['section_id'])
+        $existingClass = Classes::where('section_id', $validated['section_id'])
             ->where('school_year_id', $validated['school_year_id'])
             ->exists();
 
@@ -28,14 +24,15 @@ class ClassController extends Controller
             return redirect()->route('admin.sections.index')->with('error', 'A class for this section and school year already exists.');
         }
 
-        SchoolClass::create($validated);
+        Classes::create($validated);
 
         return redirect()->route('admin.sections.index')->with('success', 'Class created successfully.');
     }
 
-    public function manage(SchoolClass $class)
+    public function manage(Classes $class)
     {
         $class->load(['section.gradeLevel', 'schoolYear', 'teacher.user', 'students.user', 'subjects.teacher.user']);
+
         return view('admin.classes.manage', compact('class'));
     }
 }
