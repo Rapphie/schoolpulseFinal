@@ -17,7 +17,7 @@
             .jumbotron h1 {
                 color: #007bff;
                 /* Bootstrap's primary blue */
-            }
+            } 
 
             /* --- General Card Styling --- */
             .card {
@@ -332,7 +332,7 @@
                     // Remove any existing success alerts
                     const existingAlerts = document.querySelectorAll('.alert-success.temp-alert');
                     existingAlerts.forEach(alert => alert.remove());
-                    
+
 
                     // Create new alert
                     const successAlert = document.createElement('div');
