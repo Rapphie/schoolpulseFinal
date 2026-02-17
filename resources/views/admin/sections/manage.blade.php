@@ -15,7 +15,7 @@
                 <h1 class="h3 mb-0 text-gray-800">Manage: {{ $section->gradeLevel->name }}-{{ $section->name }}</h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal"
                     data-bs-target="#sectionHistoryModal">History</button>
                 @if ($isEditable)
@@ -108,8 +108,8 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Enrolled Students</h6>
                 @if ($isEditable)
-                    <a class="btn btn-sm btn-primary d-flex align-items-center"
-                        href="{{ route('admin.enrollment.index', ['school_year_id' => $class->school_year_id]) }}">
+                    <a href="{{ route('admin.enrollment.create', $class) }}"
+                        class="btn btn-sm btn-primary d-flex align-items-center">
                         <i data-feather="plus" class="feather-sm me-1"></i> Enroll New Student
                     </a>
                 @endif
@@ -124,7 +124,6 @@
                                     <th>Name</th>
                                     <th>Gender</th>
                                     <th>Guardian</th>
-                                    <th>Enrolled By</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -137,9 +136,6 @@
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
                                         <td>{{ $enrollment->student->guardian->user->first_name ?? 'N/A' }}
                                             {{ $enrollment->student->guardian->user->last_name ?? '' }}</td>
-                                        <td>
-                                            {{ $enrollment->enrolledByUser?->full_name ?? ($enrollment->teacher?->user?->full_name ?? ($class->teacher?->user?->full_name ?? 'N/A')) }}
-                                        </td>
                                         <td class="d-flex flex-wrap gap-2">
                                             <a class="btn btn-sm btn-outline-primary"
                                                 href="{{ route('admin.students.show', $enrollment->student) }}">
@@ -147,26 +143,10 @@
                                             </a>
 
                                             @if ($isEditable)
-                                                <button class="btn btn-sm btn-outline-secondary edit-student-btn"
-                                                    data-bs-toggle="modal" data-bs-target="#editStudentModal"
-                                                    data-update-url="{{ route('admin.students.update', $enrollment->student) }}"
-                                                    data-student-id="{{ $enrollment->student->id }}"
-                                                    data-lrn="{{ $enrollment->student->lrn ?? '' }}"
-                                                    data-first-name="{{ $enrollment->student->first_name }}"
-                                                    data-last-name="{{ $enrollment->student->last_name }}"
-                                                    data-gender="{{ $enrollment->student->gender }}"
-                                                    data-birthdate="{{ $enrollment->student->birthdate?->format('Y-m-d') }}"
-                                                    data-address="{{ $enrollment->student->address ?? '' }}"
-                                                    data-distance="{{ $enrollment->student->distance_km ?? '' }}"
-                                                    data-transportation="{{ $enrollment->student->transportation ?? '' }}"
-                                                    data-family-income="{{ $enrollment->student->family_income ?? '' }}"
-                                                    data-guardian-first-name="{{ $enrollment->student->guardian->user->first_name ?? '' }}"
-                                                    data-guardian-last-name="{{ $enrollment->student->guardian->user->last_name ?? '' }}"
-                                                    data-guardian-email="{{ $enrollment->student->guardian->user->email ?? '' }}"
-                                                    data-guardian-phone="{{ $enrollment->student->guardian->phone ?? '' }}"
-                                                    data-guardian-relationship="{{ $enrollment->student->guardian->relationship ?? '' }}">
+                                                <a href="{{ route('admin.students.edit', $enrollment->student) }}"
+                                                    class="btn btn-sm btn-outline-secondary">
                                                     Edit
-                                                </button>
+                                                </a>
 
                                                 <form
                                                     action="{{ route('admin.sections.students.destroy', [$section, $enrollment->student]) }}"
@@ -242,8 +222,8 @@
                                                             ? $schedule->end_time->format('g:i A')
                                                             : null;
                                                 @endphp
-                                                <small class="text-muted">{!! $startTimeDisplay ?? '<em>Not set</em>' !!} -
-                                                    {!! $endTimeDisplay ?? '<em>Not set</em>' !!}</small>
+                                                <small class="text-muted">{!! $startTimeDisplay ?? '<em>Not Set</em>' !!} -
+                                                    {!! $endTimeDisplay ?? '<em>Not Set</em>' !!}</small>
                                             </td>
                                             <td class="align-middle text-center">
                                                 @if ($isEditable)
@@ -281,7 +261,7 @@
                                             </td>
                                         @else
                                             <td class="text-muted"><em>Not Assigned</em></td>
-                                            <td class="text-muted"><em>Not set</em></td>
+                                            <td class="text-muted"><em>Not Set</em></td>
                                             <td class="text-center">
                                                 @if ($isEditable)
                                                     @if (!$isLowerGrade)
@@ -315,174 +295,7 @@
         </div>
     </div>
 
-    @if ($isEditable)
-        <!-- Edit Student Modal -->
-        <div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel"
-            aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editStudentModalLabel">Edit Student</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <form id="editStudentForm" action="#" method="POST">
-                        @csrf
-                        @method('PUT')
-                        <div class="modal-body">
-                            <input type="hidden" name="_form" value="edit-student">
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="edit_lrn" class="form-label">LRN</label>
-                                    <input type="text" class="form-control" id="edit_lrn" name="lrn"
-                                        value="{{ old('lrn') }}">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="edit_first_name" class="form-label">First Name <span
-                                            class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="edit_first_name" name="first_name"
-                                        value="{{ old('first_name') }}" required>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="edit_last_name" class="form-label">Last Name <span
-                                            class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="edit_last_name" name="last_name"
-                                        value="{{ old('last_name') }}" required>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="edit_gender" class="form-label">Gender <span
-                                            class="text-danger">*</span></label>
-                                    <select class="form-select" id="edit_gender" name="gender" required>
-                                        <option value="male" {{ old('gender') === 'male' ? 'selected' : '' }}>Male
-                                        </option>
-                                        <option value="female" {{ old('gender') === 'female' ? 'selected' : '' }}>Female
-                                        </option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="edit_birthdate" class="form-label">Birthdate <span
-                                            class="text-danger">*</span></label>
-                                    <input type="date" class="form-control" id="edit_birthdate" name="birthdate"
-                                        value="{{ old('birthdate') }}" required>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="edit_address" class="form-label">Address</label>
-                                <textarea class="form-control" id="edit_address" name="address" rows="2">{{ old('address') }}</textarea>
-                            </div>
 
-                            <h6 class="mt-4 mb-3 border-bottom pb-2">Additional Information (For Analytics)</h6>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="edit_distance_km" class="form-label">Distance from School (km)</label>
-                                    <input type="number" step="0.01" min="0" class="form-control"
-                                        id="edit_distance_km" name="distance_km" value="{{ old('distance_km') }}">
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="edit_transportation" class="form-label">Mode of Transportation</label>
-                                    <select class="form-select" id="edit_transportation" name="transportation">
-                                        <option value="" {{ old('transportation') == '' ? 'selected' : '' }}>--
-                                            Select
-                                            --</option>
-                                        <option value="Walk" {{ old('transportation') == 'Walk' ? 'selected' : '' }}>
-                                            Walk
-                                        </option>
-                                        <option value="Bicycle"
-                                            {{ old('transportation') == 'Bicycle' ? 'selected' : '' }}>
-                                            Bicycle</option>
-                                        <option value="Motorcycle"
-                                            {{ old('transportation') == 'Motorcycle' ? 'selected' : '' }}>Motorcycle
-                                        </option>
-                                        <option value="Tricycle"
-                                            {{ old('transportation') == 'Tricycle' ? 'selected' : '' }}>
-                                            Tricycle</option>
-                                        <option value="Jeepney"
-                                            {{ old('transportation') == 'Jeepney' ? 'selected' : '' }}>
-                                            Jeepney</option>
-                                        <option value="Bus" {{ old('transportation') == 'Bus' ? 'selected' : '' }}>Bus
-                                        </option>
-                                        <option value="Private Vehicle"
-                                            {{ old('transportation') == 'Private Vehicle' ? 'selected' : '' }}>Private
-                                            Vehicle
-                                        </option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label for="edit_family_income" class="form-label">Socioeconomic Status</label>
-                                    <select class="form-select" id="edit_family_income" name="family_income">
-                                        <option value="" {{ old('family_income') == '' ? 'selected' : '' }}>--
-                                            Select --
-                                        </option>
-                                        <option value="Low" {{ old('family_income') == 'Low' ? 'selected' : '' }}>Low
-                                        </option>
-                                        <option value="Medium" {{ old('family_income') == 'Medium' ? 'selected' : '' }}>
-                                            Medium
-                                        </option>
-                                        <option value="High" {{ old('family_income') == 'High' ? 'selected' : '' }}>High
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <h6 class="mt-4 mb-3 border-bottom pb-2">Guardian Information</h6>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="edit_guardian_first_name" class="form-label">First Name <span
-                                            class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="edit_guardian_first_name"
-                                        name="guardian_first_name" value="{{ old('guardian_first_name') }}" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="edit_guardian_last_name" class="form-label">Last Name <span
-                                            class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="edit_guardian_last_name"
-                                        name="guardian_last_name" value="{{ old('guardian_last_name') }}" required>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="edit_guardian_email" class="form-label">Email <span
-                                            class="text-danger">*</span></label>
-                                    <input type="email" class="form-control" id="edit_guardian_email"
-                                        name="guardian_email" value="{{ old('guardian_email') }}" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="edit_guardian_phone" class="form-label">Phone <span
-                                            class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="edit_guardian_phone"
-                                        name="guardian_phone" value="{{ old('guardian_phone') }}" required>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="edit_guardian_relationship" class="form-label">Relationship to Student <span
-                                        class="text-danger">*</span></label>
-                                <select class="form-select" id="edit_guardian_relationship" name="guardian_relationship"
-                                    required>
-                                    <option value="parent"
-                                        {{ old('guardian_relationship') == 'parent' ? 'selected' : '' }}>
-                                        Parent</option>
-                                    <option value="sibling"
-                                        {{ old('guardian_relationship') == 'sibling' ? 'selected' : '' }}>
-                                        Sibling</option>
-                                    <option value="relative"
-                                        {{ old('guardian_relationship') == 'relative' ? 'selected' : '' }}>Relative
-                                    </option>
-                                    <option value="guardian"
-                                        {{ old('guardian_relationship') == 'guardian' ? 'selected' : '' }}>Guardian
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Save changes</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    @endif
 
     @if ($isEditable)
         <!-- Add Schedule Modal -->
@@ -552,7 +365,6 @@
                                             class="text-danger">*</span></label>
                                     <select class="form-select" name="end_time" id="end_time" required></select>
                                 </div>
-                                <!-- Room input removed -->
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -599,17 +411,9 @@
                             </div>
 
                             <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <label class="form-label mb-0">Day(s) of the Week</label>
-                                    <button class="btn btn-link btn-sm p-0" type="button"
-                                        data-day-toggle="#editDaySelector" aria-expanded="false"
-                                        aria-controls="editDaySelector" data-hide-label="Hide days">
-                                        Change days
-                                    </button>
-                                </div>
-                                <p class="small text-muted mb-2">Defaults to Monday through Friday. Expand if you need to
-                                    adjust.</p>
-                                <div id="editDaySelector" class="day-selector d-none">
+                                <label class="form-label mb-0">Day(s) of the Week</label>
+                                <div class="small text-muted mb-2">Select the days for this schedule.</div>
+                                <div id="editDaySelector">
                                     @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $day)
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input edit-day-checkbox" type="checkbox"
@@ -633,7 +437,6 @@
                                             class="text-danger">*</span></label>
                                     <select class="form-select" name="end_time" id="edit_end_time" required></select>
                                 </div>
-                                <!-- Room input removed -->
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -714,46 +517,43 @@
             </div>
         </div>
     @endif
+@endsection
 
-<!-- Section/Class History Modal (moved from @section('modals')) -->
-    <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="sectionHistoryModalLabel">Section/Class History</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body w-100 col-md-8 col-sm-8 col-lg-8 col-xl-8">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
-                            <thead>
-                                <tr>
-                                    <th>School Year</th>
-                                    <th>Adviser</th>
-                                    <th>Enrolled</th>
-                                    <th>Capacity</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Data will be populated by DataTables -->
-                            </tbody>
-                        </table>
-                    </div>
+<!-- Section/Class History Modal -->
+<div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sectionHistoryModalLabel">Section/Class History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body w-100 col-md-8 col-sm-8 col-lg-8 col-xl-8">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
+                        <thead>
+                            <tr>
+                                <th>School Year</th>
+                                <th>Adviser</th>
+                                <th>Enrolled</th>
+                                <th>Capacity</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
-@endsection
+</div>
 
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Prepare section history data (injected by controller)
             const sectionHistory = @json($sectionHistory ?? []);
             const table = $('#sectionHistoryTable').DataTable({
-
                 data: sectionHistory,
                 columns: [{
                         data: 'school_year',
@@ -779,10 +579,7 @@
                             if (!row.class_id) return '';
                             const url =
                                 `{{ route('admin.sections.manage', $section) }}?class_id=${row.class_id}`;
-                            return `<a href="${url}"
-                                                class="btn btn-sm btn-outline-primary" title="View">
-                                                View
-                                            </a>`;
+                            return `<a href="${url}" class="btn btn-sm btn-outline-primary" title="View">View</a>`;
                         }
                     }
                 ],
@@ -791,7 +588,6 @@
                 ],
                 responsive: true,
                 destroy: true,
-
                 drawCallback: function(settings) {
                     if (typeof feather !== 'undefined') {
                         feather.replace();
@@ -799,7 +595,6 @@
                 }
             });
 
-            // Re-draw on modal show (fixes DataTables rendering in modals)
             $('#sectionHistoryModal').on('shown.bs.modal', function() {
                 table.columns.adjust().draw();
             });
@@ -858,7 +653,7 @@
             if (!modalEl) return;
 
             modalEl.addEventListener('show.bs.modal', function(event) {
-                const button = event.relatedTarget; // Button that triggered the modal
+                const button = event.relatedTarget;
                 const subjectId = button?.getAttribute('data-subject-id');
                 const subjectName = button?.getAttribute('data-subject-name');
 
@@ -867,21 +662,15 @@
                 const title = modalEl.querySelector('.modal-title');
 
                 if (subjectId) {
-                    // Set hidden input for submission
                     hidden.value = subjectId;
-
-                    // Set the select to the value and disable it to prevent changes
                     if (select) {
                         select.value = subjectId;
                         select.setAttribute('disabled', 'disabled');
                     }
-
-                    // Update modal title to indicate subject
                     if (title && subjectName) {
                         title.textContent = `Add Schedule Entry — ${subjectName}`;
                     }
                 } else {
-                    // No subject provided: ensure select is enabled and cleared
                     if (select) {
                         select.removeAttribute('disabled');
                         select.value = '';
@@ -906,13 +695,11 @@
     </script>
     <script>
         (function() {
-            // Time dropdown population
             function populateTimeDropdowns(startId, endId) {
                 const startTimeSelect = document.getElementById(startId);
                 const endTimeSelect = document.getElementById(endId);
                 if (!startTimeSelect || !endTimeSelect) return;
 
-                // Clear existing options
                 startTimeSelect.innerHTML = '<option value="">-- Select --</option>';
                 endTimeSelect.innerHTML = '<option value="">-- Select --</option>';
 
@@ -944,7 +731,6 @@
             populateTimeDropdowns('start_time', 'end_time');
             populateTimeDropdowns('edit_start_time', 'edit_end_time');
 
-
             const editModalEl = document.getElementById('editScheduleModal');
             if (!editModalEl) return;
 
@@ -955,6 +741,7 @@
                 const days = button?.getAttribute('data-days');
                 const startTime = button?.getAttribute('data-start-time');
                 const endTime = button?.getAttribute('data-end-time');
+                const room = button?.getAttribute('data-room');
                 const subjectId = button?.getAttribute('data-subject-id');
                 const subjectName = button?.getAttribute('data-subject-name');
                 const isLowerGrade = button?.getAttribute('data-is-lower-grade') === 'true';
@@ -966,17 +753,14 @@
                 const startInput = document.getElementById('edit_start_time');
                 const endInput = document.getElementById('edit_end_time');
 
-                // Set form action
                 if (form && updateUrl) {
                     form.setAttribute('action', updateUrl);
                 }
 
-                // Populate teacher and handle lower grade restriction
                 if (teacherSelect) {
                     teacherSelect.value = teacherId || '';
                     if (isLowerGrade) {
                         teacherSelect.setAttribute('disabled', 'disabled');
-                        // Add a hidden input to maintain the teacher_id value
                         let hiddenTeacher = form.querySelector('input[name="teacher_id"][type="hidden"]');
                         if (!hiddenTeacher) {
                             hiddenTeacher = document.createElement('input');
@@ -988,36 +772,34 @@
                         hiddenTeacher.value = teacherId || '';
                     } else {
                         teacherSelect.removeAttribute('disabled');
-                        const hiddenTeacher = form.querySelector('input[name="teacher_id"][type="hidden"]');
+                        const hiddenTeacher = form.querySelector(
+                            'input[name="teacher_id"][type="hidden"]');
                         if (hiddenTeacher) hiddenTeacher.remove();
                     }
                 }
 
-                // Update label to show restriction note for lower grades
                 const teacherNote = editModalEl.querySelector('#teacher-restriction-note');
                 if (isLowerGrade) {
                     if (!teacherNote) {
                         const note = document.createElement('small');
                         note.id = 'teacher-restriction-note';
                         note.className = 'text-muted d-block';
-                        note.textContent = 'Teacher is locked to the class adviser for Grade 1-3.';
+                        note.textContent =
+                            'Teacher is locked to the class adviser for Grade 1-3.';
                         teacherSelect.parentNode.appendChild(note);
                     }
                 } else {
                     if (teacherNote) teacherNote.remove();
                 }
 
-                // Populate subject display and hidden input
                 if (subjectInput) subjectInput.value = subjectId || '';
                 if (subjectDisplay) subjectDisplay.value = subjectName || '';
 
-                // Populate days checkboxes
                 const dayArray = days ? days.split(',').map(d => d.trim().toLowerCase()) : [];
                 document.querySelectorAll('.edit-day-checkbox').forEach((cb) => {
                     cb.checked = dayArray.includes(cb.value.toLowerCase());
                 });
 
-                // Populate times
                 if (startInput) startInput.value = startTime || '';
                 if (endInput) endInput.value = endTime || '';
             });
@@ -1047,56 +829,6 @@
     </script>
     <script>
         (function() {
-            const editStudentModal = document.getElementById('editStudentModal');
-            if (!editStudentModal) return;
-
-            editStudentModal.addEventListener('show.bs.modal', function(event) {
-                const button = event.relatedTarget;
-                const form = document.getElementById('editStudentForm');
-
-                if (form) {
-                    const updateUrl = button?.getAttribute('data-update-url');
-                    if (updateUrl) {
-                        form.setAttribute('action', updateUrl);
-                    }
-                }
-
-                const setValue = (id, value) => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.value = value ?? '';
-                    }
-                };
-
-                const data = button?.dataset ?? {};
-                setValue('edit_lrn', data.lrn);
-                setValue('edit_first_name', data.firstName);
-                setValue('edit_last_name', data.lastName);
-                setValue('edit_gender', data.gender);
-                setValue('edit_birthdate', data.birthdate);
-                setValue('edit_address', data.address);
-                setValue('edit_distance_km', data.distance);
-                setValue('edit_transportation', data.transportation);
-                setValue('edit_family_income', data.familyIncome);
-                setValue('edit_guardian_first_name', data.guardianFirstName);
-                setValue('edit_guardian_last_name', data.guardianLastName);
-                setValue('edit_guardian_email', data.guardianEmail);
-                setValue('edit_guardian_phone', data.guardianPhone);
-                setValue('edit_guardian_relationship', data.guardianRelationship);
-            });
-
-            editStudentModal.addEventListener('hidden.bs.modal', function() {
-                const form = document.getElementById('editStudentForm');
-                if (form) {
-                    form.removeAttribute('action');
-                    form.reset();
-                }
-            });
-        })();
-    </script>
-    <script>
-        (function() {
-            // Teacher data for the combobox
             const teachersList = @json($teachers->map(fn($t) => ['id' => $t->id, 'name' => $t->user->first_name . ' ' . $t->user->last_name]));
 
             const adviserInput = document.getElementById('adviser_search');
@@ -1108,7 +840,8 @@
             const renderDropdown = (teachers) => {
                 adviserMenu.innerHTML = '';
                 if (teachers.length === 0) {
-                    adviserMenu.innerHTML = '<div class="dropdown-item text-muted">No teachers found</div>';
+                    adviserMenu.innerHTML =
+                        '<div class="dropdown-item text-muted">No teachers found</div>';
                     return;
                 }
                 teachers.forEach(teacher => {
@@ -1126,7 +859,6 @@
                 });
             };
 
-            // Filter and show dropdown on input
             adviserInput.addEventListener('input', function() {
                 const query = this.value.toLowerCase().trim();
                 const filtered = teachersList.filter(t => t.name.toLowerCase().includes(query));
@@ -1134,7 +866,6 @@
                 adviserMenu.classList.add('show');
             });
 
-            // Show all teachers on focus
             adviserInput.addEventListener('focus', function() {
                 const query = this.value.toLowerCase().trim();
                 const filtered = query ?
@@ -1144,18 +875,15 @@
                 adviserMenu.classList.add('show');
             });
 
-            // Hide dropdown when clicking outside
             document.addEventListener('click', function(e) {
                 if (!adviserInput.contains(e.target) && !adviserMenu.contains(e.target)) {
                     adviserMenu.classList.remove('show');
                 }
             });
 
-            // Reset modal on open
             const assignAdviserModal = document.getElementById('assignAdviserModal');
             if (assignAdviserModal) {
                 assignAdviserModal.addEventListener('show.bs.modal', function() {
-                    // Set initial value if there's a current adviser
                     const currentTeacherId = '{{ $class->teacher_id ?? '' }}';
                     const currentTeacher = teachersList.find(t => t.id == currentTeacherId);
                     if (currentTeacher) {
