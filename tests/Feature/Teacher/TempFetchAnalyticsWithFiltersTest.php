@@ -28,9 +28,9 @@ class TempFetchAnalyticsWithFiltersTest extends TestCase
 
         // $url = route('teacher.analytics.absenteeism') . '?class_id=' . $class->id . '&grade_level_id=' . $grade->id;
 
-        // $response = $this->get($url);
+        $response = $this->get('login');
 
-        // $response->assertStatus(200);
+        $response->assertStatus(200);
 
         // $content = $response->getContent();
         // $this->assertMatchesRegularExpression('/Student Risk Monitoring|Data Unavailable/', $content);

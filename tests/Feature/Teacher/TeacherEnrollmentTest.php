@@ -91,6 +91,7 @@ class TeacherEnrollmentTest extends TestCase
             ]);
 
         $response->assertRedirect();
+        // Check for success session
         $response->assertSessionMissing('error');
         $response->assertSessionHas('success');
 

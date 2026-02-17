@@ -200,7 +200,7 @@ class ScheduleTimeSlotTest extends TestCase
 
     // ─── Auto-Schedule Time Reset Tests ────────────────────────────────
 
-    public function test_assign_adviser_creates_schedules_with_null_times(): void
+    public function test_assign_adviser_creates_schedules_with_zero_times(): void
     {
         $env = $this->buildTestEnvironment(1);
 
@@ -216,12 +216,14 @@ class ScheduleTimeSlotTest extends TestCase
             ->get();
 
         foreach ($schedules as $schedule) {
-            $this->assertNull($schedule->start_time, 'Schedule start_time should be null after adviser auto-assignment');
-            $this->assertNull($schedule->end_time, 'Schedule end_time should be null after adviser auto-assignment');
+            $this->assertNotNull($schedule->start_time, 'Schedule start_time should be set after adviser auto-assignment');
+            $this->assertNotNull($schedule->end_time, 'Schedule end_time should be set after adviser auto-assignment');
+            $this->assertSame('00:00:00', $schedule->start_time->format('H:i:s'));
+            $this->assertSame('00:00:00', $schedule->end_time->format('H:i:s'));
         }
     }
 
-    public function test_assign_adviser_nulls_subject_duration_and_schedule_times(): void
+    public function test_assign_adviser_clears_subject_duration_and_sets_schedule_zero_times(): void
     {
         $env = $this->buildTestEnvironment(2);
 
@@ -249,11 +251,13 @@ class ScheduleTimeSlotTest extends TestCase
         $subject->refresh();
         $this->assertNull($subject->duration_minutes);
         $this->assertNotNull($schedule);
-        $this->assertNull($schedule->start_time);
-        $this->assertNull($schedule->end_time);
+        $this->assertNotNull($schedule->start_time);
+        $this->assertNotNull($schedule->end_time);
+        $this->assertSame('00:00:00', $schedule->start_time->format('H:i:s'));
+        $this->assertSame('00:00:00', $schedule->end_time->format('H:i:s'));
     }
 
-    public function test_assign_adviser_sets_null_times_when_subject_has_no_duration(): void
+    public function test_assign_adviser_sets_zero_times_when_subject_has_no_duration(): void
     {
         $env = $this->buildTestEnvironment(3);
 
@@ -279,11 +283,13 @@ class ScheduleTimeSlotTest extends TestCase
             ->first();
 
         $this->assertNotNull($schedule);
-        $this->assertNull($schedule->start_time);
-        $this->assertNull($schedule->end_time);
+        $this->assertNotNull($schedule->start_time);
+        $this->assertNotNull($schedule->end_time);
+        $this->assertSame('00:00:00', $schedule->start_time->format('H:i:s'));
+        $this->assertSame('00:00:00', $schedule->end_time->format('H:i:s'));
     }
 
-    public function test_assign_adviser_sets_null_times_for_multiple_schedules(): void
+    public function test_assign_adviser_sets_zero_times_for_multiple_schedules(): void
     {
         $env = $this->buildTestEnvironment(1);
 
@@ -313,8 +319,116 @@ class ScheduleTimeSlotTest extends TestCase
         $this->assertGreaterThanOrEqual(3, $schedules->count(), 'Should have created schedules for all subjects');
 
         foreach ($schedules as $schedule) {
-            $this->assertNull($schedule->start_time);
-            $this->assertNull($schedule->end_time);
+            $this->assertNotNull($schedule->start_time);
+            $this->assertNotNull($schedule->end_time);
+            $this->assertSame('00:00:00', $schedule->start_time->format('H:i:s'));
+            $this->assertSame('00:00:00', $schedule->end_time->format('H:i:s'));
         }
+    }
+
+    public function test_admin_manage_view_shows_not_set_for_zeroed_schedule_times(): void
+    {
+        $env = $this->buildTestEnvironment(1);
+
+        Schedule::updateOrCreate(
+            [
+                'class_id' => $env['class']->id,
+                'subject_id' => $env['subject']->id,
+            ],
+            [
+                'teacher_id' => $env['teacher']->id,
+                'day_of_week' => ['monday'],
+                'start_time' => '00:00',
+                'end_time' => '00:00',
+                'room' => null,
+            ]
+        );
+
+        $response = $this->actingAs($env['adminUser'])->get(
+            route('admin.sections.manage', ['section' => $env['section'], 'class_id' => $env['class']->id])
+        );
+
+        $response->assertStatus(200);
+        $response->assertSee('Not Set');
+        $response->assertDontSee('12:00 AM');
+    }
+
+    public function test_teacher_view_shows_not_set_for_zeroed_schedule_times(): void
+    {
+        $env = $this->buildTestEnvironment(4);
+
+        Schedule::updateOrCreate(
+            [
+                'class_id' => $env['class']->id,
+                'subject_id' => $env['subject']->id,
+            ],
+            [
+                'teacher_id' => $env['teacher']->id,
+                'day_of_week' => ['monday'],
+                'start_time' => '00:00',
+                'end_time' => '00:00',
+                'room' => null,
+            ]
+        );
+
+        $anotherTeacherUser = User::factory()->create([
+            'role_id' => 2,
+            'temporary_password' => null,
+        ]);
+
+        Teacher::create([
+            'user_id' => $anotherTeacherUser->id,
+            'phone' => '09'.fake()->numerify('#########'),
+            'gender' => 'female',
+            'date_of_birth' => '1992-01-01',
+            'address' => 'Test Address',
+            'qualification' => 'Bachelor of Education',
+            'status' => 'active',
+        ]);
+
+        $response = $this->actingAs($anotherTeacherUser)->get(route('teacher.classes.view', $env['class']));
+
+        $response->assertStatus(200);
+        $response->assertSee('Not Set');
+        $response->assertDontSee('12:00 AM');
+    }
+
+    public function test_teacher_schedules_page_hides_zeroed_adviser_placeholder_schedules(): void
+    {
+        $env = $this->buildTestEnvironment(1);
+
+        $this->actingAs($env['adminUser'])->post(
+            route('admin.sections.adviser.assign', $env['class']),
+            ['teacher_id' => $env['teacher']->id]
+        )->assertRedirect();
+
+        $response = $this->actingAs($env['teacherUser'])->get(route('teacher.schedules.index'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee($env['subject']->name);
+    }
+
+    public function test_teacher_schedules_page_shows_timed_assigned_schedules(): void
+    {
+        $env = $this->buildTestEnvironment(4);
+
+        Schedule::updateOrCreate(
+            [
+                'class_id' => $env['class']->id,
+                'subject_id' => $env['subject']->id,
+            ],
+            [
+                'teacher_id' => $env['teacher']->id,
+                'day_of_week' => ['monday'],
+                'start_time' => '08:00',
+                'end_time' => '09:00',
+                'room' => 'Room A',
+            ]
+        );
+
+        $response = $this->actingAs($env['teacherUser'])->get(route('teacher.schedules.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee($env['subject']->name);
     }
 }

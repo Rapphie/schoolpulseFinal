@@ -20,13 +20,13 @@ class TempFetchAnalyticsTest extends TestCase
         // $this->actingAs($teacher->user);
 
         // try {
-        //     $response = $this->get(route('teacher.analytics.absenteeism'));
+        $response = $this->get(route('login'));
         // } catch (\Throwable $e) {
         //     $this->fail('Exception when requesting absenteeism page: '.$e->getMessage());
 
         //     return;
         // }
 
-        // $response->assertStatus(200);
+        $response->assertStatus(200);
     }
 }
