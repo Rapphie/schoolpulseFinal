@@ -1,5 +1,7 @@
 <?php
 
+// Tests for Read Only Sections
+
 namespace Tests\Feature\Admin;
 
 use App\Models\Classes;
@@ -116,7 +118,7 @@ class ManageSectionReadOnlyTest extends TestCase
         $response->assertSee('Update Capacity');
     }
 
-    public function test_manage_page_links_enroll_to_admin_enrollment_page(): void
+    public function test_manage_page_links_enroll_to_admin_enrollment_create_page(): void
     {
         $data = $this->createSectionWithHistory();
 
@@ -125,8 +127,7 @@ class ManageSectionReadOnlyTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Enroll New Student');
-        $response->assertDontSee('Download Enrollees');
-        $response->assertSee('admin/enrollment?school_year_id='.$data['activeSchoolYear']->id, false);
+        $response->assertSee('admin/classes/'.$data['activeClass']->id.'/enroll', false);
         $response->assertDontSee('id="enrollStudentModal"', false);
     }
 

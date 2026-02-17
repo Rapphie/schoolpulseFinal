@@ -65,6 +65,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         Route::put('/classes/{class}/update-capacity', [ClassroomSectionController::class, 'updateCapacity'])->name('sections.capacity.update');
         Route::post('/classes/{class}/store-schedule', [ClassroomSectionController::class, 'storeSchedule'])->name('sections.schedule.store');
         // Use the admin ClassroomSectionController to handle enrollments created from the admin class view
+        Route::get('/classes/{class}/enroll', [ClassroomSectionController::class, 'createEnrollment'])->name('enrollment.create');
         Route::post('/classes/{class}/enroll', [ClassroomSectionController::class, 'enrollStudent'])->name('enrollment.store');
         Route::post('/class-record/upload', [ClassRecordController::class, 'upload'])->name('class-record.upload');
         Route::post('/class-record/save', [ClassRecordController::class, 'saveClassRecord'])->name('class-record.save');
