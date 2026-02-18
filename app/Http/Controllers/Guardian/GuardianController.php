@@ -142,7 +142,7 @@ class GuardianController extends Controller
             'FOURTH QUARTER' => 4,
         ];
 
-        return $map[$normalized] ?? ($value ?: 'Unspecified Quarter');
+        return isset($map[$normalized]) ? $labels[$map[$normalized]] : ($value ?: 'Unspecified Quarter');
     }
 
     private function gradeRemark(?float $grade): string

@@ -360,6 +360,9 @@ class TeacherDashboardController extends Controller
                 ->get()
                 ->sortBy('section.gradeLevel.level');
 
+            // Eager-load teacher's schedules with subjects to avoid N+1 in the view
+            $teacher->load('schedules.subject');
+
             return view('teacher.classes', compact('classes', 'teacher'));
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@classes error: '.$e->getMessage(), ['exception' => $e]);

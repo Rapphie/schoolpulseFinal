@@ -283,6 +283,23 @@
                     </ul>
                 </li>
             </ul>
+        @elseif (Auth::check() && Auth::user()->hasRole('guardian'))
+            <ul class="nav nav-pills flex-column mb-auto w-100">
+                <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('guardian.dashboard') ? 'active' : 'link-dark' }}"
+                        href="{{ route('guardian.dashboard') }}" style="width: 100%;">
+                        <i data-feather="home" class="me-2"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('profile') ? 'active' : 'link-dark' }}"
+                        href="{{ route('profile') }}" style="width: 100%;">
+                        <i data-feather="user" class="me-2"></i>
+                        <span>My Profile</span>
+                    </a>
+                </li>
+            </ul>
         @endif
     </div>
     <div class="mt-auto w-100">

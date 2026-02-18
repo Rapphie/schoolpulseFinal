@@ -3,11 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Schedule;
-use App\Models\Section;
-use App\Models\Student;
 use App\Models\SchoolYear;
 use App\Models\Classes;
-use App\Models\Teacher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -75,19 +72,5 @@ class TeacherSectionsController extends Controller
         $subjects = $schedules->pluck('subject')->unique('id')->values();
 
         return response()->json($subjects);
-    }
-    public function getStudentsBySection($section)
-    {
-        $students = Student::where('section_id', $section)->get();
-        return response()->json(['students' => $students]);
-    }
-
-    public function manageSection($sectionId)
-    {
-        $class = Section::where('id', $sectionId)->get();
-        $schedules = Schedule::where('section_id', $sectionId)->get();
-        $students = Student::where('section_id', $sectionId)->get();
-
-        return view('teacher.classes.view', compact('classes', 'students'));
     }
 }

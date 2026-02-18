@@ -1,5 +1,7 @@
 @extends('base')
 
+@section('title', 'My Schedule')
+
 @section('content')
     <div class="container-fluid">
         <div class="flex justify-between items-center mb-4">
