@@ -121,7 +121,7 @@
         <div class="col-12">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('teacher.oral-participation.list') }}">Oral
+                    <li class="breadcrumb-item"><a href="{{ route('teacher.assessments.list') }}">Oral
                             Participation</a></li>
                     <li class="breadcrumb-item">{{ $class->section->gradeLevel->name }} {{ $class->section->name }}</li>
                     <li class="breadcrumb-item active" aria-current="page">Scores</li>
@@ -388,9 +388,13 @@
                             <div class="d-flex align-items-center">
                                 <label for="recitationQuarter" class="me-2 fw-bold text-white-50">Quarter:</label>
                                 <select id="recitationQuarter" class="form-select form-select-sm text-dark"
-                                    style="width: 120px;">
+                                    style="width: 120px;" {{ $activeQuarterNumber ? 'disabled' : '' }}>
                                     @for ($q = 1; $q <= 4; $q++)
-                                        <option value="{{ $q }}">Quarter {{ $q }}</option>
+                                        <option value="{{ $q }}"
+                                            {{ $activeQuarterNumber === $q ? 'selected' : '' }}
+                                            {{ $activeQuarterNumber && $activeQuarterNumber !== $q ? 'disabled' : '' }}>
+                                            Quarter {{ $q }}
+                                        </option>
                                     @endfor
                                 </select>
                             </div>
@@ -592,6 +596,7 @@
         $(document).ready(function() {
             // Store last max scores for each quarter
             const lastMaxScores = @json($lastMaxScores);
+            const activeQuarterNumber = @json($activeQuarterNumber);
 
             // Subject filter functionality
             $('#subjectFilter').change(function() {
@@ -603,9 +608,10 @@
             // Recitation Mode Logic (Table based)
 
             function syncRecitationModal(quarter) {
-                $('#recitationQuarter').val(quarter);
+                const resolvedQuarter = activeQuarterNumber || quarter;
+                $('#recitationQuarter').val(resolvedQuarter);
                 // Use the last max score for this quarter, default to 10
-                const defaultMax = lastMaxScores[quarter] || 10;
+                const defaultMax = lastMaxScores[resolvedQuarter] || 10;
                 $('#recitationMaxScore').val(defaultMax);
                 // Reset all student inputs to 0
                 $('.recitation-score-input').val(0);
@@ -629,7 +635,7 @@
                         activeQuarter = parseInt(match[1]);
                     }
                 }
-                syncRecitationModal(activeQuarter);
+                syncRecitationModal(activeQuarterNumber || activeQuarter);
 
                 // Adjust columns
                 setTimeout(() => {
@@ -704,9 +710,14 @@
 
             // Apply & Save
             $('#applyRecitationScores').click(function() {
-                const quarter = $('#recitationQuarter').val();
+                const quarter = activeQuarterNumber || $('#recitationQuarter').val();
                 const sessionMaxScore = parseFloat($('#recitationMaxScore').val()) || 10;
                 const subjectId = {{ $selectedSubject->id ?? 'null' }};
+
+                if (!quarter) {
+                    alert('No active quarter available. Please contact the administrator.');
+                    return;
+                }
 
                 const scoresData = [];
                 $('.recitation-score-input').each(function() {

@@ -137,7 +137,6 @@ class RoleViewCoverageTest extends TestCase
             ['teacher.attendance.pattern'],
             ['teacher.least-learned.index'],
             ['teacher.least-learned.show', ['llc' => $this->llc]],
-            ['teacher.oral-participation.list'],
             ['teacher.oral-participation.index', ['class' => $this->class]],
             ['teacher.analytics.absenteeism'],
             ['teacher.report-cards'],

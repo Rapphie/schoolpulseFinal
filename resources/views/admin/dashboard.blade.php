@@ -377,23 +377,23 @@
                                                 action="{{ route('admin.school-year.toggle-promotion', $year->id) }}"
                                                 class="d-inline">
                                                 @csrf
-                                                @if ($year->is_promotion_open)
-                                                    <button type="submit" class="btn btn-sm btn-success"
-                                                        data-bs-toggle="tooltip"
-                                                        title="Click to close promotion enrollment">
-                                                        <i data-feather="unlock" class="feather-sm me-1"></i> Open
-                                                    </button>
-                                                @elseif ($year->canOpenPromotion())
-                                                    <button type="submit" class="btn btn-sm btn-outline-warning"
-                                                        data-bs-toggle="tooltip" title="Click to open promotion enrollment">
-                                                        <i data-feather="lock" class="feather-sm me-1"></i> Closed
-                                                    </button>
-                                                @else
-                                                    <span class="badge bg-light text-muted" data-bs-toggle="tooltip"
-                                                        title="Promotion can only be opened after the school year ends ({{ $year->end_date->format('M d, Y') }})">
-                                                        <i data-feather="clock" class="feather-sm me-1"></i> Not Yet
-                                                    </span>
-                                                @endif
+@if ($year->is_promotion_open)
+<button type="submit" class="btn btn-sm btn-success"
+    data-bs-toggle="tooltip"
+    title="Promotion enrollment is OPEN. Teachers can now enroll returning students from this year into the next grade level. Click to close.">
+    <i data-feather="unlock" class="feather-sm me-1"></i> Open
+</button>
+@elseif ($year->canOpenPromotion())
+<button type="submit" class="btn btn-sm btn-outline-warning"
+    data-bs-toggle="tooltip" title="Promotion enrollment is CLOSED. Click to open and allow teachers to promote returning students to the next grade level.&#10;&#10;Only available after school year ends ({{ $year->end_date->format('M d, Y') }}).&#10;&#10;Effects:&#10;- Teachers can see returning students from this year&#10;- Enrollment will advance students to next grade level&#10;- Student profiles auto-marked as 'promoted'&#10;&#10;Click to enable promotion enrollment">
+    <i data-feather="lock" class="feather-sm me-1"></i> Closed
+</button>
+@else
+<span class="badge bg-light text-muted" data-bs-toggle="tooltip"
+    title="Promotion enrollment unavailable.&#10;&#10;This school year must end ({{ $year->end_date->format('M d, Y') }}) before promotion can be opened.&#10;&#10;Available {{ $year->end_date->diffForHumans() }}">
+    <i data-feather="clock" class="feather-sm me-1"></i> Not Yet
+</span>
+@endif
                                             </form>
                                         </td>
                                         <td>

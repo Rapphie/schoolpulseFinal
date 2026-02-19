@@ -67,7 +67,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
 
         // Oral Participation Management
         Route::prefix('oral-participation')->name('oral-participation.')->group(function () {
-            Route::get('/', [OralParticipationController::class, 'list'])->name('list');
+            Route::get('/selector', [OralParticipationController::class, 'selector'])->name('selector');
             Route::get('/sections', [OralParticipationController::class, 'getSectionsByGradeLevel'])->name('sections');
             Route::get('/{class}', [OralParticipationController::class, 'index'])->name('index');
             Route::get('/{class}/students', [OralParticipationController::class, 'getStudentsWithScores'])->name('students');

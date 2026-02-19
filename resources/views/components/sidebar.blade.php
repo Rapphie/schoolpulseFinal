@@ -214,11 +214,12 @@
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item d-flex align-items-center"
-                                href="{{ route('teacher.oral-participation.list') }}">
+                            <button type="button"
+                                class="dropdown-item d-flex align-items-center js-oral-participation-trigger"
+                                data-oral-participation-trigger="true">
                                 <i data-feather="message-circle" class="me-1"></i>
                                 <span>Oral Participation</span>
-                            </a>
+                            </button>
                         </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{{ route('teacher.grades') }}">
@@ -283,6 +284,350 @@
                     </ul>
                 </li>
             </ul>
+
+            <div class="modal fade" id="oralParticipationSelectorModal" tabindex="-1"
+                aria-labelledby="oralParticipationSelectorModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="oralParticipationSelectorModalLabel">
+                                <i data-feather="message-circle" class="me-2"></i>Oral Participation
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="oralParticipationSelectorLoading" class="text-center py-4">
+                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mb-0 mt-2 text-muted">Loading available classes and subjects...</p>
+                            </div>
+
+                            <div id="oralParticipationSelectorError" class="alert alert-danger d-none mb-3"></div>
+
+                            <div id="oralParticipationElementaryPanel" class="d-none">
+                                <p class="text-muted">Select a subject to open Oral Participation.</p>
+                                <div id="oralParticipationElementarySubjects" class="d-grid gap-2"></div>
+                            </div>
+
+                            <div id="oralParticipationDepartmentalPanel" class="d-none">
+                                <p class="text-muted mb-3">Choose grade level and section first.</p>
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12">
+                                        <label for="oralParticipationGradeLevel" class="form-label fw-semibold">Grade
+                                            Level</label>
+                                        <select id="oralParticipationGradeLevel" class="form-select">
+                                            <option value="">Select grade level</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <label for="oralParticipationSection"
+                                            class="form-label fw-semibold">Section</label>
+                                        <select id="oralParticipationSection" class="form-select" disabled>
+                                            <option value="">Select section</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="oralParticipationDepartmentalSubjects" class="d-grid gap-2"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const modalElement = document.getElementById('oralParticipationSelectorModal');
+                    if (!modalElement) {
+                        return;
+                    }
+
+                    const oralParticipationTriggers = document.querySelectorAll(
+                        '[data-oral-participation-trigger="true"]'
+                    );
+                    const gradebookDropdownTrigger = document.getElementById('gradebookDropdown');
+                    const selectorEndpoint = @json(route('teacher.oral-participation.selector'));
+                    const sectionsEndpoint = @json(route('teacher.oral-participation.sections'));
+                    const subjectsEndpointTemplate = @json(route('teacher.classes.subjects', ['class' => '__CLASS__']));
+                    const oralParticipationIndexTemplate = @json(route('teacher.oral-participation.index', ['class' => '__CLASS__']));
+
+                    const loadingElement = document.getElementById('oralParticipationSelectorLoading');
+                    const errorElement = document.getElementById('oralParticipationSelectorError');
+                    const elementaryPanel = document.getElementById('oralParticipationElementaryPanel');
+                    const elementarySubjects = document.getElementById('oralParticipationElementarySubjects');
+                    const departmentalPanel = document.getElementById('oralParticipationDepartmentalPanel');
+                    const gradeLevelSelect = document.getElementById('oralParticipationGradeLevel');
+                    const sectionSelect = document.getElementById('oralParticipationSection');
+                    const departmentalSubjects = document.getElementById('oralParticipationDepartmentalSubjects');
+
+                    function escapeHtml(value) {
+                        return String(value)
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;');
+                    }
+
+                    function buildSubjectsEndpoint(classId) {
+                        return subjectsEndpointTemplate.replace('__CLASS__', encodeURIComponent(String(classId)));
+                    }
+
+                    function buildOralParticipationUrl(classId, subjectId) {
+                        const base = oralParticipationIndexTemplate.replace('__CLASS__', encodeURIComponent(String(
+                            classId)));
+                        const delimiter = base.includes('?') ? '&' : '?';
+
+                        return `${base}${delimiter}subject_id=${encodeURIComponent(String(subjectId))}`;
+                    }
+
+                    function closeMobileSidebarIfOpen() {
+                        const sidebar = document.getElementById('sidebar');
+                        if (!sidebar || window.innerWidth >= 768) {
+                            return;
+                        }
+
+                        if (sidebar.classList.contains('show')) {
+                            sidebar.classList.remove('show');
+                            sidebar.classList.add('collapsed');
+                            document.body.style.overflow = '';
+                        }
+                    }
+
+                    function openSelectorModal() {
+                        if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                            return;
+                        }
+
+                        const selectorModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+                        selectorModal.show();
+                    }
+
+                    if (modalElement.parentElement !== document.body) {
+                        document.body.appendChild(modalElement);
+                    }
+
+                    oralParticipationTriggers.forEach((trigger) => {
+                        trigger.addEventListener('click', function(event) {
+                            event.preventDefault();
+
+                            if (typeof bootstrap !== 'undefined' && bootstrap.Dropdown &&
+                                gradebookDropdownTrigger) {
+                                const gradebookDropdown = bootstrap.Dropdown.getOrCreateInstance(
+                                    gradebookDropdownTrigger
+                                );
+                                gradebookDropdown.hide();
+                            }
+
+                            closeMobileSidebarIfOpen();
+                            window.setTimeout(openSelectorModal, 120);
+                        });
+                    });
+
+                    async function fetchJson(url) {
+                        const response = await fetch(url, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        const payload = await response.json().catch(() => null);
+                        if (!response.ok) {
+                            throw new Error(payload?.message || 'Unable to load selector data.');
+                        }
+
+                        return payload || {};
+                    }
+
+                    function setLoading(isLoading) {
+                        if (isLoading) {
+                            loadingElement.classList.remove('d-none');
+                        } else {
+                            loadingElement.classList.add('d-none');
+                        }
+                    }
+
+                    function showError(message) {
+                        errorElement.textContent = message;
+                        errorElement.classList.remove('d-none');
+                    }
+
+                    function clearError() {
+                        errorElement.textContent = '';
+                        errorElement.classList.add('d-none');
+                    }
+
+                    function resetPanels() {
+                        clearError();
+                        elementaryPanel.classList.add('d-none');
+                        departmentalPanel.classList.add('d-none');
+                        elementarySubjects.innerHTML = '';
+                        departmentalSubjects.innerHTML = '';
+                        gradeLevelSelect.innerHTML = '<option value="">Select grade level</option>';
+                        sectionSelect.innerHTML = '<option value="">Select section</option>';
+                        sectionSelect.disabled = true;
+                    }
+
+                    function createSubjectLink(classId, subjectId, subjectName, detailText) {
+                        const link = document.createElement('a');
+                        link.href = buildOralParticipationUrl(classId, subjectId);
+                        link.className = 'btn btn-outline-success text-start';
+
+                        const details = detailText ?
+                            `<small class="text-muted d-block">${escapeHtml(detailText)}</small>` : '';
+
+                        link.innerHTML =
+                            `<i data-feather="book-open" class="me-2"></i>${escapeHtml(subjectName)}${details}`;
+
+                        return link;
+                    }
+
+                    function renderEmpty(target, message) {
+                        target.innerHTML = `<div class="alert alert-info mb-0">${escapeHtml(message)}</div>`;
+                    }
+
+                    function renderElementarySubjects(subjects) {
+                        elementaryPanel.classList.remove('d-none');
+
+                        if (!Array.isArray(subjects) || subjects.length === 0) {
+                            renderEmpty(elementarySubjects, 'No advisory subjects available for oral participation.');
+
+                            return;
+                        }
+
+                        subjects.forEach((subject) => {
+                            const subjectButton = createSubjectLink(
+                                subject.class_id,
+                                subject.subject_id,
+                                subject.subject_name,
+                                subject.class_label
+                            );
+                            elementarySubjects.appendChild(subjectButton);
+                        });
+                    }
+
+                    function renderDepartmentalGradeLevels(gradeLevels) {
+                        departmentalPanel.classList.remove('d-none');
+
+                        if (!Array.isArray(gradeLevels) || gradeLevels.length === 0) {
+                            renderEmpty(departmentalSubjects,
+                                'No scheduled grade levels available for oral participation.');
+
+                            return;
+                        }
+
+                        gradeLevels.forEach((gradeLevel) => {
+                            const option = document.createElement('option');
+                            option.value = gradeLevel.id;
+                            option.textContent = gradeLevel.name;
+                            gradeLevelSelect.appendChild(option);
+                        });
+                    }
+
+                    function renderDepartmentalSubjects(classId, subjects) {
+                        departmentalSubjects.innerHTML = '';
+
+                        if (!Array.isArray(subjects) || subjects.length === 0) {
+                            renderEmpty(departmentalSubjects, 'No subjects found for the selected section.');
+
+                            return;
+                        }
+
+                        subjects.forEach((subject) => {
+                            const subjectButton = createSubjectLink(
+                                classId,
+                                subject.id,
+                                subject.name,
+                                ''
+                            );
+                            departmentalSubjects.appendChild(subjectButton);
+                        });
+                    }
+
+                    gradeLevelSelect.addEventListener('change', async function() {
+                        const gradeLevelId = this.value;
+                        sectionSelect.innerHTML = '<option value="">Select section</option>';
+                        sectionSelect.disabled = true;
+                        departmentalSubjects.innerHTML = '';
+
+                        if (!gradeLevelId) {
+                            return;
+                        }
+
+                        setLoading(true);
+                        clearError();
+                        try {
+                            const payload = await fetchJson(
+                                `${sectionsEndpoint}?grade_level_id=${encodeURIComponent(gradeLevelId)}`
+                            );
+                            const sections = payload.sections || [];
+                            if (sections.length === 0) {
+                                renderEmpty(departmentalSubjects,
+                                    'No handled sections found for this grade level.');
+                                setLoading(false);
+
+                                return;
+                            }
+
+                            sections.forEach((section) => {
+                                const option = document.createElement('option');
+                                option.value = section.id;
+                                option.textContent = section.name;
+                                sectionSelect.appendChild(option);
+                            });
+                            sectionSelect.disabled = false;
+                        } catch (error) {
+                            showError(error.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    });
+
+                    sectionSelect.addEventListener('change', async function() {
+                        const classId = this.value;
+                        departmentalSubjects.innerHTML = '';
+                        if (!classId) {
+                            return;
+                        }
+
+                        setLoading(true);
+                        clearError();
+                        try {
+                            const payload = await fetchJson(buildSubjectsEndpoint(classId));
+                            renderDepartmentalSubjects(classId, payload.subjects || []);
+                        } catch (error) {
+                            showError(error.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    });
+
+                    modalElement.addEventListener('show.bs.modal', async function() {
+                        resetPanels();
+                        setLoading(true);
+
+                        try {
+                            const payload = await fetchJson(selectorEndpoint);
+
+                            if (payload.mode === 'elementary_adviser') {
+                                renderElementarySubjects(payload.subjects || []);
+                            } else {
+                                renderDepartmentalGradeLevels(payload.grade_levels || []);
+                            }
+                        } catch (error) {
+                            showError(error.message);
+                        } finally {
+                            setLoading(false);
+                            if (typeof feather !== 'undefined') {
+                                feather.replace();
+                            }
+                        }
+                    });
+                });
+            </script>
         @elseif (Auth::check() && Auth::user()->hasRole('guardian'))
             <ul class="nav nav-pills flex-column mb-auto w-100">
                 <li class="nav-item mb-3 w-100">

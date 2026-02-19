@@ -6,77 +6,109 @@ use App\Http\Controllers\Controller;
 use App\Models\Assessment;
 use App\Models\AssessmentScore;
 use App\Models\Classes;
-use App\Models\GradeLevel;
 use App\Models\SchoolYear;
 use App\Models\Subject;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class OralParticipationController extends Controller
 {
     /**
-     * Display list of classes for oral participation management.
-     * Shows all classes the teacher is involved with, with grade level and section filtering.
+     * Return selector data for the sidebar oral participation modal.
      */
-    public function list(Request $request)
+    public function selector(): JsonResponse
     {
-        $teacher = Auth::user()->teacher;
+        $teacher = Auth::user()?->teacher;
+        if (! $teacher) {
+            return response()->json([
+                'mode' => 'departmental',
+                'message' => 'Authenticated user is not a teacher.',
+                'grade_levels' => [],
+            ], 403);
+        }
+
         $activeSchoolYear = SchoolYear::active()->first();
-
         if (! $activeSchoolYear) {
-            return view('teacher.oral-participation.list')->with('error', 'No active school year has been set.');
+            return response()->json([
+                'mode' => 'departmental',
+                'message' => 'No active school year has been set.',
+                'grade_levels' => [],
+            ]);
         }
 
-        // Get all grade levels for the filter dropdown
-        $gradeLevels = GradeLevel::orderBy('level')->get();
-
-        // Get IDs of classes where the teacher is the adviser
-        $advisoryClassIds = $teacher->advisoryClasses()
+        // Elementary adviser flow (Grades 1-3): show all subjects for advisory classes.
+        $isElementaryAdviser = $teacher->advisoryClasses()
             ->where('school_year_id', $activeSchoolYear->id)
-            ->pluck('id');
+            ->whereHas('section.gradeLevel', function ($query) {
+                $query->whereBetween('level', [1, 3]);
+            })
+            ->exists();
 
-        // Get IDs of classes where the teacher has a schedule
-        $scheduledClassIds = $teacher->schedules()
-            ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
-            ->pluck('class_id');
-
-        // Merge and get unique IDs
-        $allClassIds = $advisoryClassIds->merge($scheduledClassIds)->unique();
-
-        // Build the query with optional filters
-        $query = Classes::whereIn('id', $allClassIds)
-            ->with(['section.gradeLevel', 'teacher.user', 'enrollments', 'schedules.subject', 'schedules.teacher']);
-
-        // Apply grade level filter
-        if ($request->filled('grade_level_id')) {
-            $query->whereHas('section', function ($q) use ($request) {
-                $q->where('grade_level_id', $request->grade_level_id);
-            });
-        }
-
-        // Apply section filter
-        if ($request->filled('section_id')) {
-            $query->where('section_id', $request->section_id);
-        }
-
-        $classes = $query->get()->sortBy('section.gradeLevel.level');
-
-        // Get sections for the selected grade level (for AJAX filtering)
-        $selectedGradeLevelId = $request->grade_level_id;
-        $sections = [];
-        if ($selectedGradeLevelId) {
-            $sections = \App\Models\Section::where('grade_level_id', $selectedGradeLevelId)
-                ->orderBy('name')
+        if ($isElementaryAdviser) {
+            $advisoryClasses = $teacher->advisoryClasses()
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->whereHas('section.gradeLevel', function ($query) {
+                    $query->whereBetween('level', [1, 3]);
+                })
+                ->with(['section.gradeLevel', 'schedules.subject'])
                 ->get();
+
+            $subjects = $advisoryClasses
+                ->flatMap(function (Classes $class) {
+                    return $class->schedules
+                        ->filter(fn ($schedule) => $schedule->subject !== null)
+                        ->map(function ($schedule) use ($class) {
+                            $gradeLevelName = $class->section?->gradeLevel?->name ?? '';
+                            $sectionName = $class->section?->name ?? '';
+
+                            return [
+                                'class_id' => $class->id,
+                                'class_label' => trim($gradeLevelName.' '.$sectionName),
+                                'subject_id' => $schedule->subject->id,
+                                'subject_name' => $schedule->subject->name,
+                            ];
+                        });
+                })
+                ->unique(fn (array $subject) => $subject['class_id'].'-'.$subject['subject_id'])
+                ->values();
+
+            return response()->json([
+                'mode' => 'elementary_adviser',
+                'subjects' => $subjects,
+            ]);
         }
 
-        return view('teacher.oral-participation.list', compact(
-            'classes',
-            'teacher',
-            'gradeLevels',
-            'selectedGradeLevelId',
-            'sections'
-        ));
+        // Departmental flow (Grades 4-6): first choose grade level from scheduled classes.
+        $scheduledClasses = $teacher->schedules()
+            ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })
+            ->with('class.section.gradeLevel')
+            ->get()
+            ->pluck('class')
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        $gradeLevels = $scheduledClasses
+            ->pluck('section.gradeLevel')
+            ->filter()
+            ->unique('id')
+            ->sortBy('level')
+            ->values()
+            ->map(function ($gradeLevel) {
+                return [
+                    'id' => $gradeLevel->id,
+                    'name' => $gradeLevel->name,
+                    'level' => $gradeLevel->level,
+                ];
+            });
+
+        return response()->json([
+            'mode' => 'departmental',
+            'grade_levels' => $gradeLevels,
+        ]);
     }
 
     /**
@@ -85,6 +117,8 @@ class OralParticipationController extends Controller
     public function index(Classes $class, Request $request)
     {
         $class->load('section.gradeLevel');
+        $activeSchoolYear = SchoolYear::active()->first();
+        $activeQuarterNumber = $activeSchoolYear?->currentQuarter()?->quarter;
 
         // Get the selected subject or default to the first subject
         $subjects = $class->schedules()->with('subject')->get()->pluck('subject')->unique('id');
@@ -156,6 +190,7 @@ class OralParticipationController extends Controller
             'selectedSubject' => $selectedSubject,
             'studentsData' => $studentsData,
             'oralParticipationAssessments' => $allOralAssessments,
+            'activeQuarterNumber' => $activeQuarterNumber,
         ]);
     }
 
@@ -380,17 +415,47 @@ class OralParticipationController extends Controller
     /**
      * Get sections by grade level for AJAX filtering.
      */
-    public function getSectionsByGradeLevel(Request $request)
+    public function getSectionsByGradeLevel(Request $request): JsonResponse
     {
-        $gradeLevelId = $request->grade_level_id;
-
-        if (! $gradeLevelId) {
+        $gradeLevelId = (int) $request->input('grade_level_id');
+        if ($gradeLevelId < 1) {
             return response()->json(['sections' => []]);
         }
 
-        $sections = \App\Models\Section::where('grade_level_id', $gradeLevelId)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $teacher = Auth::user()?->teacher;
+        if (! $teacher) {
+            return response()->json(['sections' => []], 403);
+        }
+
+        $activeSchoolYear = SchoolYear::active()->first();
+        if (! $activeSchoolYear) {
+            return response()->json(['sections' => []]);
+        }
+
+        $classes = Classes::query()
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->whereHas('section', function ($query) use ($gradeLevelId) {
+                $query->where('grade_level_id', $gradeLevelId);
+            })
+            ->whereHas('schedules', function ($query) use ($teacher) {
+                $query->where('teacher_id', $teacher->id);
+            })
+            ->with('section.gradeLevel')
+            ->get();
+
+        $sections = $classes
+            ->map(function (Classes $class) {
+                return [
+                    // Expose class id as id so the UI can route to /teacher/oral-participation/{class}
+                    'id' => $class->id,
+                    'class_id' => $class->id,
+                    'name' => $class->section?->name,
+                    'grade_level_name' => $class->section?->gradeLevel?->name,
+                ];
+            })
+            ->filter(fn (array $section) => filled($section['name']))
+            ->sortBy('name')
+            ->values();
 
         return response()->json(['sections' => $sections]);
     }
@@ -610,6 +675,21 @@ class OralParticipationController extends Controller
                     'success' => false,
                     'message' => 'No active school year found.',
                 ], 404);
+            }
+
+            $activeQuarterNumber = (int) ($activeSchoolYear->currentQuarter()?->quarter ?? 0);
+            if ($activeQuarterNumber < 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active quarter found for the current school year.',
+                ], 422);
+            }
+
+            if ($quarter !== $activeQuarterNumber) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Oral participation sessions can only be recorded for the active quarter (Quarter '.$activeQuarterNumber.').',
+                ], 422);
             }
 
             $correctTeacherId = $this->getTeacherIdForClassSubject($class->id, $subjectId);

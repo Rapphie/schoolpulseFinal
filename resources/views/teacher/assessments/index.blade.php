@@ -55,11 +55,35 @@
         .student-name {
             text-align: left;
             font-weight: bold;
-            min-width: 180px;
+            min-width: 220px;
             background-color: #f8f9fa;
             position: sticky;
             left: 0;
             z-index: 10;
+        }
+
+        .grade-table thead .student-name {
+            z-index: 12;
+        }
+
+        .gender-group-row td {
+            background-color: #e9ecef !important;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            cursor: not-allowed;
+        }
+
+        .gender-group-label {
+            text-align: left !important;
+            position: sticky;
+            left: 0;
+            z-index: 11;
+        }
+
+        .student-search-toolbar {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
         }
 
         .assessment-header {
@@ -95,6 +119,33 @@
             bottom: 20px;
             right: 20px;
             z-index: 1000;
+        }
+
+        .grade-management-card:fullscreen,
+        .grade-management-card:-webkit-full-screen,
+        .grade-management-card.grade-card-fullscreen {
+            height: 100vh;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .grade-management-card.grade-card-fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 1055;
+            border-radius: 0;
+        }
+
+        .grade-management-card:fullscreen .table-responsive,
+        .grade-management-card:-webkit-full-screen .table-responsive,
+        .grade-management-card.grade-card-fullscreen .table-responsive {
+            max-height: calc(100vh - 170px);
+        }
+
+        .grade-management-card:fullscreen .save-btn,
+        .grade-management-card:-webkit-full-screen .save-btn,
+        .grade-management-card.grade-card-fullscreen .save-btn {
+            z-index: 1060;
         }
 
         .highest-score-row {
@@ -324,7 +375,7 @@
         </div>
 
         <!-- Quarter Tabs -->
-        <div class="card shadow">
+        <div class="card shadow grade-management-card" id="gradeManagementCard">
             <div class="card-header p-0">
                 <ul class="nav nav-tabs nav-tabs-lg" id="quarterTabs" role="tablist">
                     @for ($quarter = 1; $quarter <= 4; $quarter++)
@@ -344,10 +395,53 @@
                             <i class="fas fa-chart-line me-2"></i>Final Grade
                         </button>
                     </li>
+                    <li class="nav-item ms-auto d-flex align-items-center px-2" role="presentation">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleFullscreen"
+                            title="Enter fullscreen" aria-label="Enter fullscreen">
+                            <i data-feather="maximize"></i>
+                        </button>
+                    </li>
                 </ul>
             </div>
 
             <div class="card-body p-0">
+                <div class="student-search-toolbar p-3">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <label for="studentSearchInput" class="mb-0 fw-semibold">Search:</label>
+                        <input type="text" id="studentSearchInput" class="form-control form-control-sm"
+                            style="width: 260px;" placeholder="Male/Female, last name, or first name">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearStudentSearch">Clear</button>
+                    </div>
+                </div>
+                @php
+                    $maleStudents = $studentsData->filter(
+                        fn($studentData) => strtolower((string) ($studentData['student']->gender ?? '')) === 'male',
+                    );
+                    $femaleStudents = $studentsData->filter(
+                        fn($studentData) => strtolower((string) ($studentData['student']->gender ?? '')) === 'female',
+                    );
+                    $unspecifiedStudents = $studentsData->filter(
+                        fn($studentData) => !in_array(
+                            strtolower((string) ($studentData['student']->gender ?? '')),
+                            ['male', 'female'],
+                            true,
+                        ),
+                    );
+                    $studentsGroupedByGender = collect([
+                        'male' => $maleStudents,
+                        'female' => $femaleStudents,
+                    ]);
+
+                    if ($unspecifiedStudents->isNotEmpty()) {
+                        $studentsGroupedByGender->put('unspecified', $unspecifiedStudents);
+                    }
+
+                    $genderGroupLabels = [
+                        'male' => 'MALE',
+                        'female' => 'FEMALE',
+                        'unspecified' => 'UNSPECIFIED',
+                    ];
+                @endphp
                 <div class="tab-content" id="quarterTabContent">
                     @for ($quarter = 1; $quarter <= 4; $quarter++)
                         <div class="tab-pane fade {{ $quarter === 1 ? 'show active' : '' }}"
@@ -391,7 +485,7 @@
                                                                 'id' => -999, // Virtual ID
                                                                 'name' => 'Oral Participation',
                                                                 'type' => 'oral_participation',
-                                                                'max_score' => null, // View will default to 10 for display
+                                                                'max_score' => null, // View will display "--" until OP sessions are added
                                                             ];
                                                         }
                                                         // Re-assemble the collection with OP guaranteed to be first.
@@ -453,21 +547,25 @@
                                                 @endphp
                                                 @foreach ($typeAssessments as $index => $assessment)
                                                     @php
-                                                        $maxScoreDisplay =
-                                                            fmod($assessment->max_score, 1) === 0.0
-                                                                ? number_format($assessment->max_score, 0)
-                                                                : rtrim(
-                                                                    rtrim(
-                                                                        number_format(
-                                                                            $assessment->max_score,
-                                                                            2,
-                                                                            '.',
-                                                                            '',
+                                                        if ($assessment->max_score !== null) {
+                                                            $maxScoreDisplay =
+                                                                fmod($assessment->max_score, 1) === 0.0
+                                                                    ? number_format($assessment->max_score, 0)
+                                                                    : rtrim(
+                                                                        rtrim(
+                                                                            number_format(
+                                                                                $assessment->max_score,
+                                                                                2,
+                                                                                '.',
+                                                                                '',
+                                                                            ),
+                                                                            '0',
                                                                         ),
-                                                                        '0',
-                                                                    ),
-                                                                    '.',
-                                                                );
+                                                                        '.',
+                                                                    );
+                                                        } else {
+                                                            $maxScoreDisplay = '--';
+                                                        }
                                                         // Check if assessment is oral participation by type
                                                         $isOralParticipation =
                                                             $assessment->type === 'oral_participation';
@@ -476,7 +574,7 @@
                                                         class="highest-score-row {{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
                                                         @if ($isOralParticipation)
                                                             <span style="font-size: 10px;"
-                                                                title="Edit in Oral Participation page">{{ $assessment->max_score ?? 10 }}</span>
+                                                                title="Edit in Oral Participation page">{{ $maxScoreDisplay }}</span>
                                                         @else
                                                             <input type="number" class="max-score-input"
                                                                 data-assessment-id="{{ $assessment->id }}"
@@ -496,76 +594,101 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach ($studentsData as $studentData)
-                                            <tr data-student-id="{{ $studentData['student']->id }}">
-                                                <td class="student-name">{{ $studentData['student']->last_name }},
-                                                    {{ $studentData['student']->first_name }}</td>
-
+                                        @php
+                                            $quarterTotalColumns = 3;
+                                            foreach ($types as $type => $label) {
+                                                $quarterTotalColumns +=
+                                                    ($limitedAssessments[$type] ?? collect())->count() + 3;
+                                            }
+                                        @endphp
+                                        @foreach ($studentsGroupedByGender as $genderKey => $groupedStudents)
+                                            <tr class="gender-group-row" data-gender-group="{{ $genderKey }}"
+                                                aria-readonly="true">
+                                                <td class="gender-group-label" colspan="{{ $quarterTotalColumns }}">
+                                                    {{ $genderGroupLabels[$genderKey] ?? strtoupper($genderKey) }}
+                                                </td>
+                                            </tr>
+                                            @foreach ($groupedStudents as $studentData)
                                                 @php
-                                                    $quarterData = $studentData['quarters'][$quarter] ?? [];
+                                                    $studentGender = strtolower(
+                                                        (string) ($studentData['student']->gender ?? 'unspecified'),
+                                                    );
+                                                    $searchGender = $studentGender !== ''
+                                                        ? $studentGender
+                                                        : 'unspecified';
                                                 @endphp
+                                                <tr data-student-id="{{ $studentData['student']->id }}"
+                                                    data-gender-group="{{ $genderKey }}"
+                                                    data-student-search="{{ strtolower(trim($searchGender . ' ' . $studentData['student']->last_name . ' ' . $studentData['student']->first_name)) }}">
+                                                    <td class="student-name">{{ $studentData['student']->last_name }},
+                                                        {{ $studentData['student']->first_name }}</td>
 
-                                                @foreach ($types as $type => $label)
                                                     @php
-                                                        $typeAssessments = $limitedAssessments[$type] ?? collect();
-                                                        $studentTypeData = $quarterData[$type] ?? [];
+                                                        $quarterData = $studentData['quarters'][$quarter] ?? [];
                                                     @endphp
 
-                                                    {{-- Individual Assessment Columns --}}
-                                                    @foreach ($typeAssessments as $index => $assessment)
+                                                    @foreach ($types as $type => $label)
                                                         @php
-                                                            $studentScore = collect($studentTypeData)->first(function (
-                                                                $item,
-                                                            ) use ($assessment) {
-                                                                return isset($item['assessment']) &&
-                                                                    $item['assessment']->id === $assessment->id;
-                                                            });
-                                                            $scoreValue = $studentScore['score'] ?? '';
-                                                            if (
-                                                                $scoreValue !== '' &&
-                                                                fmod((float) $scoreValue, 1) === 0.0
-                                                            ) {
-                                                                $scoreValue = number_format($scoreValue, 0);
-                                                            }
-                                                            // Check if assessment is oral participation by type
-                                                            $isOralParticipation =
-                                                                $assessment->type === 'oral_participation';
+                                                            $typeAssessments = $limitedAssessments[$type] ?? collect();
+                                                            $studentTypeData = $quarterData[$type] ?? [];
                                                         @endphp
-                                                        <td
-                                                            class="{{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
-                                                            <input type="number" min="0"
-                                                                class="grade-input {{ str_replace('_', '-', $type) }}-score"
-                                                                data-quarter="{{ $quarter }}"
-                                                                data-type="{{ $type }}"
-                                                                data-index="{{ $index }}"
-                                                                data-assessment-id="{{ $assessment->id }}"
-                                                                data-max-score="{{ $assessment->max_score }}"
-                                                                data-is-oral-participation="{{ $isOralParticipation ? '1' : '0' }}"
-                                                                value="{{ $scoreValue }}"
-                                                                {{ $isOralParticipation ? 'readonly' : '' }}
-                                                                title="{{ $isOralParticipation ? 'Oral Participation - Edit in Oral Participation page' : '' }}">
-                                                        </td>
+
+                                                        {{-- Individual Assessment Columns --}}
+                                                        @foreach ($typeAssessments as $index => $assessment)
+                                                            @php
+                                                                $studentScore = collect($studentTypeData)->first(function (
+                                                                    $item,
+                                                                ) use ($assessment) {
+                                                                    return isset($item['assessment']) &&
+                                                                        $item['assessment']->id === $assessment->id;
+                                                                });
+                                                                $scoreValue = $studentScore['score'] ?? '';
+                                                                if (
+                                                                    $scoreValue !== '' &&
+                                                                    fmod((float) $scoreValue, 1) === 0.0
+                                                                ) {
+                                                                    $scoreValue = number_format($scoreValue, 0);
+                                                                }
+                                                                // Check if assessment is oral participation by type
+                                                                $isOralParticipation =
+                                                                    $assessment->type === 'oral_participation';
+                                                            @endphp
+                                                            <td
+                                                                class="{{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
+                                                                <input type="number" min="0"
+                                                                    class="grade-input {{ str_replace('_', '-', $type) }}-score"
+                                                                    data-quarter="{{ $quarter }}"
+                                                                    data-type="{{ $type }}"
+                                                                    data-index="{{ $index }}"
+                                                                    data-assessment-id="{{ $assessment->id }}"
+                                                                    data-max-score="{{ $assessment->max_score }}"
+                                                                    data-is-oral-participation="{{ $isOralParticipation ? '1' : '0' }}"
+                                                                    value="{{ $scoreValue }}"
+                                                                    {{ $isOralParticipation ? 'readonly' : '' }}
+                                                                    title="{{ $isOralParticipation ? 'Oral Participation - Edit in Oral Participation page' : '' }}">
+                                                            </td>
+                                                        @endforeach
+
+                                                        {{-- Total Column --}}
+                                                        <td class="calculated-field {{ str_replace('_', '-', $type) }}-total"
+                                                            data-quarter="{{ $quarter }}">0</td>
+
+                                                        {{-- PS Column --}}
+                                                        <td class="calculated-field {{ str_replace('_', '-', $type) }}-ps percentage-col"
+                                                            data-quarter="{{ $quarter }}">0.00</td>
+
+                                                        {{-- Weighted Score Column --}}
+                                                        <td class="calculated-field {{ str_replace('_', '-', $type) }}-weighted grade-col"
+                                                            data-quarter="{{ $quarter }}">0.00</td>
                                                     @endforeach
 
-                                                    {{-- Total Column --}}
-                                                    <td class="calculated-field {{ str_replace('_', '-', $type) }}-total"
-                                                        data-quarter="{{ $quarter }}">0</td>
-
-                                                    {{-- PS Column --}}
-                                                    <td class="calculated-field {{ str_replace('_', '-', $type) }}-ps percentage-col"
-                                                        data-quarter="{{ $quarter }}">0.00</td>
-
-                                                    {{-- Weighted Score Column --}}
-                                                    <td class="calculated-field {{ str_replace('_', '-', $type) }}-weighted grade-col"
-                                                        data-quarter="{{ $quarter }}">0.00</td>
-                                                @endforeach
-
-                                                {{-- Quarter Grade --}}
-                                                <td class="calculated-field initial-grade grade-col"
-                                                    data-quarter="{{ $quarter }}">--</td>
-                                                <td class="calculated-field quarter-grade grade-col"
-                                                    data-quarter="{{ $quarter }}" data-has-grade="0">--</td>
-                                            </tr>
+                                                    {{-- Quarter Grade --}}
+                                                    <td class="calculated-field initial-grade grade-col"
+                                                        data-quarter="{{ $quarter }}">--</td>
+                                                    <td class="calculated-field quarter-grade grade-col"
+                                                        data-quarter="{{ $quarter }}" data-has-grade="0">--</td>
+                                                </tr>
+                                            @endforeach
                                         @endforeach
                                     </tbody>
                                 </table>
@@ -586,17 +709,38 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach ($studentsData as $studentData)
-                                        <tr data-student-id="{{ $studentData['student']->id }}">
-                                            <td class="student-name">{{ $studentData['student']->last_name }},
-                                                {{ $studentData['student']->first_name }}</td>
-                                            @for ($quarter = 1; $quarter <= 4; $quarter++)
-                                                <td class="calculated-field final-quarter-grade grade-col"
-                                                    data-quarter="{{ $quarter }}">--</td>
-                                            @endfor
-                                            <td class="calculated-field final-grade grade-col">--</td>
-                                            <td class="calculated-field final-remarks grade-col">--</td>
+                                    @php
+                                        $finalTotalColumns = 7;
+                                    @endphp
+                                    @foreach ($studentsGroupedByGender as $genderKey => $groupedStudents)
+                                        <tr class="gender-group-row" data-gender-group="{{ $genderKey }}"
+                                            aria-readonly="true">
+                                            <td class="gender-group-label" colspan="{{ $finalTotalColumns }}">
+                                                {{ $genderGroupLabels[$genderKey] ?? strtoupper($genderKey) }}
+                                            </td>
                                         </tr>
+                                        @foreach ($groupedStudents as $studentData)
+                                            @php
+                                                $studentGender = strtolower(
+                                                    (string) ($studentData['student']->gender ?? 'unspecified'),
+                                                );
+                                                $searchGender = $studentGender !== ''
+                                                    ? $studentGender
+                                                    : 'unspecified';
+                                            @endphp
+                                            <tr data-student-id="{{ $studentData['student']->id }}"
+                                                data-gender-group="{{ $genderKey }}"
+                                                data-student-search="{{ strtolower(trim($searchGender . ' ' . $studentData['student']->last_name . ' ' . $studentData['student']->first_name)) }}">
+                                                <td class="student-name">{{ $studentData['student']->last_name }},
+                                                    {{ $studentData['student']->first_name }}</td>
+                                                @for ($quarter = 1; $quarter <= 4; $quarter++)
+                                                    <td class="calculated-field final-quarter-grade grade-col"
+                                                        data-quarter="{{ $quarter }}">--</td>
+                                                @endfor
+                                                <td class="calculated-field final-grade grade-col">--</td>
+                                                <td class="calculated-field final-remarks grade-col">--</td>
+                                            </tr>
+                                        @endforeach
                                     @endforeach
                                 </tbody>
                             </table>
@@ -604,11 +748,10 @@
                     </div>
                 </div>
             </div>
+            <button type="button" class="btn btn-success btn-lg save-btn" id="saveAllGrades">
+                <i class="fas fa-save"></i> Save Grades
+            </button>
         </div>
-
-        <button type="button" class="btn btn-success btn-lg save-btn" id="saveAllGrades">
-            <i class="fas fa-save"></i> Save Grades
-        </button>
     @endif
 
 @endsection
@@ -626,8 +769,158 @@
                     '{{ str_replace('_', '-', $type) }}': {{ $weight }},
                 @endforeach
             };
+            const $gradeManagementCard = $('#gradeManagementCard');
+            const gradeManagementCard = $gradeManagementCard.get(0);
+            const $toggleFullscreenButton = $('#toggleFullscreen');
+            let isFallbackFullscreen = false;
 
             initializeAssessmentInputsState();
+
+            function getCurrentFullscreenElement() {
+                return document.fullscreenElement || document.webkitFullscreenElement ||
+                    document.msFullscreenElement || null;
+            }
+
+            function isNativeFullscreenActive() {
+                return getCurrentFullscreenElement() === gradeManagementCard;
+            }
+
+            function updateFullscreenToggleIcon() {
+                const isFullscreen = isNativeFullscreenActive() || isFallbackFullscreen;
+                const iconName = isFullscreen ? 'minimize' : 'maximize';
+                const buttonLabel = isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen';
+
+                $toggleFullscreenButton.html(`<i data-feather="${iconName}"></i>`);
+                $toggleFullscreenButton.attr('title', buttonLabel);
+                $toggleFullscreenButton.attr('aria-label', buttonLabel);
+
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+            }
+
+            function adjustVisibleDataTables() {
+                if (typeof $.fn.dataTable === 'undefined') {
+                    return;
+                }
+
+                const visibleTables = $.fn.dataTable.tables({
+                    visible: true,
+                    api: true
+                });
+
+                if (visibleTables && typeof visibleTables.columns === 'function') {
+                    visibleTables.columns.adjust();
+                }
+            }
+
+            function enterFallbackFullscreen() {
+                isFallbackFullscreen = true;
+                $gradeManagementCard.addClass('grade-card-fullscreen');
+                $('body').css('overflow', 'hidden');
+                updateFullscreenToggleIcon();
+                adjustVisibleDataTables();
+            }
+
+            function exitFallbackFullscreen() {
+                isFallbackFullscreen = false;
+                $gradeManagementCard.removeClass('grade-card-fullscreen');
+                $('body').css('overflow', '');
+                updateFullscreenToggleIcon();
+                adjustVisibleDataTables();
+            }
+
+            function requestNativeFullscreen() {
+                if (!gradeManagementCard) {
+                    return Promise.reject(new Error('Grade card not found.'));
+                }
+
+                if (gradeManagementCard.requestFullscreen) {
+                    return gradeManagementCard.requestFullscreen();
+                }
+
+                if (gradeManagementCard.webkitRequestFullscreen) {
+                    gradeManagementCard.webkitRequestFullscreen();
+                    return Promise.resolve();
+                }
+
+                if (gradeManagementCard.msRequestFullscreen) {
+                    gradeManagementCard.msRequestFullscreen();
+                    return Promise.resolve();
+                }
+
+                return Promise.reject(new Error('Fullscreen API not supported.'));
+            }
+
+            function exitNativeFullscreen() {
+                if (document.exitFullscreen) {
+                    return document.exitFullscreen();
+                }
+
+                if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                    return Promise.resolve();
+                }
+
+                if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                    return Promise.resolve();
+                }
+
+                return Promise.reject(new Error('Fullscreen API exit not supported.'));
+            }
+
+            function supportsNativeFullscreen() {
+                if (!gradeManagementCard) {
+                    return false;
+                }
+
+                const canRequest = gradeManagementCard.requestFullscreen || gradeManagementCard.webkitRequestFullscreen ||
+                    gradeManagementCard.msRequestFullscreen;
+                const canExit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+
+                return Boolean(canRequest && canExit);
+            }
+
+            $toggleFullscreenButton.on('click', function() {
+                if (isFallbackFullscreen) {
+                    exitFallbackFullscreen();
+                    return;
+                }
+
+                if (supportsNativeFullscreen()) {
+                    if (isNativeFullscreenActive()) {
+                        exitNativeFullscreen().catch(() => {
+                        });
+                    } else {
+                        requestNativeFullscreen().catch(() => {
+                            enterFallbackFullscreen();
+                        });
+                    }
+
+                    return;
+                }
+
+                enterFallbackFullscreen();
+            });
+
+            $(document).on('fullscreenchange webkitfullscreenchange MSFullscreenChange', function() {
+                if (!isNativeFullscreenActive() && !isFallbackFullscreen) {
+                    $('body').css('overflow', '');
+                }
+
+                updateFullscreenToggleIcon();
+                adjustVisibleDataTables();
+            });
+
+            $(document).on('keydown', function(event) {
+                if (event.key === 'Escape' && isFallbackFullscreen && !isNativeFullscreenActive()) {
+                    event.preventDefault();
+                    exitFallbackFullscreen();
+                }
+            });
+
+            updateFullscreenToggleIcon();
 
             function updateManageOralParticipationLink(quarter) {
                 const baseUrl = "{{ route('teacher.oral-participation.index', $class) }}";
@@ -661,8 +954,49 @@
                 return 1; // Default to 1
             }
 
+            function normalizeSearchValue(value) {
+                return String(value ?? '').trim().toLowerCase();
+            }
+
+            function applyStudentSearchFilter() {
+                const searchTerm = normalizeSearchValue($('#studentSearchInput').val());
+
+                $('#quarterTabContent .tab-pane').each(function() {
+                    const $tabPane = $(this);
+                    const $studentRows = $tabPane.find('tbody tr[data-student-id]');
+
+                    $studentRows.each(function() {
+                        const $row = $(this);
+                        const searchText = normalizeSearchValue($row.data('student-search'));
+                        const isMatch = searchTerm === '' || searchText.includes(searchTerm);
+                        $row.toggle(isMatch);
+                    });
+
+                    $tabPane.find('tbody tr.gender-group-row').each(function() {
+                        const $groupRow = $(this);
+                        const genderGroup = normalizeSearchValue($groupRow.data('gender-group'));
+                        const visibleStudentsInGroup = $tabPane.find(
+                            `tbody tr[data-student-id][data-gender-group="${genderGroup}"]:visible`
+                        ).length;
+                        const shouldShowGroup = searchTerm === '' || visibleStudentsInGroup > 0;
+                        $groupRow.toggle(shouldShowGroup);
+                    });
+                });
+            }
+
             // Set initial link on page load
             updateManageOralParticipationLink(getActiveQuarter());
+            applyStudentSearchFilter();
+
+            $('#studentSearchInput').on('input', function() {
+                applyStudentSearchFilter();
+            });
+
+            $('#clearStudentSearch').on('click', function() {
+                $('#studentSearchInput').val('');
+                applyStudentSearchFilter();
+                $('#studentSearchInput').trigger('focus');
+            });
 
             if (highlightStudentId) {
                 const $rows = $(`tr[data-student-id="${highlightStudentId}"]`);
@@ -781,7 +1115,7 @@
             refreshFinalGradesTable();
 
             function initializeQuarterCalculations(quarter) {
-                $(`#quarter${quarter} tbody tr`).each(function() {
+                $(`#quarter${quarter} tbody tr[data-student-id]`).each(function() {
                     calculateQuarterGrades($(this), quarter);
                 });
             }
@@ -1000,7 +1334,7 @@
             }
 
             function refreshFinalGradesTable() {
-                $('#finalGrade tbody tr').each(function() {
+                $('#finalGrade tbody tr[data-student-id]').each(function() {
                     updateFinalGradeRow($(this).data('student-id'));
                 });
             }
@@ -1011,7 +1345,7 @@
 
                 // Collect detailed assessment grades from all quarter tabs
                 $('.tab-pane[id^="quarter"]').each(function() {
-                    $(this).find('tbody tr').each(function() {
+                    $(this).find('tbody tr[data-student-id]').each(function() {
                         const $row = $(this);
                         const studentId = $row.data('student-id');
 

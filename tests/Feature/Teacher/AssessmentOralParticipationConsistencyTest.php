@@ -157,6 +157,22 @@ class AssessmentOralParticipationConsistencyTest extends TestCase
         }
     }
 
+    public function test_op_max_score_displays_dash_when_no_oral_participation_sessions_exist(): void
+    {
+        $response = $this->actingAs($this->teacherUser)
+            ->get(route('teacher.assessments.index', [
+                'class' => $this->class->id,
+                'subject_id' => $this->subjectB->id,
+            ]));
+
+        $response->assertStatus(200);
+
+        $content = $response->getContent();
+        $pattern = '/title="Edit in Oral Participation page">\s*--\s*<\/span>/';
+
+        $this->assertGreaterThanOrEqual(4, preg_match_all($pattern, $content));
+    }
+
     public function test_op_column_appears_for_second_subject_when_only_first_subject_has_op(): void
     {
         Assessment::create([
@@ -221,6 +237,28 @@ class AssessmentOralParticipationConsistencyTest extends TestCase
         $content = $response->getContent();
 
         $this->assertOralParticipationColumnExists($content, 2);
+    }
+
+    public function test_grade_management_page_has_student_search_and_gender_group_rows(): void
+    {
+        $response = $this->actingAs($this->teacherUser)
+            ->get(route('teacher.assessments.index', [
+                'class' => $this->class->id,
+                'subject_id' => $this->subjectA->id,
+            ]));
+
+        $response->assertStatus(200)
+            ->assertSee('id="studentSearchInput"', false)
+            ->assertSee('id="clearStudentSearch"', false);
+
+        $content = $response->getContent();
+
+        $this->assertMatchesRegularExpression('/<th[^>]*>\s*LEARNERS\' NAMES\s*<\/th>/i', $content);
+        $this->assertDoesNotMatchRegularExpression('/<th[^>]*>\s*Sex\s*<\/th>/i', $content);
+        $this->assertMatchesRegularExpression('/class="[^"]*gender-group-row[^"]*".*?>\s*<td[^>]*>\s*MALE\s*<\/td>/is', $content);
+        $this->assertMatchesRegularExpression('/class="[^"]*gender-group-row[^"]*".*?>\s*<td[^>]*>\s*FEMALE\s*<\/td>/is', $content);
+        $this->assertMatchesRegularExpression('/data-gender-group="male"/', strtolower($content));
+        $this->assertMatchesRegularExpression('/data-student-search="male student optest"/', strtolower($content));
     }
 
     /**
