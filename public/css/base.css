@@ -391,26 +391,6 @@
             margin: 0.5rem 0;
         }
 
-        /* Guardian (parent) layout without sidebar */
-        body.guardian-layout .sidebar,
-        body.guardian-layout .sidebar-overlay {
-            display: none !important;
-        }
-
-        body.guardian-layout .hamburger {
-            display: none !important;
-        }
-
-        body.guardian-layout main,
-        body.guardian-layout .content-shifted main {
-            margin-left: 0 !important;
-        }
-
-        body.guardian-layout .top-bar,
-        body.guardian-layout .top-bar.content-shifted {
-            padding-left: 1rem !important;
-        }
-
         /* Sidebar submenu styling */
         .sidebar .collapse {
             transition: all 0.3s ease;

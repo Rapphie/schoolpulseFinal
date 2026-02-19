@@ -1,12 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 
-@php
-    use Illuminate\Support\Facades\Auth;
-
-    $isGuardianLayout = Auth::check() && Auth::user()->hasRole('guardian');
-@endphp
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,11 +9,12 @@
     @yield('head')
     @include('components.head')
     <link rel="stylesheet" href="{{ asset('css/base.css') }}">
+    @livewireStyles
 
     @stack('styles')
 </head>
 
-<body class="bg-light min-vh-100 {{ $isGuardianLayout ? 'guardian-layout' : '' }}">
+<body class="bg-light min-vh-100">
     @include('components.topbar')
 
     <div id="content" class="w-100">
@@ -209,6 +204,8 @@
             });
         });
     </script>
+
+    @livewireScripts
 
     @stack('scripts')
 

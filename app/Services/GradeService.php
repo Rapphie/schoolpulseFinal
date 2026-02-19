@@ -65,7 +65,7 @@ class GradeService
     /**
      * Transmute a raw/initial grade to DepEd transmuted grade.
      *
-     * @param float|null $rawGrade The raw initial grade (0-100 scale)
+     * @param  float|null  $rawGrade  The raw initial grade (0-100 scale)
      * @return int|null The transmuted grade (60-100 scale) or null if input is null
      */
     public static function transmute(?float $rawGrade): ?int
@@ -93,13 +93,13 @@ class GradeService
      * The final grade is the sum of all 4 quarters divided by 4.
      * Each quarter grade should already be transmuted.
      *
-     * @param array $quarterlyGrades Array with keys 1, 2, 3, 4 containing quarterly grades
-     * @param bool $requireAllQuarters If true, returns null unless all 4 quarters have grades
+     * @param  array  $quarterlyGrades  Array with keys 1, 2, 3, 4 containing quarterly grades
+     * @param  bool  $requireAllQuarters  If true, returns null unless all 4 quarters have grades
      * @return float|null The final grade rounded to nearest whole number, or null if insufficient data
      */
     public static function calculateFinalGrade(array $quarterlyGrades, bool $requireAllQuarters = false): ?float
     {
-        $existingGrades = array_filter($quarterlyGrades, fn($val) => $val !== null && $val !== '');
+        $existingGrades = array_filter($quarterlyGrades, fn ($val) => $val !== null && $val !== '');
         $count = count($existingGrades);
 
         if ($count === 0) {
@@ -115,15 +115,15 @@ class GradeService
         $sum = array_sum($quarterlyGrades); // array_sum treats null values in the array as 0.
 
         // Per DepEd guidelines: Final Grade = (Q1 + Q2 + Q3 + Q4) / 4
-        // When $requireAllQuarters is false, we can calculate a running average.
-        return round($sum / $count, 2);
+        // Always divide by 4 since there are exactly 4 quarters in a school year.
+        return round($sum / 4, 2);
     }
 
     /**
      * Get the remarks based on the final grade.
      * Per DepEd guidelines: 75 and above is PASSED, below 75 is FAILED
      *
-     * @param float|null $finalGrade The final grade
+     * @param  float|null  $finalGrade  The final grade
      * @return string The remarks (Passed, Failed, or empty)
      */
     public static function getRemarks(?float $finalGrade): string
@@ -144,7 +144,7 @@ class GradeService
      * - 75-79: Fairly Satisfactory
      * - Below 75: Did Not Meet Expectations
      *
-     * @param float|null $grade The grade
+     * @param  float|null  $grade  The grade
      * @return string The descriptor
      */
     public static function getDescriptor(?float $grade): string
@@ -165,6 +165,7 @@ class GradeService
         if ($grade >= 75) {
             return 'Fairly Satisfactory';
         }
+
         return 'Did Not Meet Expectations';
     }
 
@@ -172,7 +173,7 @@ class GradeService
      * Process student grades for report card display.
      * Returns an array with quarterly grades, final grade, and remarks.
      *
-     * @param \Illuminate\Support\Collection $rawGrades Collection of Grade models grouped by subject_id
+     * @param  \Illuminate\Support\Collection  $rawGrades  Collection of Grade models grouped by subject_id
      * @return array Array of processed grades data per subject
      */
     public static function processGradesForReportCard($rawGrades): array
@@ -186,7 +187,7 @@ class GradeService
 
             foreach ($collection as $g) {
                 // Parse quarter number from various formats
-                $qi = $g->quarter_int ?? (int)preg_replace('/[^0-9]/', '', $g->quarter) ?: null;
+                $qi = $g->quarter_int ?? (int) preg_replace('/[^0-9]/', '', $g->quarter) ?: null;
                 if ($qi && $qi >= 1 && $qi <= 4) {
                     $gradeValue = $g->grade;
 
@@ -202,7 +203,7 @@ class GradeService
             }
 
             // Calculate final grade.
-            $existingGrades = array_filter($quarters, fn($val) => $val !== null);
+            $existingGrades = array_filter($quarters, fn ($val) => $val !== null);
             $final = null;
 
             // Only calculate final grade if at least one quarter has a grade.

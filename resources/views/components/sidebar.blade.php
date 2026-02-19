@@ -293,6 +293,20 @@
                     </a>
                 </li>
                 <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('guardian.grades') ? 'active' : 'link-dark' }}"
+                        href="{{ route('guardian.grades') }}" style="width: 100%;">
+                        <i data-feather="book" class="me-2"></i>
+                        <span>Grades</span>
+                    </a>
+                </li>
+                <li class="nav-item mb-3 w-100">
+                    <a class="nav-link d-flex align-items-center {{ request()->routeIs('guardian.attendance') ? 'active' : 'link-dark' }}"
+                        href="{{ route('guardian.attendance') }}" style="width: 100%;">
+                        <i data-feather="clipboard" class="me-2"></i>
+                        <span>Attendance</span>
+                    </a>
+                </li>
+                <li class="nav-item mb-3 w-100">
                     <a class="nav-link d-flex align-items-center {{ request()->routeIs('profile') ? 'active' : 'link-dark' }}"
                         href="{{ route('profile') }}" style="width: 100%;">
                         <i data-feather="user" class="me-2"></i>
