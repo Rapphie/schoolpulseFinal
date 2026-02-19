@@ -7,9 +7,11 @@ namespace Tests\Feature\Admin;
 use App\Models\Classes;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
+use App\Models\Guardian;
 use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\Section;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
@@ -79,6 +81,123 @@ class AdminEnrollmentCreatePageTest extends TestCase
 
         $response->assertRedirect(route('admin.sections.manage', $class->section));
         $response->assertSessionHas('success', 'Student enrolled successfully.');
+    }
+
+    public function test_admin_can_search_existing_guardians_for_dropdown(): void
+    {
+        $admin = $this->createAdminUser();
+        [$schoolYear, $class] = $this->createActiveClass();
+
+        $guardianRole = Role::firstOrCreate(
+            ['name' => 'guardian'],
+            ['description' => 'Guardian role']
+        );
+        $guardianUser = User::factory()->create([
+            'role_id' => $guardianRole->id,
+            'email' => 'existing.guardian.'.Str::lower(Str::random(8)).'@example.com',
+        ]);
+        $guardian = Guardian::create([
+            'user_id' => $guardianUser->id,
+            'phone' => '09179990000',
+            'relationship' => 'parent',
+        ]);
+        $student = Student::create([
+            'student_id' => Student::generateStudentId($schoolYear),
+            'first_name' => 'Linked',
+            'last_name' => 'Child',
+            'gender' => 'male',
+            'birthdate' => '2016-01-01',
+            'guardian_id' => $guardian->id,
+            'enrollment_date' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('admin.enrollment.guardian.search', ['q' => 'existing.guardian']));
+
+        $response->assertOk();
+        $response->assertJsonCount(1, 'guardians');
+        $response->assertJsonPath('guardians.0.id', $guardian->id);
+        $response->assertJsonPath('guardians.0.email', $guardianUser->email);
+        $response->assertJsonPath('guardians.0.connected_student.first_name', $student->first_name);
+        $response->assertJsonPath('guardians.0.connected_student.last_name', $student->last_name);
+    }
+
+    public function test_admin_guardian_search_returns_empty_for_unknown_keyword(): void
+    {
+        $admin = $this->createAdminUser();
+        [$schoolYear, $class] = $this->createActiveClass();
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('admin.enrollment.guardian.search', ['q' => 'missing.guardian@example.com']));
+
+        $response->assertOk();
+        $response->assertJsonCount(0, 'guardians');
+    }
+
+    public function test_admin_can_enroll_student_using_existing_guardian_credentials(): void
+    {
+        Mail::fake();
+
+        $admin = $this->createAdminUser();
+        [$schoolYear, $class] = $this->createActiveClass();
+
+        $guardianRole = Role::firstOrCreate(
+            ['name' => 'guardian'],
+            ['description' => 'Guardian role']
+        );
+        $guardianUser = User::factory()->create([
+            'role_id' => $guardianRole->id,
+            'email' => 'shared.guardian.'.Str::lower(Str::random(8)).'@example.com',
+            'first_name' => 'Shared',
+            'last_name' => 'Guardian',
+        ]);
+        $guardian = Guardian::create([
+            'user_id' => $guardianUser->id,
+            'phone' => '09178887777',
+            'relationship' => 'parent',
+        ]);
+        Student::create([
+            'student_id' => Student::generateStudentId($schoolYear),
+            'first_name' => 'First',
+            'last_name' => 'Child',
+            'gender' => 'female',
+            'birthdate' => '2016-02-15',
+            'guardian_id' => $guardian->id,
+            'enrollment_date' => now(),
+        ]);
+
+        $userCountBefore = User::count();
+        $guardianCountBefore = Guardian::count();
+
+        $response = $this->actingAs($admin)
+            ->post(route('admin.enrollment.store', $class), [
+                'use_existing_guardian' => 1,
+                'guardian_id' => $guardian->id,
+                'first_name' => 'Second',
+                'last_name' => 'Child',
+                'gender' => 'male',
+                'birthdate' => '2016-03-15',
+                'address' => '123 Test Street',
+                'guardian_first_name' => 'Shared',
+                'guardian_last_name' => 'Guardian',
+                'guardian_email' => $guardianUser->email,
+                'guardian_phone' => '09178887777',
+                'guardian_relationship' => 'parent',
+            ]);
+
+        $response->assertRedirect(route('admin.sections.manage', $class->section));
+        $response->assertSessionHas('success', function (string $message) {
+            return str_contains($message, 'existing credentials were used');
+        });
+
+        $this->assertDatabaseHas('students', [
+            'first_name' => 'Second',
+            'last_name' => 'Child',
+            'guardian_id' => $guardian->id,
+        ]);
+        $this->assertSame($userCountBefore, User::count());
+        $this->assertSame($guardianCountBefore, Guardian::count());
+        Mail::assertNothingSent();
     }
 
     public function test_admin_enrollment_sets_enrollment_date_to_current_date(): void

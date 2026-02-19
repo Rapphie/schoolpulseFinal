@@ -44,6 +44,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         Route::middleware(['enrollment.enabled'])->group(function () {
             Route::get('/enrollment', [EnrollmentController::class, 'index'])->name('enrollment.index');
             Route::get('/enrollment/export-all', [EnrollmentController::class, 'exportAll'])->name('enrollment.exportAll');
+            Route::get('/enrollment/guardian-search', [EnrollmentController::class, 'searchGuardians'])->name('enrollment.guardian.search');
             Route::get('enrollment/export', [EnrollmentController::class, 'export'])->name('enrollment.export');
             Route::get('enrollment/class/{class}', [EnrollmentController::class, 'getEnrollmentsByClass'])->name('enrollment.class');
             Route::post('enrollment/store-past-student', [EnrollmentController::class, 'storePastStudent'])->name('enrollment.storePastStudent');

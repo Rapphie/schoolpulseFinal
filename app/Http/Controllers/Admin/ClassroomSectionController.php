@@ -677,13 +677,16 @@ class ClassroomSectionController extends Controller
             'distance_km' => 'nullable|numeric|min:0|max:100',
             'transportation' => 'nullable|string|max:50',
             'family_income' => 'nullable|string|in:Low,Medium,High',
+            'use_existing_guardian' => 'nullable|boolean',
+            'guardian_id' => 'nullable|exists:guardians,id',
             // Guardian fields
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required|email|max:255|unique:users,email',
+            'guardian_email' => 'required_unless:use_existing_guardian,1|email|max:255',
             'guardian_phone' => 'required|string|max:25',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
+        $useExistingGuardian = (bool) ($validated['use_existing_guardian'] ?? false);
         try {
             // Optional: prevent over-capacity
             if ($class->enrollments()->count() >= $class->capacity) {
@@ -709,21 +712,84 @@ class ClassroomSectionController extends Controller
 
             $plainPassword = '12345678';
             $guardianUser = null;
+            $guardianUserWasCreated = false;
+            $connectedStudentName = null;
 
-            DB::transaction(function () use ($validated, $class, $plainPassword, &$guardianUser) {
-                $guardianUser = User::create([
-                    'first_name' => $validated['guardian_first_name'],
-                    'last_name' => $validated['guardian_last_name'],
-                    'email' => $validated['guardian_email'],
-                    'password' => Hash::make($plainPassword),
-                    'role_id' => 3,
-                ]);
+            if ($useExistingGuardian && empty($validated['guardian_id'])) {
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'guardian_email' => 'Select an existing guardian from the dropdown first.',
+                    ]);
+            }
 
-                $guardian = Guardian::create([
-                    'user_id' => $guardianUser->id,
-                    'phone' => $validated['guardian_phone'],
-                    'relationship' => $validated['guardian_relationship'],
-                ]);
+            if (! $useExistingGuardian) {
+                $existingGuardianUser = User::query()
+                    ->where('email', $validated['guardian_email'])
+                    ->with('guardian')
+                    ->first();
+
+                if ($existingGuardianUser) {
+                    return back()
+                        ->withInput()
+                        ->withErrors([
+                            'guardian_email' => 'Guardian email already exists. Enable "Use Existing Guardian", select from dropdown, then continue.',
+                        ]);
+                }
+            }
+
+            DB::transaction(function () use (
+                $validated,
+                $class,
+                $plainPassword,
+                $useExistingGuardian,
+                &$guardianUser,
+                &$guardianUserWasCreated,
+                &$connectedStudentName
+            ) {
+                if ($useExistingGuardian) {
+                    $guardian = Guardian::query()
+                        ->with([
+                            'user',
+                            'students:id,guardian_id,first_name,last_name',
+                        ])
+                        ->findOrFail((int) $validated['guardian_id']);
+
+                    $guardianUser = $guardian->user;
+                    if (! $guardianUser) {
+                        throw new \RuntimeException('Guardian account is incomplete. Missing user profile.');
+                    }
+
+                    $connectedStudent = $guardian->students->first();
+                    if ($connectedStudent) {
+                        $connectedStudentName = trim($connectedStudent->first_name.' '.$connectedStudent->last_name);
+                    }
+
+                    $guardianUser->update([
+                        'first_name' => $validated['guardian_first_name'],
+                        'last_name' => $validated['guardian_last_name'],
+                    ]);
+
+                    $guardian->update([
+                        'phone' => $validated['guardian_phone'],
+                        'relationship' => $validated['guardian_relationship'],
+                    ]);
+                } else {
+                    $guardianUser = User::create([
+                        'first_name' => $validated['guardian_first_name'],
+                        'last_name' => $validated['guardian_last_name'],
+                        'email' => $validated['guardian_email'],
+                        'password' => Hash::make($plainPassword),
+                        'role_id' => 3,
+                    ]);
+                    $guardianUserWasCreated = true;
+
+                    $guardian = Guardian::create([
+                        'user_id' => $guardianUser->id,
+                        'phone' => $validated['guardian_phone'],
+                        'relationship' => $validated['guardian_relationship'],
+                    ]);
+                }
 
                 $student = Student::create([
                     'student_id' => Student::generateStudentId(),
@@ -753,14 +819,23 @@ class ClassroomSectionController extends Controller
             });
 
             // Send email AFTER the DB transaction to avoid sending within a transaction
-            if ($guardianUser) {
+            if ($guardianUser && $guardianUserWasCreated) {
                 Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
             }
         } catch (\Throwable $throwable) {
             return back()->withInput()->with('error', 'Failed to add student: '.$throwable->getMessage());
         }
 
-        return redirect()->route('admin.sections.manage', $class->section)->with('success', 'Student enrolled successfully.');
+        $successMessage = 'Student enrolled successfully.';
+        if ($useExistingGuardian) {
+            if ($connectedStudentName) {
+                $successMessage .= " Connected to student {$connectedStudentName}; existing credentials were used.";
+            } else {
+                $successMessage .= ' Existing guardian credentials were used.';
+            }
+        }
+
+        return redirect()->route('admin.sections.manage', $class->section)->with('success', $successMessage);
     }
 
     /**

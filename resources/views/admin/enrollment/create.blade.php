@@ -207,6 +207,28 @@
                             <div class="card-body">
                                 <div class="row g-3">
                                     <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="use_existing_guardian" name="use_existing_guardian" value="1"
+                                                {{ old('use_existing_guardian') ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="use_existing_guardian">
+                                                Use Existing Guardian
+                                            </label>
+                                        </div>
+                                        <input type="hidden" id="guardian_id" name="guardian_id"
+                                            value="{{ old('guardian_id') }}">
+                                    </div>
+                                    <div class="col-12 d-none" id="existingGuardianSearchContainer">
+                                        <label for="existing_guardian_search" class="form-label">Search Existing
+                                            Guardian</label>
+                                        <div class="position-relative">
+                                            <input type="text" class="form-control" id="existing_guardian_search"
+                                                placeholder="Search for a guardian..." autocomplete="off">
+                                            <div class="dropdown-menu w-100" id="existing_guardian_dropdown"></div>
+                                        </div>
+                                        <small class="text-muted">Type at least 2 characters to search guardians.</small>
+                                    </div>
+                                    <div class="col-12">
                                         <label for="guardian_first_name" class="form-label">First Name <span
                                                 class="text-danger">*</span></label>
                                         <input type="text"
@@ -261,6 +283,7 @@
                                         @error('guardian_email')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
+                                        <div id="guardianSearchStatus" class="small mt-2 d-none"></div>
                                         <small class="text-muted">Login credentials will be sent here</small>
                                     </div>
                                     <div class="col-12">
@@ -284,8 +307,8 @@
                             <strong>What happens next?</strong>
                             <ul class="mb-0 mt-2 ps-3">
                                 <li>Student profile is created</li>
-                                <li>Guardian account is created</li>
-                                <li>Login credentials sent to guardian</li>
+                                <li>Guardian account is created or reused</li>
+                                <li>Login credentials sent only for new guardian accounts</li>
                                 <li>Student is enrolled in <strong>{{ $section->name }}</strong></li>
                             </ul>
                         </div>
@@ -315,8 +338,292 @@
             }
 
             const form = document.getElementById('enrollStudentForm');
+            const useExistingGuardianToggle = document.getElementById('use_existing_guardian');
+            const existingGuardianSearchContainer = document.getElementById('existingGuardianSearchContainer');
+            const existingGuardianSearchInput = document.getElementById('existing_guardian_search');
+            const existingGuardianDropdown = document.getElementById('existing_guardian_dropdown');
+            const guardianSearchStatus = document.getElementById('guardianSearchStatus');
+            const guardianIdInput = document.getElementById('guardian_id');
+            const guardianEmailInput = document.getElementById('guardian_email');
+            const guardianFirstNameInput = document.getElementById('guardian_first_name');
+            const guardianLastNameInput = document.getElementById('guardian_last_name');
+            const guardianRelationshipInput = document.getElementById('guardian_relationship');
+            const guardianPhoneInput = document.getElementById('guardian_phone');
+            const guardianDetailsInputs = [
+                guardianFirstNameInput,
+                guardianLastNameInput,
+                guardianRelationshipInput,
+                guardianPhoneInput,
+            ];
+            const guardianSearchUrl = @json(route('admin.enrollment.guardian.search'));
+            const guardiansById = new Map();
+            let searchDebounceTimer = null;
+
+            const setGuardianSearchStatus = (message, variant) => {
+                if (!guardianSearchStatus) {
+                    return;
+                }
+
+                guardianSearchStatus.classList.remove('d-none', 'text-success', 'text-danger', 'text-muted');
+                if (variant === 'success') {
+                    guardianSearchStatus.classList.add('text-success');
+                } else if (variant === 'error') {
+                    guardianSearchStatus.classList.add('text-danger');
+                } else {
+                    guardianSearchStatus.classList.add('text-muted');
+                }
+                guardianSearchStatus.textContent = message;
+            };
+
+            const clearGuardianSearchStatus = () => {
+                if (!guardianSearchStatus) {
+                    return;
+                }
+
+                guardianSearchStatus.classList.add('d-none');
+                guardianSearchStatus.textContent = '';
+            };
+
+            const setGuardianDetailsDisabled = (disabled) => {
+                guardianDetailsInputs.forEach((input) => {
+                    if (input) {
+                        input.disabled = disabled;
+                    }
+                });
+            };
+
+            const clearGuardianDetails = () => {
+                if (guardianFirstNameInput) {
+                    guardianFirstNameInput.value = '';
+                }
+                if (guardianLastNameInput) {
+                    guardianLastNameInput.value = '';
+                }
+                if (guardianRelationshipInput) {
+                    guardianRelationshipInput.value = '';
+                }
+                if (guardianPhoneInput) {
+                    guardianPhoneInput.value = '';
+                }
+            };
+
+            const resetGuardianSelection = () => {
+                if (guardianIdInput) {
+                    guardianIdInput.value = '';
+                }
+                if (guardianEmailInput) {
+                    guardianEmailInput.value = '';
+                }
+                clearGuardianDetails();
+                setGuardianDetailsDisabled(true);
+            };
+
+            const renderGuardianDropdown = (guardians) => {
+                if (!existingGuardianDropdown) {
+                    return;
+                }
+
+                guardiansById.clear();
+                existingGuardianDropdown.innerHTML = '';
+
+                if (!guardians || guardians.length === 0) {
+                    existingGuardianDropdown.innerHTML =
+                        '<div class="dropdown-item text-muted">No guardians found</div>';
+                    existingGuardianDropdown.classList.add('show');
+                    return;
+                }
+
+                guardians.forEach((guardian) => {
+                    guardiansById.set(String(guardian.id), guardian);
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'dropdown-item';
+                    item.textContent = `${guardian.full_name} - ${guardian.email}`;
+                    item.dataset.id = String(guardian.id);
+                    item.addEventListener('click', () => {
+                        existingGuardianSearchInput.value = guardian.full_name || guardian.email || '';
+                        fillGuardianDetails(guardian);
+                        existingGuardianDropdown.classList.remove('show');
+                    });
+                    existingGuardianDropdown.appendChild(item);
+                });
+
+                existingGuardianDropdown.classList.add('show');
+            };
+
+            const fillGuardianDetails = (guardian) => {
+                if (!guardian) {
+                    return;
+                }
+
+                if (guardianIdInput) {
+                    guardianIdInput.value = guardian.id || '';
+                }
+                if (guardianFirstNameInput) {
+                    guardianFirstNameInput.value = guardian.first_name || '';
+                }
+                if (guardianLastNameInput) {
+                    guardianLastNameInput.value = guardian.last_name || '';
+                }
+                if (guardianRelationshipInput) {
+                    guardianRelationshipInput.value = guardian.relationship || '';
+                }
+                if (guardianPhoneInput) {
+                    guardianPhoneInput.value = guardian.phone || '';
+                }
+                if (guardianEmailInput) {
+                    guardianEmailInput.value = guardian.email || '';
+                }
+
+                setGuardianDetailsDisabled(false);
+
+                const connectedStudent = guardian.connected_student;
+                if (connectedStudent) {
+                    const fullName = `${connectedStudent.first_name || ''} ${connectedStudent.last_name || ''}`.trim();
+                    setGuardianSearchStatus(
+                        `Guardian selected. Connected to student ${fullName}. Existing credentials will be used.`,
+                        'success'
+                    );
+                } else {
+                    setGuardianSearchStatus('Guardian selected. Existing credentials will be used.', 'success');
+                }
+            };
+
+            const fetchGuardians = async () => {
+                if (!useExistingGuardianToggle?.checked) {
+                    return;
+                }
+
+                const searchText = existingGuardianSearchInput?.value?.trim() || '';
+                if (searchText.length < 2) {
+                    if (existingGuardianDropdown) {
+                        existingGuardianDropdown.classList.remove('show');
+                        existingGuardianDropdown.innerHTML = '';
+                    }
+                    guardiansById.clear();
+                    resetGuardianSelection();
+                    setGuardianSearchStatus('Type at least 2 characters to search.', 'muted');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${guardianSearchUrl}?q=${encodeURIComponent(searchText)}`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+                    const payload = await response.json();
+                    const guardians = Array.isArray(payload.guardians) ? payload.guardians : [];
+
+                    resetGuardianSelection();
+                    renderGuardianDropdown(guardians);
+
+                    if (guardians.length === 0) {
+                        setGuardianSearchStatus('Guardian does not exist.', 'error');
+                    } else {
+                        setGuardianSearchStatus('Select a guardian from the dropdown.', 'muted');
+                    }
+                } catch (error) {
+                    resetGuardianSelection();
+                    if (existingGuardianDropdown) {
+                        existingGuardianDropdown.classList.remove('show');
+                        existingGuardianDropdown.innerHTML = '';
+                    }
+                    setGuardianSearchStatus('Unable to search guardians right now. Please try again.', 'error');
+                }
+            };
+
+            const applyExistingGuardianMode = () => {
+                const isExistingMode = !!useExistingGuardianToggle?.checked;
+
+                if (isExistingMode) {
+                    if (existingGuardianSearchContainer) {
+                        existingGuardianSearchContainer.classList.remove('d-none');
+                    }
+                    if (guardianEmailInput) {
+                        guardianEmailInput.disabled = true;
+                    }
+                    if (guardianIdInput?.value) {
+                        setGuardianDetailsDisabled(false);
+                        setGuardianSearchStatus('Existing guardian selected. Existing credentials will be used.', 'muted');
+                    } else {
+                        resetGuardianSelection();
+                        setGuardianSearchStatus('Search and select an existing guardian.', 'muted');
+                    }
+                } else {
+                    if (existingGuardianSearchContainer) {
+                        existingGuardianSearchContainer.classList.add('d-none');
+                    }
+                    if (existingGuardianSearchInput) {
+                        existingGuardianSearchInput.value = '';
+                    }
+                    if (existingGuardianDropdown) {
+                        existingGuardianDropdown.classList.remove('show');
+                        existingGuardianDropdown.innerHTML = '';
+                    }
+                    guardiansById.clear();
+                    if (guardianIdInput) {
+                        guardianIdInput.value = '';
+                    }
+                    if (guardianEmailInput) {
+                        guardianEmailInput.disabled = false;
+                    }
+                    setGuardianDetailsDisabled(false);
+                    clearGuardianSearchStatus();
+                }
+            };
+
+            if (useExistingGuardianToggle) {
+                useExistingGuardianToggle.addEventListener('change', function() {
+                    applyExistingGuardianMode();
+                });
+            }
+
+            if (existingGuardianSearchInput) {
+                existingGuardianSearchInput.addEventListener('input', function() {
+                    if (!useExistingGuardianToggle?.checked) {
+                        return;
+                    }
+
+                    if (searchDebounceTimer) {
+                        clearTimeout(searchDebounceTimer);
+                    }
+
+                    searchDebounceTimer = setTimeout(fetchGuardians, 250);
+                });
+                existingGuardianSearchInput.addEventListener('focus', function() {
+                    if (!useExistingGuardianToggle?.checked) {
+                        return;
+                    }
+
+                    if ((this.value || '').trim().length >= 2) {
+                        fetchGuardians();
+                    }
+                });
+            }
+
+            document.addEventListener('click', function(e) {
+                if (!existingGuardianSearchInput || !existingGuardianDropdown) {
+                    return;
+                }
+
+                if (!existingGuardianSearchInput.contains(e.target) && !existingGuardianDropdown.contains(e.target)) {
+                    existingGuardianDropdown.classList.remove('show');
+                }
+            });
+
+            applyExistingGuardianMode();
+
             if (form) {
                 form.addEventListener('submit', function(e) {
+                    if (useExistingGuardianToggle?.checked && !guardianIdInput?.value) {
+                        e.preventDefault();
+                        setGuardianSearchStatus('Search and select an existing guardian first.', 'error');
+                        return;
+                    }
+
                     const submitBtn = document.getElementById('submitBtn');
                     submitBtn.disabled = true;
                     submitBtn.innerHTML =

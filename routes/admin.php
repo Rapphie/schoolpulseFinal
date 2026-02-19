@@ -56,6 +56,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
             Route::get('/', [TeacherEnrollmentController::class, 'index'])->name('index');
             Route::get('/export-all', [TeacherEnrollmentController::class, 'exportAll'])->name('exportAll');
             Route::get('/export-mine', [TeacherEnrollmentController::class, 'exportMine'])->name('exportMine');
+            Route::get('/guardian-search', [TeacherEnrollmentController::class, 'searchGuardians'])->name('guardian.search');
             Route::post('/', [TeacherEnrollmentController::class, 'store'])->name('page.store');
             Route::post('/store-past-student', [TeacherEnrollmentController::class, 'storePastStudent'])->name('page.storePastStudent');
         });

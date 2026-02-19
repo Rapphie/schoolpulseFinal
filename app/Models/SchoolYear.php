@@ -88,13 +88,32 @@ class SchoolYear extends Model
 
     public static function getRealActive(): ?self
     {
-        $active = static::query()->where('is_active', true)->first();
+        $manualActiveQuarter = SchoolYearQuarter::query()
+            ->where('is_manually_set_active', true)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
 
-        if (! $active) {
-            $active = static::query()->latest('end_date')->first();
+        if ($manualActiveQuarter) {
+            static::resolveManualQuarterActivationConflicts($manualActiveQuarter);
+
+            return static::query()->find($manualActiveQuarter->school_year_id);
         }
 
-        return $active;
+        $activeYears = static::query()
+            ->where('is_active', true)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get();
+
+        if ($activeYears->count() > 1) {
+            $activeYear = $activeYears->first();
+            static::query()->where('id', '!=', $activeYear->id)->update(['is_active' => false]);
+
+            return $activeYear;
+        }
+
+        return $activeYears->first();
     }
 
     public function scopeActive(Builder $query): Builder
@@ -266,5 +285,23 @@ class SchoolYear extends Model
     public function canOpenPromotion(): bool
     {
         return $this->hasEnded();
+    }
+
+    private static function resolveManualQuarterActivationConflicts(SchoolYearQuarter $winner): void
+    {
+        SchoolYearQuarter::query()
+            ->where('is_manually_set_active', true)
+            ->where('id', '!=', $winner->id)
+            ->update(['is_manually_set_active' => false]);
+
+        static::query()
+            ->where('id', '!=', $winner->school_year_id)
+            ->where('is_active', true)
+            ->update(['is_active' => false]);
+
+        static::query()
+            ->whereKey($winner->school_year_id)
+            ->where('is_active', false)
+            ->update(['is_active' => true]);
     }
 }

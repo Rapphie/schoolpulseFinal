@@ -1155,7 +1155,7 @@
                                                     <form
                                                         action="{{ route('admin.school-year.quarters.set-active', [$year, $quarter]) }}"
                                                         method="POST" class="d-inline"
-                                                        onsubmit="return confirm('WARNING: Setting {{ $quarter->name }} as the active quarter will:\n\n• Override automatic date-based detection\n• Set {{ $year->name }} as the active school year\n• This affects grades, attendance, and enrollment system-wide\n\nAre you sure you want to proceed?')">
+                                                        onsubmit="return confirm('WARNING: Setting {{ $quarter->name }} as the active quarter will:\n\n• Override automatic date-based detection\n• Work only when {{ $year->name }} is the current active school year\n• Affect grades, attendance, and enrollment system-wide\n\nAre you sure you want to proceed?')">
                                                         @csrf
                                                         <button type="submit" class="btn btn-sm btn-outline-success"
                                                             title="Set Active Quarter">

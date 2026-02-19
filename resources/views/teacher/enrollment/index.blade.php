@@ -13,6 +13,7 @@
     $enrollmentExportMineRoute = $enrollmentExportMineRoute ?? null;
     $enrollmentStoreRoute = $enrollmentStoreRoute ?? 'teacher.enrollment.store';
     $enrollmentStorePastStudentRoute = $enrollmentStorePastStudentRoute ?? 'teacher.enrollment.storePastStudent';
+    $guardianSearchRoute = $guardianSearchRoute ?? 'teacher.enrollment.guardian.search';
     $enrollmentOwnerLabel = $enrollmentOwnerLabel ?? 'My Enrollments';
     $isEnrollmentReadOnly = $isEnrollmentReadOnly ?? false;
     $isAdminEnrollmentContext = $isAdminEnrollmentContext ?? false;
@@ -21,6 +22,8 @@
         'student_type' => old('student_type', ''),
         'student_id' => old('student_id', ''),
         'class_id' => old('class_id', ''),
+        'use_existing_guardian' => old('use_existing_guardian', ''),
+        'guardian_id' => old('guardian_id', ''),
         'enrollment_status' => old('enrollment_status', 'enrolled'),
     ];
     $profileWizardFields = [
@@ -421,6 +424,29 @@
                                         Guardian Information <span class="badge bg-danger ms-2">Required</span>
                                     </div>
                                     <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                    id="use_existing_guardian" name="use_existing_guardian" value="1"
+                                                    {{ old('use_existing_guardian') ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="use_existing_guardian">
+                                                    Use Existing Guardian
+                                                </label>
+                                            </div>
+                                            <input type="hidden" id="guardian_id" name="guardian_id"
+                                                value="{{ old('guardian_id') }}">
+                                        </div>
+                                        <div class="col-md-12 d-none" id="existingGuardianSearchContainer">
+                                            <label for="existing_guardian_search" class="form-label">Search Existing
+                                                Guardian</label>
+                                            <div class="position-relative">
+                                                <input type="text" class="form-control" id="existing_guardian_search"
+                                                    placeholder="Search for a guardian..." autocomplete="off">
+                                                <div class="dropdown-menu w-100" id="existing_guardian_dropdown"></div>
+                                            </div>
+                                            <small class="text-muted">Type at least 2 characters to search guardians.</small>
+                                            <div id="guardianSearchStatus" class="small mt-2 d-none"></div>
+                                        </div>
                                         <div class="col-md-6">
                                             <label for="guardian_first_name" class="form-label">First Name <span
                                                     class="text-danger">*</span></label>
@@ -1449,6 +1475,7 @@
 
         // Current teacher ID for filtering pending profiles
         const currentTeacherId = @json($currentTeacherId);
+        const guardianSearchUrl = @json(route($guardianSearchRoute));
 
         // Previous school year ID for filtering returning students
         const previousSchoolYearId = @json($previousSchoolYear?->id);
@@ -1475,6 +1502,25 @@
         const studentIdInput = document.getElementById('studentIdInput');
         const classIdInput = document.getElementById('classIdInput');
         const enrollmentForm = document.getElementById('enrollmentForm');
+        const useExistingGuardianToggle = document.getElementById('use_existing_guardian');
+        const guardianIdInput = document.getElementById('guardian_id');
+        const existingGuardianSearchContainer = document.getElementById('existingGuardianSearchContainer');
+        const existingGuardianSearchInput = document.getElementById('existing_guardian_search');
+        const existingGuardianDropdown = document.getElementById('existing_guardian_dropdown');
+        const guardianSearchStatus = document.getElementById('guardianSearchStatus');
+        const guardianFirstNameInput = document.getElementById('guardian_first_name');
+        const guardianLastNameInput = document.getElementById('guardian_last_name');
+        const guardianRelationshipInput = document.getElementById('guardian_relationship');
+        const guardianEmailInput = document.getElementById('guardian_email');
+        const guardianPhoneInput = document.getElementById('guardian_phone');
+        const guardianDetailsInputs = [
+            guardianFirstNameInput,
+            guardianLastNameInput,
+            guardianRelationshipInput,
+            guardianPhoneInput,
+        ];
+        const guardiansById = new Map();
+        let guardianSearchDebounceTimer = null;
 
         // Initialize feather icons
         if (typeof feather !== 'undefined') {
@@ -1504,6 +1550,244 @@
                 }
             });
         }
+
+        function setGuardianSearchStatus(message, variant = 'muted') {
+            if (!guardianSearchStatus) {
+                return;
+            }
+
+            guardianSearchStatus.classList.remove('d-none', 'text-success', 'text-danger', 'text-muted');
+            if (variant === 'success') {
+                guardianSearchStatus.classList.add('text-success');
+            } else if (variant === 'error') {
+                guardianSearchStatus.classList.add('text-danger');
+            } else {
+                guardianSearchStatus.classList.add('text-muted');
+            }
+            guardianSearchStatus.textContent = message;
+        }
+
+        function clearGuardianSearchStatus() {
+            if (!guardianSearchStatus) {
+                return;
+            }
+
+            guardianSearchStatus.classList.add('d-none');
+            guardianSearchStatus.textContent = '';
+        }
+
+        function setGuardianDetailsDisabled(disabled) {
+            guardianDetailsInputs.forEach((input) => {
+                if (input) {
+                    input.disabled = disabled;
+                }
+            });
+        }
+
+        function clearGuardianDetails() {
+            if (guardianFirstNameInput) guardianFirstNameInput.value = '';
+            if (guardianLastNameInput) guardianLastNameInput.value = '';
+            if (guardianRelationshipInput) guardianRelationshipInput.value = '';
+            if (guardianPhoneInput) guardianPhoneInput.value = '';
+        }
+
+        function resetGuardianSelection() {
+            if (guardianIdInput) {
+                guardianIdInput.value = '';
+            }
+            if (guardianEmailInput) {
+                guardianEmailInput.value = '';
+            }
+            clearGuardianDetails();
+            setGuardianDetailsDisabled(true);
+        }
+
+        function renderGuardianDropdown(guardians) {
+            if (!existingGuardianDropdown) {
+                return;
+            }
+
+            guardiansById.clear();
+            existingGuardianDropdown.innerHTML = '';
+
+            if (!guardians || guardians.length === 0) {
+                existingGuardianDropdown.innerHTML =
+                    '<div class="dropdown-item text-muted">No guardians found</div>';
+                existingGuardianDropdown.classList.add('show');
+
+                return;
+            }
+
+            guardians.forEach((guardian) => {
+                guardiansById.set(String(guardian.id), guardian);
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'dropdown-item';
+                item.textContent = `${guardian.full_name} - ${guardian.email}`;
+                item.dataset.id = String(guardian.id);
+                item.addEventListener('click', () => {
+                    existingGuardianSearchInput.value = guardian.full_name || guardian.email || '';
+                    fillGuardianDetailsFromSelection(guardian);
+                    existingGuardianDropdown.classList.remove('show');
+                });
+                existingGuardianDropdown.appendChild(item);
+            });
+
+            existingGuardianDropdown.classList.add('show');
+        }
+
+        function fillGuardianDetailsFromSelection(guardian) {
+            if (!guardian) {
+                return;
+            }
+
+            if (guardianIdInput) guardianIdInput.value = guardian.id || '';
+            if (guardianFirstNameInput) guardianFirstNameInput.value = guardian.first_name || '';
+            if (guardianLastNameInput) guardianLastNameInput.value = guardian.last_name || '';
+            if (guardianRelationshipInput) guardianRelationshipInput.value = guardian.relationship || '';
+            if (guardianPhoneInput) guardianPhoneInput.value = guardian.phone || '';
+            if (guardianEmailInput) guardianEmailInput.value = guardian.email || '';
+
+            setGuardianDetailsDisabled(false);
+
+            const connectedStudent = guardian.connected_student;
+            if (connectedStudent) {
+                const fullName = `${connectedStudent.first_name || ''} ${connectedStudent.last_name || ''}`.trim();
+                setGuardianSearchStatus(
+                    `Guardian selected. Connected to student ${fullName}. Existing credentials will be used.`,
+                    'success'
+                );
+            } else {
+                setGuardianSearchStatus('Guardian selected. Existing credentials will be used.', 'success');
+            }
+        }
+
+        async function fetchGuardiansForDropdown() {
+            if (!useExistingGuardianToggle?.checked) {
+                return;
+            }
+
+            const searchText = existingGuardianSearchInput?.value?.trim() || '';
+            if (searchText.length < 2) {
+                if (existingGuardianDropdown) {
+                    existingGuardianDropdown.classList.remove('show');
+                    existingGuardianDropdown.innerHTML = '';
+                }
+                guardiansById.clear();
+                resetGuardianSelection();
+                setGuardianSearchStatus('Type at least 2 characters to search.', 'muted');
+
+                return;
+            }
+
+            try {
+                const response = await fetch(`${guardianSearchUrl}?q=${encodeURIComponent(searchText)}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const payload = await response.json();
+                const guardians = Array.isArray(payload.guardians) ? payload.guardians : [];
+
+                resetGuardianSelection();
+                renderGuardianDropdown(guardians);
+
+                if (guardians.length === 0) {
+                    setGuardianSearchStatus('Guardian does not exist.', 'error');
+                } else {
+                    setGuardianSearchStatus('Select a guardian from the dropdown.', 'muted');
+                }
+            } catch (error) {
+                resetGuardianSelection();
+                if (existingGuardianDropdown) {
+                    existingGuardianDropdown.classList.remove('show');
+                    existingGuardianDropdown.innerHTML = '';
+                }
+                setGuardianSearchStatus('Unable to search guardians right now. Please try again.', 'error');
+            }
+        }
+
+        function applyExistingGuardianMode() {
+            const isExistingMode = !!useExistingGuardianToggle?.checked;
+            if (isExistingMode) {
+                if (existingGuardianSearchContainer) {
+                    existingGuardianSearchContainer.classList.remove('d-none');
+                }
+                if (guardianEmailInput) {
+                    guardianEmailInput.disabled = true;
+                }
+                if (guardianIdInput?.value) {
+                    setGuardianDetailsDisabled(false);
+                    setGuardianSearchStatus('Existing guardian selected. Existing credentials will be used.', 'muted');
+                } else {
+                    resetGuardianSelection();
+                    setGuardianSearchStatus('Search and select an existing guardian.', 'muted');
+                }
+            } else {
+                if (existingGuardianSearchContainer) {
+                    existingGuardianSearchContainer.classList.add('d-none');
+                }
+                if (existingGuardianSearchInput) {
+                    existingGuardianSearchInput.value = '';
+                }
+                if (existingGuardianDropdown) {
+                    existingGuardianDropdown.classList.remove('show');
+                    existingGuardianDropdown.innerHTML = '';
+                }
+                guardiansById.clear();
+                if (guardianIdInput) {
+                    guardianIdInput.value = '';
+                }
+                if (guardianEmailInput) {
+                    guardianEmailInput.disabled = false;
+                }
+                setGuardianDetailsDisabled(false);
+                clearGuardianSearchStatus();
+            }
+        }
+
+        if (useExistingGuardianToggle) {
+            useExistingGuardianToggle.addEventListener('change', function() {
+                applyExistingGuardianMode();
+            });
+        }
+
+        if (existingGuardianSearchInput) {
+            existingGuardianSearchInput.addEventListener('input', function() {
+                if (!useExistingGuardianToggle?.checked) {
+                    return;
+                }
+
+                if (guardianSearchDebounceTimer) {
+                    clearTimeout(guardianSearchDebounceTimer);
+                }
+
+                guardianSearchDebounceTimer = setTimeout(fetchGuardiansForDropdown, 250);
+            });
+            existingGuardianSearchInput.addEventListener('focus', function() {
+                if (!useExistingGuardianToggle?.checked) {
+                    return;
+                }
+
+                if ((this.value || '').trim().length >= 2) {
+                    fetchGuardiansForDropdown();
+                }
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!existingGuardianSearchInput || !existingGuardianDropdown) {
+                return;
+            }
+
+            if (!existingGuardianSearchInput.contains(e.target) && !existingGuardianDropdown.contains(e.target)) {
+                existingGuardianDropdown.classList.remove('show');
+            }
+        });
+
+        applyExistingGuardianMode();
 
         // Step navigation functions
         function goToStep(step) {
@@ -1564,6 +1848,7 @@
                     // New student - show form
                     newStudentForm.style.display = 'block';
                     toggleNewStudentFormRequired(true);
+                    applyExistingGuardianMode();
                     step2Next.disabled = false;
                 }
             }
@@ -1778,8 +2063,11 @@
 
                     // Guardian info
                     document.getElementById('guardianSummaryCard').style.display = 'block';
-                    document.getElementById('guardianEmailNote').textContent =
+                    const usingExistingGuardian = !!useExistingGuardianToggle?.checked && !!guardianIdInput?.value;
+                    document.getElementById('guardianEmailNote').textContent = usingExistingGuardian ?
+                        'Existing guardian credentials will be used.' :
                         'An email with login credentials will be sent to the guardian.';
+                    document.getElementById('editGuardianEmail').readOnly = usingExistingGuardian;
 
                     // Setup single edit mode toggle listener
                     const editSwitch = document.getElementById('singleEditModeSwitch');
@@ -1789,6 +2077,9 @@
                         fields.forEach(field => {
                             field.disabled = !this.checked;
                         });
+                        if (usingExistingGuardian) {
+                            document.getElementById('editGuardianEmail').readOnly = true;
+                        }
                     };
                 }
 
@@ -3149,6 +3440,13 @@
             if (!classIdInput.value) {
                 e.preventDefault();
                 alert('Error: No class selected. Please go back and select a class.');
+                return;
+            }
+
+            if (state.studentType === 'new' && useExistingGuardianToggle?.checked && !guardianIdInput?.value) {
+                e.preventDefault();
+                setGuardianSearchStatus('Search and select an existing guardian first.', 'error');
+                alert('Please search and select an existing guardian from the dropdown first.');
                 return;
             }
 

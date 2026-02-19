@@ -5,6 +5,7 @@ namespace Tests\Feature\Teacher;
 use App\Models\Classes;
 use App\Models\Enrollment;
 use App\Models\GradeLevel;
+use App\Models\Guardian;
 use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\Section;
@@ -62,6 +63,118 @@ class TeacherEnrollmentTest extends TestCase
         $this->assertSame($teacherUser->id, $enrollment->enrolled_by_user_id);
         $this->assertSame($schoolYear->id, $enrollment->school_year_id);
         $this->assertSame('enrolled', $enrollment->status);
+    }
+
+    public function test_teacher_can_search_guardians_for_dropdown(): void
+    {
+        Cache::flush();
+
+        [$teacher, $teacherUser] = $this->createTeacherUser();
+        [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $this->enableTeacherEnrollment();
+
+        $guardianRole = Role::firstOrCreate(
+            ['name' => 'guardian'],
+            ['description' => 'Guardian role']
+        );
+        $guardianUser = User::factory()->create([
+            'role_id' => $guardianRole->id,
+            'email' => 'teacher.search.guardian.'.Str::lower(Str::random(8)).'@example.com',
+        ]);
+        $guardian = Guardian::create([
+            'user_id' => $guardianUser->id,
+            'phone' => '09179998888',
+            'relationship' => 'parent',
+        ]);
+        $student = Student::create([
+            'student_id' => Student::generateStudentId($schoolYear),
+            'first_name' => 'Linked',
+            'last_name' => 'Pupil',
+            'gender' => 'female',
+            'birthdate' => '2016-04-01',
+            'guardian_id' => $guardian->id,
+            'enrollment_date' => now(),
+        ]);
+
+        $response = $this->actingAs($teacherUser)
+            ->getJson(route('teacher.enrollment.guardian.search', ['q' => 'teacher.search.guardian']));
+
+        $response->assertOk();
+        $response->assertJsonCount(1, 'guardians');
+        $response->assertJsonPath('guardians.0.id', $guardian->id);
+        $response->assertJsonPath('guardians.0.email', $guardianUser->email);
+        $response->assertJsonPath('guardians.0.connected_student.first_name', $student->first_name);
+    }
+
+    public function test_teacher_can_enroll_new_student_with_existing_guardian_credentials(): void
+    {
+        Mail::fake();
+        Cache::flush();
+
+        [$teacher, $teacherUser] = $this->createTeacherUser();
+        [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $this->enableTeacherEnrollment();
+
+        $guardianRole = Role::firstOrCreate(
+            ['name' => 'guardian'],
+            ['description' => 'Guardian role']
+        );
+        $guardianUser = User::factory()->create([
+            'role_id' => $guardianRole->id,
+            'email' => 'teacher.shared.guardian.'.Str::lower(Str::random(8)).'@example.com',
+            'first_name' => 'Shared',
+            'last_name' => 'Guardian',
+        ]);
+        $guardian = Guardian::create([
+            'user_id' => $guardianUser->id,
+            'phone' => '09172223333',
+            'relationship' => 'parent',
+        ]);
+        Student::create([
+            'student_id' => Student::generateStudentId($schoolYear),
+            'first_name' => 'Older',
+            'last_name' => 'Sibling',
+            'gender' => 'male',
+            'birthdate' => '2015-09-10',
+            'guardian_id' => $guardian->id,
+            'enrollment_date' => now(),
+        ]);
+
+        $userCountBefore = User::count();
+        $guardianCountBefore = Guardian::count();
+
+        $response = $this->actingAs($teacherUser)
+            ->from(route('teacher.enrollment.index'))
+            ->post(route('teacher.enrollment.store'), [
+                'class_id' => $class->id,
+                'use_existing_guardian' => 1,
+                'guardian_id' => $guardian->id,
+                'first_name' => 'Younger',
+                'last_name' => 'Sibling',
+                'gender' => 'female',
+                'birthdate' => '2016-03-15',
+                'address' => '123 Test St',
+                'guardian_first_name' => 'Shared',
+                'guardian_last_name' => 'Guardian',
+                'guardian_email' => $guardianUser->email,
+                'guardian_phone' => '09172223333',
+                'guardian_relationship' => 'parent',
+                'enrollment_status' => 'enrolled',
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success', function (string $message) {
+            return str_contains($message, 'existing credentials were used');
+        });
+
+        $this->assertDatabaseHas('students', [
+            'first_name' => 'Younger',
+            'last_name' => 'Sibling',
+            'guardian_id' => $guardian->id,
+        ]);
+        $this->assertSame($userCountBefore, User::count());
+        $this->assertSame($guardianCountBefore, Guardian::count());
+        Mail::assertNothingSent();
     }
 
     public function test_teacher_can_enroll_new_student_as_transferred(): void

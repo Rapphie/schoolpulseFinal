@@ -17,6 +17,9 @@ class SchoolYearQuarterManagementTest extends TestCase
      */
     private function getBaseTestData(): array
     {
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+
         $adminUser = User::where('role_id', 1)->first();
         if (! $adminUser) {
             $this->markTestSkipped('No admin user found.');
@@ -100,6 +103,7 @@ class SchoolYearQuarterManagementTest extends TestCase
     public function test_set_active_marks_quarter_as_manually_active(): void
     {
         $data = $this->getDataWithQuarter();
+        $data['schoolYear']->update(['is_active' => true]);
 
         $response = $this->actingAs($data['admin'])
             ->post(route('admin.school-year.quarters.set-active', [
@@ -120,6 +124,7 @@ class SchoolYearQuarterManagementTest extends TestCase
     public function test_set_active_deactivates_previous_manually_active_quarter(): void
     {
         $data = $this->getBaseTestData();
+        $data['schoolYear']->update(['is_active' => true]);
 
         $quarter1 = $data['schoolYear']->quarters()->create([
             'quarter' => 1,
@@ -155,20 +160,102 @@ class SchoolYearQuarterManagementTest extends TestCase
         $this->assertTrue($quarter2->is_manually_set_active);
     }
 
-    public function test_set_active_activates_the_parent_school_year(): void
+    public function test_set_active_fails_when_school_year_is_not_the_active_school_year(): void
     {
-        $data = $this->getDataWithQuarter();
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
 
-        $this->assertFalse($data['schoolYear']->is_active);
+        $adminUser = User::where('role_id', 1)->first();
+        if (! $adminUser) {
+            $this->markTestSkipped('No admin user found.');
+        }
 
-        $this->actingAs($data['admin'])
-            ->post(route('admin.school-year.quarters.set-active', [
-                $data['schoolYear'],
-                $data['quarter'],
-            ]));
+        $inactiveYear = SchoolYear::create([
+            'name' => '2031-2032-qtest-inactive',
+            'start_date' => '2031-06-01',
+            'end_date' => '2032-03-31',
+            'is_active' => false,
+        ]);
 
-        $data['schoolYear']->refresh();
-        $this->assertTrue($data['schoolYear']->is_active);
+        $activeYear = SchoolYear::create([
+            'name' => '2032-2033-qtest-active',
+            'start_date' => '2032-06-01',
+            'end_date' => '2033-03-31',
+            'is_active' => true,
+        ]);
+
+        $quarter = $inactiveYear->quarters()->create([
+            'quarter' => 1,
+            'name' => 'First Quarter',
+            'start_date' => '2031-06-01',
+            'end_date' => '2031-08-14',
+            'is_locked' => false,
+            'is_manually_set_active' => false,
+        ]);
+
+        $response = $this->actingAs($adminUser)
+            ->post(route('admin.school-year.quarters.set-active', [$inactiveYear, $quarter]));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+
+        $inactiveYear->refresh();
+        $activeYear->refresh();
+        $quarter->refresh();
+
+        $this->assertFalse($inactiveYear->is_active);
+        $this->assertTrue($activeYear->is_active);
+        $this->assertFalse($quarter->is_manually_set_active);
+    }
+
+    public function test_set_active_keeps_existing_active_school_year_when_setting_quarter_within_it(): void
+    {
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+
+        $adminUser = User::where('role_id', 1)->first();
+        if (! $adminUser) {
+            $this->markTestSkipped('No admin user found.');
+        }
+
+        $yearA = SchoolYear::create([
+            'name' => '2028-2029-qtest-a',
+            'start_date' => '2028-06-01',
+            'end_date' => '2029-03-31',
+            'is_active' => true,
+        ]);
+
+        $yearB = SchoolYear::create([
+            'name' => '2029-2030-qtest-b',
+            'start_date' => '2029-06-01',
+            'end_date' => '2030-03-31',
+            'is_active' => false,
+        ]);
+
+        $quarterA = $yearA->quarters()->create([
+            'quarter' => 1,
+            'name' => 'First Quarter',
+            'start_date' => '2028-06-01',
+            'end_date' => '2028-08-14',
+            'is_locked' => false,
+            'is_manually_set_active' => false,
+        ]);
+
+        $response = $this->actingAs($adminUser)
+            ->post(route('admin.school-year.quarters.set-active', [$yearA, $quarterA]));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $yearA->refresh();
+        $yearB->refresh();
+        $quarterA->refresh();
+
+        $this->assertTrue($yearA->is_active);
+        $this->assertFalse($yearB->is_active);
+        $this->assertTrue($quarterA->is_manually_set_active);
+        $this->assertEquals(1, SchoolYear::query()->where('is_active', true)->count());
+        $this->assertEquals(1, SchoolYearQuarter::query()->where('is_manually_set_active', true)->count());
     }
 
     // ========================================================================

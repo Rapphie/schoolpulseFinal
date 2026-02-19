@@ -204,13 +204,17 @@ class SchoolYearQuarterController extends Controller
             abort(404);
         }
 
-        DB::transaction(function () use ($quarter, $schoolYear) {
-            // Deactivate all other school years and quarters
-            SchoolYear::where('is_active', true)->update(['is_active' => false]);
-            SchoolYearQuarter::where('is_manually_set_active', true)->update(['is_manually_set_active' => false]);
+        $realActiveSchoolYear = SchoolYear::getRealActive();
+        if (! $realActiveSchoolYear) {
+            return redirect()->back()->with('error', 'Set an active school year first before setting a manual active quarter.');
+        }
 
-            // Activate the selected school year and quarter
-            $schoolYear->update(['is_active' => true]);
+        if ((int) $realActiveSchoolYear->id !== (int) $schoolYear->id) {
+            return redirect()->back()->with('error', "You can only set a manual active quarter for the active school year ({$realActiveSchoolYear->name}).");
+        }
+
+        DB::transaction(function () use ($quarter) {
+            SchoolYearQuarter::where('is_manually_set_active', true)->update(['is_manually_set_active' => false]);
             $quarter->update(['is_manually_set_active' => true]);
         });
 
