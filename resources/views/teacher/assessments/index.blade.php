@@ -267,6 +267,22 @@
             user-select: none;
             -webkit-user-select: none;
         }
+
+        .locked-cell {
+            background-color: #f8f9fa;
+        }
+
+        .grade-input.readonly,
+        .max-score-input.readonly {
+            cursor: not-allowed;
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+
+        .grade-input.readonly:focus,
+        .max-score-input.readonly:focus {
+            outline: 1px dashed #6c757d;
+        }
     </style>
 @endpush
 
@@ -429,13 +445,21 @@
             <div class="card-header p-0">
                 <ul class="nav nav-tabs nav-tabs-lg" id="quarterTabs" role="tablist">
                     @for ($quarter = 1; $quarter <= 4; $quarter++)
+                        @php
+                            $isQuarterLocked = (bool) ($quarterLocks[$quarter]['is_locked'] ?? false);
+                        @endphp
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link {{ $quarter === 1 ? 'active' : '' }}"
+                            <button class="nav-link {{ $quarter === 1 ? 'active' : '' }} {{ $isQuarterLocked ? 'text-warning' : '' }}"
                                 id="quarter{{ $quarter }}-tab" data-bs-toggle="tab"
                                 data-bs-target="#quarter{{ $quarter }}" type="button" role="tab"
                                 aria-controls="quarter{{ $quarter }}"
                                 aria-selected="{{ $quarter === 1 ? 'true' : 'false' }}">
-                                <i class="fas fa-calendar-alt me-2"></i>Quarter {{ $quarter }}
+                                @if ($isQuarterLocked)
+                                    <i class="fas fa-lock me-2" title="Quarter {{ $quarter }} is locked"></i>
+                                @else
+                                    <i class="fas fa-calendar-alt me-2"></i>
+                                @endif
+                                Quarter {{ $quarter }}
                             </button>
                         </li>
                     @endfor
@@ -465,6 +489,9 @@
                                 id="clearStudentSearch">Clear</button>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="badge text-bg-warning grade-save-status text-white" id="quarterLockIndicator" style="display: none;">
+                                <i class="fas fa-lock me-1"></i><span id="quarterLockReason"></span>
+                            </span>
                             <span class="badge text-bg-success grade-save-status" id="gradeSaveState"
                                 title="Saved">Saved</span>
                         </div>
@@ -510,8 +537,9 @@
                             aria-labelledby="quarter{{ $quarter }}-tab">
 
                             @if ($isQuarterLocked)
-                                <div class="alert alert-warning m-3 mb-0" role="alert">
-                                    <i class="fas fa-lock me-2"></i>Quarter {{ $quarter }} is locked. Grade changes are disabled.
+                                <div class="alert alert-warning py-1 px-2 mb-2 d-flex align-items-center gap-2" style="font-size: 0.85rem;">
+                                    <i class="fas fa-lock"></i>
+                                    <span>Quarter {{ $quarter }} is locked ({{ $quarterLocks[$quarter]['lock_reason_label'] ?? 'Locked' }}).</span>
                                 </div>
                             @endif
 
@@ -643,13 +671,14 @@
                                                             <span style="font-size: 10px;"
                                                                 title="Edit in Oral Participation page">{{ $maxScoreDisplay }}</span>
                                                         @else
-                                                            <input type="number" class="max-score-input"
+                                                            <input type="number" class="max-score-input {{ $isQuarterLocked ? 'readonly' : '' }}"
                                                                 data-assessment-id="{{ $assessment->id }}"
                                                                 value="{{ $assessment->max_score !== null ? $maxScoreDisplay : '' }}"
                                                                 max="1000"
                                                                 style="width: 30px; border: none; background: transparent; text-align: center; font-weight: bold;"
                                                                 placeholder="--"
-                                                                @disabled($isQuarterLocked)>
+                                                                {{ $isQuarterLocked ? 'readonly' : '' }}
+                                                                title="{{ $isQuarterLocked ? 'Locked: ' . ($quarterLocks[$quarter]['lock_reason_label'] ?? 'Locked') : '' }}">
                                                         @endif
                                                     </th>
                                                 @endforeach
@@ -721,9 +750,9 @@
                                                                     $assessment->type === 'oral_participation';
                                                             @endphp
                                                             <td
-                                                                class="{{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
+                                                                class="{{ $isQuarterLocked ? 'locked-cell' : '' }} {{ $isOralParticipation ? 'oral-participation-cell' : '' }}">
                                                                 <input type="number" min="0"
-                                                                    class="grade-input {{ str_replace('_', '-', $type) }}-score"
+                                                                    class="grade-input {{ str_replace('_', '-', $type) }}-score {{ $isQuarterLocked ? 'readonly' : '' }}"
                                                                     data-quarter="{{ $quarter }}"
                                                                     data-type="{{ $type }}"
                                                                     data-index="{{ $index }}"
@@ -732,8 +761,9 @@
                                                                     data-is-oral-participation="{{ $isOralParticipation ? '1' : '0' }}"
                                                                     value="{{ $scoreValue }}"
                                                                     {{ $isOralParticipation ? 'readonly' : '' }}
-                                                                    @disabled($isQuarterLocked || $isOralParticipation)
-                                                                    title="{{ $isOralParticipation ? 'Oral Participation - Edit in Oral Participation page' : '' }}">
+                                                                    {{ $isQuarterLocked ? 'readonly' : '' }}
+                                                                    @disabled($isOralParticipation)
+                                                                    title="{{ $isQuarterLocked ? 'Locked: ' . ($quarterLocks[$quarter]['lock_reason_label'] ?? 'Locked') : ($isOralParticipation ? 'Oral Participation - Edit in Oral Participation page' : '') }}">
                                                             </td>
                                                         @endforeach
 
@@ -918,8 +948,35 @@
                 $saveButton.prop('disabled', false).html('<i class="fas fa-save"></i> Save Grades');
             }
 
+            const $quarterLockIndicator = $('#quarterLockIndicator');
+            const $quarterLockReason = $('#quarterLockReason');
+
+            function updateQuarterLockIndicator(quarter) {
+                const lockInfo = quarterLocks?.[quarter];
+                const isLocked = lockInfo?.is_locked;
+                const lockReason = lockInfo?.lock_reason_label;
+
+                if (isLocked && lockReason) {
+                    $quarterLockReason.text(lockReason);
+                    $quarterLockIndicator.show();
+                } else {
+                    $quarterLockIndicator.hide();
+                }
+            }
+
             function updateSaveState(state, message = null) {
-                $saveStateBadge.removeClass('text-bg-success text-bg-warning text-bg-primary text-bg-danger retry');
+                $saveStateBadge.removeClass('text-bg-success text-bg-warning text-bg-primary text-bg-danger retry text-white');
+
+                if (state === 'locked') {
+                    const activeTab = document.querySelector('.tab-pane.active');
+                    const activeQuarter = activeTab ? parseInt(activeTab.id.replace('quarter', ''), 10) : 1;
+                    const lockReason = quarterLocks?.[activeQuarter]?.lock_reason_label ?? 'Locked';
+                    $saveStateBadge.addClass('text-bg-warning', 'text-white');
+                    $saveStateBadge.text(message ?? `Locked (${lockReason})`);
+                    $saveStateBadge.attr('title', message ?? `Locked: ${lockReason}`);
+
+                    return;
+                }
 
                 if (state === 'dirty') {
                     $saveStateBadge.addClass('text-bg-warning');
@@ -965,8 +1022,15 @@
             }
 
             function syncSaveStateBadge() {
+                const activeTab = document.querySelector('.tab-pane.active');
+                const currentQuarter = activeTab ? parseInt(activeTab.id.replace('quarter', ''), 10) : 1;
+
+                if (isQuarterLocked(currentQuarter)) {
+                    return;
+                }
+
                 if (areAllQuartersLocked) {
-                    updateSaveState('saved', 'All quarters locked');
+                    updateSaveState('locked', 'All quarters locked');
                     return;
                 }
 
@@ -1006,6 +1070,7 @@
                     !isOralParticipation &&
                     studentId &&
                     !$input.prop('disabled') &&
+                    !$input.prop('readOnly') &&
                     !isQuarterLocked(quarter)
                 );
 
@@ -1540,6 +1605,8 @@
             const initialQuarter = getActiveQuarter();
             updateManageOralParticipationLink(initialQuarter);
             updateRecitationActionsForQuarter(initialQuarter);
+            updateQuarterLockIndicator(initialQuarter);
+            syncSaveStateBadge();
             applyStudentSearchFilter();
 
             $('#studentSearchInput').on('input', function() {
@@ -1590,12 +1657,10 @@
             $(document).on('input change', '.grade-input', function(event) {
                 const $input = $(this);
 
-                if (event.originalEvent) {
-                    markInputDirty($input);
-                } else {
-                    refreshInputValidationState($input);
-                    syncSaveStateBadge();
-                }
+                // Mark dirty regardless of event origin to catch pasted values/JS changes
+                markInputDirty($input);
+                refreshInputValidationState($input);
+                syncSaveStateBadge();
 
                 const $row = $(this).closest('tr');
                 const quarter = $(this).closest('.tab-pane').attr('id').replace('quarter', '');
@@ -1660,6 +1725,8 @@
                     initializeQuarterCalculations(parseInt(quarter));
                     updateManageOralParticipationLink(quarter);
                     updateRecitationActionsForQuarter(quarter);
+                    updateQuarterLockIndicator(quarter);
+                    syncSaveStateBadge();
                 }
             });
 
@@ -1689,7 +1756,7 @@
 
                 const quarterNumber = parseInt($relatedGrades.first().data('quarter'), 10);
                 if (isQuarterLocked(quarterNumber)) {
-                    $relatedGrades.prop('disabled', true);
+                    // Let blade handle the readonly state visually
                     return;
                 }
 
@@ -1711,7 +1778,7 @@
                     });
 
                     $relatedGrades.val('');
-                    $relatedGrades.prop('disabled', true);
+                    $relatedGrades.prop('readonly', true).addClass('readonly');
                     $relatedGrades.removeAttr('max');
                     $relatedGrades.attr('data-max-score', '');
                     syncSaveStateBadge();
@@ -1719,7 +1786,7 @@
                     return;
                 }
 
-                $relatedGrades.prop('disabled', false);
+                $relatedGrades.prop('readonly', false).removeClass('readonly');
                 $relatedGrades.attr('max', numericMax);
                 $relatedGrades.attr('data-max-score', numericMax);
                 $relatedGrades.each(function() {

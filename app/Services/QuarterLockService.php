@@ -28,11 +28,19 @@ class QuarterLockService
             $isExplicitlyLocked = (bool) ($quarterModel?->is_locked ?? false);
             $isPastActiveQuarter = $activeQuarterNumber !== null && $quarter < $activeQuarterNumber;
 
+            $lockReasonLabel = null;
+            if ($isExplicitlyLocked) {
+                $lockReasonLabel = 'Locked by Admin';
+            } elseif ($isPastActiveQuarter) {
+                $lockReasonLabel = 'Quarter Ended';
+            }
+
             $quarterLocks[$quarter] = [
                 'quarter' => $quarter,
                 'name' => $quarterModel?->name ?? "Quarter {$quarter}",
                 'is_explicitly_locked' => $isExplicitlyLocked,
                 'is_locked' => $isExplicitlyLocked || $isPastActiveQuarter,
+                'lock_reason_label' => $lockReasonLabel,
             ];
         }
 

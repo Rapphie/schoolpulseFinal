@@ -11,6 +11,7 @@ use App\Models\SchoolYear;
 use App\Models\SchoolYearQuarter;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Services\QuarterLockService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -188,6 +189,12 @@ class AdminDashboardController extends Controller
             );
         }
 
+        $quarterLockService = new QuarterLockService;
+        $quarterLockContexts = [];
+        foreach ($schoolYears as $year) {
+            $quarterLockContexts[$year->id] = $quarterLockService->contextForSchoolYear($year->id);
+        }
+
         return view('admin.dashboard', [
             'enrolledStudents' => $enrolledStudents,
             'teacherCount' => $metrics['teacherCount'],
@@ -209,6 +216,7 @@ class AdminDashboardController extends Controller
             'slotsPerGrade' => $slotsPerGrade,
             'realActiveSchoolYear' => $realActiveSchoolYear,
             'viewSchoolYearId' => SchoolYear::getAdminViewSchoolYearId(),
+            'quarterLockContexts' => $quarterLockContexts,
         ]);
     }
 

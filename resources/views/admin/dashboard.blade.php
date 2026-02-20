@@ -1175,22 +1175,30 @@
                                                     data-school-year-active="{{ $year->is_active ? '1' : '0' }}">
                                                     <i data-feather="edit-2" class="feather-sm"></i>
                                                 </button>
+                                                @php
+                                                    $lockInfo = $quarterLockContexts[$year->id]['quarterLocks'][(int) $quarter->quarter] ?? null;
+                                                    $isEffectivelyLocked = $lockInfo['is_locked'] ?? $quarter->is_locked;
+                                                    $lockReason = $lockInfo['lock_reason_label'] ?? null;
+                                                    $tooltipText = $isEffectivelyLocked
+                                                        ? 'Locked' . ($lockReason ? ' (' . $lockReason . ')' : '')
+                                                        : 'Unlocked';
+                                                @endphp
                                                 @if ($year->is_active)
                                                     <form
                                                         action="{{ route('admin.school-year.quarters.toggle-lock', [$year, $quarter]) }}"
                                                         method="POST" class="d-inline">
                                                         @csrf
                                                         <button type="submit"
-                                                            class="btn btn-sm {{ $quarter->is_locked ? 'btn-warning' : 'btn-outline-secondary' }}"
-                                                            title="{{ $quarter->is_locked ? 'Unlock' : 'Lock' }}">
-                                                            <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}"
+                                                            class="btn btn-sm {{ $isEffectivelyLocked ? 'btn-warning' : 'btn-outline-secondary' }}"
+                                                            title="{{ $tooltipText }}">
+                                                            <i data-feather="{{ $isEffectivelyLocked ? 'lock' : 'unlock' }}"
                                                                 class="feather-sm"></i>
                                                         </button>
                                                     </form>
                                                 @else
                                                     <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-                                                        title="Locking is only available for the active school year">
-                                                        <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}" class="feather-sm"></i>
+                                                        title="Locking is only available for the active school year. Current status: {{ $tooltipText }}">
+                                                        <i data-feather="{{ $isEffectivelyLocked ? 'lock' : 'unlock' }}" class="feather-sm"></i>
                                                     </button>
                                                 @endif
                                                 <form
