@@ -86,6 +86,36 @@
             border-bottom: 1px solid #dee2e6;
         }
 
+        .grade-save-status {
+            min-width: 170px;
+            text-align: center;
+            cursor: default;
+        }
+
+        .grade-save-status.retry {
+            cursor: pointer;
+        }
+
+        .grade-input-dirty {
+            background-color: #fff3cd;
+            box-shadow: inset 0 0 0 1px #ffc107;
+        }
+
+        .grade-input.is-invalid {
+            background-color: #f8d7da;
+            box-shadow: inset 0 0 0 1px #dc3545;
+        }
+
+        /* Disable card hover transform to keep fixed save button position stable */
+        .grade-management-card {
+            transform: none !important;
+            cursor: default !important;
+        }
+
+        .grade-management-card:hover {
+            transform: none !important;
+        }
+
         .assessment-header {
             background-color: #e9ecef;
             font-weight: bold;
@@ -406,11 +436,28 @@
 
             <div class="card-body p-0">
                 <div class="student-search-toolbar p-3">
-                    <div class="d-flex flex-wrap align-items-center gap-2">
-                        <label for="studentSearchInput" class="mb-0 fw-semibold">Search:</label>
-                        <input type="text" id="studentSearchInput" class="form-control form-control-sm"
-                            style="width: 260px;" placeholder="Male/Female, last name, or first name">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clearStudentSearch">Clear</button>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <label for="studentSearchInput" class="mb-0 fw-semibold">Search:</label>
+                            <input type="text" id="studentSearchInput" class="form-control form-control-sm"
+                                style="width: 260px;" placeholder="Male/Female, last name, or first name">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="clearStudentSearch">Clear</button>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="badge text-bg-success grade-save-status" id="gradeSaveState" title="Saved">Saved</span>
+                            <label for="exportQuarter" class="mb-0 fw-semibold">Export Quarter:</label>
+                            <select id="exportQuarter" class="form-select form-select-sm" style="width: 120px;">
+                                @for ($quarterOption = 1; $quarterOption <= 4; $quarterOption++)
+                                    <option value="{{ $quarterOption }}">Q{{ $quarterOption }}</option>
+                                @endfor
+                            </select>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="exportQuarterRecord">
+                                <i class="fas fa-file-excel me-1"></i> Export Quarter Record
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="exportFullYearRecord">
+                                <i class="fas fa-file-export me-1"></i> Export Full Year Record
+                            </button>
+                        </div>
                     </div>
                 </div>
                 @php
@@ -763,6 +810,17 @@
     <script>
         $(document).ready(function() {
             const highlightStudentId = @json($highlightStudentId);
+            const classId = {{ $class->id }};
+            const selectedSubjectId = {{ $selectedSubject?->id ?? 'null' }};
+            const saveGradesEndpoint = "{{ route('teacher.assessments.saveGrades', $class) }}";
+            const exportQuarterEndpoint = "{{ route('teacher.assessments.exportClassRecord', $class) }}";
+            const exportFullYearEndpoint = "{{ route('teacher.assessments.exportClassRecordAll', $class) }}";
+            const autoSaveDelayMs = 30000;
+            const dirtyGrades = new Map();
+            const invalidCells = new Map();
+            let autoSaveTimeout = null;
+            let isSaving = false;
+            let pendingManualSave = false;
             // Convert PHP weights (with underscores) to JS format (with dashes)
             const typeWeights = {
                 @foreach ($assessmentTypeWeights as $type => $weight)
@@ -772,9 +830,428 @@
             const $gradeManagementCard = $('#gradeManagementCard');
             const gradeManagementCard = $gradeManagementCard.get(0);
             const $toggleFullscreenButton = $('#toggleFullscreen');
+            const $saveButton = $('#saveAllGrades');
+            const $saveStateBadge = $('#gradeSaveState');
             let isFallbackFullscreen = false;
 
             initializeAssessmentInputsState();
+
+            function getGradeKey(studentId, assessmentId) {
+                return `${studentId}:${assessmentId}`;
+            }
+
+            function getGradeInputByCoordinates(studentId, assessmentId) {
+                return $(
+                    `tr[data-student-id="${studentId}"] .grade-input[data-assessment-id="${assessmentId}"]`
+                ).first();
+            }
+
+            function normalizeScoreForPayload(value) {
+                const raw = String(value ?? '').trim();
+                if (raw === '') {
+                    return null;
+                }
+
+                const numericValue = parseFloat(raw);
+
+                return Number.isNaN(numericValue) ? null : numericValue;
+            }
+
+            function setSaveButtonState(isBusy) {
+                if (isBusy) {
+                    $saveButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
+
+                    return;
+                }
+
+                $saveButton.prop('disabled', false).html('<i class="fas fa-save"></i> Save Grades');
+            }
+
+            function updateSaveState(state, message = null) {
+                $saveStateBadge.removeClass('text-bg-success text-bg-warning text-bg-primary text-bg-danger retry');
+
+                if (state === 'dirty') {
+                    $saveStateBadge.addClass('text-bg-warning');
+                    $saveStateBadge.text(message ?? 'Unsaved changes');
+                    $saveStateBadge.attr('title', message ?? 'Unsaved changes');
+
+                    return;
+                }
+
+                if (state === 'saving') {
+                    $saveStateBadge.addClass('text-bg-primary');
+                    $saveStateBadge.text(message ?? 'Saving...');
+                    $saveStateBadge.attr('title', message ?? 'Saving...');
+
+                    return;
+                }
+
+                if (state === 'invalid') {
+                    $saveStateBadge.addClass('text-bg-warning');
+                    $saveStateBadge.text(message ?? 'Fix invalid scores');
+                    $saveStateBadge.attr('title', message ?? 'Fix invalid scores');
+
+                    return;
+                }
+
+                if (state === 'error') {
+                    $saveStateBadge.addClass('text-bg-danger retry');
+                    $saveStateBadge.text(message ?? 'Save failed - Retry');
+                    $saveStateBadge.attr('title', message ?? 'Save failed - Retry');
+
+                    return;
+                }
+
+                $saveStateBadge.addClass('text-bg-success');
+                $saveStateBadge.text(message ?? 'Saved');
+                $saveStateBadge.attr('title', message ?? 'Saved');
+            }
+
+            function invalidCountMessage(count) {
+                const suffix = count === 1 ? '' : 's';
+
+                return `Fix ${count} invalid score${suffix}`;
+            }
+
+            function syncSaveStateBadge() {
+                if (invalidCells.size > 0) {
+                    updateSaveState('invalid', invalidCountMessage(invalidCells.size));
+
+                    return;
+                }
+
+                if (dirtyGrades.size > 0) {
+                    updateSaveState('dirty');
+
+                    return;
+                }
+
+                updateSaveState('saved', 'Saved');
+            }
+
+            function clearInputInvalidState($input) {
+                $input.removeClass('is-invalid');
+                $input.removeAttr('title');
+            }
+
+            function setInputInvalidState($input, reason) {
+                $input.addClass('is-invalid');
+                $input.attr('title', reason);
+            }
+
+            function getInputContext($input) {
+                const assessmentId = parseInt($input.data('assessment-id'), 10);
+                const studentId = parseInt($input.closest('tr').data('student-id'), 10);
+                const isOralParticipation = String($input.data('is-oral-participation')) === '1';
+                const trackable = Boolean(
+                    assessmentId &&
+                    assessmentId !== -999 &&
+                    !isOralParticipation &&
+                    studentId &&
+                    !$input.prop('disabled')
+                );
+
+                return {
+                    assessmentId,
+                    studentId,
+                    trackable,
+                };
+            }
+
+            function validateGradeInput($input) {
+                const context = getInputContext($input);
+                if (!context.trackable) {
+                    return {
+                        ...context,
+                        isValid: true,
+                        normalizedScore: null,
+                        reason: null,
+                    };
+                }
+
+                const rawValue = String($input.val() ?? '').trim();
+                if (rawValue === '') {
+                    return {
+                        ...context,
+                        isValid: true,
+                        normalizedScore: null,
+                        reason: null,
+                    };
+                }
+
+                const numericValue = parseFloat(rawValue);
+                if (Number.isNaN(numericValue)) {
+                    return {
+                        ...context,
+                        isValid: false,
+                        normalizedScore: null,
+                        reason: 'Enter a valid numeric score.',
+                    };
+                }
+
+                if (numericValue < 0) {
+                    return {
+                        ...context,
+                        isValid: false,
+                        normalizedScore: null,
+                        reason: 'Score cannot be negative.',
+                    };
+                }
+
+                const maxScoreRaw = $input.data('max-score');
+                const maxScoreText = maxScoreRaw === undefined || maxScoreRaw === null ? '' : String(maxScoreRaw).trim();
+                if (maxScoreText !== '') {
+                    const maxScore = parseFloat(maxScoreText);
+                    if (!Number.isNaN(maxScore) && numericValue > maxScore) {
+                        return {
+                            ...context,
+                            isValid: false,
+                            normalizedScore: null,
+                            reason: `Score cannot exceed ${maxScore}.`,
+                        };
+                    }
+                }
+
+                return {
+                    ...context,
+                    isValid: true,
+                    normalizedScore: numericValue,
+                    reason: null,
+                };
+            }
+
+            function applySavedStateToInputs(gradePayload) {
+                gradePayload.forEach((gradeEntry) => {
+                    const key = getGradeKey(gradeEntry.student_id, gradeEntry.assessment_id);
+                    const currentDraft = dirtyGrades.get(key);
+                    const sentScore = normalizeScoreForPayload(gradeEntry.score);
+
+                    if (currentDraft && currentDraft.score === sentScore) {
+                        dirtyGrades.delete(key);
+                        invalidCells.delete(key);
+                        const $input = getGradeInputByCoordinates(gradeEntry.student_id, gradeEntry.assessment_id);
+                        $input.removeClass('grade-input-dirty');
+                        clearInputInvalidState($input);
+                    }
+                });
+            }
+
+            function applyRejectedStateToInputs(rejectedCells) {
+                rejectedCells.forEach((rejectedCell) => {
+                    const studentId = parseInt(rejectedCell.student_id, 10);
+                    const assessmentId = parseInt(rejectedCell.assessment_id, 10);
+                    if (!studentId || !assessmentId) {
+                        return;
+                    }
+
+                    const key = getGradeKey(studentId, assessmentId);
+                    const reason = rejectedCell.reason ?? 'Invalid score.';
+
+                    dirtyGrades.delete(key);
+                    invalidCells.set(key, {
+                        student_id: studentId,
+                        assessment_id: assessmentId,
+                        reason,
+                    });
+
+                    const $input = getGradeInputByCoordinates(studentId, assessmentId);
+                    $input.removeClass('grade-input-dirty');
+                    setInputInvalidState($input, reason);
+                });
+            }
+
+            function scheduleAutoSave() {
+                if (autoSaveTimeout) {
+                    clearTimeout(autoSaveTimeout);
+                }
+
+                if (dirtyGrades.size === 0) {
+                    autoSaveTimeout = null;
+
+                    return;
+                }
+
+                autoSaveTimeout = setTimeout(() => {
+                    if (dirtyGrades.size > 0) {
+                        void saveDirtyGrades(false);
+                    }
+                }, autoSaveDelayMs);
+            }
+
+            function collectDirtyGradePayload() {
+                const payload = [];
+                dirtyGrades.forEach((gradePayload, key) => {
+                    if (!invalidCells.has(key)) {
+                        payload.push(gradePayload);
+                    }
+                });
+
+                return payload;
+            }
+
+            function markInputDirty($input) {
+                const validation = validateGradeInput($input);
+                if (!validation.trackable) {
+                    return;
+                }
+
+                const key = getGradeKey(validation.studentId, validation.assessmentId);
+
+                if (!validation.isValid) {
+                    dirtyGrades.delete(key);
+                    invalidCells.set(key, {
+                        student_id: validation.studentId,
+                        assessment_id: validation.assessmentId,
+                        reason: validation.reason,
+                    });
+                    $input.removeClass('grade-input-dirty');
+                    setInputInvalidState($input, validation.reason);
+                    syncSaveStateBadge();
+                    scheduleAutoSave();
+                    return;
+                }
+
+                invalidCells.delete(key);
+                clearInputInvalidState($input);
+
+                const payload = {
+                    student_id: validation.studentId,
+                    assessment_id: validation.assessmentId,
+                    score: validation.normalizedScore,
+                };
+
+                dirtyGrades.set(key, payload);
+                $input.addClass('grade-input-dirty');
+                syncSaveStateBadge();
+                scheduleAutoSave();
+            }
+
+            function refreshInputValidationState($input) {
+                const validation = validateGradeInput($input);
+                if (!validation.trackable) {
+                    return;
+                }
+
+                const key = getGradeKey(validation.studentId, validation.assessmentId);
+
+                if (!validation.isValid) {
+                    dirtyGrades.delete(key);
+                    invalidCells.set(key, {
+                        student_id: validation.studentId,
+                        assessment_id: validation.assessmentId,
+                        reason: validation.reason,
+                    });
+                    $input.removeClass('grade-input-dirty');
+                    setInputInvalidState($input, validation.reason);
+
+                    return;
+                }
+
+                invalidCells.delete(key);
+                clearInputInvalidState($input);
+            }
+
+            async function saveDirtyGrades(isManualSave) {
+                const gradesPayload = collectDirtyGradePayload();
+
+                if (gradesPayload.length === 0) {
+                    if (invalidCells.size > 0) {
+                        syncSaveStateBadge();
+                        if (isManualSave) {
+                            alert(`${invalidCountMessage(invalidCells.size)} before saving.`);
+                        }
+
+                        return;
+                    }
+
+                    if (isManualSave) {
+                        syncSaveStateBadge();
+                        alert('No unsaved changes to save.');
+                    }
+
+                    return;
+                }
+
+                if (isSaving) {
+                    if (isManualSave) {
+                        pendingManualSave = true;
+                    }
+
+                    return;
+                }
+
+                isSaving = true;
+                if (isManualSave) {
+                    pendingManualSave = false;
+                }
+                if (autoSaveTimeout) {
+                    clearTimeout(autoSaveTimeout);
+                    autoSaveTimeout = null;
+                }
+
+                setSaveButtonState(true);
+                updateSaveState('saving');
+                let requestFailed = false;
+
+                try {
+                    const response = await $.ajax({
+                        url: saveGradesEndpoint,
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            _token: '{{ csrf_token() }}',
+                            grades: gradesPayload,
+                        }),
+                    });
+
+                    const rejectedCells = Array.isArray(response?.rejected_cells) ? response.rejected_cells : [];
+                    if (rejectedCells.length > 0) {
+                        applyRejectedStateToInputs(rejectedCells);
+                    }
+                    applySavedStateToInputs(gradesPayload);
+                    syncSaveStateBadge();
+
+                    if (isManualSave) {
+                        const responseMessage = response?.message || 'Grades saved successfully.';
+                        if (rejectedCells.length > 0) {
+                            const suffix = rejectedCells.length === 1 ? '' : 's';
+                            alert(`${responseMessage} ${rejectedCells.length} invalid score${suffix} still need correction.`);
+                        } else {
+                            alert(responseMessage);
+                        }
+                    }
+                } catch (xhr) {
+                    requestFailed = true;
+                    let errorMessage = xhr?.responseJSON?.message || 'Validation failed.';
+
+                    if (xhr?.status === 419) {
+                        errorMessage = 'Session expired. Please refresh this page.';
+                    } else if (xhr?.status === 413) {
+                        errorMessage = 'Request is too large. Save in smaller changes.';
+                    }
+
+                    updateSaveState('error', 'Save failed - Retry');
+
+                    if (isManualSave) {
+                        alert(`Error saving grades: ${errorMessage}`);
+                    }
+                } finally {
+                    isSaving = false;
+                    setSaveButtonState(false);
+
+                    if (pendingManualSave) {
+                        pendingManualSave = false;
+                        if (collectDirtyGradePayload().length > 0) {
+                            void saveDirtyGrades(true);
+                            return;
+                        }
+                    }
+
+                    if (!requestFailed && dirtyGrades.size > 0) {
+                        scheduleAutoSave();
+                    }
+                }
+            }
 
             function getCurrentFullscreenElement() {
                 return document.fullscreenElement || document.webkitFullscreenElement ||
@@ -924,11 +1401,10 @@
 
             function updateManageOralParticipationLink(quarter) {
                 const baseUrl = "{{ route('teacher.oral-participation.index', $class) }}";
-                const subjectId = {{ $selectedSubject->id ?? 'null' }};
                 const params = new URLSearchParams();
 
-                if (subjectId) {
-                    params.append('subject_id', subjectId);
+                if (selectedSubjectId) {
+                    params.append('subject_id', selectedSubjectId);
                 }
 
                 const quarterNum = parseInt(quarter);
@@ -986,7 +1462,38 @@
 
             // Set initial link on page load
             updateManageOralParticipationLink(getActiveQuarter());
+            $('#exportQuarter').val(getActiveQuarter());
             applyStudentSearchFilter();
+
+            $('#exportQuarterRecord').on('click', function() {
+                if (!selectedSubjectId) {
+                    alert('No subject selected for export.');
+
+                    return;
+                }
+
+                const quarter = $('#exportQuarter').val();
+                const query = new URLSearchParams({
+                    subject_id: selectedSubjectId,
+                    quarter,
+                });
+
+                window.location.href = `${exportQuarterEndpoint}?${query.toString()}`;
+            });
+
+            $('#exportFullYearRecord').on('click', function() {
+                if (!selectedSubjectId) {
+                    alert('No subject selected for export.');
+
+                    return;
+                }
+
+                const query = new URLSearchParams({
+                    subject_id: selectedSubjectId,
+                });
+
+                window.location.href = `${exportFullYearEndpoint}?${query.toString()}`;
+            });
 
             $('#studentSearchInput').on('input', function() {
                 applyStudentSearchFilter();
@@ -1021,30 +1528,19 @@
 
             // Subject filter functionality
             $('#subjectFilter').change(function() {
-                const classId = {{ $class->id }};
                 const subjectId = $(this).val();
                 window.location.href = `/teacher/classes/assessments/${classId}?subject_id=${subjectId}`;
             });
 
             // Calculate grades when input changes
-            $(document).on('input change', '.grade-input', function() {
+            $(document).on('input change', '.grade-input', function(event) {
                 const $input = $(this);
-                const scoreRaw = $input.val();
 
-                if (scoreRaw.trim() !== '') {
-                    const maxScoreRaw = $input.data('max-score');
-                    const score = parseFloat(scoreRaw);
-
-                    if (score < 0) {
-                        alert('Score cannot be negative.');
-                        $input.val('');
-                    } else if (maxScoreRaw.toString().trim() !== '') {
-                        const maxScore = parseFloat(maxScoreRaw);
-                        if (!isNaN(maxScore) && score > maxScore) {
-                            alert(`Score (${score}) cannot exceed the maximum of ${maxScore}.`);
-                            $input.val('');
-                        }
-                    }
+                if (event.originalEvent) {
+                    markInputDirty($input);
+                } else {
+                    refreshInputValidationState($input);
+                    syncSaveStateBadge();
                 }
 
                 const $row = $(this).closest('tr');
@@ -1105,6 +1601,7 @@
                     const quarter = targetId.replace('quarter', '');
                     initializeQuarterCalculations(parseInt(quarter));
                     updateManageOralParticipationLink(quarter);
+                    $('#exportQuarter').val(quarter);
                 }
             });
 
@@ -1135,16 +1632,35 @@
                 const hasValidMax = !Number.isNaN(numericMax) && numericMax > 0;
 
                 if (!hasValidMax) {
+                    $relatedGrades.each(function() {
+                        const $gradeInput = $(this);
+                        const context = getInputContext($gradeInput);
+                        if (context.trackable) {
+                            const key = getGradeKey(context.studentId, context.assessmentId);
+                            dirtyGrades.delete(key);
+                            invalidCells.delete(key);
+                        }
+
+                        $gradeInput.removeClass('grade-input-dirty');
+                        clearInputInvalidState($gradeInput);
+                    });
+
                     $relatedGrades.val('');
                     $relatedGrades.prop('disabled', true);
                     $relatedGrades.removeAttr('max');
                     $relatedGrades.attr('data-max-score', '');
+                    syncSaveStateBadge();
+
                     return;
                 }
 
                 $relatedGrades.prop('disabled', false);
                 $relatedGrades.attr('max', numericMax);
                 $relatedGrades.attr('data-max-score', numericMax);
+                $relatedGrades.each(function() {
+                    refreshInputValidationState($(this));
+                });
+                syncSaveStateBadge();
             }
 
             function formatScoreValue(value) {
@@ -1244,6 +1760,10 @@
                     let maxTotal = 0;
 
                     $row.find(`.${type}-score[data-quarter="${quarter}"]`).each(function() {
+                        if ($(this).hasClass('is-invalid')) {
+                            return;
+                        }
+
                         const rawValue = $(this).val();
                         const hasValue = typeof rawValue === 'string' ? rawValue.trim() !== '' :
                             rawValue !== '';
@@ -1339,72 +1859,27 @@
                 });
             }
 
-            // Save all grades
-            $('#saveAllGrades').click(function() {
-                const gradesData = [];
+            $saveStateBadge.on('click', function() {
+                if ($(this).hasClass('retry') && collectDirtyGradePayload().length > 0) {
+                    void saveDirtyGrades(true);
+                }
+            });
 
-                // Collect detailed assessment grades from all quarter tabs
-                $('.tab-pane[id^="quarter"]').each(function() {
-                    $(this).find('tbody tr[data-student-id]').each(function() {
-                        const $row = $(this);
-                        const studentId = $row.data('student-id');
-
-                        $row.find('.grade-input:not([disabled])').each(function() {
-                            const $input = $(this);
-                            const assessmentId = $input.data('assessment-id');
-                            const isOral = $input.data('is-oral-participation') ==
-                                '1';
-                            const scoreRaw = $input.val();
-
-                            if (assessmentId && assessmentId !== -999 && !isOral &&
-                                scoreRaw !== '' && scoreRaw !== null) {
-                                const scoreNum = parseFloat(scoreRaw);
-                                if (!isNaN(scoreNum)) {
-                                    gradesData.push({
-                                        student_id: studentId,
-                                        assessment_id: assessmentId,
-                                        score: scoreNum
-                                    });
-                                }
-                            }
-                        });
-                    });
-                });
-
-                if (gradesData.length === 0) {
-                    alert('No grades to save!');
+            $(window).on('beforeunload', function(event) {
+                if (dirtyGrades.size === 0 && invalidCells.size === 0) {
                     return;
                 }
 
-                // Show loading
-                $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+                const warningMessage = 'You have unsaved grade changes.';
+                event.preventDefault();
+                event.returnValue = warningMessage;
 
-                $.ajax({
-                    url: '{{ route('teacher.assessments.saveGrades', $class) }}',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        _token: '{{ csrf_token() }}',
-                        grades: gradesData,
-                    }),
-                    success: function(response) {
-                        alert(response.message || 'Grades saved successfully!');
-                        $('#saveAllGrades').prop('disabled', false).html(
-                            '<i class="fas fa-save"></i> Save Grades');
-                    },
-                    error: function(xhr) {
-                        let errorMsg = 'Validation failed.';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            errorMsg = xhr.responseJSON.message;
-                        } else if (xhr.status === 413) {
-                            errorMsg = 'Request too large. Try saving in smaller batches.';
-                        }
+                return warningMessage;
+            });
 
-                        alert('Error saving grades: ' + errorMsg);
-                        $('#saveAllGrades').prop('disabled', false).html(
-                            '<i class="fas fa-save"></i> Save Grades');
-                    }
-                });
+            // Save all grades
+            $('#saveAllGrades').click(function() {
+                void saveDirtyGrades(true);
             });
 
             // Recitation Mode Logic for Assessments Page

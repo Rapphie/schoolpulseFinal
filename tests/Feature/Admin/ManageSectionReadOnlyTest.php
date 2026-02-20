@@ -7,6 +7,7 @@ namespace Tests\Feature\Admin;
 use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -37,7 +38,7 @@ class ManageSectionReadOnlyTest extends TestCase
             'description' => 'Test section for history',
         ]);
 
-        $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getRealActive() ?? SchoolYear::where('is_active', true)->first();
 
         $historicalSchoolYear = SchoolYear::create([
             'name' => '2020-2021',
@@ -184,6 +185,22 @@ class ManageSectionReadOnlyTest extends TestCase
     public function test_admin_enrollment_uses_real_active_fallback_for_view_mode_check(): void
     {
         $data = $this->createSectionWithHistory();
+
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYearQuarter::updateOrCreate(
+            [
+                'school_year_id' => $data['activeSchoolYear']->id,
+                'quarter' => 1,
+            ],
+            [
+                'name' => 'First Quarter',
+                'start_date' => $data['activeSchoolYear']->start_date,
+                'end_date' => $data['activeSchoolYear']->end_date,
+                'grade_submission_deadline' => $data['activeSchoolYear']->end_date,
+                'is_locked' => false,
+                'is_manually_set_active' => true,
+            ]
+        );
 
         $data['activeSchoolYear']->update([
             'is_active' => false,

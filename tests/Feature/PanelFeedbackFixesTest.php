@@ -188,8 +188,10 @@ class PanelFeedbackFixesTest extends TestCase
             ]
         );
 
-        $response->assertStatus(422);
-        $response->assertJsonFragment(['success' => false]);
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['success' => true]);
+        $response->assertJsonPath('saved_count', 0);
+        $response->assertJsonPath('rejected_count', 1);
     }
 
     // ========================================================================
@@ -241,8 +243,10 @@ class PanelFeedbackFixesTest extends TestCase
             ]
         );
 
-        $response->assertStatus(422);
-        $response->assertJsonFragment(['success' => false]);
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['success' => true]);
+        $response->assertJsonPath('saved_count', 0);
+        $response->assertJsonPath('rejected_count', 1);
     }
 
     // ========================================================================

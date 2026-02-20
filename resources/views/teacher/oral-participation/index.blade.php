@@ -107,6 +107,18 @@
             right: 140px;
             z-index: 1000;
         }
+
+        /* Disable card hover transform to keep fixed save button position stable */
+        .card:has(.save-btn),
+        .card:has(.quick-add-btn) {
+            transform: none !important;
+            cursor: default !important;
+        }
+
+        .card:has(.save-btn):hover,
+        .card:has(.quick-add-btn):hover {
+            transform: none !important;
+        }
     </style>
 @endpush
 

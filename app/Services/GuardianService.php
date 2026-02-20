@@ -379,7 +379,8 @@ class GuardianService
                     'occurred_at' => $occurredAt?->timestamp ?? 0,
                     'occurred_at_label' => $occurredAt?->format('M d, Y h:i A') ?? '—',
                 ];
-            });
+            })
+            ->toBase();
 
         $attendanceActivities = Attendance::query()
             ->where('student_id', $student->id)
@@ -400,7 +401,8 @@ class GuardianService
                     'occurred_at' => $occurredAt?->timestamp ?? 0,
                     'occurred_at_label' => $occurredAt?->format('M d, Y h:i A') ?? (optional($attendance->date)->format('M d, Y') ?? '—'),
                 ];
-            });
+            })
+            ->toBase();
 
         return $gradeActivities
             ->merge($attendanceActivities)

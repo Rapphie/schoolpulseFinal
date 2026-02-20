@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Exports\AssessmentClassRecordExport;
+use App\Exports\AssessmentClassRecordWorkbookExport;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Teacher\ExportClassRecordRequest;
+use App\Http\Requests\Teacher\SaveGradesRequest;
 use App\Models\Assessment;
 use App\Models\AssessmentScore;
 use App\Models\Classes;
@@ -12,8 +16,12 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Services\GradeService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AssessmentController extends Controller
 {
@@ -399,16 +407,9 @@ class AssessmentController extends Controller
     /**
      * Save multiple assessment scores at once.
      */
-    public function saveGrades(Request $request, Classes $class)
+    public function saveGrades(SaveGradesRequest $request, Classes $class): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'grades' => 'required|array',
-                'grades.*.student_id' => 'required|exists:students,id',
-                'grades.*.assessment_id' => 'required|exists:assessments,id',
-                'grades.*.score' => 'required|numeric|min:0|max:1000',
-            ]);
-
             $teacher = Auth::user()->teacher;
             if (! $teacher) {
                 return response()->json([
@@ -418,9 +419,11 @@ class AssessmentController extends Controller
             }
 
             $successCount = 0;
+            $clearedCount = 0;
+            $rejectedCells = [];
             $affectedCombos = []; // ["subject_id-quarter" => [subject_id, quarter, teacher_id]]
 
-            foreach ($request->grades as $gradeData) {
+            foreach ($request->validated('grades', []) as $gradeData) {
                 // Verify the assessment belongs to this teacher and class
                 $assessment = Assessment::where('id', $gradeData['assessment_id'])
                     ->where('class_id', $class->id)
@@ -428,47 +431,82 @@ class AssessmentController extends Controller
                     ->first();
 
                 if (! $assessment) {
-                    continue; // Skip invalid assessments
-                }
+                    $rejectedCells[] = [
+                        'student_id' => (int) $gradeData['student_id'],
+                        'assessment_id' => (int) $gradeData['assessment_id'],
+                        'reason' => 'Assessment is not accessible for this class/teacher.',
+                    ];
 
-                // Validate score against max score
-                if ($assessment->max_score === null) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Please set the maximum score (total items) for "'.$assessment->name.'" before entering scores.',
-                    ], 422);
-                }
-
-                if ($gradeData['score'] > $assessment->max_score) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'A score exceeds the maximum allowed score of '.$assessment->max_score.'.',
-                    ], 422);
+                    continue;
                 }
 
                 // Update or create the assessment score
                 $student = Student::find($gradeData['student_id']);
                 if (! $student) {
+                    $rejectedCells[] = [
+                        'student_id' => (int) $gradeData['student_id'],
+                        'assessment_id' => (int) $gradeData['assessment_id'],
+                        'reason' => 'Student record was not found.',
+                    ];
+
                     continue;
                 }
 
-                $profile = $assessment ? $student->profileFor($assessment->school_year_id) : null;
+                $profile = $student->profileFor($assessment->school_year_id);
+                $scoreValue = $gradeData['score'];
 
-                $match = [
-                    'assessment_id' => $gradeData['assessment_id'],
-                    'student_id' => $gradeData['student_id'],
-                ];
+                if ($scoreValue === null || $scoreValue === '') {
+                    $deletedRows = AssessmentScore::where('assessment_id', $assessment->id)
+                        ->where(function ($query) use ($gradeData, $profile) {
+                            $query->where('student_id', $gradeData['student_id']);
+                            if ($profile) {
+                                $query->orWhere(function ($q) use ($profile) {
+                                    $q->where('student_profile_id', $profile->id)
+                                        ->whereNull('student_id');
+                                });
+                            }
+                        })
+                        ->delete();
 
-                AssessmentScore::updateOrCreate(
-                    $match,
-                    [
-                        'score' => $gradeData['score'],
-                        'remarks' => null,
-                        'student_profile_id' => $profile ? $profile->id : null,
-                    ]
-                );
+                    if ($deletedRows > 0) {
+                        $clearedCount++;
+                    }
+                } else {
+                    // Validate score against max score
+                    if ($assessment->max_score === null) {
+                        $rejectedCells[] = [
+                            'student_id' => (int) $gradeData['student_id'],
+                            'assessment_id' => (int) $gradeData['assessment_id'],
+                            'reason' => 'Set a maximum score before entering student scores.',
+                        ];
 
-                $successCount++;
+                        continue;
+                    }
+
+                    if ((float) $scoreValue > (float) $assessment->max_score) {
+                        $rejectedCells[] = [
+                            'student_id' => (int) $gradeData['student_id'],
+                            'assessment_id' => (int) $gradeData['assessment_id'],
+                            'reason' => 'Score exceeds the maximum allowed score of '.$assessment->max_score.'.',
+                        ];
+
+                        continue;
+                    }
+
+                    AssessmentScore::updateOrCreate(
+                        [
+                            'assessment_id' => $gradeData['assessment_id'],
+                            'student_id' => $gradeData['student_id'],
+                        ],
+                        [
+                            'score' => $scoreValue,
+                            'remarks' => null,
+                            'student_profile_id' => $profile ? $profile->id : null,
+                        ]
+                    );
+
+                    $successCount++;
+                }
 
                 $key = $assessment->subject_id.'-'.$assessment->quarter;
                 if (! isset($affectedCombos[$key])) {
@@ -491,20 +529,25 @@ class AssessmentController extends Controller
                 );
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => "{$successCount} grades saved successfully.",
-                'saved_count' => $successCount,
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            $errors = $e->errors();
-            $firstError = collect($errors)->flatten()->first();
+            $summaryParts = [];
+            if ($successCount > 0) {
+                $summaryParts[] = "{$successCount} grades saved";
+            }
+            if ($clearedCount > 0) {
+                $summaryParts[] = "{$clearedCount} grades cleared";
+            }
+            if (! empty($rejectedCells)) {
+                $summaryParts[] = count($rejectedCells).' grade entries rejected';
+            }
 
             return response()->json([
-                'success' => false,
-                'message' => 'Validation failed: '.$firstError,
-                'errors' => $errors,
-            ], 422);
+                'success' => true,
+                'message' => empty($summaryParts) ? 'No grade changes were saved.' : implode(', ', $summaryParts).'.',
+                'saved_count' => $successCount,
+                'cleared_count' => $clearedCount,
+                'rejected_count' => count($rejectedCells),
+                'rejected_cells' => $rejectedCells,
+            ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
@@ -512,6 +555,70 @@ class AssessmentController extends Controller
                 'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
+    }
+
+    public function exportClassRecord(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
+    {
+        $teacher = Auth::user()->teacher;
+        if (! $teacher) {
+            abort(403, 'You must be a registered teacher to export class records.');
+        }
+
+        $validated = $request->validated();
+        $quarter = (int) ($validated['quarter'] ?? 0);
+        if ($quarter < 1 || $quarter > 4) {
+            abort(422, 'A valid quarter is required to export a class record.');
+        }
+
+        $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
+
+        return Excel::download(
+            new AssessmentClassRecordExport($class, $subject, $teacher->id, $quarter),
+            $this->buildClassRecordFilename($class, $subject, "q{$quarter}")
+        );
+    }
+
+    public function exportClassRecordAll(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
+    {
+        $teacher = Auth::user()->teacher;
+        if (! $teacher) {
+            abort(403, 'You must be a registered teacher to export class records.');
+        }
+
+        $validated = $request->validated();
+        $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
+
+        return Excel::download(
+            new AssessmentClassRecordWorkbookExport($class, $subject, $teacher->id),
+            $this->buildClassRecordFilename($class, $subject, 'all-quarters')
+        );
+    }
+
+    private function resolveExportSubject(Classes $class, int $subjectId, int $teacherId): Subject
+    {
+        $subject = Subject::findOrFail($subjectId);
+        $isClassAdviser = (int) $class->teacher_id === $teacherId;
+        $hasScheduleAccess = $class->schedules()
+            ->where('subject_id', $subjectId)
+            ->where('teacher_id', $teacherId)
+            ->exists();
+
+        if (! $isClassAdviser && ! $hasScheduleAccess) {
+            abort(403, 'You do not have permission to export records for this subject.');
+        }
+
+        return $subject;
+    }
+
+    private function buildClassRecordFilename(Classes $class, Subject $subject, string $scope): string
+    {
+        $class->loadMissing('section');
+
+        $sectionSlug = Str::slug((string) ($class->section?->name ?? "class-{$class->id}"));
+        $subjectSlug = Str::slug((string) ($subject->name ?: "subject-{$subject->id}"));
+        $timestamp = now()->format('Ymd_His');
+
+        return "class-record_{$sectionSlug}_{$subjectSlug}_{$scope}_{$timestamp}.xlsx";
     }
 
     /**
