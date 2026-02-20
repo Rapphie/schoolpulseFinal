@@ -78,7 +78,7 @@ class DatabaseSeeder extends Seeder
             [
                 'first_name' => 'Norriene Grace',
                 'last_name' => 'Millan',
-                'email' => 'millan.norrienegrade@dnsc.edu.ph',
+                'email' => 'millan.norrienegrace@dnsc.edu.ph',
                 'phone' => '09170000003',
                 'gender' => 'female',
                 'date_of_birth' => '1993-03-03',
