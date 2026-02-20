@@ -87,22 +87,22 @@ class DatabaseSeeder extends Seeder
             ],
         ];
 
-        foreach ($teacherUsers as $teacherUser) {
+        foreach ($teacherUsers as $teacherData) {
             $teacherUser = User::create([
-                'first_name' => $teacherUser['first_name'],
-                'last_name' => $teacherUser['last_name'],
-                'email' => $teacherUser['email'],
+                'first_name' => $teacherData['first_name'],
+                'last_name' => $teacherData['last_name'],
+                'email' => $teacherData['email'],
                 'password' => Hash::make('123'),
                 'role_id' => 2,
             ]);
 
             Teacher::create([
                 'user_id' => $teacherUser->id,
-                'phone' => $teacherUser['phone'],
-                'gender' => $teacherUser['gender'],
-                'date_of_birth' => $teacherUser['date_of_birth'],
-                'address' => $teacherUser['address'],
-                'qualification' => $teacherUser['qualification'],
+                'phone' => $teacherData['phone'],
+                'gender' => $teacherData['gender'],
+                'date_of_birth' => $teacherData['date_of_birth'],
+                'address' => $teacherData['address'],
+                'qualification' => $teacherData['qualification'],
                 'status' => 'active',
             ]);
 
