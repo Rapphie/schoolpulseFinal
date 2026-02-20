@@ -273,6 +273,7 @@ class EnrollmentController extends Controller
 
         return view('teacher.enrollment.create', [
             'students' => $studentsToEnroll,
+            'currentSchoolYear' => $currentSchoolYear,
         ]);
     }
 
@@ -494,6 +495,11 @@ class EnrollmentController extends Controller
 
             if (! $schoolYear || (! $schoolYear->is_active && ! $schoolYear->is_promotion_open)) {
                 return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Enrollment for this school year is not open.');
+            }
+
+            // Explicitly prevent enrolling past students if promotion is not open
+            if (! $schoolYear->is_promotion_open) {
+                return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Promotion must be enabled to enroll past students.');
             }
 
             // Parse student IDs (can be single ID or comma-separated list)

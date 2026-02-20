@@ -12,11 +12,23 @@
                     <h3 class="text-lg font-medium text-gray-900 mb-4">Students from Previous School Year Not Yet
                         Enrolled</h3>
 
+                    @php
+                        $isPromotionOpen = $currentSchoolYear?->is_promotion_open ?? false;
+                    @endphp
+
+                    @if (!$isPromotionOpen && $students->isNotEmpty())
+                        <div class="alert alert-warning mb-4">
+                            <strong>Promotion Not Enabled</strong><br>
+                            Returning students from previous school years cannot be re-enrolled at this time. 
+                            Promotion must be enabled in the school year settings to allow returning students to enroll.
+                        </div>
+                    @endif
+
                     @if ($students->isEmpty())
                         <p>No students found from the previous school year who are not yet enrolled in the current
                             school year.</p>
                     @else
-                        <table class="min-w-full divide-y divide-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200{{ !$isPromotionOpen ? ' opacity-50' : '' }}">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th scope="col"
@@ -39,7 +51,7 @@
                                             {{ $student->enrollments->last()->schoolYear->name ?? 'N/A' }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <form action="{{ route('teacher.enrollment.storePastStudent') }}"
-                                                method="POST">
+                                                method="POST"{{ !$isPromotionOpen ? ' style="display: none;"' : '' }}>
                                                 @csrf
                                                 <input type="hidden" name="student_id" value="{{ $student->id }}">
                                                 <label for="class_id_{{ $student->id }}" class="sr-only">Select

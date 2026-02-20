@@ -94,6 +94,8 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         Route::get('/grades', [TeacherDashboardController::class, 'grades'])->name('grades');
         Route::get('/grades/{class}', [TeacherDashboardController::class, 'showGrades'])->name('grades.show');
         Route::get('/grades/{class}/student/{student}', [TeacherDashboardController::class, 'studentGrades'])->name('grades.student');
+        Route::get('/grades/{class}/student/{student}/download-report-card', [ReportCardOutputController::class, 'generateReportCard'])
+            ->name('grades.student.download');
 
         // Section & Subject Queries
         Route::get('/sections-by-grade-level', [TeacherSectionsController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');

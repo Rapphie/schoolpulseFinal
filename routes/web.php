@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\EmailController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,17 @@ Route::get('/forgot-password', [ForgotPasswordController::class, 'showLinkReques
 Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
 Route::get('/logout', [LoginController::class, 'logout'])->name('logout');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout-account');
+
+// CSRF refresh endpoint for expired-session AJAX retries
+Route::get('/csrf-token', function (Request $request) {
+    if (! $request->session()->token()) {
+        $request->session()->regenerateToken();
+    }
+
+    return response()->json([
+        'token' => csrf_token(),
+    ]);
+})->middleware('throttle:60,1')->name('csrf.token');
 
 // Email Routes
 Route::get('/teacher/welcome-email', [EmailController::class, 'sendTeacherWelcomeEmail'])->name('teacher.send.welcome');

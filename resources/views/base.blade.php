@@ -262,8 +262,293 @@
             });
         };
 
+        const csrfTokenEndpoint = @json(route('csrf.token'));
+        window.__nativeFetch = window.__nativeFetch || window.fetch.bind(window);
+        let isRecoveringFromExpiredSession = false;
+        let csrfRefreshPromise = null;
+
+        const resolveRequestUrl = function(resource) {
+            try {
+                if (typeof Request !== 'undefined' && resource instanceof Request) {
+                    return new URL(resource.url, window.location.href);
+                }
+
+                if (typeof resource === 'string') {
+                    return new URL(resource, window.location.href);
+                }
+            } catch (error) {
+                return null;
+            }
+
+            return null;
+        };
+
+        const isSameOriginRequest = function(resource) {
+            const requestUrl = resolveRequestUrl(resource);
+            if (!requestUrl) {
+                return false;
+            }
+
+            return requestUrl.origin === window.location.origin;
+        };
+
+        const resolveRequestMethod = function(resource, init) {
+            if (init?.method) {
+                return String(init.method).toUpperCase();
+            }
+
+            if (typeof Request !== 'undefined' && resource instanceof Request && resource.method) {
+                return String(resource.method).toUpperCase();
+            }
+
+            return 'GET';
+        };
+
+        const applyCsrfToken = function(token) {
+            if (!token) {
+                return;
+            }
+
+            const csrfMetaTag = document.querySelector('meta[name="csrf-token"]');
+            if (csrfMetaTag) {
+                csrfMetaTag.setAttribute('content', token);
+            }
+
+            document.querySelectorAll('input[name="_token"]').forEach(function(input) {
+                input.value = token;
+            });
+        };
+
+        const applyTokenToRequestData = function(data, token) {
+            if (!data || !token) {
+                return data;
+            }
+
+            if (typeof FormData !== 'undefined' && data instanceof FormData) {
+                const clonedFormData = new FormData();
+                data.forEach(function(value, key) {
+                    clonedFormData.append(key, value);
+                });
+
+                if (clonedFormData.has('_token')) {
+                    clonedFormData.set('_token', token);
+                }
+
+                return clonedFormData;
+            }
+
+            if (typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams) {
+                const clonedSearchParams = new URLSearchParams(data.toString());
+                if (clonedSearchParams.has('_token')) {
+                    clonedSearchParams.set('_token', token);
+                }
+
+                return clonedSearchParams;
+            }
+
+            if (typeof data === 'string') {
+                try {
+                    const jsonPayload = JSON.parse(data);
+                    if (jsonPayload && typeof jsonPayload === 'object') {
+                        jsonPayload._token = token;
+
+                        return JSON.stringify(jsonPayload);
+                    }
+                } catch (error) {
+                    // Not JSON; continue to URL-encoded fallback.
+                }
+
+                try {
+                    const formPayload = new URLSearchParams(data);
+                    if (formPayload.has('_token')) {
+                        formPayload.set('_token', token);
+
+                        return formPayload.toString();
+                    }
+                } catch (error) {
+                    return data;
+                }
+            }
+
+            if (typeof data === 'object' && !Array.isArray(data)) {
+                return {
+                    ...data,
+                    _token: token,
+                };
+            }
+
+            return data;
+        };
+
+        window.refreshCsrfToken = async function() {
+            if (csrfRefreshPromise) {
+                return csrfRefreshPromise;
+            }
+
+            csrfRefreshPromise = (async function() {
+                const response = await window.__nativeFetch(csrfTokenEndpoint, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Unable to refresh CSRF token.');
+                }
+
+                const payload = await response.json();
+                if (!payload?.token) {
+                    throw new Error('CSRF token was not returned.');
+                }
+
+                applyCsrfToken(payload.token);
+
+                return payload.token;
+            })();
+
+            try {
+                return await csrfRefreshPromise;
+            } finally {
+                csrfRefreshPromise = null;
+            }
+        };
+
+        window.handleSessionExpired = function() {
+            if (isRecoveringFromExpiredSession) {
+                return;
+            }
+
+            isRecoveringFromExpiredSession = true;
+            window.showToast('Session expired. Reloading to continue...', 'warning', 2500);
+
+            setTimeout(function() {
+                window.location.reload();
+            }, 900);
+        };
+
+        const installJqueryCsrfRecovery = function() {
+            if (!window.jQuery || window.__csrfJqueryRecoveryInstalled) {
+                return;
+            }
+
+            $.ajaxSetup({
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                beforeSend: function(xhr) {
+                    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    xhr.setRequestHeader('X-CSRF-TOKEN', token);
+                },
+            });
+
+            $(document).ajaxError(function(event, jqXHR) {
+                if (jqXHR?.status === 419) {
+                    window.handleSessionExpired();
+                }
+            });
+
+            window.__csrfJqueryRecoveryInstalled = true;
+        };
+
+        const installFetchCsrfRecovery = function() {
+            if (window.__csrfFetchRecoveryInstalled || typeof window.fetch !== 'function') {
+                return;
+            }
+
+            const nativeFetch = window.__nativeFetch || window.fetch.bind(window);
+            window.fetch = async function(resource, init) {
+                const requestInit = init ? Object.assign({}, init) : {};
+                const alreadyRetried = Boolean(requestInit.__csrfRetried);
+                delete requestInit.__csrfRetried;
+                const sameOriginRequest = isSameOriginRequest(resource);
+                const requestMethod = resolveRequestMethod(resource, requestInit);
+                const isUnsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(requestMethod);
+                const canRetry = sameOriginRequest &&
+                    isUnsafeMethod &&
+                    !(typeof Request !== 'undefined' && resource instanceof Request);
+
+                const response = await nativeFetch(resource, requestInit);
+                if (response.status !== 419) {
+                    return response;
+                }
+
+                if (!sameOriginRequest) {
+                    return response;
+                }
+
+                if (!canRetry || alreadyRetried) {
+                    window.handleSessionExpired();
+
+                    return response;
+                }
+
+                try {
+                    const token = await window.refreshCsrfToken();
+                    const retryInit = Object.assign({}, requestInit, {
+                        __csrfRetried: true,
+                    });
+                    const retryHeaders = new Headers(retryInit.headers || {});
+                    retryHeaders.set('X-CSRF-TOKEN', token);
+                    retryHeaders.set('X-Requested-With', 'XMLHttpRequest');
+                    retryInit.headers = retryHeaders;
+                    retryInit.body = applyTokenToRequestData(retryInit.body, token);
+
+                    const retriedResponse = await nativeFetch(resource, retryInit);
+                    if (retriedResponse.status === 419) {
+                        window.handleSessionExpired();
+                    }
+
+                    return retriedResponse;
+                } catch (error) {
+                    window.handleSessionExpired();
+
+                    return response;
+                }
+            };
+
+            window.__csrfFetchRecoveryInstalled = true;
+        };
+
+        const installLivewireCsrfRecovery = function() {
+            if (window.__csrfLivewireRecoveryInstalled) {
+                return;
+            }
+
+            if (!window.Livewire || typeof window.Livewire.hook !== 'function') {
+                return;
+            }
+
+            window.Livewire.hook('request', function(payload) {
+                const fail = payload?.fail;
+
+                if (typeof fail === 'function') {
+                    fail(function(error) {
+                        if (Number(error?.status) === 419) {
+                            window.handleSessionExpired();
+                        }
+                    });
+
+                    return;
+                }
+
+                if (Number(fail?.status) === 419) {
+                    window.handleSessionExpired();
+                }
+            });
+
+            window.__csrfLivewireRecoveryInstalled = true;
+        };
+
         // Auto-scroll to session alerts so they are always visible
         document.addEventListener('DOMContentLoaded', function() {
+            installJqueryCsrfRecovery();
+            installFetchCsrfRecovery();
+            installLivewireCsrfRecovery();
+
             const alert = document.querySelector('.session-alert');
             if (alert) {
                 alert.scrollIntoView({
@@ -271,6 +556,10 @@
                     block: 'nearest'
                 });
             }
+        });
+
+        document.addEventListener('livewire:init', function() {
+            installLivewireCsrfRecovery();
         });
     </script>
 

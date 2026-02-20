@@ -46,7 +46,7 @@
                                                 class="btn btn-warning btn-sm" title="Edit Grades">
                                                 <i data-feather="edit-2" class="feather-sm text-white"></i>
                                             </a>
-                                            <a href="{{ route('teacher.report-card.show', ['studentId' => $student->id]) }}"
+                                            <a href="{{ route('teacher.grades.student.download', ['class' => $class->id, 'student' => $student->id]) }}"
                                                 class="btn btn-primary btn-sm" target="_blank" title="Download Report Card">
                                                 <i data-feather="download" class="feather-sm"></i>
                                             </a>

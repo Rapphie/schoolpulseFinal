@@ -1366,6 +1366,9 @@
 
                     if (xhr?.status === 419) {
                         errorMessage = 'Session expired. Please refresh this page.';
+                        if (typeof window.handleSessionExpired === 'function') {
+                            window.handleSessionExpired();
+                        }
                     } else if (xhr?.status === 413) {
                         errorMessage = 'Request is too large. Save in smaller changes.';
                     }

@@ -284,9 +284,19 @@
                                     </div>
                                 </div>
                                 <div class="col-md-4">
-                                    <div class="student-type-card" data-type="returning">
+                                    @php
+                                        $isPromotionOpen = $currentSchoolYear?->is_promotion_open ?? false;
+                                    @endphp
+                                    <div class="student-type-card{{ !$isPromotionOpen ? ' opacity-50' : '' }}"
+                                        data-type="returning"{{ !$isPromotionOpen ? ' style="cursor: not-allowed;"' : '' }}>
                                         <strong>Returning Student</strong>
-                                        <div class="text-muted small">Previously enrolled, re-enrolling for this year</div>
+                                        <div class="text-muted small">
+                                            @if (!$isPromotionOpen)
+                                                <span class="text-danger">Promotion not enabled</span>
+                                            @else
+                                                Previously enrolled, re-enrolling for this year
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -299,8 +309,19 @@
                             </div>
 
                             @if ($students->isNotEmpty())
+                                @php
+                                    $isPromotionOpen = $currentSchoolYear?->is_promotion_open ?? false;
+                                @endphp
+                                @if (!$isPromotionOpen)
+                                    <div class="alert alert-warning mt-3">
+                                        <i data-feather="alert-triangle" class="icon-sm me-2"></i>
+                                        <strong>Promotion Not Enabled</strong><br>
+                                        Returning students from previous school years cannot be re-enrolled at this time. 
+                                        Promotion must be enabled in the school year settings to allow returning students to enroll.
+                                    </div>
+                                @endif
                                 {{-- Quick Re-enroll Section - Only shown for "returning" type --}}
-                                <div id="quickReenrollSection" class="mt-3 pt-3 border-top" style="display: none;">
+                                <div id="quickReenrollSection" class="mt-3 pt-3 border-top" style="display: none;" data-promotion-open="{{ $isPromotionOpen ? 'true' : 'false' }}">
                                     <h6 class="mb-3">
                                         Previously Enrolled Students ({{ $students->count() }} students not yet enrolled
                                         this year)
@@ -2600,6 +2621,13 @@
         // Student type selection
         studentTypeCards.forEach(card => {
             card.addEventListener('click', function() {
+                // Prevent selecting returning type if promotion is not open
+                const qReenrollSection = document.getElementById('quickReenrollSection');
+                const isPromOpen = qReenrollSection?.dataset.promotionOpen === 'true';
+                if (this.dataset.type === 'returning' && !isPromOpen) {
+                    return;
+                }
+
                 studentTypeCards.forEach(c => c.classList.remove('selected'));
                 this.classList.add('selected');
                 state.studentType = this.dataset.type;
@@ -2626,12 +2654,14 @@
 
                 // Show/hide Quick Re-enroll section based on student type
                 // Only show for "returning" type, NOT for "enroll" (existing profile loads in step 2)
-                const quickReenrollSection = document.getElementById('quickReenrollSection');
-                if (quickReenrollSection) {
-                    if (state.studentType === 'returning') {
-                        quickReenrollSection.style.display = 'block';
+                // Also check if promotion is open
+                const quickReenrollSectionDiv = document.getElementById('quickReenrollSection');
+                const isPromotionOpenCheck = quickReenrollSectionDiv?.dataset.promotionOpen === 'true';
+                if (quickReenrollSectionDiv) {
+                    if (state.studentType === 'returning' && isPromotionOpenCheck) {
+                        quickReenrollSectionDiv.style.display = 'block';
                     } else {
-                        quickReenrollSection.style.display = 'none';
+                        quickReenrollSectionDiv.style.display = 'none';
                     }
                 }
             });

@@ -108,26 +108,25 @@
                 <table class="text-xs">
                     <tr>
                         <td>Name:</td>
-                        <td class="font-bold" colspan="3" id="studentName">Christian Plasabas</td>
+                        <td class="font-bold" colspan="3" id="studentName">{{ $student->full_name }}</td>
                     </tr>
                     <tr>
                         <td>Age:</td>
-                        <td class="font-bold"></td>
+                        <td class="font-bold">{{ $studentAge }}</td>
                         <td class="pl-4">Sex:</td>
-                        <td class="font-bold">Male</td>
+                        <td class="font-bold">{{ $displayGender }}</td>
                     </tr>
                     <tr>
                         <td>Grade:</td>
-                        <td class="font-bold">5</td>
+                        <td class="font-bold">{{ $gradeLevel?->name ?? '' }}</td>
                         <td class="pl-4">Section:</td>
-                        <td class="font-bold">DAGOHOY</td>
+                        <td class="font-bold">{{ $section?->name ?? '' }}</td>
                     </tr>
                     <tr>
                         <td>LRN:</td>
-                        <td class="font-bold">123
-                        </td>
+                        <td class="font-bold">{{ $student->lrn }}</td>
                         <td class="pl-4">School Year:</td>
-                        <td class="font-bold">2025-2026</td>
+                        <td class="font-bold">{{ $schoolYear->name ?? '' }}</td>
                     </tr>
                 </table>
 
@@ -144,7 +143,7 @@
                         <p>Head Teacher III</p>
                     </div>
                     <div class="w-1/2 text-center pt-4">
-                        <p class="border-bottom font-bold">Christian Plasabas</p>
+                        <p class="border-bottom font-bold">{{ $adviserName }}</p>
                         <p>Adviser</p>
                     </div>
                 </div>
@@ -167,119 +166,26 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td class="subject">Mathematics 1</td>
-                                <td class="text-center grade">79</td>
-                                <td class="text-center">80</td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="font-bold subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="pl-4 subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="pl-4 subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="pl-4 subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
-                            <tr>
-                                <td class="pl-4 subject"></td>
-                                <td class="text-center grade"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center"></td>
-                            </tr>
+                            @forelse ($gradesData as $grade)
+                                <tr>
+                                    <td class="subject">{{ $grade['subject_name'] }}</td>
+                                    <td class="text-center grade">{{ $grade['q1'] !== '' ? $grade['q1'] : '' }}</td>
+                                    <td class="text-center">{{ $grade['q2'] !== '' ? $grade['q2'] : '' }}</td>
+                                    <td class="text-center">{{ $grade['q3'] !== '' ? $grade['q3'] : '' }}</td>
+                                    <td class="text-center">{{ $grade['q4'] !== '' ? $grade['q4'] : '' }}</td>
+                                    <td class="text-center">{{ $grade['final_grade'] !== '' ? $grade['final_grade'] : '' }}</td>
+                                    <td class="text-center">{{ $grade['remarks'] ?? '' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center">No grades recorded yet.</td>
+                                </tr>
+                            @endforelse
                             <tr>
                                 <td class="font-bold">General Average</td>
                                 <td colspan="4"></td>
-                                <td class="text-center"></td>
-                                <td class="text-center" id="ai-remarks-cell"></td>
+                                <td class="text-center">{{ $generalAverage ?? '' }}</td>
+                                <td class="text-center" id="ai-remarks-cell">{{ $finalRemarks ?? '' }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -343,7 +249,7 @@
                             <p>HEAD TEACHER III</p>
                         </div>
                         <div class="w-1/2 text-center pt-2">
-                            <p class="border-bottom font-bold">Christian S. Plasabas</p>
+                            <p class="border-bottom font-bold">{{ $adviserName }}</p>
                             <p>Teacher</p>
                         </div>
                     </div>
@@ -392,48 +298,48 @@
                         <tbody>
                             <tr>
                                 <td class="text-xs">No. of School Days</td>
-                                <td>30</td>
-                                <td>31</td>
-                                <td>31</td>
-                                <td>30</td>
-                                <td>31</td>
-                                <td>30</td>
-                                <td>31</td>
-                                <td>28</td>
-                                <td>31</td>
-                                <td>31</td>
-                                <td>30</td>
-                                <td>334</td>
+                                <td>{{ $attendanceData['jun']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['jul']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['aug']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['sep']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['oct']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['nov']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['dec']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['jan']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['feb']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['mar']['school_days'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['apr']['school_days'] ?? 0 }}</td>
+                                <td class="font-bold">{{ $totalSchoolDays ?? 0 }}</td>
                             </tr>
                             <tr>
                                 <td class="text-xs">No. of Days Present</td>
-                                <td>0</td>
-                                <td>1</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>1</td>
+                                <td>{{ $attendanceData['jun']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['jul']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['aug']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['sep']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['oct']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['nov']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['dec']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['jan']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['feb']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['mar']['present'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['apr']['present'] ?? 0 }}</td>
+                                <td class="font-bold">{{ $totalDaysPresent ?? 0 }}</td>
                             </tr>
                             <tr>
                                 <td class="text-xs">No. of Days Absent</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
-                                <td>0</td>
+                                <td>{{ $attendanceData['jun']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['jul']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['aug']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['sep']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['oct']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['nov']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['dec']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['jan']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['feb']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['mar']['absent'] ?? 0 }}</td>
+                                <td>{{ $attendanceData['apr']['absent'] ?? 0 }}</td>
+                                <td class="font-bold">{{ $totalDaysAbsent ?? 0 }}</td>
                             </tr>
                         </tbody>
                     </table>
