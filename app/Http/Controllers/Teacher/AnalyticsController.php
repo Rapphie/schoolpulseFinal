@@ -5,25 +5,23 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Classes;
-use App\Models\Schedule;
+use App\Models\GradeLevel;
 use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
-use App\Models\GradeLevel;
+use App\Services\PredictionClient;
+use App\Services\StudentFeaturesService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-use App\Services\StudentFeaturesService;
-use App\Services\PredictionClient;
 
 class AnalyticsController extends Controller
 {
     /**
      * Display absenteeism analytics for the teacher.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\View\View
      */
     public function absenteeismAnalytics(Request $request)
@@ -38,7 +36,7 @@ class AnalyticsController extends Controller
 
         $selectedGradeLevelId = $request->query('grade_level_id');
         if ($selectedGradeLevelId !== null && $selectedGradeLevelId !== '') {
-            $selectedGradeLevelId = (int)$selectedGradeLevelId;
+            $selectedGradeLevelId = (int) $selectedGradeLevelId;
         } else {
             $selectedGradeLevelId = null;
         }
@@ -48,7 +46,7 @@ class AnalyticsController extends Controller
             ->get()
             ->map(function ($class) {
                 $grade = optional($class->section)->gradeLevel;
-                if (!$grade) {
+                if (! $grade) {
                     return null;
                 }
 
@@ -60,7 +58,7 @@ class AnalyticsController extends Controller
             })
             ->filter()
             ->unique('id')
-            ->sortBy(fn($item) => $item['level'] ?? $item['label'])
+            ->sortBy(fn ($item) => $item['level'] ?? $item['label'])
             ->values()
             ->map(function ($item) {
                 return [
@@ -72,12 +70,12 @@ class AnalyticsController extends Controller
 
         $gradeFilteredClassIds = $selectedGradeLevelId
             ? Classes::whereIn('id', $availableClassIds)
-            ->whereHas('section', function ($query) use ($selectedGradeLevelId) {
-                $query->where('grade_level_id', $selectedGradeLevelId);
-            })
-            ->pluck('id')
-            ->unique()
-            ->values()
+                ->whereHas('section', function ($query) use ($selectedGradeLevelId) {
+                    $query->where('grade_level_id', $selectedGradeLevelId);
+                })
+                ->pluck('id')
+                ->unique()
+                ->values()
             : $availableClassIds->values();
 
         $classesForSelect = [];
@@ -98,8 +96,8 @@ class AnalyticsController extends Controller
 
         // Optional filter by class_id
         $selectedClassId = $request->query('class_id');
-        if ($selectedClassId && $gradeFilteredClassIds->contains((int)$selectedClassId)) {
-            $classIds = collect([(int)$selectedClassId]);
+        if ($selectedClassId && $gradeFilteredClassIds->contains((int) $selectedClassId)) {
+            $classIds = collect([(int) $selectedClassId]);
         } else {
             $classIds = $gradeFilteredClassIds;
             $selectedClassId = null; // ignore invalid
@@ -114,13 +112,14 @@ class AnalyticsController extends Controller
             ->select(
                 DB::raw("DATE_FORMAT(date, '%Y-%m') as month"),
                 DB::raw("SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count"),
-                DB::raw("COUNT(*) as total_count")
+                DB::raw('COUNT(*) as total_count')
             )
             ->groupBy('month')
             ->orderBy('month', 'asc')
             ->get()
             ->mapWithKeys(function ($item) {
                 $percentage = ($item->total_count > 0) ? ($item->present_count / $item->total_count) * 100 : 0;
+
                 return [\Carbon\Carbon::parse($item->month)->format('M Y') => round($percentage, 2)];
             });
 
@@ -140,7 +139,6 @@ class AnalyticsController extends Controller
                 return [$subject->name => $subject->attendances_count];
             });
 
-
         // --- 3. Students with Highest Absence Rates ---
         $topAbsentees = Student::whereHas('enrollments', function ($query) use ($classIds) {
             $query->whereIn('class_id', $classIds);
@@ -157,8 +155,8 @@ class AnalyticsController extends Controller
 
         // --- 4. Predictions & engagement metrics by class/student ---
         $classPredictions = [];
-        $featuresService = new StudentFeaturesService();
-        $predictClient = new PredictionClient();
+        $featuresService = new StudentFeaturesService;
+        $predictClient = new PredictionClient;
         $refDate = Carbon::now();
         $syId = $activeSchoolYear->id;
         $studentMetrics = [];
@@ -181,6 +179,7 @@ class AnalyticsController extends Controller
                     'label' => $classLabel,
                     'students' => [],
                 ];
+
                 continue;
             }
 
@@ -220,7 +219,7 @@ class AnalyticsController extends Controller
 
                 $studentsWithPred[] = [
                     'id' => $studentId,
-                    'name' => $stu->last_name . ', ' . $stu->first_name,
+                    'name' => $stu->last_name.', '.$stu->first_name,
                     'lrn' => $stu->lrn,
                     'prediction_confidence' => $prediction,
                     'engagement_score' => $engagementScore,
@@ -228,7 +227,7 @@ class AnalyticsController extends Controller
 
                 $studentMetrics[$studentId] = [
                     'id' => $studentId,
-                    'name' => $stu->last_name . ', ' . $stu->first_name,
+                    'name' => $stu->last_name.', '.$stu->first_name,
                     'lrn' => $stu->lrn,
                     'class_label' => $classLabel,
                     'class_id' => $class->id,
@@ -241,8 +240,13 @@ class AnalyticsController extends Controller
 
             // Sort by prediction desc (nulls last)
             usort($studentsWithPred, function ($a, $b) {
-                if ($a['prediction_confidence'] === null) return 1;
-                if ($b['prediction_confidence'] === null) return -1;
+                if ($a['prediction_confidence'] === null) {
+                    return 1;
+                }
+                if ($b['prediction_confidence'] === null) {
+                    return -1;
+                }
+
                 return $b['prediction_confidence'] <=> $a['prediction_confidence'];
             });
 
@@ -256,7 +260,7 @@ class AnalyticsController extends Controller
 
         // --- Derived engagement + risk datasets ---
         $studentMetricsCollection = collect($studentMetrics);
-        $engagementCollection = $studentMetricsCollection->filter(fn($item) => $item['engagement_score'] !== null);
+        $engagementCollection = $studentMetricsCollection->filter(fn ($item) => $item['engagement_score'] !== null);
         $engagementRanking = $engagementCollection->sortByDesc('engagement_score')->values();
 
         foreach ($engagementRanking as $index => $entry) {
@@ -278,7 +282,7 @@ class AnalyticsController extends Controller
 
         $engagementSummary = [
             'average' => $engagementCollection->avg('engagement_score'),
-            'high_count' => $engagementCollection->filter(fn($item) => $item['engagement_score'] >= 80)->count(),
+            'high_count' => $engagementCollection->filter(fn ($item) => $item['engagement_score'] >= 80)->count(),
             'total_students' => $engagementCollection->count(),
             'top_student' => optional($engagementRanking->first(), function ($entry) {
                 return [
@@ -294,21 +298,21 @@ class AnalyticsController extends Controller
 
         $highRiskThreshold = 5;
         $highRiskStudents = $studentMetricsCollection
-            ->filter(fn($item) => ($item['monthly_unexcused_absences'] ?? 0) >= $highRiskThreshold)
+            ->filter(fn ($item) => ($item['monthly_unexcused_absences'] ?? 0) >= $highRiskThreshold)
             ->sortByDesc('monthly_unexcused_absences')
             ->values();
 
         $predictiveHighRisk = $studentMetricsCollection
-            ->filter(fn($item) => ($item['prediction_confidence'] ?? 0) >= 70)
+            ->filter(fn ($item) => ($item['prediction_confidence'] ?? 0) >= 70)
             ->sortByDesc('prediction_confidence')
             ->values();
 
         $riskSummary = [
             'good' => $studentMetricsCollection
-                ->filter(fn($item) => !is_null($item['prediction_confidence']) && $item['prediction_confidence'] < 40)
+                ->filter(fn ($item) => ! is_null($item['prediction_confidence']) && $item['prediction_confidence'] < 40)
                 ->count(),
             'medium' => $studentMetricsCollection
-                ->filter(fn($item) => !is_null($item['prediction_confidence']) && $item['prediction_confidence'] >= 40 && $item['prediction_confidence'] < 70)
+                ->filter(fn ($item) => ! is_null($item['prediction_confidence']) && $item['prediction_confidence'] >= 40 && $item['prediction_confidence'] < 70)
                 ->count(),
         ];
 
@@ -320,17 +324,18 @@ class AnalyticsController extends Controller
             // Get student IDs enrolled in the filtered classes
             $filteredStudentIds = Student::whereHas('enrollments', function ($q) use ($classIds, $syId) {
                 $q->whereIn('class_id', $classIds)->where('school_year_id', $syId);
-            })->pluck('id')->map(fn($id) => (int) $id)->toArray();
+            })->pluck('id')->map(fn ($id) => (int) $id)->toArray();
 
             // Use Student_ID returned by the Python API (more reliable than name matching)
             $filteredStudentIdSet = array_fill_keys($filteredStudentIds, true);
 
             // Filter each table to only show students from selected classes
             foreach (['table1', 'table2', 'table3'] as $tableKey) {
-                if (!empty($featureTables[$tableKey]['data'])) {
+                if (! empty($featureTables[$tableKey]['data'])) {
                     $featureTables[$tableKey]['data'] = array_values(
                         array_filter($featureTables[$tableKey]['data'], function ($row) use ($filteredStudentIdSet) {
                             $sid = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
+
                             return $sid && isset($filteredStudentIdSet[$sid]);
                         })
                     );
@@ -338,32 +343,33 @@ class AnalyticsController extends Controller
             }
         }
 
-        return view('teacher.analytics.absenteeism', compact(
-            'monthlyTrend',
-            'absencesBySubject',
-            'topAbsentees',
-            'classPredictions',
-            'classesForSelect',
-            'selectedClassId',
-            'studentMetrics',
-            'engagementSummary',
-            'engagementTop',
-            'engagementBottom',
-            'highRiskStudents',
-            'predictiveHighRisk',
-            'riskSummary',
-            'highRiskThreshold',
-            'gradeLevels',
-            'selectedGradeLevelId',
-            'featureTables'
-        ));
+        return view('errors.503');
+        // return view('teacher.analytics.absenteeism', compact(
+        //     'monthlyTrend',
+        //     'absencesBySubject',
+        //     'topAbsentees',
+        //     'classPredictions',
+        //     'classesForSelect',
+        //     'selectedClassId',
+        //     'studentMetrics',
+        //     'engagementSummary',
+        //     'engagementTop',
+        //     'engagementBottom',
+        //     'highRiskStudents',
+        //     'predictiveHighRisk',
+        //     'riskSummary',
+        //     'highRiskThreshold',
+        //     'gradeLevels',
+        //     'selectedGradeLevelId',
+        //     'featureTables'
+        // ));
     }
 
     public function classesByGrade(Request $request)
     {
-        $gradeLevelId = (int)$request->query('grade_level_id');
+        $gradeLevelId = (int) $request->query('grade_level_id');
 
-        if (!$gradeLevelId) {
+        if (! $gradeLevelId) {
             return response()->json(['classes' => []]);
         }
 
@@ -417,23 +423,23 @@ class AnalyticsController extends Controller
             return $class->section->name;
         }
 
-        return 'Class #' . $class->id;
+        return 'Class #'.$class->id;
     }
 
     private function formatGradeLabel(?GradeLevel $grade): string
     {
-        if (!$grade) {
+        if (! $grade) {
             return 'Unassigned Grade';
         }
 
-        $levelPart = $grade->level ? 'Grade ' . $grade->level : null;
+        $levelPart = $grade->level ? 'Grade '.$grade->level : null;
         $name = trim((string) $grade->name);
 
         if ($name && $levelPart) {
             // Avoid repeating "Grade" when the name already includes it
-            return stripos($name, 'grade') !== false ? $name : $levelPart . ' • ' . $name;
+            return stripos($name, 'grade') !== false ? $name : $levelPart.' • '.$name;
         }
 
-        return $name ?: ($levelPart ?? 'Grade ' . $grade->id);
+        return $name ?: ($levelPart ?? 'Grade '.$grade->id);
     }
 }

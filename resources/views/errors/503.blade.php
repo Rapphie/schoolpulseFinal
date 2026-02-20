@@ -1,3 +1,15 @@
+@php
+    $targetTime = '00:00';
+    $timezone = new DateTimeZone('Asia/Manila');
+    $now = new DateTime('now', $timezone);
+    $target = new DateTime($targetTime, $timezone);
+
+    if ($target < $now) {
+        $target->modify('+1 day');
+    }
+
+    $totalSeconds = $target->getTimestamp() - $now->getTimestamp();
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 
@@ -126,6 +138,13 @@
                 border-radius: 1rem;
             }
         }
+
+        .countdown-timer {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--maintenance-primary);
+            font-variant-numeric: tabular-nums;
+        }
     </style>
 </head>
 
@@ -144,12 +163,26 @@
 
                     <div class="code-display">503</div>
                     <h1 class="h3 fw-bold mt-2">System Maintenance</h1>
-                    <p class="text-muted subtitle mb-4">
+                    <p class="text-muted subtitle mb-3">
                         We are applying updates to improve your experience. Please check back shortly.
                     </p>
 
-                    <div class="d-flex flex-wrap gap-2 justify-content-center">
-                        <button type="button" onclick="window.location.reload()" class="btn btn-primary btn-maintenance">
+                    @if ($totalSeconds > 0)
+                        <div class="countdown-timer" data-total-seconds="<?php echo $totalSeconds; ?>">
+                            <span id="hours"><?php echo floor($totalSeconds / 3600); ?></span>h <span
+                                id="minutes"><?php echo str_pad(floor(($totalSeconds % 3600) / 60), 2, '0', STR_PAD_LEFT); ?></span>m
+                        </div>
+                        <small class="text-muted d-block mb-3">Estimated time remaining</small>
+                    @else
+                        <div class="countdown-timer">
+                            <span class="text-success">Back online!</span>
+                        </div>
+                        <small class="text-muted d-block mb-3">The system is now available</small>
+                    @endif
+
+                    <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
+                        <button type="button" onclick="window.location.reload()"
+                            class="btn btn-primary btn-maintenance">
                             <i class="fa-solid fa-rotate-right me-1"></i> Refresh Page
                         </button>
                         <a href="javascript:history.back()" class="btn btn-outline-primary btn-outline-maintenance">
@@ -162,6 +195,32 @@
             </div>
         </div>
     </div>
+
+    <script>
+        (function() {
+            const timer = document.querySelector('.countdown-timer');
+            const totalSeconds = parseInt(timer.dataset.totalSeconds);
+            const hoursEl = document.getElementById('hours');
+            const minutesEl = document.getElementById('minutes');
+
+            let remaining = totalSeconds;
+
+            function update() {
+                const hours = Math.floor(remaining / 3600);
+                const minutes = Math.floor((remaining % 3600) / 60);
+
+                hoursEl.textContent = hours;
+                minutesEl.textContent = minutes.toString().padStart(2, '0');
+
+                if (remaining > 0) {
+                    remaining--;
+                    setTimeout(update, 60000);
+                }
+            }
+
+            update();
+        })();
+    </script>
 </body>
 
 </html>
