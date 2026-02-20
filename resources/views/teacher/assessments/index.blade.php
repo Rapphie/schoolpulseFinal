@@ -262,6 +262,11 @@
                 background-color: #ffe8a1;
             }
         }
+
+        body.selecting-range {
+            user-select: none;
+            -webkit-user-select: none;
+        }
     </style>
 @endpush
 
@@ -457,18 +462,6 @@
                         <div class="d-flex flex-wrap align-items-center gap-2">
                             <span class="badge text-bg-success grade-save-status" id="gradeSaveState"
                                 title="Saved">Saved</span>
-                            <label for="exportQuarter" class="mb-0 fw-semibold">Export Quarter:</label>
-                            <select id="exportQuarter" class="form-select form-select-sm" style="width: 120px;">
-                                @for ($quarterOption = 1; $quarterOption <= 4; $quarterOption++)
-                                    <option value="{{ $quarterOption }}">Q{{ $quarterOption }}</option>
-                                @endfor
-                            </select>
-                            <button type="button" class="btn btn-outline-success btn-sm" id="exportQuarterRecord">
-                                <i class="fas fa-file-excel me-1"></i> Export Quarter Record
-                            </button>
-                            <button type="button" class="btn btn-outline-success btn-sm" id="exportFullYearRecord">
-                                <i class="fas fa-file-export me-1"></i> Export Full Year Record
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -823,8 +816,6 @@
             const classId = {{ $class->id }};
             const selectedSubjectId = {{ $selectedSubject?->id ?? 'null' }};
             const saveGradesEndpoint = "{{ route('teacher.assessments.saveGrades', $class) }}";
-            const exportQuarterEndpoint = "{{ route('teacher.assessments.exportClassRecord', $class) }}";
-            const exportFullYearEndpoint = "{{ route('teacher.assessments.exportClassRecordAll', $class) }}";
             const autoSaveDelayMs = 30000;
             const dirtyGrades = new Map();
             const invalidCells = new Map();
@@ -1479,38 +1470,7 @@
 
             // Set initial link on page load
             updateManageOralParticipationLink(getActiveQuarter());
-            $('#exportQuarter').val(getActiveQuarter());
             applyStudentSearchFilter();
-
-            $('#exportQuarterRecord').on('click', function() {
-                if (!selectedSubjectId) {
-                    alert('No subject selected for export.');
-
-                    return;
-                }
-
-                const quarter = $('#exportQuarter').val();
-                const query = new URLSearchParams({
-                    subject_id: selectedSubjectId,
-                    quarter,
-                });
-
-                window.location.href = `${exportQuarterEndpoint}?${query.toString()}`;
-            });
-
-            $('#exportFullYearRecord').on('click', function() {
-                if (!selectedSubjectId) {
-                    alert('No subject selected for export.');
-
-                    return;
-                }
-
-                const query = new URLSearchParams({
-                    subject_id: selectedSubjectId,
-                });
-
-                window.location.href = `${exportFullYearEndpoint}?${query.toString()}`;
-            });
 
             $('#studentSearchInput').on('input', function() {
                 applyStudentSearchFilter();
@@ -1618,7 +1578,6 @@
                     const quarter = targetId.replace('quarter', '');
                     initializeQuarterCalculations(parseInt(quarter));
                     updateManageOralParticipationLink(quarter);
-                    $('#exportQuarter').val(quarter);
                 }
             });
 
@@ -2270,6 +2229,15 @@
                     return;
                 }
 
+                // Check if target is an input element
+                const input = event.target.closest('.grade-input, .max-score-input');
+                if (input) {
+                    // Prevent native text selection/drag on inputs
+                    event.preventDefault();
+                    // Focus the input for editing
+                    input.focus();
+                }
+
                 activeSelectionTable = table;
 
                 if (event.shiftKey && gradeSelectionAnchorCell) {
@@ -2278,13 +2246,25 @@
                 }
 
                 isSelectingGradeRange = true;
+                // Disable user-select during drag to prevent text highlighting
+                $('body').addClass('selecting-range');
                 gradeSelectionAnchorCell = cell;
                 clearGradeSelection();
                 markCellSelected(cell);
             });
 
-            $(document).on('mouseenter', '.grade-table[data-quarter] td, .grade-table[data-quarter] th',
-        function() {
+            $(document).on('mouseover', '.grade-table[data-quarter] td, .grade-table[data-quarter] th',
+        function(event) {
+                // Only select if left mouse button is physically held down
+                if (event.buttons !== 1) {
+                    // Button not held - cancel any stuck selection state
+                    if (isSelectingGradeRange) {
+                        isSelectingGradeRange = false;
+                        $('body').removeClass('selecting-range');
+                    }
+                    return;
+                }
+
                 if (!isSelectingGradeRange || !gradeSelectionAnchorCell) {
                     return;
                 }
@@ -2294,6 +2274,7 @@
 
             $(document).on('mouseup', function() {
                 isSelectingGradeRange = false;
+                $('body').removeClass('selecting-range');
             });
 
             $(document).on('mousedown', function(event) {
