@@ -60,8 +60,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::post('/{class}/quick-add', [AssessmentController::class, 'quickAddAssessment'])->name('quickAdd');
             Route::post('/{class}/update-max-score', [AssessmentController::class, 'updateMaxScore'])->name('updateMaxScore');
             Route::post('/{class}/save-grades', [AssessmentController::class, 'saveGrades'])->name('saveGrades');
-            Route::get('/{class}/export-class-record', [AssessmentController::class, 'exportClassRecord'])->name('exportClassRecord');
-            Route::get('/{class}/export-class-record-all', [AssessmentController::class, 'exportClassRecordAll'])->name('exportClassRecordAll');
+
             Route::get('/{class}/{assessment}/scores', [AssessmentController::class, 'editScores'])->name('scores.edit');
             Route::put('/{class}/{assessment}/scores', [AssessmentController::class, 'updateScores'])->name('scores.update');
             Route::delete('/{class}/{assessment}', [AssessmentController::class, 'destroy'])->name('destroy');
