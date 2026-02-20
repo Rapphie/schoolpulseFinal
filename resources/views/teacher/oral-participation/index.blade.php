@@ -748,7 +748,6 @@
                     url: '{{ route('teacher.oral-participation.appendScores', $class) }}',
                     method: 'POST',
                     data: {
-                        _token: '{{ csrf_token() }}',
                         subject_id: subjectId,
                         quarter: quarter,
                         session_max_score: sessionMaxScore,
@@ -980,7 +979,6 @@
                     url: '{{ route('teacher.oral-participation.saveScores', $class) }}',
                     method: 'POST',
                     data: {
-                        _token: '{{ csrf_token() }}',
                         scores: scores
                     },
                     success: function() {

@@ -378,9 +378,6 @@
                     url: "{{ route('teacher.subjects.by-section', ['section' => ':sectionId']) }}".replace(
                         ':sectionId', sectionId),
                     type: 'GET',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
                     success: function(response) {
                         console.log('Subject response:', response); // Debug log
 
@@ -600,8 +597,7 @@
                     data: {
                         section_id: sectionId,
                         subject_id: isAllDay ? 'all' : subjectId,
-                        date: date,
-                        _token: '{{ csrf_token() }}'
+                        date: date
                     },
                     success: function(response) {
                         // Update class info

@@ -52,12 +52,50 @@ class CsrfSessionRecoveryTest extends TestCase
         $response->assertSessionMissing('_old_input.password_confirmation');
     }
 
+    public function test_http_419_returns_json_for_ajax_requests(): void
+    {
+        $uri = $this->registerHttp419Route();
+        $response = $this->postJson($uri);
+
+        $response->assertStatus(419);
+        $response->assertJson([
+            'message' => 'Your session has expired. Please retry your request.',
+        ]);
+    }
+
+    public function test_http_419_redirects_back_with_warning_for_web_requests(): void
+    {
+        $uri = $this->registerHttp419Route();
+        $response = $this->from('/dashboard')->post($uri, [
+            'example' => 'value',
+            'password' => 'top-secret',
+            'password_confirmation' => 'top-secret',
+        ]);
+
+        $response->assertRedirect('/dashboard');
+        $response->assertSessionHas('warning', 'Your session expired. Please try again.');
+        $response->assertSessionHas('_old_input.example', 'value');
+        $response->assertSessionMissing('_old_input.password');
+        $response->assertSessionMissing('_old_input.password_confirmation');
+    }
+
     private function registerTokenMismatchRoute(): string
     {
         $uri = '/testing/csrf-mismatch/'.uniqid();
 
         Route::post($uri, function () {
             throw new TokenMismatchException;
+        });
+
+        return $uri;
+    }
+
+    private function registerHttp419Route(): string
+    {
+        $uri = '/testing/http-419/'.uniqid();
+
+        Route::post($uri, function () {
+            abort(419);
         });
 
         return $uri;

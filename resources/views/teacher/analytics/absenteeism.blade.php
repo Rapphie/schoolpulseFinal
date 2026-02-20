@@ -811,15 +811,11 @@
                 const url = `${classesEndpoint}?grade_level_id=${encodeURIComponent(gradeId)}`;
                 console.log('Fetching classes from:', url);
 
-                // Get CSRF token from meta tag
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
                 fetch(url, {
                         method: 'GET',
                         headers: {
                             'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': csrfToken || ''
+                            'X-Requested-With': 'XMLHttpRequest'
                         },
                         credentials: 'same-origin'
                     })

@@ -319,6 +319,10 @@
             });
         };
 
+        const getCurrentCsrfToken = function() {
+            return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        };
+
         const applyTokenToRequestData = function(data, token) {
             if (!data || !token) {
                 return data;
@@ -466,10 +470,26 @@
                 delete requestInit.__csrfRetried;
                 const sameOriginRequest = isSameOriginRequest(resource);
                 const requestMethod = resolveRequestMethod(resource, requestInit);
-                const isUnsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(requestMethod);
+                const isUnsafeMethod = !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(requestMethod);
                 const canRetry = sameOriginRequest &&
                     isUnsafeMethod &&
                     !(typeof Request !== 'undefined' && resource instanceof Request);
+
+                if (sameOriginRequest) {
+                    const requestHeaders = new Headers(requestInit.headers || {});
+                    if (!requestHeaders.has('X-Requested-With')) {
+                        requestHeaders.set('X-Requested-With', 'XMLHttpRequest');
+                    }
+
+                    if (isUnsafeMethod && !requestHeaders.has('X-CSRF-TOKEN') && !requestHeaders.has('X-XSRF-TOKEN')) {
+                        const token = getCurrentCsrfToken();
+                        if (token) {
+                            requestHeaders.set('X-CSRF-TOKEN', token);
+                        }
+                    }
+
+                    requestInit.headers = requestHeaders;
+                }
 
                 const response = await nativeFetch(resource, requestInit);
                 if (response.status !== 419) {

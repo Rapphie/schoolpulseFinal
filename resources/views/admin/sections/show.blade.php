@@ -357,10 +357,7 @@
 
             fetch('{{ route('admin.class-record.upload') }}', {
                     method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    }
+                    body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -417,8 +414,7 @@
             fetch('{{ route('admin.class-record.save') }}', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(extractedClassRecordData)
                 })

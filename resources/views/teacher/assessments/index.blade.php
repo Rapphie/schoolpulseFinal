@@ -1336,7 +1336,6 @@
                         method: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify({
-                            _token: '{{ csrf_token() }}',
                             grades: gradesPayload,
                         }),
                     });
@@ -1695,7 +1694,6 @@
                     url: '{{ route('teacher.assessments.updateMaxScore', $class) }}',
                     method: 'POST',
                     data: {
-                        _token: '{{ csrf_token() }}',
                         assessment_id: assessmentId,
                         max_score: maxScore
                     },
@@ -2158,7 +2156,6 @@
                     url: '{{ route('teacher.oral-participation.appendScores', $class) }}',
                     method: 'POST',
                     data: {
-                        _token: '{{ csrf_token() }}',
                         subject_id: subjectId,
                         quarter: quarter,
                         session_max_score: sessionMaxScore,
