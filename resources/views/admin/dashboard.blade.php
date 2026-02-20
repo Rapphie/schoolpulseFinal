@@ -1171,20 +1171,28 @@
                                                     data-start-date="{{ \Carbon\Carbon::parse($quarter->start_date)->format('Y-m-d') }}"
                                                     data-end-date="{{ \Carbon\Carbon::parse($quarter->end_date)->format('Y-m-d') }}"
                                                     data-deadline="{{ $quarter->grade_submission_deadline ? \Carbon\Carbon::parse($quarter->grade_submission_deadline)->format('Y-m-d') : '' }}"
-                                                    data-is-locked="{{ $quarter->is_locked ? '1' : '0' }}">
+                                                    data-is-locked="{{ $quarter->is_locked ? '1' : '0' }}"
+                                                    data-school-year-active="{{ $year->is_active ? '1' : '0' }}">
                                                     <i data-feather="edit-2" class="feather-sm"></i>
                                                 </button>
-                                                <form
-                                                    action="{{ route('admin.school-year.quarters.toggle-lock', [$year, $quarter]) }}"
-                                                    method="POST" class="d-inline">
-                                                    @csrf
-                                                    <button type="submit"
-                                                        class="btn btn-sm {{ $quarter->is_locked ? 'btn-warning' : 'btn-outline-secondary' }}"
-                                                        title="{{ $quarter->is_locked ? 'Unlock' : 'Lock' }}">
-                                                        <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}"
-                                                            class="feather-sm"></i>
+                                                @if ($year->is_active)
+                                                    <form
+                                                        action="{{ route('admin.school-year.quarters.toggle-lock', [$year, $quarter]) }}"
+                                                        method="POST" class="d-inline">
+                                                        @csrf
+                                                        <button type="submit"
+                                                            class="btn btn-sm {{ $quarter->is_locked ? 'btn-warning' : 'btn-outline-secondary' }}"
+                                                            title="{{ $quarter->is_locked ? 'Unlock' : 'Lock' }}">
+                                                            <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}"
+                                                                class="feather-sm"></i>
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                                        title="Locking is only available for the active school year">
+                                                        <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}" class="feather-sm"></i>
                                                     </button>
-                                                </form>
+                                                @endif
                                                 <form
                                                     action="{{ route('admin.school-year.quarters.destroy', [$year, $quarter]) }}"
                                                     method="POST" class="d-inline"
@@ -1324,12 +1332,14 @@
                             </div>
                             <small class="text-muted">Teachers must submit grades before this date.</small>
                         </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="is_locked" id="editQuarterLocked">
+                        <div id="editQuarterLockControls" class="form-check">
+                            <input type="hidden" name="is_locked" id="editQuarterLockedHidden" value="0">
+                            <input class="form-check-input" type="checkbox" name="is_locked" id="editQuarterLocked" value="1">
                             <label class="form-check-label" for="editQuarterLocked">
                                 Lock quarter (prevents grade/attendance modifications)
                             </label>
                         </div>
+                        <small id="editQuarterLockHint" class="text-muted d-none">Locking is only available for the active school year.</small>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -2188,6 +2198,7 @@
                     const endDate = this.dataset.endDate;
                     const deadline = this.dataset.deadline;
                     const isLocked = this.dataset.isLocked === '1';
+                    const isSchoolYearActive = this.dataset.schoolYearActive === '1';
 
                     // Update modal title
                     document.getElementById('editQuarterName').textContent = quarterName;
@@ -2200,7 +2211,17 @@
                     document.getElementById('editQuarterStartDate').value = startDate;
                     document.getElementById('editQuarterEndDate').value = endDate;
                     document.getElementById('editQuarterDeadline').value = deadline || '';
-                    document.getElementById('editQuarterLocked').checked = isLocked;
+
+                    const lockCheckbox = document.getElementById('editQuarterLocked');
+                    const lockHiddenInput = document.getElementById('editQuarterLockedHidden');
+                    const lockControls = document.getElementById('editQuarterLockControls');
+                    const lockHint = document.getElementById('editQuarterLockHint');
+
+                    lockCheckbox.checked = isLocked;
+                    lockCheckbox.disabled = !isSchoolYearActive;
+                    lockHiddenInput.disabled = !isSchoolYearActive;
+                    lockControls.classList.toggle('opacity-50', !isSchoolYearActive);
+                    lockHint.classList.toggle('d-none', isSchoolYearActive);
 
                     // Show the modal
                     const modal = new bootstrap.Modal(document.getElementById('editQuarterModal'));

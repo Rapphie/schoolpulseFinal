@@ -2,19 +2,18 @@
 
 namespace Database\Seeders;
 
-use App\Models\LLC;
-use App\Models\LLCItem;
-use App\Models\Teacher;
-use App\Models\User;
-use App\Models\Student;
-use App\Models\Grade;
 use App\Models\Attendance;
-use App\Models\Subject;
-use App\Models\Section;
-use App\Models\Schedule;
+use App\Models\Grade;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
-use Illuminate\Contracts\Auth\Guard;
+use App\Models\LLC;
+use App\Models\LLCItem;
+use App\Models\Schedule;
+use App\Models\Section;
+use App\Models\Student;
+use App\Models\Subject;
+use App\Models\Teacher;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -28,10 +27,6 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
 
-
-
-
-
         $roles = [
             ['name' => 'admin', 'description' => 'Administrator with full access'],
             ['name' => 'teacher', 'description' => 'Teacher with subject and class access'],
@@ -44,29 +39,75 @@ class DatabaseSeeder extends Seeder
         // Create admin user
         User::create([
             'first_name' => 'Admin',
-            'last_name' => 'Nistrator',
+            'last_name' => 'Account',
             'email' => 'admin@gmail.com',
             'password' => Hash::make('temp'),
             'role_id' => 1,
         ]);
-        $teacherUser   =  User::create([
-            'first_name' => 'Christian',
-            'last_name' => 'Plasabas',
-            'email' => 'tempinnovision@gmail.com',
-            'password' => Hash::make('123'),
-            'role_id' => 2,
-        ]);
-        Teacher::create([
-            'user_id' => $teacherUser->id,
-            'phone' => '09123456789',
-            'gender' => 'male',
-            'date_of_birth' => '1990-01-01',
-            'address' => '123 Teacher St, City, Country',
-            'qualification' => 'Bachelor of Education',
-            'status' => 'active',
-        ]);
+        $teacherUsers = [
+            [
+                'first_name' => 'Christian',
+                'last_name' => 'Plasabas',
+                'email' => 'tempinnovision@gmail.com',
+                'phone' => '09123456789',
+                'gender' => 'male',
+                'date_of_birth' => '1990-01-01',
+                'address' => '123 Teacher St, City, Country',
+                'qualification' => 'Bachelor of Education',
+            ],
+            [
+                'first_name' => 'Kim Cyril',
+                'last_name' => 'Torregoza',
+                'email' => 'torregoza.kimcyril@dnsc.edu.ph',
+                'phone' => '09170000001',
+                'gender' => 'female',
+                'date_of_birth' => '1991-01-01',
+                'address' => 'DNSC Campus, Main Ave',
+                'qualification' => 'Bachelors in Secondary Education',
+            ],
+            [
+                'first_name' => 'Christine Janelle',
+                'last_name' => 'Epe',
+                'email' => 'epe.christinejanelle@dnsc.edu.ph',
+                'phone' => '09170000002',
+                'gender' => 'female',
+                'date_of_birth' => '1992-02-02',
+                'address' => 'DNSC Campus, West Wing',
+                'qualification' => 'Bachelor of Science in Education',
+            ],
+            [
+                'first_name' => 'Norriene Grace',
+                'last_name' => 'Millan',
+                'email' => 'millan.norrienegrade@dnsc.edu.ph',
+                'phone' => '09170000003',
+                'gender' => 'female',
+                'date_of_birth' => '1993-03-03',
+                'address' => 'DNSC Campus, East Wing',
+                'qualification' => 'Bachelor of Elementary Education',
+            ],
+        ];
 
+        foreach ($teacherUsers as $teacherUser) {
+            $teacherUser = User::create([
+                'first_name' => $teacherUser['first_name'],
+                'last_name' => $teacherUser['last_name'],
+                'email' => $teacherUser['email'],
+                'password' => Hash::make('123'),
+                'role_id' => 2,
+            ]);
 
+            Teacher::create([
+                'user_id' => $teacherUser->id,
+                'phone' => $teacherUser['phone'],
+                'gender' => $teacherUser['gender'],
+                'date_of_birth' => $teacherUser['date_of_birth'],
+                'address' => $teacherUser['address'],
+                'qualification' => $teacherUser['qualification'],
+                'status' => 'active',
+            ]);
+
+            Mail::to($teacherUser->email)->queue(new \App\Mail\WelcomeEmail($teacherUser, '123'));
+        }
         $guardianUser = User::create([
             'first_name' => 'Kim',
             'last_name' => 'Lee',
@@ -74,7 +115,6 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make(12345678),
             'role_id' => 3,
         ]);
-
 
         $guardian = Guardian::create([
             'user_id' => $guardianUser->id,

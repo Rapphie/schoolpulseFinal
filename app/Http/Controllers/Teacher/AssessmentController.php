@@ -15,7 +15,7 @@ use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
-use App\Services\GradeService;
+use App\Services\QuarterLockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,6 +25,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AssessmentController extends Controller
 {
+    public function __construct(private QuarterLockService $quarterLockService) {}
+
     private const DEFAULT_ASSESSMENT_COUNTS = [
         'written_works' => 10,
         'performance_tasks' => 10,
@@ -49,6 +51,10 @@ class AssessmentController extends Controller
     public function index(Classes $class, Request $request)
     {
         $class->load('section.gradeLevel');
+        $quarterLockContext = $this->quarterLockService->contextForSchoolYear((int) $class->school_year_id);
+        $activeQuarter = $quarterLockContext['activeQuarter'];
+        $quarterLocks = $quarterLockContext['quarterLocks'];
+
         // Get the selected subject or default to the first subject
         $subjects = $class->schedules()->with('subject')->get()->pluck('subject')->unique('id');
 
@@ -202,6 +208,8 @@ class AssessmentController extends Controller
             'fixedAssessmentCounts' => self::DEFAULT_ASSESSMENT_COUNTS,
             'assessmentTypeWeights' => self::ASSESSMENT_TYPE_WEIGHTS,
             'assessmentTypeLabels' => self::ASSESSMENT_TYPE_LABELS,
+            'activeQuarter' => $activeQuarter,
+            'quarterLocks' => $quarterLocks,
         ]);
     }
 
@@ -375,8 +383,8 @@ class AssessmentController extends Controller
         }
 
         // Recalculate and persist quarter grades for the affected subject/quarter
-        $this->recalculateQuarterGradesForSubjectQuarter(
-            $class,
+        \App\Jobs\RecalculateQuarterGradesJob::dispatch(
+            $class->id,
             $assessment->subject_id,
             (int) $assessment->quarter,
             $assessment->teacher_id,
@@ -410,6 +418,9 @@ class AssessmentController extends Controller
     public function saveGrades(SaveGradesRequest $request, Classes $class): JsonResponse
     {
         try {
+            $quarterLockContext = $this->quarterLockService->contextForSchoolYear((int) $class->school_year_id);
+            $quarterLocks = $quarterLockContext['quarterLocks'];
+
             $teacher = Auth::user()->teacher;
             if (! $teacher) {
                 return response()->json([
@@ -418,17 +429,35 @@ class AssessmentController extends Controller
                 ], 403);
             }
 
+            $validatedGrades = $request->validated('grades', []);
+
+            // Preload assessments and students
+            $assessmentIds = collect($validatedGrades)->pluck('assessment_id')->unique();
+            $studentIds = collect($validatedGrades)->pluck('student_id')->unique();
+
+            $assessments = Assessment::whereIn('id', $assessmentIds)
+                ->where('class_id', $class->id)
+                ->where('teacher_id', $teacher->id)
+                ->get()
+                ->keyBy('id');
+
+            $students = $class->students()->with(['profiles' => function ($q) use ($class) {
+                $q->where('school_year_id', $class->school_year_id);
+            }])
+                ->whereIn('students.id', $studentIds)
+                ->get()
+                ->keyBy('id');
+
             $successCount = 0;
             $clearedCount = 0;
             $rejectedCells = [];
-            $affectedCombos = []; // ["subject_id-quarter" => [subject_id, quarter, teacher_id]]
+            $affectedCombos = [];
 
-            foreach ($request->validated('grades', []) as $gradeData) {
-                // Verify the assessment belongs to this teacher and class
-                $assessment = Assessment::where('id', $gradeData['assessment_id'])
-                    ->where('class_id', $class->id)
-                    ->where('teacher_id', $teacher->id)
-                    ->first();
+            $scoresToUpsert = [];
+            $scoresToDelete = [];
+
+            foreach ($validatedGrades as $gradeData) {
+                $assessment = $assessments->get($gradeData['assessment_id']);
 
                 if (! $assessment) {
                     $rejectedCells[] = [
@@ -440,8 +469,18 @@ class AssessmentController extends Controller
                     continue;
                 }
 
-                // Update or create the assessment score
-                $student = Student::find($gradeData['student_id']);
+                $assessmentQuarter = (int) $assessment->quarter;
+                if (($quarterLocks[$assessmentQuarter]['is_locked'] ?? false) === true) {
+                    $rejectedCells[] = [
+                        'student_id' => (int) $gradeData['student_id'],
+                        'assessment_id' => (int) $gradeData['assessment_id'],
+                        'reason' => "Quarter {$assessmentQuarter} is locked. Grade changes are disabled.",
+                    ];
+
+                    continue;
+                }
+
+                $student = $students->get($gradeData['student_id']);
                 if (! $student) {
                     $rejectedCells[] = [
                         'student_id' => (int) $gradeData['student_id'],
@@ -452,27 +491,15 @@ class AssessmentController extends Controller
                     continue;
                 }
 
-                $profile = $student->profileFor($assessment->school_year_id);
+                $profile = $student->profiles->first();
                 $scoreValue = $gradeData['score'];
 
                 if ($scoreValue === null || $scoreValue === '') {
-                    $deletedRows = AssessmentScore::where('assessment_id', $assessment->id)
-                        ->where(function ($query) use ($gradeData, $profile) {
-                            $query->where('student_id', $gradeData['student_id']);
-                            if ($profile) {
-                                $query->orWhere(function ($q) use ($profile) {
-                                    $q->where('student_profile_id', $profile->id)
-                                        ->whereNull('student_id');
-                                });
-                            }
-                        })
-                        ->delete();
-
-                    if ($deletedRows > 0) {
-                        $clearedCount++;
-                    }
+                    $scoresToDelete[] = [
+                        'assessment_id' => $assessment->id,
+                        'student_id' => $student->id,
+                    ];
                 } else {
-                    // Validate score against max score
                     if ($assessment->max_score === null) {
                         $rejectedCells[] = [
                             'student_id' => (int) $gradeData['student_id'],
@@ -493,19 +520,15 @@ class AssessmentController extends Controller
                         continue;
                     }
 
-                    AssessmentScore::updateOrCreate(
-                        [
-                            'assessment_id' => $gradeData['assessment_id'],
-                            'student_id' => $gradeData['student_id'],
-                        ],
-                        [
-                            'score' => $scoreValue,
-                            'remarks' => null,
-                            'student_profile_id' => $profile ? $profile->id : null,
-                        ]
-                    );
-
-                    $successCount++;
+                    $scoresToUpsert[] = [
+                        'assessment_id' => $assessment->id,
+                        'student_id' => $student->id,
+                        'score' => $scoreValue,
+                        'remarks' => null,
+                        'student_profile_id' => $profile ? $profile->id : null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
                 }
 
                 $key = $assessment->subject_id.'-'.$assessment->quarter;
@@ -518,16 +541,38 @@ class AssessmentController extends Controller
                 }
             }
 
-            // Recalculate quarter grades for all affected (subject, quarter) combinations
-            foreach ($affectedCombos as $combo) {
-                $this->recalculateQuarterGradesForSubjectQuarter(
-                    $class,
-                    $combo['subject_id'],
-                    $combo['quarter'],
-                    $combo['teacher_id'],
-                    $class->school_year_id
-                );
-            }
+            // Perform DB operations within a transaction
+            \Illuminate\Support\Facades\DB::transaction(function () use (&$scoresToUpsert, &$scoresToDelete, $class, $affectedCombos, $studentIds, &$successCount, &$clearedCount) {
+                if (! empty($scoresToDelete)) {
+                    foreach (collect($scoresToDelete)->groupBy('assessment_id') as $assessmentId => $deletes) {
+                        $deleted = AssessmentScore::where('assessment_id', $assessmentId)
+                            ->whereIn('student_id', $deletes->pluck('student_id'))
+                            ->delete();
+                        $clearedCount += $deleted;
+                    }
+                }
+
+                if (! empty($scoresToUpsert)) {
+                    AssessmentScore::upsert(
+                        $scoresToUpsert,
+                        ['assessment_id', 'student_id'], // Unique key constraint
+                        ['score', 'remarks', 'student_profile_id', 'updated_at']
+                    );
+                    $successCount += count($scoresToUpsert);
+                }
+
+                // Dispatch jobs for affected subject/quarter
+                foreach ($affectedCombos as $combo) {
+                    \App\Jobs\RecalculateQuarterGradesJob::dispatch(
+                        $class->id,
+                        $combo['subject_id'],
+                        $combo['quarter'],
+                        $combo['teacher_id'],
+                        $class->school_year_id,
+                        $studentIds->toArray()
+                    )->afterCommit();
+                }
+            }, 5);
 
             $summaryParts = [];
             if ($successCount > 0) {
@@ -549,6 +594,8 @@ class AssessmentController extends Controller
                 'rejected_cells' => $rejectedCells,
             ]);
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Error saving grades', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Unexpected error saving grades.',
@@ -662,6 +709,13 @@ class AssessmentController extends Controller
             'quarter' => 'required|integer|in:1,2,3,4',
         ]);
 
+        if ($this->quarterLockService->isLocked((int) $class->school_year_id, (int) $request->quarter)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quarter is locked. Assessment changes are disabled.',
+            ], 423);
+        }
+
         $teacher = Auth::user()->teacher;
 
         $assessment = $class->assessments()->create([
@@ -712,11 +766,18 @@ class AssessmentController extends Controller
             ], 403);
         }
 
+        if ($this->quarterLockService->isLocked((int) $class->school_year_id, (int) $assessment->quarter)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This quarter is locked. Assessment changes are disabled.',
+            ], 423);
+        }
+
         $assessment->update(['max_score' => $request->max_score]);
 
         // After changing max score, quarter grade may shift; recompute
-        $this->recalculateQuarterGradesForSubjectQuarter(
-            $class,
+        \App\Jobs\RecalculateQuarterGradesJob::dispatch(
+            $class->id,
             $assessment->subject_id,
             (int) $assessment->quarter,
             $assessment->teacher_id,
@@ -792,98 +853,4 @@ class AssessmentController extends Controller
     /**
      * Recalculate and persist quarter grades for all students in a class for a given subject & quarter.
      */
-    private function recalculateQuarterGradesForSubjectQuarter(Classes $class, int $subjectId, int $quarter, int $teacherId, int $schoolYearId): void
-    {
-        // Fetch all assessments for this class/subject/quarter with their scores
-        $assessments = Assessment::with('scores')
-            ->where('class_id', $class->id)
-            ->where('subject_id', $subjectId)
-            ->where('quarter', $quarter)
-            ->get();
-
-        if ($assessments->isEmpty()) {
-            // If no assessments exist, set grades to 0 for enrolled students.
-            $students = $class->students()->get();
-            foreach ($students as $student) {
-                $match = [
-                    'student_id' => $student->id,
-                    'subject_id' => $subjectId,
-                    'quarter' => (string) $quarter,
-                    'teacher_id' => $teacherId,
-                    'school_year_id' => $schoolYearId,
-                ];
-
-                $profile = $student->profileFor($schoolYearId);
-
-                Grade::updateOrCreate($match, [
-                    'grade' => 0.0,
-                    'student_profile_id' => $profile ? $profile->id : null,
-                ]);
-            }
-
-            return;
-        }
-
-        // Group assessments by type for weighting
-        $grouped = $assessments->groupBy('type');
-
-        // Merge oral_participation into performance_tasks for weighting calculation
-        $ops = $grouped->get('oral_participation', collect());
-        if ($ops->isNotEmpty()) {
-            $pts = $grouped->get('performance_tasks', collect());
-            $grouped->put('performance_tasks', $pts->merge($ops));
-        }
-
-        $students = $class->students()->get();
-
-        foreach ($students as $student) {
-            $profile = $student->profileFor($schoolYearId);
-            $typePercentages = array_fill_keys(array_keys(self::ASSESSMENT_TYPE_WEIGHTS), 0.0);
-
-            foreach (self::ASSESSMENT_TYPE_WEIGHTS as $type => $weight) {
-                $typeAssessments = $grouped->get($type, collect());
-                $totalScore = 0.0;
-                $totalMax = 0.0;
-                foreach ($typeAssessments as $assessment) {
-                    // Prefer score by student_profile_id when available
-                    $scoreModel = null;
-                    if ($profile) {
-                        $scoreModel = $assessment->scores->firstWhere('student_profile_id', $profile->id);
-                    }
-                    if (! $scoreModel) {
-                        $scoreModel = $assessment->scores->firstWhere('student_id', $student->id);
-                    }
-
-                    $scoreValue = $scoreModel ? (float) $scoreModel->score : 0.0;
-                    $maxScore = (float) $assessment->max_score;
-                    if ($maxScore > 0) {
-                        $totalScore += $scoreValue;
-                        $totalMax += $maxScore;
-                    }
-                }
-                $typePercentages[$type] = $totalMax > 0 ? ($totalScore / $totalMax) * 100.0 : 0.0;
-            }
-
-            $initialGrade = 0.0;
-            foreach (self::ASSESSMENT_TYPE_WEIGHTS as $type => $weight) {
-                $initialGrade += $typePercentages[$type] * $weight;
-            }
-
-            // Apply DepEd transmutation to convert initial grade to transmuted grade
-            $transmutedGrade = GradeService::transmute($initialGrade);
-
-            $match = [
-                'student_id' => $student->id,
-                'subject_id' => $subjectId,
-                'quarter' => (string) $quarter,
-                'teacher_id' => $teacherId,
-                'school_year_id' => $schoolYearId,
-            ];
-
-            Grade::updateOrCreate($match, [
-                'grade' => $transmutedGrade,
-                'student_profile_id' => $profile ? $profile->id : null,
-            ]);
-        }
-    }
 }

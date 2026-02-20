@@ -305,6 +305,11 @@
         </div>
     </div>
 
+    @php
+        $initialQuarterLocked = (bool) ($quarterLocks[1]['is_locked'] ?? false);
+        $areAllQuartersLocked = collect($quarterLocks)->every(fn($lock) => (bool) ($lock['is_locked'] ?? false));
+    @endphp
+
     @if ($studentsData->isEmpty())
         <div class="alert alert-info">
             <h5>No Students Found</h5>
@@ -318,13 +323,13 @@
                 <strong>Oral Participation:</strong> The "OP" column is linked to Oral Participation.
             </div>
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
-                    data-bs-target="#recitationModeModal">
+                <button type="button" class="btn btn-primary btn-sm" id="openRecitationMode" data-bs-toggle="modal"
+                    data-bs-target="#recitationModeModal" @disabled($initialQuarterLocked)>
                     <i class="fas fa-chalkboard-teacher me-1"></i> Recitation Mode
                 </button>
                 <a href="{{ route('teacher.oral-participation.index', $class) }}@if ($selectedSubject) ?subject_id={{ $selectedSubject->id }} @endif"
-                    id="manageOralParticipationLink" class="btn btn-outline-primary btn-sm"
-                    title="Manage Oral Participation">
+                    id="manageOralParticipationLink" class="btn btn-outline-primary btn-sm {{ $initialQuarterLocked ? 'disabled' : '' }}"
+                    title="Manage Oral Participation" @if ($initialQuarterLocked) aria-disabled="true" tabindex="-1" @endif>
                     <i class="fas fa-external-link-alt"></i>
                 </a>
             </div>
@@ -410,7 +415,7 @@
                         </div>
                         <div>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="button" class="btn btn-primary" id="applyRecitationScores">
+                            <button type="button" class="btn btn-primary" id="applyRecitationScores" @disabled($initialQuarterLocked)>
                                 <i class="fas fa-check-circle me-2"></i> Apply & Save
                             </button>
                         </div>
@@ -497,9 +502,18 @@
                 @endphp
                 <div class="tab-content" id="quarterTabContent">
                     @for ($quarter = 1; $quarter <= 4; $quarter++)
+                        @php
+                            $isQuarterLocked = (bool) ($quarterLocks[$quarter]['is_locked'] ?? false);
+                        @endphp
                         <div class="tab-pane fade {{ $quarter === 1 ? 'show active' : '' }}"
                             id="quarter{{ $quarter }}" role="tabpanel"
                             aria-labelledby="quarter{{ $quarter }}-tab">
+
+                            @if ($isQuarterLocked)
+                                <div class="alert alert-warning m-3 mb-0" role="alert">
+                                    <i class="fas fa-lock me-2"></i>Quarter {{ $quarter }} is locked. Grade changes are disabled.
+                                </div>
+                            @endif
 
                             <div class="table-responsive">
                                 <table class="table table-bordered grade-table mb-0" data-quarter="{{ $quarter }}">
@@ -634,7 +648,8 @@
                                                                 value="{{ $assessment->max_score !== null ? $maxScoreDisplay : '' }}"
                                                                 max="1000"
                                                                 style="width: 30px; border: none; background: transparent; text-align: center; font-weight: bold;"
-                                                                placeholder="--">
+                                                                placeholder="--"
+                                                                @disabled($isQuarterLocked)>
                                                         @endif
                                                     </th>
                                                 @endforeach
@@ -717,6 +732,7 @@
                                                                     data-is-oral-participation="{{ $isOralParticipation ? '1' : '0' }}"
                                                                     value="{{ $scoreValue }}"
                                                                     {{ $isOralParticipation ? 'readonly' : '' }}
+                                                                    @disabled($isQuarterLocked || $isOralParticipation)
                                                                     title="{{ $isOralParticipation ? 'Oral Participation - Edit in Oral Participation page' : '' }}">
                                                             </td>
                                                         @endforeach
@@ -798,7 +814,7 @@
                     </div>
                 </div>
             </div>
-            <button type="button" class="btn btn-success btn-lg save-btn" id="saveAllGrades">
+            <button type="button" class="btn btn-success btn-lg save-btn" id="saveAllGrades" @disabled($areAllQuartersLocked)>
                 <i class="fas fa-save"></i> Save Grades
             </button>
         </div>
@@ -817,6 +833,9 @@
             const selectedSubjectId = {{ $selectedSubject?->id ?? 'null' }};
             const saveGradesEndpoint = "{{ route('teacher.assessments.saveGrades', $class) }}";
             const autoSaveDelayMs = 30000;
+            const quarterLocks = @json($quarterLocks);
+            const quarterNumbers = [1, 2, 3, 4];
+            const areAllQuartersLocked = quarterNumbers.every((quarter) => Boolean(quarterLocks?.[quarter]?.is_locked));
             const dirtyGrades = new Map();
             const invalidCells = new Map();
             let autoSaveTimeout = null;
@@ -836,6 +855,31 @@
             let isFallbackFullscreen = false;
 
             initializeAssessmentInputsState();
+
+            function isQuarterLocked(quarter) {
+                const normalizedQuarter = parseInt(quarter, 10);
+
+                return Boolean(quarterLocks?.[normalizedQuarter]?.is_locked);
+            }
+
+            function updateRecitationActionsForQuarter(quarter) {
+                const locked = isQuarterLocked(quarter);
+                const $recitationButton = $('#openRecitationMode');
+                const $applyRecitationButton = $('#applyRecitationScores');
+                const $manageLink = $('#manageOralParticipationLink');
+
+                $recitationButton.prop('disabled', locked);
+                $applyRecitationButton.prop('disabled', locked);
+
+                $manageLink.toggleClass('disabled', locked);
+                if (locked) {
+                    $manageLink.attr('aria-disabled', 'true');
+                    $manageLink.attr('tabindex', '-1');
+                } else {
+                    $manageLink.removeAttr('aria-disabled');
+                    $manageLink.removeAttr('tabindex');
+                }
+            }
 
             function getGradeKey(studentId, assessmentId) {
                 return `${studentId}:${assessmentId}`;
@@ -863,6 +907,11 @@
                     $saveButton.prop('disabled', true).html(
                         '<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
 
+                    return;
+                }
+
+                if (areAllQuartersLocked) {
+                    $saveButton.prop('disabled', true).html('<i class="fas fa-lock"></i> All Quarters Locked');
                     return;
                 }
 
@@ -916,13 +965,18 @@
             }
 
             function syncSaveStateBadge() {
+                if (areAllQuartersLocked) {
+                    updateSaveState('saved', 'All quarters locked');
+                    return;
+                }
+
                 if (invalidCells.size > 0) {
                     updateSaveState('invalid', invalidCountMessage(invalidCells.size));
 
                     return;
                 }
 
-                if (dirtyGrades.size > 0) {
+                if (collectDirtyGradePayload().length > 0) {
                     updateSaveState('dirty');
 
                     return;
@@ -945,17 +999,20 @@
                 const assessmentId = parseInt($input.data('assessment-id'), 10);
                 const studentId = parseInt($input.closest('tr').data('student-id'), 10);
                 const isOralParticipation = String($input.data('is-oral-participation')) === '1';
+                const quarter = parseInt($input.data('quarter'), 10);
                 const trackable = Boolean(
                     assessmentId &&
                     assessmentId !== -999 &&
                     !isOralParticipation &&
                     studentId &&
-                    !$input.prop('disabled')
+                    !$input.prop('disabled') &&
+                    !isQuarterLocked(quarter)
                 );
 
                 return {
                     assessmentId,
                     studentId,
+                    quarter,
                     trackable,
                 };
             }
@@ -968,6 +1025,15 @@
                         isValid: true,
                         normalizedScore: null,
                         reason: null,
+                    };
+                }
+
+                if (isQuarterLocked(context.quarter)) {
+                    return {
+                        ...context,
+                        isValid: false,
+                        normalizedScore: null,
+                        reason: `Quarter ${context.quarter} is locked.`,
                     };
                 }
 
@@ -1085,7 +1151,9 @@
             function collectDirtyGradePayload() {
                 const payload = [];
                 dirtyGrades.forEach((gradePayload, key) => {
-                    if (!invalidCells.has(key)) {
+                    const $input = getGradeInputByCoordinates(gradePayload.student_id, gradePayload.assessment_id);
+                    const quarter = parseInt($input.data('quarter'), 10);
+                    if (!invalidCells.has(key) && !isQuarterLocked(quarter)) {
                         payload.push(gradePayload);
                     }
                 });
@@ -1468,12 +1536,21 @@
                 });
             }
 
-            // Set initial link on page load
-            updateManageOralParticipationLink(getActiveQuarter());
+            // Set initial link and lock-aware actions on page load
+            const initialQuarter = getActiveQuarter();
+            updateManageOralParticipationLink(initialQuarter);
+            updateRecitationActionsForQuarter(initialQuarter);
             applyStudentSearchFilter();
 
             $('#studentSearchInput').on('input', function() {
                 applyStudentSearchFilter();
+            });
+
+            $('#manageOralParticipationLink').on('click', function(event) {
+                const quarter = getActiveQuarter();
+                if (isQuarterLocked(quarter)) {
+                    event.preventDefault();
+                }
             });
 
             $('#clearStudentSearch').on('click', function() {
@@ -1528,6 +1605,10 @@
             // Handle max score updates
             $(document).on('change', '.max-score-input', function() {
                 const $input = $(this);
+                const quarter = parseInt($input.closest('table.grade-table').data('quarter'), 10);
+                if (isQuarterLocked(quarter)) {
+                    return;
+                }
                 const assessmentId = $input.data('assessment-id');
                 const maxScoreRaw = ($input.val() ?? '').trim();
                 const isBlank = maxScoreRaw === '';
@@ -1578,6 +1659,7 @@
                     const quarter = targetId.replace('quarter', '');
                     initializeQuarterCalculations(parseInt(quarter));
                     updateManageOralParticipationLink(quarter);
+                    updateRecitationActionsForQuarter(quarter);
                 }
             });
 
@@ -1604,6 +1686,13 @@
 
             function updateAssessmentInputsState(assessmentId, maxScoreValue) {
                 const $relatedGrades = $(`.grade-input[data-assessment-id="${assessmentId}"]`);
+
+                const quarterNumber = parseInt($relatedGrades.first().data('quarter'), 10);
+                if (isQuarterLocked(quarterNumber)) {
+                    $relatedGrades.prop('disabled', true);
+                    return;
+                }
+
                 const numericMax = typeof maxScoreValue === 'number' ? maxScoreValue : parseFloat(maxScoreValue);
                 const hasValidMax = !Number.isNaN(numericMax) && numericMax > 0;
 
@@ -1842,7 +1931,7 @@
             });
 
             $(window).on('beforeunload', function(event) {
-                if (dirtyGrades.size === 0 && invalidCells.size === 0) {
+                if (collectDirtyGradePayload().length === 0 && invalidCells.size === 0) {
                     return;
                 }
 
@@ -1855,6 +1944,11 @@
 
             // Save all grades
             $('#saveAllGrades').click(function() {
+                if (areAllQuartersLocked) {
+                    alert('All quarters are locked. Grade saving is disabled.');
+                    return;
+                }
+
                 void saveDirtyGrades(true);
             });
 
@@ -1889,6 +1983,7 @@
                     }
                 }
                 syncRecitationModal(activeQuarter);
+                updateRecitationActionsForQuarter(activeQuarter);
 
                 // Adjust columns
                 setTimeout(() => {
@@ -1896,6 +1991,12 @@
                         recitationTable.columns.adjust().draw();
                     }
                 }, 200);
+            });
+
+            $('#recitationQuarter').on('change', function() {
+                const selectedQuarter = parseInt($(this).val(), 10);
+                updateRecitationActionsForQuarter(selectedQuarter);
+                updateManageOralParticipationLink(selectedQuarter);
             });
 
             // Max Score Change
@@ -1956,7 +2057,10 @@
 
             // Apply & Save
             $('#applyRecitationScores').click(function() {
-                const quarter = $('#recitationQuarter').val();
+                const quarter = parseInt($('#recitationQuarter').val(), 10);
+                if (isQuarterLocked(quarter)) {
+                    return;
+                }
                 const sessionMaxScore = parseFloat($('#recitationMaxScore').val()) || 10;
                 const subjectId = {{ $selectedSubject->id ?? 'null' }};
 

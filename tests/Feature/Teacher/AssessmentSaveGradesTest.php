@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
@@ -42,14 +43,28 @@ class AssessmentSaveGradesTest extends TestCase
     {
         parent::setUp();
 
-        $this->activeSchoolYear = SchoolYear::where('is_active', true)->first()
-            ?? SchoolYear::create([
-                'name' => 'SY-SAVE-'.now()->format('Y'),
-                'start_date' => now()->startOfYear()->toDateString(),
-                'end_date' => now()->endOfYear()->toDateString(),
-                'is_active' => true,
-                'is_promotion_open' => false,
-            ]);
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class);
+
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+
+        $this->activeSchoolYear = SchoolYear::create([
+            'name' => 'SY-SAVE-'.Str::upper(Str::random(6)),
+            'start_date' => now()->startOfYear()->toDateString(),
+            'end_date' => now()->endOfYear()->toDateString(),
+            'is_active' => true,
+            'is_promotion_open' => false,
+        ]);
+
+        SchoolYearQuarter::create([
+            'school_year_id' => $this->activeSchoolYear->id,
+            'quarter' => 1,
+            'name' => 'First Quarter',
+            'start_date' => now()->subDays(7)->toDateString(),
+            'end_date' => now()->addDays(7)->toDateString(),
+            'is_locked' => false,
+            'is_manually_set_active' => true,
+        ]);
 
         $gradeLevel = GradeLevel::query()->orderBy('level')->first()
             ?? GradeLevel::factory()->create(['name' => 'Grade 4', 'level' => 4]);

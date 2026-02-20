@@ -3,6 +3,20 @@
 @section('title', 'Take Attendance')
 
 @section('content')
+    @php
+        $isActiveQuarterLocked = (bool) ($activeQuarter?->is_locked ?? false);
+    @endphp
+
+    @if ($isActiveQuarterLocked)
+        <div class="alert alert-warning d-flex align-items-start mb-3" role="alert">
+            <i class="fas fa-lock mt-1 me-2"></i>
+            <div>
+                <strong>{{ $activeQuarter?->name ?? 'Active quarter' }} is locked.</strong>
+                Attendance saving is disabled until an administrator unlocks this quarter.
+            </div>
+        </div>
+    @endif
+
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card shadow">
@@ -148,7 +162,7 @@
             <div>
                 <div class="dropdown d-inline-block me-2">
                     <button type="button" class="btn btn-success btn-sm dropdown-toggle" id="markAllDropdown"
-                        data-bs-toggle="dropdown" aria-expanded="false">
+                        data-bs-toggle="dropdown" aria-expanded="false" @disabled($isActiveQuarterLocked)>
                         <i data-feather="check-square" class="align-middle"></i> Mark All
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="markAllDropdown">
@@ -192,7 +206,7 @@
                 </div>
                 <div class="d-flex justify-content-end mt-3">
                     <button type="button" class="btn btn-secondary me-2" id="cancelBtn">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="saveAttendanceBtn">Save Attendance</button>
+                    <button type="submit" class="btn btn-primary" id="saveAttendanceBtn" @disabled($isActiveQuarterLocked)>Save Attendance</button>
                 </div>
             </form>
         </div>
@@ -248,6 +262,8 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const isActiveQuarterLocked = @json($isActiveQuarterLocked);
+
             // Attendance sheet search functionality
             $('#attendanceSearchInput').on('keyup', function() {
                 const search = $(this).val().toLowerCase();
@@ -554,6 +570,10 @@
             // Mark All Status Event
             $('.mark-all-status').on('click', function(e) {
                 e.preventDefault();
+
+                if (isActiveQuarterLocked) {
+                    return;
+                }
                 const status = $(this).data('status');
                 $('.status-select').val(status);
             });
@@ -695,7 +715,7 @@
                                     <td>${student.student_id}</td>
                                     <td>${student.name}</td>
                                     <td>
-                                        <select class="form-select status-select" name="status[${student.id}]" required>
+                                        <select class="form-select status-select" name="status[${student.id}]" required ${isActiveQuarterLocked ? 'disabled' : ''}>
                                             <option value="present" ${selectedStatus === 'present' ? 'selected' : ''}>Present</option>
                                             <option value="late" ${selectedStatus === 'late' ? 'selected' : ''}>Late</option>
                                             <option value="absent" ${selectedStatus === 'absent' ? 'selected' : ''}>Absent</option>
@@ -703,7 +723,7 @@
                                         </select>
                                     </td>
                         <td>
-                                        <input type="text" class="form-control" name="remarks[${student.id}]" value="${remarks}" placeholder="Optional remarks">
+                                        <input type="text" class="form-control" name="remarks[${student.id}]" value="${remarks}" placeholder="Optional remarks" ${isActiveQuarterLocked ? 'disabled' : ''}>
                                     </td>
                                 </tr>
                                 `;
@@ -735,6 +755,11 @@
             // Form Submit Event
             $('#attendanceForm').on('submit', function(e) {
                 e.preventDefault();
+
+                if (isActiveQuarterLocked) {
+                    alert('The active quarter is locked. Attendance saving is disabled.');
+                    return;
+                }
 
                 // Disable the submit button to prevent double submission
                 $('#saveAttendanceBtn').prop('disabled', true).html(
@@ -829,7 +854,7 @@
                     },
                     complete: function() {
                         // Re-enable the submit button
-                        $('#saveAttendanceBtn').prop('disabled', false).html('Save Attendance');
+                        $('#saveAttendanceBtn').prop('disabled', isActiveQuarterLocked).html('Save Attendance');
                     }
                 });
             });

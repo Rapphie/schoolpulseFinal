@@ -16,6 +16,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\GradeService;
+use App\Services\QuarterLockService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,8 @@ use Throwable;
 
 class TeacherDashboardController extends Controller
 {
+    public function __construct(private QuarterLockService $quarterLockService) {}
+
     public function index(Request $request)
     {
         try {
@@ -1217,6 +1220,15 @@ class TeacherDashboardController extends Controller
                 return response()->json(['message' => 'No active school year found.'], 400);
             }
 
+            $quarterNumber = (int) filter_var($request->input('quarter'), FILTER_SANITIZE_NUMBER_INT);
+
+            if ($this->quarterLockService->isLocked((int) $activeSchoolYear->id, $quarterNumber)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This quarter is locked. Attendance changes are disabled.',
+                ], 423);
+            }
+
             // Get subjects to apply attendance to
             $subjectIds = [];
             if ($isAllDay) {
@@ -1390,6 +1402,10 @@ class TeacherDashboardController extends Controller
             // Find the attendance record
             $attendance = Attendance::findOrFail($id);
 
+            if ($this->quarterLockService->isLocked((int) $attendance->school_year_id, (int) $attendance->quarter)) {
+                return redirect()->route('teacher.attendance.records')->with('error', 'This quarter is locked. Attendance changes are disabled.');
+            }
+
             // Update the status
             $attendance->status = $request->input('status');
             $attendance->save();
@@ -1414,6 +1430,11 @@ class TeacherDashboardController extends Controller
         try {
             // Find and delete the attendance record
             $attendance = Attendance::findOrFail($id);
+
+            if ($this->quarterLockService->isLocked((int) $attendance->school_year_id, (int) $attendance->quarter)) {
+                return redirect()->route('teacher.attendance.records')->with('error', 'This quarter is locked. Attendance changes are disabled.');
+            }
+
             $attendance->delete();
 
             // Redirect back with a success message

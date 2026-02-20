@@ -266,7 +266,12 @@
                                                 $g2 = $grades->where('quarter', 2)->first();
                                                 $g3 = $grades->where('quarter', 3)->first();
                                                 $g4 = $grades->where('quarter', 4)->first();
-                                                $final = $grades->where('quarter', 5)->first();
+                                                $quarterGrades = collect([$g1, $g2, $g3, $g4])
+                                                    ->filter(fn($g) => $g && $g->grade !== null)
+                                                    ->pluck('grade');
+                                                $finalAvg = $quarterGrades->isNotEmpty()
+                                                    ? round($quarterGrades->sum() / 4, 2)
+                                                    : null;
                                             @endphp
                                             <tr>
                                                 <td>{{ $subject->name ?? 'Unknown' }}</td>
@@ -274,7 +279,8 @@
                                                 <td class="text-center">{{ $g2->grade ?? '-' }}</td>
                                                 <td class="text-center">{{ $g3->grade ?? '-' }}</td>
                                                 <td class="text-center">{{ $g4->grade ?? '-' }}</td>
-                                                <td class="text-center fw-bold">{{ $final->grade ?? '-' }}</td>
+                                                <td class="text-center fw-bold">
+                                                    {{ $finalAvg !== null ? number_format($finalAvg, 2) : '-' }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -395,9 +401,12 @@
                                                                         $g4 = $subjectGrades
                                                                             ->where('quarter', 4)
                                                                             ->first();
-                                                                        $final = $subjectGrades
-                                                                            ->where('quarter', 5)
-                                                                            ->first();
+                                                                        $quarterGrades = collect([$g1, $g2, $g3, $g4])
+                                                                            ->filter(fn($g) => $g && $g->grade !== null)
+                                                                            ->pluck('grade');
+                                                                        $finalAvg = $quarterGrades->isNotEmpty()
+                                                                            ? round($quarterGrades->sum() / 4, 2)
+                                                                            : null;
                                                                     @endphp
                                                                     <tr>
                                                                         <td>{{ $subject->name ?? 'Unknown' }}</td>
@@ -410,7 +419,8 @@
                                                                         <td class="text-center">
                                                                             {{ $g4->grade ?? '-' }}</td>
                                                                         <td class="text-center fw-bold">
-                                                                            {{ $final->grade ?? '-' }}</td>
+                                                                            {{ $finalAvg !== null ? number_format($finalAvg, 2) : '-' }}
+                                                                        </td>
                                                                     </tr>
                                                                 @endforeach
                                                             </tbody>

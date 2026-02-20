@@ -91,7 +91,7 @@ class SchoolYearQuarterController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
             'grade_submission_deadline' => 'nullable|date|after_or_equal:end_date',
-            'is_locked' => 'boolean',
+            'is_locked' => 'sometimes|boolean',
         ]);
 
         $startDate = Carbon::parse($validated['start_date']);
@@ -112,11 +112,18 @@ class SchoolYearQuarterController extends Controller
                 ->with('error', "Date range overlaps with {$overlapping->name}.");
         }
 
+        $isLockedFieldPresent = $request->has('is_locked');
+        $targetLockState = $isLockedFieldPresent ? $request->boolean('is_locked') : $quarter->is_locked;
+
+        if (! $schoolYear->is_active && $targetLockState !== $quarter->is_locked) {
+            return redirect()->back()->with('error', 'Only the active school year can be locked or unlocked.');
+        }
+
         $quarter->update([
             'start_date' => $validated['start_date'],
             'end_date' => $validated['end_date'],
             'grade_submission_deadline' => $validated['grade_submission_deadline'] ?? null,
-            'is_locked' => $request->has('is_locked'),
+            'is_locked' => $targetLockState,
         ]);
 
         return redirect()->back()->with('success', "{$quarter->name} updated successfully.");
@@ -144,6 +151,10 @@ class SchoolYearQuarterController extends Controller
     {
         if ($quarter->school_year_id !== $schoolYear->id) {
             abort(404);
+        }
+
+        if (! $schoolYear->is_active) {
+            return redirect()->back()->with('error', 'Only the active school year can be locked or unlocked.');
         }
 
         $quarter->update(['is_locked' => ! $quarter->is_locked]);

@@ -31,8 +31,12 @@ class OralParticipationSidebarSelectorTest extends TestCase
     {
         parent::setUp();
 
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class);
         $this->withoutVite();
         $this->ensureRoles();
+
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
 
         $this->activeSchoolYear = SchoolYear::create([
             'name' => '2099-2100-selector-'.Str::lower(Str::random(6)),
@@ -171,7 +175,7 @@ class OralParticipationSidebarSelectorTest extends TestCase
             'start_date' => now()->subDays(2)->toDateString(),
             'end_date' => now()->addDays(2)->toDateString(),
             'is_locked' => false,
-            'is_manually_set_active' => false,
+            'is_manually_set_active' => true,
         ]);
 
         $response = $this->actingAs($this->teacherUser)
@@ -208,7 +212,7 @@ class OralParticipationSidebarSelectorTest extends TestCase
             'start_date' => now()->subDays(2)->toDateString(),
             'end_date' => now()->addDays(2)->toDateString(),
             'is_locked' => false,
-            'is_manually_set_active' => false,
+            'is_manually_set_active' => true,
         ]);
 
         $response = $this->actingAs($this->teacherUser)

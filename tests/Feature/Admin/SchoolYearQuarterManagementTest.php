@@ -12,6 +12,12 @@ class SchoolYearQuarterManagementTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class);
+    }
+
     /**
      * @return array{admin: User, schoolYear: SchoolYear}
      */
@@ -64,6 +70,7 @@ class SchoolYearQuarterManagementTest extends TestCase
     public function test_toggle_lock_locks_an_unlocked_quarter(): void
     {
         $data = $this->getDataWithQuarter();
+        $data['schoolYear']->update(['is_active' => true]);
 
         $response = $this->actingAs($data['admin'])
             ->post(route('admin.school-year.quarters.toggle-lock', [
@@ -81,6 +88,7 @@ class SchoolYearQuarterManagementTest extends TestCase
     public function test_toggle_lock_unlocks_a_locked_quarter(): void
     {
         $data = $this->getDataWithQuarter();
+        $data['schoolYear']->update(['is_active' => true]);
         $data['quarter']->update(['is_locked' => true]);
 
         $response = $this->actingAs($data['admin'])
@@ -91,6 +99,23 @@ class SchoolYearQuarterManagementTest extends TestCase
 
         $response->assertRedirect();
         $response->assertSessionHas('success');
+
+        $data['quarter']->refresh();
+        $this->assertFalse($data['quarter']->is_locked);
+    }
+
+    public function test_toggle_lock_fails_when_school_year_is_not_active(): void
+    {
+        $data = $this->getDataWithQuarter();
+
+        $response = $this->actingAs($data['admin'])
+            ->post(route('admin.school-year.quarters.toggle-lock', [
+                $data['schoolYear'],
+                $data['quarter'],
+            ]));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
 
         $data['quarter']->refresh();
         $this->assertFalse($data['quarter']->is_locked);
@@ -383,6 +408,7 @@ class SchoolYearQuarterManagementTest extends TestCase
     public function test_update_quarter_can_toggle_lock_via_is_locked_field(): void
     {
         $data = $this->getDataWithQuarter();
+        $data['schoolYear']->update(['is_active' => true]);
 
         $response = $this->actingAs($data['admin'])
             ->put(route('admin.school-year.quarters.update', [
@@ -397,6 +423,27 @@ class SchoolYearQuarterManagementTest extends TestCase
         $response->assertRedirect();
         $data['quarter']->refresh();
         $this->assertTrue($data['quarter']->is_locked);
+    }
+
+    public function test_update_quarter_cannot_change_lock_when_school_year_is_not_active(): void
+    {
+        $data = $this->getDataWithQuarter();
+
+        $response = $this->actingAs($data['admin'])
+            ->put(route('admin.school-year.quarters.update', [
+                $data['schoolYear'],
+                $data['quarter'],
+            ]), [
+                'start_date' => '2027-06-01',
+                'end_date' => '2027-08-14',
+                'is_locked' => true,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
+
+        $data['quarter']->refresh();
+        $this->assertFalse($data['quarter']->is_locked);
     }
 
     // ========================================================================

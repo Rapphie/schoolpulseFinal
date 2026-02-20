@@ -8,6 +8,7 @@ use App\Models\GradeLevel;
 use App\Models\Guardian;
 use App\Models\Role;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Setting;
 use App\Models\Student;
@@ -22,6 +23,16 @@ use Tests\TestCase;
 class TeacherEnrollmentTest extends TestCase
 {
     use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class);
+
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+    }
 
     public function test_teacher_can_enroll_new_student_successfully(): void
     {
@@ -358,6 +369,16 @@ class TeacherEnrollmentTest extends TestCase
             'end_date' => now()->addMonths(10)->endOfMonth()->toDateString(),
             'is_active' => true,
             'is_promotion_open' => false,
+        ]);
+
+        SchoolYearQuarter::create([
+            'school_year_id' => $schoolYear->id,
+            'quarter' => 1,
+            'name' => 'First Quarter',
+            'start_date' => now()->subDays(7)->toDateString(),
+            'end_date' => now()->addDays(7)->toDateString(),
+            'is_locked' => false,
+            'is_manually_set_active' => true,
         ]);
 
         $gradeLevel = GradeLevel::create([
