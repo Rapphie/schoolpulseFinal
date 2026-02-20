@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\Assessment;
 use App\Models\Classes;
+use App\Models\SchoolYear;
 use App\Models\Setting;
 use App\Models\Student;
 use App\Models\Subject;
@@ -17,7 +18,6 @@ use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, WithEvents, WithTitle
 {
@@ -104,48 +104,175 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
 
     private function formatDepEdTemplate($sheet): void
     {
-        $sheet->setCellValue('A1', 'Class Record');
-        $sheet->setCellValue('A2', '(Pursuant to Deped Order 8 series of 2015)');
+        // Add DepEd Seal (Left)
+        if (file_exists(public_path('images/deped-seal.png'))) {
+            $drawingLeft = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+            $drawingLeft->setName('DepEd Seal');
+            $drawingLeft->setDescription('DepEd Seal');
+            $drawingLeft->setPath(public_path('images/deped-seal.png'));
+            $drawingLeft->setHeight(100);
+            $drawingLeft->setCoordinates('A1');
+            $drawingLeft->setOffsetX(10);
+            $drawingLeft->setOffsetY(10);
+            $drawingLeft->setWorksheet($sheet);
+        }
+
+        // Add DepEd Logo (Right)
+        if (file_exists(public_path('images/deped-logo.png'))) {
+            $drawingRight = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+            $drawingRight->setName('DepEd Logo');
+            $drawingRight->setDescription('DepEd Logo');
+            $drawingRight->setPath(public_path('images/deped-logo.png'));
+            $drawingRight->setHeight(80);
+            $drawingRight->setCoordinates('T1');
+            $drawingRight->setOffsetX(10);
+            $drawingRight->setOffsetY(10);
+            $drawingRight->setWorksheet($sheet);
+        }
+
+        // Set row heights for the header area to accommodate logos
+        $sheet->getRowDimension(1)->setRowHeight(30);
+        $sheet->getRowDimension(2)->setRowHeight(20);
+        $sheet->getRowDimension(3)->setRowHeight(20);
+        $sheet->getRowDimension(4)->setRowHeight(20);
+        $sheet->getRowDimension(5)->setRowHeight(20);
+        $sheet->getRowDimension(6)->setRowHeight(15);
+        $sheet->getRowDimension(7)->setRowHeight(20);
+
+        $sheet->mergeCells('E1:T1');
+        $sheet->setCellValue('E1', 'Class Record');
+        $sheet->getStyle('E1')->getFont()->setBold(true)->setSize(28);
+        $sheet->getStyle('E1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('E2:T2');
+        $sheet->setCellValue('E2', '(Pursuant to Deped Order 8 series of 2015)');
+        $sheet->getStyle('E2')->getFont()->setItalic(true)->setSize(10);
+        $sheet->getStyle('E2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_TOP);
 
         $region = Setting::where('key', 'region')->value('value') ?? 'XI';
         $division = Setting::where('key', 'division')->value('value') ?? 'PANABO CITY';
         $district = Setting::where('key', 'district')->value('value') ?? 'PSD1';
         $schoolName = Setting::where('key', 'school_name')->value('value') ?? 'TAGUROT ELEMENTARY SCHOOL';
         $schoolId = Setting::where('key', 'school_id')->value('value') ?? '129821';
-
-        $sheet->setCellValue('C4', 'REGION');
-        $sheet->setCellValue('E4', $region);
-        $sheet->setCellValue('H4', 'DIVISION');
-        $sheet->setCellValue('K4', $division);
-        $sheet->setCellValue('P4', 'DISTRICT');
-        $sheet->setCellValue('T4', $district);
-
-        $sheet->setCellValue('B5', 'SCHOOL NAME');
-        $sheet->setCellValue('E5', $schoolName);
-        $sheet->setCellValue('P5', 'SCHOOL ID');
-        $sheet->setCellValue('T5', $schoolId);
-
+        $schoolYear = SchoolYear::find($this->classroom->school_year_id)?->name ?? '2025-2026';
+        $gradeLevel = $this->classroom->gradeLevel->name ?? '';
         $sectionName = $this->classroom->section->name ?? '';
-        $gradeLevel = $this->classroom->section->gradeLevel->name ?? '';
-        $teacherName = $this->classroom->teacher->user->full_name ?? '';
+        $teacherName = $this->classroom->teacher->user->name ?? '';
+
+        // Row 4: REGION, DIVISION, DISTRICT
+        $sheet->mergeCells('B4:C4');
+        $sheet->setCellValue('B4', 'REGION');
+        $sheet->getStyle('B4')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('B4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('D4:E4');
+        $sheet->setCellValue('D4', $region);
+        $sheet->getStyle('D4:E4')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('D4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('F4:H4');
+        $sheet->setCellValue('F4', 'DIVISION');
+        $sheet->getStyle('F4')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('F4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('I4:M4');
+        $sheet->setCellValue('I4', $division);
+        $sheet->getStyle('I4:M4')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('I4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('N4:P4');
+        $sheet->setCellValue('N4', 'DISTRICT');
+        $sheet->getStyle('N4')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('N4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('Q4:S4');
+        $sheet->setCellValue('Q4', $district);
+        $sheet->getStyle('Q4:S4')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('Q4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        // Row 5: SCHOOL NAME, SCHOOL ID, SCHOOL YEAR
+        $sheet->mergeCells('A5:C5');
+        $sheet->setCellValue('A5', 'SCHOOL NAME');
+        $sheet->getStyle('A5')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('A5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('D5:M5');
+        $sheet->setCellValue('D5', $schoolName);
+        $sheet->getStyle('D5:M5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('D5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('N5:P5');
+        $sheet->setCellValue('N5', 'SCHOOL ID');
+        $sheet->getStyle('N5')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('N5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('Q5:S5');
+        $sheet->setCellValue('Q5', $schoolId);
+        $sheet->getStyle('Q5:S5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('Q5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('T5:V5');
+        $sheet->setCellValue('T5', 'SCHOOL YEAR');
+        $sheet->getStyle('T5')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('T5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('W5:Z5');
+        $sheet->setCellValue('W5', $schoolYear);
+        $sheet->getStyle('W5:Z5')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('W5')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
         $subjectName = $this->subject->name ?? '';
 
-        $sheet->setCellValue('B7', 'QUARTER '.$this->quarter);
-        $sheet->setCellValue('D7', 'GRADE & SECTION:');
-        $sheet->setCellValue('I7', trim("$gradeLevel - $sectionName", ' -'));
-        $sheet->setCellValue('N7', 'TEACHER:');
-        $sheet->setCellValue('P7', $teacherName);
-        $sheet->setCellValue('T7', 'SUBJECT:');
-        $sheet->setCellValue('W7', $subjectName);
+        $quarterNames = [1 => 'FIRST', 2 => 'SECOND', 3 => 'THIRD', 4 => 'FOURTH'];
+        $quarterName = $quarterNames[$this->quarter] ?? $this->quarter;
+
+        // Row 7: QUARTER, GRADE & SECTION, TEACHER, SUBJECT
+        $sheet->mergeCells('B7:D7');
+        $sheet->setCellValue('B7', "{$quarterName} QUARTER");
+        $sheet->getStyle('B7')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('B7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('E7:G7');
+        $sheet->setCellValue('E7', 'GRADE & SECTION:');
+        $sheet->getStyle('E7')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('E7:G7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('E7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('H7:L7');
+        $sheet->setCellValue('H7', trim("$gradeLevel - $sectionName", ' -'));
+        $sheet->getStyle('H7:L7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('H7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('M7:N7');
+        $sheet->setCellValue('M7', 'TEACHER:');
+        $sheet->getStyle('M7')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('M7:N7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('M7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('O7:R7');
+        $sheet->setCellValue('O7', $teacherName);
+        $sheet->getStyle('O7:R7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('O7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('S7:U7');
+        $sheet->setCellValue('S7', 'SUBJECT:');
+        $sheet->getStyle('S7')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('S7:U7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('S7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT)->setVertical(Alignment::VERTICAL_CENTER);
+
+        $sheet->mergeCells('V7:Z7');
+        $sheet->setCellValue('V7', $subjectName);
+        $sheet->getStyle('V7:Z7')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle('V7')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
 
         $sheet->mergeCells('B8:D9');
-        $sheet->setCellValue('B8', "LEARNERS' NAMES");
-        $sheet->getStyle('B8')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
-        $sheet->getStyle('B8')->getFont()->setBold(true);
+        $sheet->setCellValue('B8', "LEARNERS'\nNAMES");
+        $sheet->getStyle('B8')->getAlignment()->setWrapText(true)->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle('B8')->getFont()->setBold(true)->setSize(12);
 
         $sheet->mergeCells('B10:D10');
         $sheet->setCellValue('B10', 'HIGHEST POSSIBLE SCORE');
         $sheet->getStyle('B10')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        $sheet->getStyle('B10')->getFont()->setBold(true);
 
         $colIndex = 5;
         $buckets = $this->resolveAssessmentBuckets();
@@ -160,8 +287,8 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
 
             $sheet->mergeCells("{$startCol}8:{$endCol}8");
             $sheet->setCellValue("{$startCol}8", $label);
-            $sheet->getStyle("{$startCol}8")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("{$startCol}8")->getFont()->setBold(true);
+            $sheet->getStyle("{$startCol}8")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle("{$startCol}8")->getFont()->setBold(true)->setSize(12);
 
             $assessments = $buckets[$type];
             $totalMax = 0;
@@ -170,6 +297,7 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
                 $colStr = Coordinate::stringFromColumnIndex($colIndex);
                 $sheet->setCellValue("{$colStr}9", $i);
                 $sheet->getStyle("{$colStr}9")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("{$colStr}9")->getFont()->setBold(true);
 
                 $assessment = $assessments->get($i - 1);
                 $maxScore = $assessment && $assessment->max_score > 0 ? (float) $assessment->max_score : 0;
@@ -177,6 +305,7 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
 
                 $sheet->setCellValue("{$colStr}10", $maxScore > 0 ? $maxScore : '');
                 $sheet->getStyle("{$colStr}10")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle("{$colStr}10")->getFont()->setBold(true);
                 $colIndex++;
             }
 
@@ -185,7 +314,7 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
             $sheet->setCellValue("{$colStr}10", $totalMax > 0 ? $totalMax : '');
             $sheet->getStyle("{$colStr}9")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("{$colStr}10")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $this->applyHeaderColor($sheet, "{$colStr}9:{$colStr}10", 'FFE2E8F0');
+            $sheet->getStyle("{$colStr}9:{$colStr}10")->getFont()->setBold(true);
             $colIndex++;
 
             $colStr = Coordinate::stringFromColumnIndex($colIndex);
@@ -193,6 +322,7 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
             $sheet->setCellValue("{$colStr}10", 100);
             $sheet->getStyle("{$colStr}9")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("{$colStr}10")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("{$colStr}9:{$colStr}10")->getFont()->setBold(true);
             $colIndex++;
 
             $colStr = Coordinate::stringFromColumnIndex($colIndex);
@@ -201,7 +331,11 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
             $sheet->setCellValue("{$colStr}10", "{$weightPercent}%");
             $sheet->getStyle("{$colStr}9")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("{$colStr}10")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $this->applyHeaderColor($sheet, "{$colStr}9:{$colStr}10", 'FFE2E8F0');
+            $sheet->getStyle("{$colStr}9:{$colStr}10")->getFont()->setBold(true);
+
+            // Add medium border around the entire assessment type block
+            $sheet->getStyle("{$startCol}8:{$colStr}10")->getBorders()->getOutline()->setBorderStyle(Border::BORDER_MEDIUM);
+
             $colIndex++;
         }
 
@@ -222,43 +356,44 @@ class AssessmentClassRecordExport implements FromArray, WithCustomStartCell, Wit
         $highestColStr = Coordinate::stringFromColumnIndex($colIndex);
         $highestRow = $sheet->getHighestRow();
 
+        // Apply borders to the main data table
         $sheet->getStyle("A8:{$highestColStr}{$highestRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->getStyle('A2')->getFont()->setSize(10);
+        // Apply medium border around the entire table
+        $sheet->getStyle("A8:{$highestColStr}{$highestRow}")->getBorders()->getOutline()->setBorderStyle(Border::BORDER_MEDIUM);
 
         $sheet->getStyle("E8:{$highestColStr}{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
+        // Set column widths
         $sheet->getColumnDimension('A')->setWidth(4);
         $sheet->getColumnDimension('B')->setWidth(18);
         $sheet->getColumnDimension('C')->setWidth(18);
         $sheet->getColumnDimension('D')->setWidth(4);
 
         for ($i = 5; $i <= $colIndex; $i++) {
-            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setWidth(6);
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($i))->setWidth(5);
         }
 
-        $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($colIndex - 1))->setWidth(8);
-        $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($colIndex))->setWidth(9);
+        // Adjust widths for Total, PS, WS columns
+        $col = 5;
+        foreach (['written_works', 'performance_tasks', 'quarterly_assessments'] as $type) {
+            $count = self::DEFAULT_ASSESSMENT_COUNTS[$type];
+            $col += $count;
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($col))->setWidth(6); // Total
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($col + 1))->setWidth(6); // PS
+            $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($col + 2))->setWidth(6); // WS
+            $col += 3;
+        }
+
+        $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($colIndex - 1))->setWidth(8); // Initial Grade
+        $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($colIndex))->setWidth(9); // Quarterly Grade
 
         for ($r = 11; $r <= $highestRow; $r++) {
             $val = $sheet->getCell("B{$r}")->getValue();
             if (in_array($val, ['MALE', 'FEMALE', 'UNSPECIFIED'], true)) {
                 $sheet->getStyle("A{$r}:{$highestColStr}{$r}")->getFont()->setBold(true);
-                $sheet->getStyle("A{$r}:{$highestColStr}{$r}")->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setARGB('FFF1F5F9');
             }
         }
-
-        $sheet->getStyle("A8:{$highestColStr}10")->getFont()->setBold(true);
-    }
-
-    private function applyHeaderColor($sheet, string $range, string $hexColor): void
-    {
-        $sheet->getStyle($range)->getFill()
-            ->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()->setARGB($hexColor);
     }
 
     private function mapStudentRow(Student $student, int $number): array

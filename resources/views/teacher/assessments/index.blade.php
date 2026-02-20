@@ -106,6 +106,16 @@
             box-shadow: inset 0 0 0 1px #dc3545;
         }
 
+        .grade-input.grade-input-selected {
+            background-color: #cfe2ff;
+            box-shadow: inset 0 0 0 1px #0d6efd;
+        }
+
+        .grade-cell-selected {
+            background-color: #cfe2ff !important;
+            box-shadow: inset 0 0 0 1px #0d6efd;
+        }
+
         /* Disable card hover transform to keep fixed save button position stable */
         .grade-management-card {
             transform: none !important;
@@ -441,10 +451,12 @@
                             <label for="studentSearchInput" class="mb-0 fw-semibold">Search:</label>
                             <input type="text" id="studentSearchInput" class="form-control form-control-sm"
                                 style="width: 260px;" placeholder="Male/Female, last name, or first name">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="clearStudentSearch">Clear</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                id="clearStudentSearch">Clear</button>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span class="badge text-bg-success grade-save-status" id="gradeSaveState" title="Saved">Saved</span>
+                            <span class="badge text-bg-success grade-save-status" id="gradeSaveState"
+                                title="Saved">Saved</span>
                             <label for="exportQuarter" class="mb-0 fw-semibold">Export Quarter:</label>
                             <select id="exportQuarter" class="form-select form-select-sm" style="width: 120px;">
                                 @for ($quarterOption = 1; $quarterOption <= 4; $quarterOption++)
@@ -460,6 +472,7 @@
                         </div>
                     </div>
                 </div>
+
                 @php
                     $maleStudents = $studentsData->filter(
                         fn($studentData) => strtolower((string) ($studentData['student']->gender ?? '')) === 'male',
@@ -660,9 +673,8 @@
                                                     $studentGender = strtolower(
                                                         (string) ($studentData['student']->gender ?? 'unspecified'),
                                                     );
-                                                    $searchGender = $studentGender !== ''
-                                                        ? $studentGender
-                                                        : 'unspecified';
+                                                    $searchGender =
+                                                        $studentGender !== '' ? $studentGender : 'unspecified';
                                                 @endphp
                                                 <tr data-student-id="{{ $studentData['student']->id }}"
                                                     data-gender-group="{{ $genderKey }}"
@@ -683,12 +695,12 @@
                                                         {{-- Individual Assessment Columns --}}
                                                         @foreach ($typeAssessments as $index => $assessment)
                                                             @php
-                                                                $studentScore = collect($studentTypeData)->first(function (
-                                                                    $item,
-                                                                ) use ($assessment) {
-                                                                    return isset($item['assessment']) &&
-                                                                        $item['assessment']->id === $assessment->id;
-                                                                });
+                                                                $studentScore = collect($studentTypeData)->first(
+                                                                    function ($item) use ($assessment) {
+                                                                        return isset($item['assessment']) &&
+                                                                            $item['assessment']->id === $assessment->id;
+                                                                    },
+                                                                );
                                                                 $scoreValue = $studentScore['score'] ?? '';
                                                                 if (
                                                                     $scoreValue !== '' &&
@@ -771,9 +783,7 @@
                                                 $studentGender = strtolower(
                                                     (string) ($studentData['student']->gender ?? 'unspecified'),
                                                 );
-                                                $searchGender = $studentGender !== ''
-                                                    ? $studentGender
-                                                    : 'unspecified';
+                                                $searchGender = $studentGender !== '' ? $studentGender : 'unspecified';
                                             @endphp
                                             <tr data-student-id="{{ $studentData['student']->id }}"
                                                 data-gender-group="{{ $genderKey }}"
@@ -859,7 +869,8 @@
 
             function setSaveButtonState(isBusy) {
                 if (isBusy) {
-                    $saveButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
+                    $saveButton.prop('disabled', true).html(
+                        '<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
 
                     return;
                 }
@@ -999,7 +1010,8 @@
                 }
 
                 const maxScoreRaw = $input.data('max-score');
-                const maxScoreText = maxScoreRaw === undefined || maxScoreRaw === null ? '' : String(maxScoreRaw).trim();
+                const maxScoreText = maxScoreRaw === undefined || maxScoreRaw === null ? '' : String(maxScoreRaw)
+                    .trim();
                 if (maxScoreText !== '') {
                     const maxScore = parseFloat(maxScoreText);
                     if (!Number.isNaN(maxScore) && numericValue > maxScore) {
@@ -1029,7 +1041,8 @@
                     if (currentDraft && currentDraft.score === sentScore) {
                         dirtyGrades.delete(key);
                         invalidCells.delete(key);
-                        const $input = getGradeInputByCoordinates(gradeEntry.student_id, gradeEntry.assessment_id);
+                        const $input = getGradeInputByCoordinates(gradeEntry.student_id, gradeEntry
+                            .assessment_id);
                         $input.removeClass('grade-input-dirty');
                         clearInputInvalidState($input);
                     }
@@ -1204,7 +1217,8 @@
                         }),
                     });
 
-                    const rejectedCells = Array.isArray(response?.rejected_cells) ? response.rejected_cells : [];
+                    const rejectedCells = Array.isArray(response?.rejected_cells) ? response.rejected_cells :
+                [];
                     if (rejectedCells.length > 0) {
                         applyRejectedStateToInputs(rejectedCells);
                     }
@@ -1215,7 +1229,9 @@
                         const responseMessage = response?.message || 'Grades saved successfully.';
                         if (rejectedCells.length > 0) {
                             const suffix = rejectedCells.length === 1 ? '' : 's';
-                            alert(`${responseMessage} ${rejectedCells.length} invalid score${suffix} still need correction.`);
+                            alert(
+                                `${responseMessage} ${rejectedCells.length} invalid score${suffix} still need correction.`
+                            );
                         } else {
                             alert(responseMessage);
                         }
@@ -1352,9 +1368,11 @@
                     return false;
                 }
 
-                const canRequest = gradeManagementCard.requestFullscreen || gradeManagementCard.webkitRequestFullscreen ||
+                const canRequest = gradeManagementCard.requestFullscreen || gradeManagementCard
+                    .webkitRequestFullscreen ||
                     gradeManagementCard.msRequestFullscreen;
-                const canExit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+                const canExit = document.exitFullscreen || document.webkitExitFullscreen || document
+                    .msExitFullscreen;
 
                 return Boolean(canRequest && canExit);
             }
@@ -1367,8 +1385,7 @@
 
                 if (supportsNativeFullscreen()) {
                     if (isNativeFullscreenActive()) {
-                        exitNativeFullscreen().catch(() => {
-                        });
+                        exitNativeFullscreen().catch(() => {});
                     } else {
                         requestNativeFullscreen().catch(() => {
                             enterFallbackFullscreen();
@@ -2050,6 +2067,315 @@
                     search: "_INPUT_",
                     searchPlaceholder: "Search student..."
                 }
+            });
+
+            // Excel-like selection, copy, and paste support for quarter grade table cells
+            let isSelectingGradeRange = false;
+            let gradeSelectionAnchorCell = null;
+            let selectedGradeCells = [];
+            let activeSelectionTable = null;
+
+            function clearGradeSelection() {
+                selectedGradeCells.forEach((cell) => {
+                    cell.classList.remove('grade-cell-selected');
+
+                    const input = cell.querySelector('.grade-input, .max-score-input');
+                    if (input) {
+                        input.classList.remove('grade-input-selected');
+                    }
+                });
+
+                selectedGradeCells = [];
+            }
+
+            function getSelectionTableFromCell(cell) {
+                return cell.closest('table.grade-table[data-quarter]');
+            }
+
+            function getSelectableRows(table) {
+                if (!table) {
+                    return [];
+                }
+
+                const headerRows = table.querySelectorAll('thead tr');
+                const lastHeaderRow = headerRows.length > 0 ? headerRows[headerRows.length - 1] : null;
+                const studentRows = Array.from(table.querySelectorAll('tbody tr[data-student-id]'));
+
+                return lastHeaderRow ? [lastHeaderRow, ...studentRows] : studentRows;
+            }
+
+            function getCellPosition(cell) {
+                const tr = cell.closest('tr');
+                const table = getSelectionTableFromCell(cell);
+                if (!tr || !table) {
+                    return null;
+                }
+
+                const rows = getSelectableRows(table);
+                const rowIndex = rows.indexOf(tr);
+                const colIndex = Array.from(tr.children).indexOf(cell);
+
+                if (rowIndex < 0 || colIndex < 0) {
+                    return null;
+                }
+
+                return {
+                    table,
+                    rowIndex,
+                    colIndex,
+                };
+            }
+
+            function markCellSelected(cell) {
+                cell.classList.add('grade-cell-selected');
+                const input = cell.querySelector('.grade-input, .max-score-input');
+                if (input) {
+                    input.classList.add('grade-input-selected');
+                }
+                selectedGradeCells.push(cell);
+            }
+
+            function selectCellRange(anchorCell, focusCell) {
+                const anchorPos = getCellPosition(anchorCell);
+                const focusPos = getCellPosition(focusCell);
+
+                if (!anchorPos || !focusPos || anchorPos.table !== focusPos.table) {
+                    clearGradeSelection();
+                    markCellSelected(focusCell);
+                    activeSelectionTable = getSelectionTableFromCell(focusCell);
+                    return;
+                }
+
+                const minRow = Math.min(anchorPos.rowIndex, focusPos.rowIndex);
+                const maxRow = Math.max(anchorPos.rowIndex, focusPos.rowIndex);
+                const minCol = Math.min(anchorPos.colIndex, focusPos.colIndex);
+                const maxCol = Math.max(anchorPos.colIndex, focusPos.colIndex);
+                const rows = getSelectableRows(anchorPos.table);
+
+                clearGradeSelection();
+
+                for (let row = minRow; row <= maxRow; row++) {
+                    const rowElement = rows[row];
+                    if (!rowElement) {
+                        continue;
+                    }
+
+                    for (let col = minCol; col <= maxCol; col++) {
+                        const cell = rowElement.children[col];
+                        if (!cell) {
+                            continue;
+                        }
+
+                        markCellSelected(cell);
+                    }
+                }
+
+                activeSelectionTable = anchorPos.table;
+            }
+
+            function getCellValue(cell) {
+                const input = cell.querySelector('.grade-input, .max-score-input');
+                if (input) {
+                    return String(input.value ?? '').trim();
+                }
+
+                return String(cell.textContent ?? '').replace(/\s+/g, ' ').trim();
+            }
+
+            function buildClipboardTextFromSelection() {
+                if (selectedGradeCells.length === 0) {
+                    return '';
+                }
+
+                const positioned = selectedGradeCells
+                    .map((cell) => ({
+                        cell,
+                        position: getCellPosition(cell),
+                    }))
+                    .filter((entry) => entry.position !== null);
+
+                if (positioned.length === 0) {
+                    return '';
+                }
+
+                const rowIndexes = positioned.map((entry) => entry.position.rowIndex);
+                const colIndexes = positioned.map((entry) => entry.position.colIndex);
+                const minRow = Math.min(...rowIndexes);
+                const maxRow = Math.max(...rowIndexes);
+                const minCol = Math.min(...colIndexes);
+                const maxCol = Math.max(...colIndexes);
+
+                const valueMap = new Map();
+                positioned.forEach((entry) => {
+                    const key = `${entry.position.rowIndex}:${entry.position.colIndex}`;
+                    valueMap.set(key, getCellValue(entry.cell));
+                });
+
+                const lines = [];
+                for (let row = minRow; row <= maxRow; row++) {
+                    const values = [];
+                    for (let col = minCol; col <= maxCol; col++) {
+                        values.push(valueMap.get(`${row}:${col}`) ?? '');
+                    }
+                    lines.push(values.join('\t'));
+                }
+
+                return lines.join('\n');
+            }
+
+            function getTopLeftSelectedCell() {
+                if (selectedGradeCells.length === 0) {
+                    return null;
+                }
+
+                let topLeftCell = null;
+                let topLeftRow = Number.MAX_SAFE_INTEGER;
+                let topLeftCol = Number.MAX_SAFE_INTEGER;
+
+                selectedGradeCells.forEach((cell) => {
+                    const position = getCellPosition(cell);
+                    if (!position) {
+                        return;
+                    }
+
+                    if (position.rowIndex < topLeftRow || (position.rowIndex === topLeftRow && position
+                            .colIndex < topLeftCol)) {
+                        topLeftCell = cell;
+                        topLeftRow = position.rowIndex;
+                        topLeftCol = position.colIndex;
+                    }
+                });
+
+                return topLeftCell;
+            }
+
+            function getEditableInputFromCell(cell) {
+                const input = cell.querySelector('.grade-input, .max-score-input');
+                if (!input || input.disabled || input.readOnly) {
+                    return null;
+                }
+
+                return input;
+            }
+
+            $(document).on('mousedown', '.grade-table[data-quarter] td, .grade-table[data-quarter] th', function(
+                event) {
+                if (event.button !== 0) {
+                    return;
+                }
+
+                const cell = this;
+                const table = getSelectionTableFromCell(cell);
+                if (!table) {
+                    return;
+                }
+
+                activeSelectionTable = table;
+
+                if (event.shiftKey && gradeSelectionAnchorCell) {
+                    selectCellRange(gradeSelectionAnchorCell, cell);
+                    return;
+                }
+
+                isSelectingGradeRange = true;
+                gradeSelectionAnchorCell = cell;
+                clearGradeSelection();
+                markCellSelected(cell);
+            });
+
+            $(document).on('mouseenter', '.grade-table[data-quarter] td, .grade-table[data-quarter] th',
+        function() {
+                if (!isSelectingGradeRange || !gradeSelectionAnchorCell) {
+                    return;
+                }
+
+                selectCellRange(gradeSelectionAnchorCell, this);
+            });
+
+            $(document).on('mouseup', function() {
+                isSelectingGradeRange = false;
+            });
+
+            $(document).on('mousedown', function(event) {
+                if ($(event.target).closest('.grade-table[data-quarter]').length === 0) {
+                    activeSelectionTable = null;
+                    gradeSelectionAnchorCell = null;
+                    clearGradeSelection();
+                }
+            });
+
+            document.addEventListener('copy', function(e) {
+                if (!activeSelectionTable || selectedGradeCells.length === 0) {
+                    return;
+                }
+
+                const clipboardText = buildClipboardTextFromSelection();
+                if (!clipboardText) {
+                    return;
+                }
+
+                e.preventDefault();
+                e.clipboardData.setData('text/plain', clipboardText);
+            });
+
+            document.addEventListener('paste', function(e) {
+                const targetCell = e.target.closest(
+                    '.grade-table[data-quarter] td, .grade-table[data-quarter] th');
+                if (!targetCell) {
+                    return;
+                }
+
+                e.preventDefault();
+
+                const clipboardData = e.clipboardData || window.clipboardData;
+                const pastedData = clipboardData.getData('Text');
+                if (!pastedData) {
+                    return;
+                }
+
+                const rows = pastedData.split(/\r?\n/).filter((rowText, index, arr) => {
+                    return !(index === arr.length - 1 && rowText.trim() === '');
+                });
+
+                const startCell = selectedGradeCells.length > 1 && selectedGradeCells.includes(targetCell) ?
+                    (getTopLeftSelectedCell() || targetCell) :
+                    targetCell;
+
+                const startPos = getCellPosition(startCell);
+                if (!startPos) {
+                    return;
+                }
+
+                const tableRows = getSelectableRows(startPos.table);
+
+                rows.forEach((rowText, rowIndex) => {
+                    const columns = rowText.split('\t');
+                    const targetRow = tableRows[startPos.rowIndex + rowIndex];
+                    if (!targetRow) {
+                        return;
+                    }
+
+                    columns.forEach((colText, colIndex) => {
+                        const targetCellForPaste = targetRow.children[startPos.colIndex +
+                            colIndex];
+                        if (!targetCellForPaste) {
+                            return;
+                        }
+
+                        const input = getEditableInputFromCell(targetCellForPaste);
+                        if (!input) {
+                            return;
+                        }
+
+                        input.value = colText.trim();
+                        input.dispatchEvent(new Event('input', {
+                            bubbles: true,
+                        }));
+                        input.dispatchEvent(new Event('change', {
+                            bubbles: true,
+                        }));
+                    });
+                });
             });
         });
     </script>
