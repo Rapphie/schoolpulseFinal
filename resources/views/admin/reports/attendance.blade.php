@@ -55,7 +55,7 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
-            <h1 class="h3 mb-2 text-gray-800">Attendance Analytics</h1>
+            <h1 class="h3 mb-2 text-dark">Attendance Analytics</h1>
             <p class="mb-1 text-muted">
                 Active school year:
                 <span class="fw-semibold text-primary">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
@@ -121,7 +121,7 @@
                 <div class="card border-left-success shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Attendance Rate</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceRateValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="attendanceRateValue">
                             {{ number_format($summary['present_rate'], 1) }}%
                         </div>
                         <small class="text-muted">Present ÷ total sessions</small>
@@ -139,7 +139,7 @@
                 <div class="card border-left-primary shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Sessions Logged</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceSessionsValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="attendanceSessionsValue">
                             {{ number_format($summary['total_records']) }}
                         </div>
                         <small class="text-muted">Across current filters</small>
@@ -157,7 +157,7 @@
                 <div class="card border-left-info shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Present</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendancePresentValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="attendancePresentValue">
                             {{ number_format($summary['present']) }}
                         </div>
                         <small class="text-muted">{{ number_format($summary['present_rate'], 1) }}% of sessions</small>
@@ -174,7 +174,7 @@
                 <div class="card border-left-danger shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Absences</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceAbsentValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="attendanceAbsentValue">
                             {{ number_format($summary['absent']) }}
                         </div>
                         <small class="text-muted">{{ number_format($summary['absence_rate'], 1) }}% of sessions</small>
@@ -197,7 +197,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <div>
                                 <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Late Arrivals</div>
-                                <div class="h4 mb-0 font-weight-bold text-gray-800" id="attendanceLateValue">
+                                <div class="h4 mb-0 font-weight-bold text-dark" id="attendanceLateValue">
                                     {{ number_format($summary['late']) }}
                                 </div>
                             </div>
@@ -220,7 +220,7 @@
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div>
                             <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Today's Snapshot</div>
-                            <div class="h4 mb-0 font-weight-bold text-gray-800" id="todaySnapshotDate">
+                            <div class="h4 mb-0 font-weight-bold text-dark" id="todaySnapshotDate">
                                 {{ $todaySnapshotData['date'] }}
                             </div>
                         </div>

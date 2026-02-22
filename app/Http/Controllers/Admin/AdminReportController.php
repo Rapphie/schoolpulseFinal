@@ -614,7 +614,7 @@ class AdminReportController extends Controller
                 'attendances.status',
                 'attendances.time_in',
                 'attendances.quarter',
-                'students.id as student_id',
+                'attendances.student_id',
                 'students.lrn',
                 'students.first_name',
                 'students.last_name',

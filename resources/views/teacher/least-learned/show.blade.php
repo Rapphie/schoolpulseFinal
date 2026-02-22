@@ -29,7 +29,7 @@
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 text-gray-800 mb-1">Least Learned Insights</h1>
+            <h1 class="h3 text-dark mb-1">Least Learned Insights</h1>
             <p class="text-muted mb-0">{{ $llc->subject->name ?? 'Subject' }} ·
                 {{ $llc->section->gradeLevel->name ?? 'Grade Level' }} — {{ $llc->section->name ?? 'Section' }}</p>
         </div>

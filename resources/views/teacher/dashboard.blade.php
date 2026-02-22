@@ -11,10 +11,10 @@
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
                                 My Classes</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $classCount ?? 0 }}</div>
+                            <div class="h5 mb-0 font-weight-bold text-dark">{{ $classCount ?? 0 }}</div>
                         </div>
                         <div class="col-auto">
-                            <i data-feather="layers" class="text-gray-300" style="width: 32px; height: 32px;"></i>
+                            <i data-feather="layers" class="text-muted" style="width: 32px; height: 32px;"></i>
                         </div>
                     </div>
                 </div>
@@ -30,10 +30,10 @@
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
                                 Students</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $studentCount ?? 0 }}</div>
+                            <div class="h5 mb-0 font-weight-bold text-dark">{{ $studentCount ?? 0 }}</div>
                         </div>
                         <div class="col-auto">
-                            <i data-feather="users" class="text-gray-300" style="width: 32px; height: 32px;"></i>
+                            <i data-feather="users" class="text-muted" style="width: 32px; height: 32px;"></i>
                         </div>
                     </div>
                 </div>
@@ -50,11 +50,11 @@
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
                                 Today's Attendance</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $todayAttendanceCount ?? 0 }} <span
+                            <div class="h5 mb-0 font-weight-bold text-dark">{{ $todayAttendanceCount ?? 0 }} <span
                                     class="small text-muted">students</span></div>
                         </div>
                         <div class="col-auto">
-                            <i data-feather="check-circle" class="text-gray-300" style="width: 32px; height: 32px;"></i>
+                            <i data-feather="check-circle" class="text-muted" style="width: 32px; height: 32px;"></i>
                         </div>
                     </div>
                 </div>
@@ -71,10 +71,10 @@
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
                                 Upcoming Schedules</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $scheduleCount ?? 0 }}</div>
+                            <div class="h5 mb-0 font-weight-bold text-dark">{{ $scheduleCount ?? 0 }}</div>
                         </div>
                         <div class="col-auto">
-                            <i data-feather="calendar" class="text-gray-300" style="width: 32px; height: 32px;"></i>
+                            <i data-feather="calendar" class="text-muted" style="width: 32px; height: 32px;"></i>
                         </div>
                     </div>
                 </div>

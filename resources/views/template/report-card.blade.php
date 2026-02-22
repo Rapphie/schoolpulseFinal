@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Learner's Progress Report Card</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap" rel="stylesheet">
     <style>
         body {
@@ -34,10 +33,8 @@
         td {
             border: 1px solid #000;
             padding: 1.5px 4px;
-            /* Fine-tuned padding */
             vertical-align: middle;
             height: 19px;
-            /* Consistent row height */
         }
 
         .no-border {
@@ -60,10 +57,79 @@
             font-size: 8.5pt;
         }
 
-        /* Adjusted for accuracy */
         .text-sm {
             font-size: 10pt;
         }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-grow {
+            flex-grow: 1;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .w-1\/2 {
+            width: 50%;
+        }
+
+        .w-2\/5 {
+            width: 40%;
+        }
+
+        .w-3\/5 {
+            width: 60%;
+        }
+
+        .w-\[15\%\] {
+            width: 15%;
+        }
+
+        .w-\[35\%\] {
+            width: 35%;
+        }
+
+        .w-\[40\%\] {
+            width: 40%;
+        }
+
+        .w-\[10\%\] {
+            width: 10%;
+        }
+
+        .space-x-6 > * + * {
+            margin-left: 1.5rem;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .justify-end {
+            justify-content: flex-end;
+        }
+
+        .inline-block {
+            display: inline-block;
+        }
+
+        .float-right {
+            float: right;
+        }
+
+        .mt-1 { margin-top: 0.25rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mt-auto { margin-top: auto; }
+        .pt-1 { padding-top: 0.25rem; }
+        .pt-2 { padding-top: 0.5rem; }
+        .pt-4 { padding-top: 1rem; }
+        .pb-4 { padding-bottom: 1rem; }
+        .pl-4 { padding-left: 1rem; }
 
         @media print {
             @page {

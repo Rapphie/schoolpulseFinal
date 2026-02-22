@@ -16,7 +16,7 @@
                     <li class="breadcrumb-item active" aria-current="page">{{ $title }}</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-2 text-gray-800">{{ $title }}</h1>
+            <h1 class="h3 mb-2 text-dark">{{ $title }}</h1>
             <p class="mb-1 text-muted">{{ $description }}</p>
             <p class="mb-0 text-muted">
                 Viewing data for:
@@ -117,7 +117,7 @@
                 <div class="card border-left-primary shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Sections</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['total_sections']) }}
+                        <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['total_sections']) }}
                         </div>
                     </div>
                 </div>
@@ -126,7 +126,7 @@
                 <div class="card border-left-success shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Students</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['total_students']) }}
+                        <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['total_students']) }}
                         </div>
                     </div>
                 </div>
@@ -135,7 +135,7 @@
                 <div class="card border-left-info shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Average / Section</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800">
+                        <div class="h4 mb-0 font-weight-bold text-dark">
                             {{ number_format($data['average_per_section'], 1) }}</div>
                     </div>
                 </div>
@@ -144,7 +144,7 @@
                 <div class="card border-left-warning shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Largest Section</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['largest_count']) }}
+                        <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['largest_count']) }}
                         </div>
                     </div>
                 </div>

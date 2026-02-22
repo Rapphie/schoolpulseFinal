@@ -16,7 +16,7 @@
                     <li class="breadcrumb-item active" aria-current="page">{{ $title }}</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-2 text-gray-800">{{ $title }}</h1>
+            <h1 class="h3 mb-2 text-dark">{{ $title }}</h1>
             <p class="mb-1 text-muted">{{ $description }}</p>
             <p class="mb-0 text-muted">
                 Viewing data for:
@@ -66,7 +66,7 @@
             <div class="card border-left-primary shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Records</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['total']) }}</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['total']) }}</div>
                 </div>
             </div>
         </div>
@@ -74,7 +74,7 @@
             <div class="card border-left-success shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Present</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['present']) }}</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['present']) }}</div>
                 </div>
             </div>
         </div>
@@ -82,7 +82,7 @@
             <div class="card border-left-danger shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Absent</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['absent']) }}</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['absent']) }}</div>
                 </div>
             </div>
         </div>
@@ -90,7 +90,7 @@
             <div class="card border-left-warning shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Late</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['late']) }}</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['late']) }}</div>
                 </div>
             </div>
         </div>
@@ -147,7 +147,7 @@
                                     </td>
                                     <td>{{ $record['time_in'] }}</td>
                                     <td class="text-center">
-                                        <a href="{{ route('admin.students.show', $record['student_id']) }}"
+                                        <a href="{{ route('admin.students.show', ['student' => $record['student_id']]) }}"
                                             class="btn btn-sm btn-outline-primary">
                                             <i data-feather="eye" class="feather-sm"></i> View Student
                                         </a>

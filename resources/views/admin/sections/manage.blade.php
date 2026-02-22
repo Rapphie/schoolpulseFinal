@@ -12,7 +12,7 @@
                         <li class="breadcrumb-item active" aria-current="page">Manage Class</li>
                     </ol>
                 </nav>
-                <h1 class="h3 mb-0 text-gray-800">Manage: {{ $section->gradeLevel->name }}-{{ $section->name }}</h1>
+                <h1 class="h3 mb-0 text-dark">Manage: {{ $section->gradeLevel->name }}-{{ $section->name }}</h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
             <div class="d-flex align-items-center gap-2">
@@ -47,13 +47,13 @@
                                 <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
                                     {{ $section->gradeLevel->name }} Adviser
                                 </div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <div class="h5 mb-0 font-weight-bold text-dark">
                                     {{ $class->teacher->user->first_name ?? 'Not' }}
                                     {{ $class->teacher->user->last_name ?? 'Assigned' }}
                                 </div>
                             </div>
                             <div class="col-auto">
-                                <i class="fas fa-chalkboard-teacher fa-2x text-gray-300"></i>
+                                <i class="fas fa-chalkboard-teacher fa-2x text-muted"></i>
                             </div>
                         </div>
                     </div>
@@ -83,11 +83,11 @@
                         <div class="row no-gutters align-items-center">
                             <div class="col mr-2">
                                 <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Enrollment</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ $class->enrollments->count() }} /
+                                <div class="h5 mb-0 font-weight-bold text-dark">{{ $class->enrollments->count() }} /
                                     {{ $class->capacity }}</div>
                             </div>
                             <div class="col-auto">
-                                <i class="fas fa-users fa-2x text-gray-300"></i>
+                                <i class="fas fa-users fa-2x text-muted"></i>
                             </div>
                         </div>
                     </div>

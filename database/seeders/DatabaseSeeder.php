@@ -116,7 +116,7 @@ class DatabaseSeeder extends Seeder
             'role_id' => 3,
         ]);
 
-        $guardian = Guardian::create([
+        Guardian::create([
             'user_id' => $guardianUser->id,
             'phone' => '09123456789',
             'relationship' => 'parent',

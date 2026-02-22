@@ -2,7 +2,7 @@
 
 @section('content')
     <div class="container-fluid">
-        <div class="flex justify-between items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ route('admin.schedules.index') }}">Schedules</a></li>
@@ -10,9 +10,9 @@
                 </ol>
             </nav>
             <a href="{{ route('admin.schedules.create') }}"
-                class="inline-flex items-center bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded add-schedule-btn text-decoration-none">
+                class="btn btn-primary d-inline-flex align-items-center px-3 py-2 fw-bold add-schedule-btn text-decoration-none">
                 <i data-feather="plus" class="feather-sm me-1"></i>
-                <span class="ml-2">Add Schedule</span>
+                <span class="ms-2">Add Schedule</span>
             </a>
         </div>
 
@@ -73,8 +73,8 @@
         </div>
 
 
-        <div id='calendar-container' class="bg-white p-6 rounded-lg shadow-md">
-            <div id='calendar-loader' class="text-center py-10">
+        <div id='calendar-container' class="bg-white p-4 rounded shadow-sm">
+            <div id='calendar-loader' class="text-center py-5">
                 <p>Loading schedules...</p>
             </div>
             <div id='calendar' style="visibility: hidden; min-height: 800px;"></div>
@@ -202,23 +202,23 @@
                 eventContent: function(arg) {
                     let eventEl = document.createElement('div');
                     let html = `<div class="p-1 overflow-hidden">
-                                    <div class="font-bold">${arg.timeText}</div>`;
+                                    <div class="fw-bold">${arg.timeText}</div>`;
 
                     if (arg.event.extendedProps.subject) {
                         html +=
-                            `<div class="font-semibold truncate">${arg.event.extendedProps.subject}</div>`;
+                            `<div class="fw-semibold text-truncate d-block">${arg.event.extendedProps.subject}</div>`;
                     }
                     if (arg.event.extendedProps.section) {
                         html +=
-                            `<div class="text-sm truncate">${arg.event.extendedProps.section}</div>`;
+                            `<div class="small text-truncate d-block">${arg.event.extendedProps.section}</div>`;
                     }
                     if (arg.event.extendedProps.teacher) {
                         html +=
-                            `<div class="text-sm font-italic truncate">${arg.event.extendedProps.teacher}</div>`;
+                            `<div class="small fst-italic text-truncate d-block">${arg.event.extendedProps.teacher}</div>`;
                     }
                     if (arg.event.extendedProps.room) {
                         html +=
-                            `<div class="text-xs truncate bg-gray-100 rounded px-1 mt-1 text-black">${arg.event.extendedProps.room}</div>`;
+                            `<div class="small text-truncate bg-light rounded px-1 mt-1 text-dark d-block">${arg.event.extendedProps.room}</div>`;
                     }
                     html += `</div>`;
                     eventEl.innerHTML = html;

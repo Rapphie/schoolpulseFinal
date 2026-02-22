@@ -59,7 +59,7 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
-            <h1 class="h3 mb-2 text-gray-800">Grades Analytics</h1>
+            <h1 class="h3 mb-2 text-dark">Grades Analytics</h1>
             <p class="mb-1 text-muted">
                 Active school year:
                 <span class="fw-semibold text-primary">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
@@ -124,7 +124,7 @@
                 <div class="card border-left-primary shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Average Grade</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesAverageValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="gradesAverageValue">
                             {{ number_format($summaryData['average'], 1) }}
                         </div>
                         <small class="text-muted">Across selected scope</small>
@@ -141,7 +141,7 @@
                 <div class="card border-left-success shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Passing Rate</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesPassingRate">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="gradesPassingRate">
                             {{ number_format($summaryData['passing_rate'], 1) }}%
                         </div>
                         <small class="text-muted">Grades ≥ 75</small>
@@ -158,7 +158,7 @@
                 <div class="card border-left-info shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Highest Grade</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesHighestValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="gradesHighestValue">
                             {{ number_format($summaryData['highest'], 1) }}
                         </div>
                         <small class="text-muted">Best score recorded</small>
@@ -175,7 +175,7 @@
                 <div class="card border-left-warning shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Records Evaluated</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="gradesRecordsValue">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="gradesRecordsValue">
                             {{ number_format($summaryData['records']) }}
                         </div>
                         <small class="text-muted">Total grade entries</small>

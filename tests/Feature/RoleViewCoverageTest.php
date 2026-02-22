@@ -151,6 +151,30 @@ class RoleViewCoverageTest extends TestCase
         }
     }
 
+    public function test_admin_schedule_page_uses_bootstrap_layout_markup(): void
+    {
+        $response = $this->actingAs($this->adminUser)->get(route('admin.schedules.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('d-flex justify-content-between align-items-center mb-4', false);
+        $response->assertSee('btn btn-primary d-inline-flex align-items-center', false);
+        $response->assertSee('bg-white p-4 rounded shadow-sm', false);
+        $response->assertDontSee('inline-flex items-center bg-blue-500 hover:bg-blue-700', false);
+        $response->assertDontSee('bg-white p-6 rounded-lg shadow-md', false);
+        $response->assertDontSee('font-semibold truncate', false);
+    }
+
+    public function test_teacher_schedule_page_uses_bootstrap_layout_markup(): void
+    {
+        $response = $this->actingAs($this->teacherUser)->get(route('teacher.schedules.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('d-flex justify-content-between align-items-center mb-4', false);
+        $response->assertSee('bg-white p-4 rounded shadow-sm', false);
+        $response->assertDontSee('bg-white p-6 rounded-lg shadow-md', false);
+        $response->assertDontSee('font-semibold truncate', false);
+    }
+
     public function test_teacher_students_overview_redirects_to_student_profiles_page(): void
     {
         $response = $this->actingAs($this->teacherUser)->get(route('teacher.students-overview'));

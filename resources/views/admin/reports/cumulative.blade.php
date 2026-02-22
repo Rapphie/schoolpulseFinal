@@ -103,7 +103,7 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
-            <h1 class="h3 mb-2 text-gray-800">Cumulative Analytics</h1>
+            <h1 class="h3 mb-2 text-dark">Cumulative Analytics</h1>
             <p class="mb-1 text-muted">
                 Active school year:
                 <span class="fw-semibold text-primary">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
@@ -221,7 +221,7 @@
                             data-summary-card="{{ $key }}">
                             <div class="card-body">
                                 <div class="text-xs fw-bold text-uppercase mb-1 text-muted">{{ $card['label'] }}</div>
-                                <div class="h4 mb-0 font-weight-bold text-gray-800 summary-value">
+                                <div class="h4 mb-0 font-weight-bold text-dark summary-value">
                                     {{ $formatted }}{{ $suffix }}
                                 </div>
                                 <small class="text-muted">Reflects current filters</small>
@@ -236,7 +236,7 @@
                         data-summary-card="{{ $key }}">
                         <div class="card-body">
                             <div class="text-xs fw-bold text-uppercase mb-1 text-muted">{{ $card['label'] }}</div>
-                            <div class="h4 mb-0 font-weight-bold text-gray-800 summary-value">
+                            <div class="h4 mb-0 font-weight-bold text-dark summary-value">
                                 {{ $formatted }}{{ $suffix }}
                             </div>
                             <small class="text-muted">Reflects current filters</small>

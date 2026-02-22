@@ -7,6 +7,5 @@
 <!-- DataTables CSS only - JS loaded after jQuery in page scripts -->
 <link rel="stylesheet" href="{{ asset('css/calendar/main.min.css') }}">
 <link rel="stylesheet" href="{{ asset('css/DataTables/dataTables.bootstrap5.min.css') }}">
-<script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
 
 @vite(['resources/css/app.css', 'resources/js/app.js'])

@@ -16,7 +16,7 @@
                     <li class="breadcrumb-item active" aria-current="page">{{ $title }}</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-2 text-gray-800">{{ $title }}</h1>
+            <h1 class="h3 mb-2 text-dark">{{ $title }}</h1>
             <p class="mb-1 text-muted">{{ $description }}</p>
             <p class="mb-0 text-muted">
                 Viewing data for:
@@ -66,7 +66,7 @@
             <div class="card border-left-primary shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Records</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ number_format($data['total']) }}</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ number_format($data['total']) }}</div>
                 </div>
             </div>
         </div>
@@ -74,7 +74,7 @@
             <div class="card border-left-info shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Average Grade</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ $data['average'] }}%</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ $data['average'] }}%</div>
                 </div>
             </div>
         </div>
@@ -82,7 +82,7 @@
             <div class="card border-left-success shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Passing Rate</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ $data['passing_rate'] }}%</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ $data['passing_rate'] }}%</div>
                 </div>
             </div>
         </div>
@@ -90,7 +90,7 @@
             <div class="card border-left-warning shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Highest Grade</div>
-                    <div class="h4 mb-0 font-weight-bold text-gray-800">{{ $data['highest'] }}%</div>
+                    <div class="h4 mb-0 font-weight-bold text-dark">{{ $data['highest'] }}%</div>
                 </div>
             </div>
         </div>

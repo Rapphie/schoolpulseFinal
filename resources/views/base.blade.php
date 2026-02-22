@@ -113,7 +113,9 @@
     <script>
         // Initialize Feather Icons and simplify sidebar toggle behavior
         document.addEventListener('DOMContentLoaded', function() {
-            feather.replace();
+            if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
+                feather.replace();
+            }
 
             const toggleBtn = document.getElementById('toggleBtn');
             const sidebar = document.getElementById('sidebar');
@@ -173,7 +175,11 @@
                 }
             });
 
-            const reinitFeather = () => feather.replace();
+            const reinitFeather = () => {
+                if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
+                    feather.replace();
+                }
+            };
             document.querySelectorAll('.dropdown').forEach(d => d.addEventListener('shown.bs.dropdown',
                 reinitFeather));
             document.querySelectorAll('.modal').forEach(m => m.addEventListener('shown.bs.modal', reinitFeather));
@@ -252,7 +258,9 @@
 
             container.insertAdjacentHTML('beforeend', toastHTML);
             const toastEl = document.getElementById(toastId);
-            if (typeof feather !== 'undefined') feather.replace();
+            if (typeof feather !== 'undefined' && typeof feather.replace === 'function') {
+                feather.replace();
+            }
             const toast = new bootstrap.Toast(toastEl, {
                 delay: duration
             });

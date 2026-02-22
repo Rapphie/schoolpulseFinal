@@ -13,7 +13,7 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
-            <h1 class="h3 mb-2 text-gray-800">Enrollees Analytics</h1>
+            <h1 class="h3 mb-2 text-dark">Enrollees Analytics</h1>
             <p class="mb-1 text-muted">
                 Active school year:
                 <span class="fw-semibold text-primary" id="activeYearName">{{ $activeSchoolYear->name ?? 'Not set' }}</span>
@@ -61,7 +61,7 @@
                 <div class="card border-left-primary shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Enrollees</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalStudentsCount">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="totalStudentsCount">
                             {{ number_format($totalStudents) }}</div>
                         <small class="text-muted">Across selected filters</small>
                     </div>
@@ -78,7 +78,7 @@
                 <div class="card border-left-success shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Sections</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="totalSectionsCount">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="totalSectionsCount">
                             {{ number_format($totalSections) }}</div>
                         <small class="text-muted">Active sections in the selected s.y.</small>
                     </div>
@@ -95,7 +95,7 @@
                 <div class="card border-left-info shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Average / Section</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="averagePerSection">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="averagePerSection">
                             {{ number_format($averagePerSection, 1) }}</div>
                         <small class="text-muted">Students per section</small>
                     </div>
@@ -111,7 +111,7 @@
                 <div class="card border-left-warning shadow-sm h-100 card-clickable">
                     <div class="card-body">
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Largest Section</div>
-                        <div class="h4 mb-0 font-weight-bold text-gray-800" id="largestSection">
+                        <div class="h4 mb-0 font-weight-bold text-dark" id="largestSection">
                             {{ number_format($largestSection) }}</div>
                         <small class="text-muted">Peak headcount</small>
                     </div>

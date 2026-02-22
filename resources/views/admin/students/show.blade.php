@@ -12,7 +12,7 @@
                         <li class="breadcrumb-item active" aria-current="page">Student Profile</li>
                     </ol>
                 </nav>
-                <h1 class="h3 mb-0 text-gray-800">{{ $student->last_name }}, {{ $student->first_name }}</h1>
+                <h1 class="h3 mb-0 text-dark">{{ $student->last_name }}, {{ $student->first_name }}</h1>
                 <p class="mb-0 text-muted">LRN: {{ $student->lrn ?? 'N/A' }} • Student ID:
                     {{ $student->student_id ?? 'N/A' }}</p>
             </div>

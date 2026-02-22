@@ -18,7 +18,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/sail (SAIL) - v1
 - laravel/telescope (TELESCOPE) - v5
 - phpunit/phpunit (PHPUNIT) - v11
-- tailwindcss (TAILWINDCSS) - v4
+- bootstrap (BOOTSTRAP) - v5
 
 ## Conventions
 - You must follow all existing code conventions used in this application. When creating or editing a file, check sibling files for the correct structure, approach, and naming.
@@ -62,7 +62,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 ## Searching Documentation (Critically Important)
 - Boost comes with a powerful `search-docs` tool you should use before any other approaches when dealing with Laravel or Laravel ecosystem packages. This tool automatically passes a list of installed packages and their versions to the remote Boost API, so it returns only version-specific documentation for the user's circumstance. You should pass an array of packages to filter on if you know you need docs for particular packages.
-- The `search-docs` tool is perfect for all Laravel-related packages, including Laravel, Inertia, Livewire, Filament, Tailwind, Pest, Nova, Nightwatch, etc.
+- The `search-docs` tool is perfect for all Laravel-related packages, including Laravel, Inertia, Livewire, Filament, Bootstrap, Pest, Nova, Nightwatch, etc.
 - You must use this tool to search for Laravel ecosystem documentation before falling back to other approaches.
 - Search the documentation before making code changes to ensure we are taking the correct approach.
 - Use multiple, broad, simple, topic-based queries to start. For example: `['rate limiting', 'routing rate limiting', 'routing']`.
@@ -287,67 +287,34 @@ document.addEventListener('livewire:init', function () {
 - To run all tests in a file: `php artisan test --compact tests/Feature/ExampleTest.php`.
 - To filter on a particular test name: `php artisan test --compact --filter=testName` (recommended after making a change to a related file).
 
-=== tailwindcss/core rules ===
+=== bootstrap/core rules ===
 
-## Tailwind CSS
+## Bootstrap
 
-- Use Tailwind CSS classes to style HTML; check and use existing Tailwind conventions within the project before writing your own.
-- Offer to extract repeated patterns into components that match the project's conventions (i.e. Blade, JSX, Vue, etc.).
-- Think through class placement, order, priority, and defaults. Remove redundant classes, add classes to parent or child carefully to limit repetition, and group elements logically.
-- You can use the `search-docs` tool to get exact examples from the official documentation when needed.
+- Use Bootstrap 5 classes and components to style HTML; check and follow existing Bootstrap conventions in sibling files.
+- Prefer built-in Bootstrap components and utility classes before adding custom CSS.
+- Avoid introducing Tailwind classes (e.g. `bg-gray-*`, `text-sm`, `rounded-lg`, `@tailwind`, `@theme`) in active views.
+- Offer to extract repeated UI patterns into reusable Blade components that match current project conventions.
+- You can use the `search-docs` tool for Laravel-side behavior and official Bootstrap docs for component usage.
 
-### Spacing
-- When listing items, use gap utilities for spacing; don't use margins.
+### Layout & Spacing
+- Use Bootstrap layout utilities (`d-flex`, `align-items-*`, `justify-content-*`) for structure.
+- Use Bootstrap spacing/gap utilities (`p-*`, `m-*`, `gap-*`) consistently and avoid ad-hoc inline styles when utilities are sufficient.
 
-<code-snippet name="Valid Flex Gap Spacing Example" lang="html">
-    <div class="flex gap-8">
+<code-snippet name="Valid Bootstrap Flex Gap Example" lang="html">
+    <div class="d-flex gap-3">
         <div>Superior</div>
         <div>Michigan</div>
         <div>Erie</div>
     </div>
 </code-snippet>
 
-### Dark Mode
-- If existing pages and components support dark mode, new pages and components must support dark mode in a similar way, typically using `dark:`.
+=== bootstrap/v5 rules ===
 
-=== tailwindcss/v4 rules ===
+## Bootstrap 5
 
-## Tailwind CSS 4
-
-- Always use Tailwind CSS v4; do not use the deprecated utilities.
-- `corePlugins` is not supported in Tailwind v4.
-- In Tailwind v4, configuration is CSS-first using the `@theme` directive — no separate `tailwind.config.js` file is needed.
-
-<code-snippet name="Extending Theme in CSS" lang="css">
-@theme {
-  --color-brand: oklch(0.72 0.11 178);
-}
-</code-snippet>
-
-- In Tailwind v4, you import Tailwind using a regular CSS `@import` statement, not using the `@tailwind` directives used in v3:
-
-<code-snippet name="Tailwind v4 Import Tailwind Diff" lang="diff">
-   - @tailwind base;
-   - @tailwind components;
-   - @tailwind utilities;
-   + @import "tailwindcss";
-</code-snippet>
-
-### Replaced Utilities
-- Tailwind v4 removed deprecated utilities. Do not use the deprecated option; use the replacement.
-- Opacity values are still numeric.
-
-| Deprecated |	Replacement |
-|------------+--------------|
-| bg-opacity-* | bg-black/* |
-| text-opacity-* | text-black/* |
-| border-opacity-* | border-black/* |
-| divide-opacity-* | divide-black/* |
-| ring-opacity-* | ring-black/* |
-| placeholder-opacity-* | placeholder-black/* |
-| flex-shrink-* | shrink-* |
-| flex-grow-* | grow-* |
-| overflow-ellipsis | text-ellipsis |
-| decoration-slice | box-decoration-slice |
-| decoration-clone | box-decoration-clone |
+- Use Bootstrap 5 APIs and class names only; do not add Tailwind-specific configuration or directives.
+- Do not use `@tailwind` directives, `tailwind.config.js`, or Tailwind CDN in this project.
+- Keep Bootstrap JS loaded through the Vite entrypoint (`resources/js/app.js`) and avoid duplicate direct script loading.
+- For theme adjustments, use project CSS files and CSS variables consistent with existing conventions.
 </laravel-boost-guidelines>
