@@ -31,10 +31,10 @@ class PredictionClient
             if (! empty($studentNames) && count($studentNames) === count($batchVectors)) {
                 $payload['student_names'] = array_values($studentNames);
             }
-
-            $resp = Http::timeout(8)->post(rtrim($this->baseUrl, '/').'/prediction_probability_batch', $payload);
-            if ($resp->successful()) {
-                $data = $resp->json();
+            /** @var Response $response */
+            $response = Http::timeout(8)->post(rtrim($this->baseUrl, '/').'/prediction_probability_batch', $payload);
+            if ($response->successful()) {
+                $data = $response->json();
                 $predictions = $data['predictions'] ?? [];
 
                 // Python returns [{prediction_confidence: 0..1, risk_label: ...}, ...]
@@ -56,11 +56,12 @@ class PredictionClient
     public function predictSingle(array $orderedFeatures): ?float
     {
         try {
-            $resp = Http::timeout(5)->post(rtrim($this->baseUrl, '/').'/prediction_probability', [
+            /** @var Response $response */
+            $response = Http::timeout(5)->post(rtrim($this->baseUrl, '/').'/prediction_probability', [
                 'values' => $orderedFeatures,
             ]);
-            if ($resp->successful()) {
-                $data = $resp->json();
+            if ($response->successful()) {
+                $data = $response->json();
 
                 return isset($data['prediction_confidence'])
                     ? round(((float) $data['prediction_confidence']) * 100, 1)
@@ -78,9 +79,10 @@ class PredictionClient
     public function getFeatureTables(): ?array
     {
         try {
-            $resp = Http::timeout(15)->get(rtrim($this->baseUrl, '/').'/features/tables');
-            if ($resp->successful()) {
-                $data = $resp->json();
+            /** @var Response $response */
+            $response = Http::timeout(15)->get(rtrim($this->baseUrl, '/').'/features/tables');
+            if ($response->successful()) {
+                $data = $response->json();
                 if ($data['success'] ?? false) {
                     return $data;
                 }
@@ -95,6 +97,7 @@ class PredictionClient
     public function isAnalyticsServiceRunning(): bool
     {
         try {
+            /** @var Response $response */
             $response = Http::timeout(2)->get(rtrim($this->baseUrl, '/').'/health');
             if (! $response->successful()) {
                 return false;
