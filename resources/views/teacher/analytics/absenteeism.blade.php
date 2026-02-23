@@ -150,6 +150,26 @@
             background: linear-gradient(135deg, #dc3545, #e35d6a);
         }
 
+        .recognition-card {
+            border-left: 4px solid #0d6efd;
+        }
+
+        .recognition-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .severity-badge-critical {
+            background-color: #dc3545;
+            color: #fff;
+        }
+
+        .severity-badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
         /* Hide default DataTables search since we have custom one */
         .dataTables_filter {
             display: none;
@@ -241,6 +261,238 @@
 
     <!-- ML Feature Tables Section -->
     @if (isset($featureTables) && $featureTables)
+        @php
+            $honorsSummary = $honorsSummary ?? [];
+            $recognitionTop5 = $recognitionTop5 ?? [];
+            $interventionQueue = $interventionQueue ?? [];
+            $decliningTrendRows = $decliningTrendRows ?? [];
+            $riskCalibrationMeta = $riskCalibrationMeta ?? [];
+            $calibrationNote =
+                $riskCalibrationMeta['note'] ??
+                'Risk labels and percentages follow Python model output.';
+        @endphp
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm recognition-card h-100">
+                    <div class="card-body">
+                        <p class="text-muted mb-1 small">With High Honors</p>
+                        <p class="recognition-value text-primary mb-0">
+                            {{ (int) ($honorsSummary['with_high_honors_count'] ?? 0) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm recognition-card h-100">
+                    <div class="card-body">
+                        <p class="text-muted mb-1 small">With Honors</p>
+                        <p class="recognition-value text-info mb-0">
+                            {{ (int) ($honorsSummary['with_honors_count'] ?? 0) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm recognition-card h-100">
+                    <div class="card-body">
+                        <p class="text-muted mb-1 small">Top 5 Recognition</p>
+                        <p class="recognition-value text-success mb-0">{{ count($recognitionTop5) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-xl-7">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 fw-bold">Top 5 Performing Students</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Ranked by engagement score, then performance percentage.</p>
+                        @if (!empty($recognitionTop5))
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle" id="recognitionTopTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 70px;">Rank</th>
+                                            <th>Student Name</th>
+                                            <th class="text-center" style="width: 130px;">Engagement</th>
+                                            <th style="width: 170px;">Honors</th>
+                                            <th>Strongest Subject</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($recognitionTop5 as $index => $row)
+                                            @php
+                                                $honors = $row['HonorsClassification'] ?? 'Regular';
+                                                $honorsBadge = match ($honors) {
+                                                    'With High Honors' => 'bg-primary',
+                                                    'With Honors' => 'bg-info text-dark',
+                                                    default => 'bg-secondary',
+                                                };
+                                            @endphp
+                                            <tr>
+                                                <td><span class="badge bg-dark">#{{ $index + 1 }}</span></td>
+                                                <td><strong>{{ $row['Name'] ?? '—' }}</strong></td>
+                                                <td class="text-center">
+                                                    {{ number_format((float) ($row['EngagementScore'] ?? 0), 1) }}
+                                                </td>
+                                                <td>
+                                                    <span class="badge {{ $honorsBadge }}">{{ $honors }}</span>
+                                                </td>
+                                                <td>{{ $row['Strength'] ?? '—' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-award fa-2x mb-2"></i>
+                                <p class="mb-0">No students available for recognition.</p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-xl-5">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 fw-bold">Early Intervention Queue</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Students flagged for immediate intervention based on declining trends and Python risk label.
+                        </p>
+                        @if (!empty($interventionQueue))
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle" id="interventionTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Student</th>
+                                            <th style="width: 115px;">Severity</th>
+                                            <th>Reason</th>
+                                            <th style="width: 140px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($interventionQueue as $item)
+                                            @php
+                                                $severity = $item['severity'] ?? 'warning';
+                                                $severityClass =
+                                                    $severity === 'critical'
+                                                        ? 'severity-badge-critical'
+                                                        : 'severity-badge-warning';
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ $item['name'] ?? '—' }}</strong>
+                                                    <div class="text-muted small">{{ $item['class_label'] ?? 'N/A' }}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span
+                                                        class="badge {{ $severityClass }}">{{ ucfirst($severity) }}</span>
+                                                </td>
+                                                <td>
+                                                    <div class="small mb-1">
+                                                        {{ implode('; ', $item['reason_tags'] ?? []) }}
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        {{ $item['recommended_action'] ?? '' }}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    @if (!empty($item['student_id']))
+                                                        <div class="d-flex flex-column gap-1">
+                                                            <a href="{{ route('teacher.students.show', $item['student_id']) }}"
+                                                                class="btn btn-outline-primary btn-sm">Profile</a>
+                                                            <a href="{{ route('teacher.attendance.records', ['student_id' => $item['student_id']]) }}"
+                                                                class="btn btn-outline-secondary btn-sm">Attendance</a>
+                                                        </div>
+                                                    @else
+                                                        <span class="text-muted small">No action</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-shield-check fa-2x mb-2"></i>
+                                <p class="mb-0">No immediate intervention required.</p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 fw-bold">Declining Attendance Trends</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Warning at 5-point drop and critical at 10-point drop from previous month.
+                        </p>
+                        @if (!empty($decliningTrendRows))
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle" id="decliningTrendTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Student</th>
+                                            <th>Class</th>
+                                            <th class="text-center" style="width: 140px;">Previous Month</th>
+                                            <th class="text-center" style="width: 140px;">Current Month</th>
+                                            <th class="text-center" style="width: 120px;">Drop</th>
+                                            <th class="text-center" style="width: 120px;">Severity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($decliningTrendRows as $item)
+                                            @php
+                                                $severity = $item['severity'] ?? 'warning';
+                                                $severityClass =
+                                                    $severity === 'critical'
+                                                        ? 'severity-badge-critical'
+                                                        : 'severity-badge-warning';
+                                            @endphp
+                                            <tr>
+                                                <td><strong>{{ $item['name'] ?? '—' }}</strong></td>
+                                                <td>{{ $item['class_label'] ?? 'N/A' }}</td>
+                                                <td class="text-center">{{ number_format((float) ($item['att_past1'] ?? 0), 1) }}%
+                                                </td>
+                                                <td class="text-center">{{ number_format((float) ($item['att_current'] ?? 0), 1) }}%
+                                                </td>
+                                                <td class="text-center text-danger fw-semibold">
+                                                    {{ number_format((float) ($item['attendance_drop'] ?? 0), 1) }}
+                                                </td>
+                                                <td class="text-center">
+                                                    <span
+                                                        class="badge {{ $severityClass }}">{{ ucfirst($severity) }}</span>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @else
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                <p class="mb-0">No declining attendance trends detected.</p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row mt-4">
             <div class="col-12">
                 <div class="card shadow mb-4">
@@ -248,10 +500,13 @@
                         <h6 class="m-0 font-weight-bold">
                             Student Risk Monitoring
                         </h6>
+                        <span class="badge bg-light text-dark border">
+                            Python risk label + probability
+                        </span>
                     </div>
                     <div class="card-body">
                         <p class="text-muted mb-4">
-                            Monitor students at risk of absenteeism. Students are sorted by risk level (highest first).
+                            {{ $calibrationNote }}
                         </p>
 
                         <!-- Nav tabs -->
@@ -284,7 +539,10 @@
                             <!-- Table 1: Current Month Risk -->
                             <div class="tab-pane fade show active" id="table1-content" role="tabpanel"
                                 aria-labelledby="table1-tab">
-                                <p class="text-muted small mb-3">Focus first on students marked as High risk.</p>
+                                <p class="text-muted small mb-3">
+                                    Focus first on students marked as high risk by Python, then review trend and action
+                                    queue.
+                                </p>
                                 @if (!empty($featureTables['table1']['data']))
                                     <!-- Risk Level Filter Tabs -->
                                     <ul class="nav nav-pills mb-3" id="table1RiskFilter" role="tablist">
@@ -319,21 +577,22 @@
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
-                                                    <th class="text-center" style="width: 150px;">Risk Level</th>
+                                                    <th class="text-center" style="width: 220px;">Risk Level</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @foreach ($featureTables['table1']['data'] as $row)
                                                     @php
-                                                        $riskLabel = $row['Risk_Label'] ?? 'N/A';
-                                                        $riskPct = $row['Prob_HighRisk_pct'] ?? 0;
-                                                        $riskText = $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
-                                                        $riskCategory = strtolower(
-                                                            $riskLabel === 'Mid' ? 'medium' : $riskLabel,
-                                                        );
-                                                        $riskBadge = match ($riskLabel) {
+                                                        $displayRiskLabel =
+                                                            $row['Display_Risk_Label'] ?? ($row['Risk_Label'] ?? 'Low');
+                                                        $displayRiskLabel =
+                                                            $displayRiskLabel === 'Mid' ? 'Medium' : $displayRiskLabel;
+                                                        $displayRiskPct = (float) ($row['display_prob_highrisk_pct'] ?? ($row['Prob_HighRisk_pct'] ?? 0));
+                                                        $riskCategory = strtolower($row['Display_Risk_Category'] ?? $displayRiskLabel);
+                                                        $riskCategory = $riskCategory === 'mid' ? 'medium' : $riskCategory;
+                                                        $riskBadge = match ($displayRiskLabel) {
                                                             'High' => 'bg-danger',
-                                                            'Mid' => 'bg-warning',
+                                                            'Medium' => 'bg-warning text-dark',
                                                             default => 'bg-success',
                                                         };
                                                     @endphp
@@ -342,8 +601,9 @@
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
                                                         <td class="text-center">
-                                                            <span class="badge {{ $riskBadge }} text-white">
-                                                                {{ $riskText }} ({{ number_format($riskPct, 0) }}%)
+                                                            <span class="badge {{ $riskBadge }}">
+                                                                {{ $displayRiskLabel }}
+                                                                ({{ number_format($displayRiskPct, 1) }}%)
                                                             </span>
                                                         </td>
                                                     </tr>
@@ -361,8 +621,9 @@
 
                             <!-- Table 3: Next Month Forecast -->
                             <div class="tab-pane fade" id="table3-content" role="tabpanel" aria-labelledby="table3-tab">
-                                <p class="text-muted small mb-3">Forecast to plan interventions early. Trends are
-                                    calculated from the last 3 months.</p>
+                                <p class="text-muted small mb-3">
+                                    Next-month forecast to support counseling and attendance follow-up before month-end.
+                                </p>
                                 @if (!empty($featureTables['table3']['data']))
                                     <!-- Risk Level Filter Tabs -->
                                     <ul class="nav nav-pills mb-3" id="table3RiskFilter" role="tablist">
@@ -397,21 +658,22 @@
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
-                                                    <th class="text-center" style="width: 150px;">Predicted Risk</th>
+                                                    <th class="text-center" style="width: 220px;">Predicted Risk</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @foreach ($featureTables['table3']['data'] as $row)
                                                     @php
-                                                        $riskLabel = $row['Risk_Label'] ?? 'N/A';
-                                                        $riskPct = $row['Prob_HighRisk_pct'] ?? 0;
-                                                        $riskText = $riskLabel === 'Mid' ? 'Medium' : $riskLabel;
-                                                        $riskCategory = strtolower(
-                                                            $riskLabel === 'Mid' ? 'medium' : $riskLabel,
-                                                        );
-                                                        $riskBadge = match ($riskLabel) {
+                                                        $displayRiskLabel =
+                                                            $row['Display_Risk_Label'] ?? ($row['Risk_Label'] ?? 'Low');
+                                                        $displayRiskLabel =
+                                                            $displayRiskLabel === 'Mid' ? 'Medium' : $displayRiskLabel;
+                                                        $displayRiskPct = (float) ($row['display_prob_highrisk_pct'] ?? ($row['Prob_HighRisk_pct'] ?? 0));
+                                                        $riskCategory = strtolower($row['Display_Risk_Category'] ?? $displayRiskLabel);
+                                                        $riskCategory = $riskCategory === 'mid' ? 'medium' : $riskCategory;
+                                                        $riskBadge = match ($displayRiskLabel) {
                                                             'High' => 'bg-danger',
-                                                            'Mid' => 'bg-warning',
+                                                            'Medium' => 'bg-warning text-dark',
                                                             default => 'bg-success',
                                                         };
                                                     @endphp
@@ -420,8 +682,9 @@
                                                             <strong>{{ $row['Name'] ?? '—' }}</strong>
                                                         </td>
                                                         <td class="text-center">
-                                                            <span class="badge {{ $riskBadge }} text-white">
-                                                                {{ $riskText }} ({{ number_format($riskPct, 0) }}%)
+                                                            <span class="badge {{ $riskBadge }}">
+                                                                {{ $displayRiskLabel }}
+                                                                ({{ number_format($displayRiskPct, 1) }}%)
                                                             </span>
                                                         </td>
                                                     </tr>
@@ -439,8 +702,9 @@
 
                             <!-- Table 2: Student Insights -->
                             <div class="tab-pane fade" id="table2-content" role="tabpanel" aria-labelledby="table2-tab">
-                                <p class="text-muted small mb-3">Student engagement overview with academic strengths and
-                                    areas for improvement.</p>
+                                <p class="text-muted small mb-3">
+                                    Engagement score, honors classification, and subject-level strengths/weaknesses.
+                                </p>
                                 @if (!empty($featureTables['table2']['data']))
                                     <div class="table-responsive">
                                         <table class="table table-sm table-hover align-middle" id="insightsTable">
@@ -448,6 +712,7 @@
                                                 <tr>
                                                     <th>Student Name</th>
                                                     <th class="text-center" style="width: 140px;">Engagement Score</th>
+                                                    <th style="width: 170px;">Honors</th>
                                                     <th style="width: 250px;">Strongest Subject</th>
                                                     <th style="width: 250px;">Needs Improvement</th>
                                                 </tr>
@@ -455,7 +720,7 @@
                                             <tbody>
                                                 @foreach ($featureTables['table2']['data'] as $row)
                                                     @php
-                                                        $eng = $row['EngagementScore'] ?? 0;
+                                                        $eng = (float) ($row['EngagementScore'] ?? 0);
                                                         $engClass =
                                                             $eng >= 80 ? 'high' : ($eng >= 60 ? 'medium' : 'low');
                                                         $engLabel =
@@ -464,11 +729,18 @@
                                                         $strength = $row['Strength'] ?? '—';
                                                         $weakness = $row['Weakness'] ?? '—';
 
-                                                        // Parse strength/weakness to extract subject and score type
                                                         $isBalancedStrength =
-                                                            strtolower($strength) === 'balanced' || $strength === 'N/A';
+                                                            strtolower((string) $strength) === 'balanced' ||
+                                                            $strength === 'N/A';
                                                         $isBalancedWeakness =
-                                                            strtolower($weakness) === 'balanced' || $weakness === 'N/A';
+                                                            strtolower((string) $weakness) === 'balanced' ||
+                                                            $weakness === 'N/A';
+                                                        $honors = $row['HonorsClassification'] ?? 'Regular';
+                                                        $honorsBadge = match ($honors) {
+                                                            'With High Honors' => 'bg-primary',
+                                                            'With Honors' => 'bg-info text-dark',
+                                                            default => 'bg-secondary',
+                                                        };
                                                     @endphp
                                                     <tr>
                                                         <td>
@@ -487,6 +759,9 @@
                                                                         style="font-size: 0.7rem;">Engagement</span>
                                                                 </div>
                                                             </div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge {{ $honorsBadge }}">{{ $honors }}</span>
                                                         </td>
                                                         <td>
                                                             @if ($isBalancedStrength)
@@ -574,7 +849,7 @@
             };
 
             // Initialize DataTables for each table
-            let table1, table2, table3;
+            let table1, table2, table3, recognitionTable, interventionTable, decliningTrendTable;
 
             // Table 1: Current Month Risk - sort by risk (column 1) descending
             if (document.getElementById('riskTable1')) {
@@ -622,6 +897,67 @@
                                 if (type === 'sort' || type === 'type') {
                                     const match = $(data).text().match(/(\d+)/);
                                     return match ? parseInt(match[1]) : 0;
+                                }
+                                return data;
+                            }
+                        }
+                    ]
+                });
+            }
+
+            if (document.getElementById('recognitionTopTable')) {
+                recognitionTable = $('#recognitionTopTable').DataTable({
+                    ...dataTableOptions,
+                    order: [
+                        [2, 'desc']
+                    ],
+                    columnDefs: [{
+                            orderable: true,
+                            targets: [0, 1, 2]
+                        },
+                        {
+                            orderable: false,
+                            targets: [3, 4]
+                        }
+                    ]
+                });
+            }
+
+            if (document.getElementById('interventionTable')) {
+                interventionTable = $('#interventionTable').DataTable({
+                    ...dataTableOptions,
+                    order: [
+                        [1, 'asc']
+                    ],
+                    columnDefs: [{
+                            orderable: true,
+                            targets: [0, 1, 2]
+                        },
+                        {
+                            orderable: false,
+                            targets: [3]
+                        }
+                    ]
+                });
+            }
+
+            if (document.getElementById('decliningTrendTable')) {
+                decliningTrendTable = $('#decliningTrendTable').DataTable({
+                    ...dataTableOptions,
+                    order: [
+                        [4, 'desc']
+                    ],
+                    columnDefs: [{
+                            orderable: true,
+                            targets: [0, 1, 2, 3, 4, 5]
+                        },
+                        {
+                            type: 'num',
+                            targets: [2, 3, 4],
+                            render: function(data, type) {
+                                if (type === 'sort' || type === 'type') {
+                                    const match = String(data).match(/([\d.]+)/);
+                                    return match ? parseFloat(match[1]) : 0;
                                 }
                                 return data;
                             }
@@ -724,7 +1060,7 @@
                         },
                         {
                             orderable: false,
-                            targets: [2, 3]
+                            targets: [3, 4]
                         }, // Don't sort by strength/weakness
                         {
                             type: 'num',
@@ -795,6 +1131,9 @@
                 if (table1) table1.search(term).draw();
                 if (table2) table2.search(term).draw();
                 if (table3) table3.search(term).draw();
+                if (recognitionTable) recognitionTable.search(term).draw();
+                if (interventionTable) interventionTable.search(term).draw();
+                if (decliningTrendTable) decliningTrendTable.search(term).draw();
             }
 
             function loadClassesForGrade(gradeId) {

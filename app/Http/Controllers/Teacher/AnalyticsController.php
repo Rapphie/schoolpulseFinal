@@ -3,22 +3,31 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
-use App\Models\Attendance;
 use App\Models\Classes;
+use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\Subject;
 use App\Models\Teacher;
 use App\Services\PredictionClient;
-use App\Services\StudentFeaturesService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class AnalyticsController extends Controller
 {
+    private const ANALYTICS_CACHE_TTL_SECONDS = 300;
+
+    private const RISK_HIGH_THRESHOLD = 70.0;
+
+    private const RISK_MEDIUM_THRESHOLD = 40.0;
+
+    private const ATTENDANCE_DROP_WARNING = 5.0;
+
+    private const ATTENDANCE_DROP_CRITICAL = 10.0;
+
     /**
      * Display absenteeism analytics for the teacher.
      *
@@ -26,13 +35,15 @@ class AnalyticsController extends Controller
      */
     public function absenteeismAnalytics(Request $request)
     {
+        $requestStartedAt = microtime(true);
         $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
+        $syId = $activeSchoolYear->id;
 
-        // Determine role/scope: teacher sees own classes; admin sees all classes
+        // Determine role/scope: teacher sees own advisory classes; admin sees all classes.
+        $authUser = Auth::user();
+        $isTeacherRole = (bool) ($authUser && $authUser->hasRole('teacher'));
         $teacher = Teacher::where('user_id', Auth::id())->first();
-        $isTeacher = (bool) $teacher;
-
-        $availableClassIds = $this->getAccessibleClassIds($activeSchoolYear, $teacher);
+        $availableClassIds = $this->getAccessibleClassIds($activeSchoolYear, $isTeacherRole, $teacher);
 
         $selectedGradeLevelId = $request->query('grade_level_id');
         if ($selectedGradeLevelId !== null && $selectedGradeLevelId !== '') {
@@ -103,266 +114,37 @@ class AnalyticsController extends Controller
             $selectedClassId = null; // ignore invalid
         }
 
-        // --- 1. Monthly Attendance Percentage Trend ---
-        $monthlyTrendQuery = Attendance::whereIn('class_id', $classIds);
-        if ($isTeacher) {
-            $monthlyTrendQuery->where('teacher_id', $teacher->id);
-        }
-        $monthlyTrend = $monthlyTrendQuery
-            ->select(
-                DB::raw("DATE_FORMAT(date, '%Y-%m') as month"),
-                DB::raw("SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present_count"),
-                DB::raw('COUNT(*) as total_count')
-            )
-            ->groupBy('month')
-            ->orderBy('month', 'asc')
-            ->get()
-            ->mapWithKeys(function ($item) {
-                $percentage = ($item->total_count > 0) ? ($item->present_count / $item->total_count) * 100 : 0;
+        $cacheKey = $this->buildAnalyticsCacheKey(
+            (int) Auth::id(),
+            $syId,
+            $selectedGradeLevelId,
+            $selectedClassId
+        );
 
-                return [\Carbon\Carbon::parse($item->month)->format('M Y') => round($percentage, 2)];
-            });
-
-        // --- 2. Absences by Subject ---
-        $absencesBySubject = Subject::whereHas('schedules', function ($query) use ($classIds) {
-            $query->whereIn('class_id', $classIds);
-        })
-            ->withCount(['attendances' => function ($query) use ($classIds, $isTeacher, $teacher) {
-                $query->where('status', 'absent')
-                    ->whereIn('class_id', $classIds);
-                if ($isTeacher) {
-                    $query->where('teacher_id', $teacher->id);
-                }
-            }])
-            ->get()
-            ->mapWithKeys(function ($subject) {
-                return [$subject->name => $subject->attendances_count];
-            });
-
-        // --- 3. Students with Highest Absence Rates ---
-        $topAbsentees = Student::whereHas('enrollments', function ($query) use ($classIds) {
-            $query->whereIn('class_id', $classIds);
-        })
-            ->withCount(['attendances as absent_count' => function ($query) use ($isTeacher, $teacher) {
-                $query->where('status', 'absent');
-                if ($isTeacher) {
-                    $query->where('teacher_id', $teacher->id);
-                }
-            }])
-            ->orderBy('absent_count', 'desc')
-            ->take(10) // Get the top 10
-            ->get();
-
-        // --- 4. Predictions & engagement metrics by class/student ---
-        $classPredictions = [];
-        $featuresService = new StudentFeaturesService;
-        $predictClient = new PredictionClient;
-        $refDate = Carbon::now();
-        $syId = $activeSchoolYear->id;
-        $studentMetrics = [];
-
-        // Load classes with minimal info
-        // Classes to compute predictions for (filtered if selected)
-        $classes = Classes::whereIn('id', $classIds)->with(['section.gradeLevel'])->get();
-
-        foreach ($classes as $class) {
-            $classLabel = $this->formatClassLabel($class);
-            $gradeLevelId = optional($class->section)->grade_level_id;
-            // Students enrolled in this class for the active year
-            $students = Student::whereHas('enrollments', function ($q) use ($class, $syId) {
-                $q->where('class_id', $class->id)->where('school_year_id', $syId);
-            })->orderBy('last_name')->get(['id', 'first_name', 'last_name', 'lrn']);
-
-            if ($students->isEmpty()) {
-                $classPredictions[$class->id] = [
-                    'class' => $class,
-                    'label' => $classLabel,
-                    'students' => [],
-                ];
-
-                continue;
+        $cacheHit = Cache::has($cacheKey);
+        $analyticsPayload = Cache::remember(
+            $cacheKey,
+            now()->addSeconds(self::ANALYTICS_CACHE_TTL_SECONDS),
+            function () use ($classIds, $syId) {
+                return $this->buildAbsenteeismPayload($classIds, $syId);
             }
+        );
 
-            // Build batch of feature vectors in the expected order (compute in batch to avoid N+1)
-            $studentIds = $students->pluck('id')->toArray();
-            $featureMap = $featuresService->computeBatchFeaturesForStudents($studentIds, $syId, $refDate);
+        Log::debug('Teacher absenteeism analytics request completed', [
+            'user_id' => Auth::id(),
+            'school_year_id' => $syId,
+            'selected_grade_level_id' => $selectedGradeLevelId,
+            'selected_class_id' => $selectedClassId,
+            'cache_hit' => $cacheHit,
+            'duration_ms' => round((microtime(true) - $requestStartedAt) * 1000, 1),
+        ]);
 
-            // Persist snapshots for later inspection / offline use
-            try {
-                $modelVersion = env('FEATURE_MODEL_VERSION', null);
-                $featuresService->persistSnapshots($featureMap, $syId, $modelVersion);
-            } catch (\Throwable $e) {
-                // non-fatal: log warning but avoid breaking analytics page
-                \Illuminate\Support\Facades\Log::warning('Failed to persist feature snapshots', [
-                    'class_id' => $class->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
-            $batch = [];
-            $featureCache = [];
-            foreach ($students as $stu) {
-                $vec = $featureMap[$stu->id] ?? ['ordered' => array_fill(0, 12, 0.0), 'named' => []];
-                $batch[] = $vec['ordered'];
-                $featureCache[$stu->id] = $vec['named'];
-            }
-
-            $confidences = $predictClient->predictBatch($batch); // returns array of percentages
-
-            // Attach predictions back to students
-            $studentsWithPred = [];
-            foreach ($students as $idx => $stu) {
-                $studentId = $stu->id;
-                $namedFeatures = $featureCache[$studentId] ?? [];
-                $prediction = $confidences[$idx] ?? null;
-                $engagementScore = $featuresService->calculateEngagementScore($namedFeatures);
-
-                $studentsWithPred[] = [
-                    'id' => $studentId,
-                    'name' => $stu->last_name.', '.$stu->first_name,
-                    'lrn' => $stu->lrn,
-                    'prediction_confidence' => $prediction,
-                    'engagement_score' => $engagementScore,
-                ];
-
-                $studentMetrics[$studentId] = [
-                    'id' => $studentId,
-                    'name' => $stu->last_name.', '.$stu->first_name,
-                    'lrn' => $stu->lrn,
-                    'class_label' => $classLabel,
-                    'class_id' => $class->id,
-                    'grade_level_id' => $gradeLevelId,
-                    'prediction_confidence' => $prediction,
-                    'engagement_score' => $engagementScore,
-                    'monthly_unexcused_absences' => $namedFeatures['monthly_unexcused_absences'] ?? 0,
-                ];
-            }
-
-            // Sort by prediction desc (nulls last)
-            usort($studentsWithPred, function ($a, $b) {
-                if ($a['prediction_confidence'] === null) {
-                    return 1;
-                }
-                if ($b['prediction_confidence'] === null) {
-                    return -1;
-                }
-
-                return $b['prediction_confidence'] <=> $a['prediction_confidence'];
-            });
-
-            $classPredictions[$class->id] = [
-                'class' => $class,
-                'label' => $classLabel,
-                'grade_level_id' => $gradeLevelId,
-                'students' => $studentsWithPred,
-            ];
-        }
-
-        // --- Derived engagement + risk datasets ---
-        $studentMetricsCollection = collect($studentMetrics);
-        $engagementCollection = $studentMetricsCollection->filter(fn ($item) => $item['engagement_score'] !== null);
-        $engagementRanking = $engagementCollection->sortByDesc('engagement_score')->values();
-
-        foreach ($engagementRanking as $index => $entry) {
-            $studentMetrics[$entry['id']]['engagement_rank'] = $index + 1;
-        }
-
-        foreach ($classPredictions as &$bundle) {
-            foreach ($bundle['students'] as &$stu) {
-                $stuId = $stu['id'];
-                if (isset($studentMetrics[$stuId]['engagement_rank'])) {
-                    $stu['engagement_rank'] = $studentMetrics[$stuId]['engagement_rank'];
-                }
-                if (isset($studentMetrics[$stuId]['engagement_score'])) {
-                    $stu['engagement_score'] = $studentMetrics[$stuId]['engagement_score'];
-                }
-            }
-        }
-        unset($bundle, $stu);
-
-        $engagementSummary = [
-            'average' => $engagementCollection->avg('engagement_score'),
-            'high_count' => $engagementCollection->filter(fn ($item) => $item['engagement_score'] >= 80)->count(),
-            'total_students' => $engagementCollection->count(),
-            'top_student' => optional($engagementRanking->first(), function ($entry) {
-                return [
-                    'name' => $entry['name'],
-                    'score' => $entry['engagement_score'],
-                    'class_label' => $entry['class_label'] ?? null,
-                ];
-            }),
-        ];
-
-        $engagementTop = $engagementRanking->take(5);
-        $engagementBottom = $engagementCollection->sortBy('engagement_score')->values()->take(5);
-
-        $highRiskThreshold = 5;
-        $highRiskStudents = $studentMetricsCollection
-            ->filter(fn ($item) => ($item['monthly_unexcused_absences'] ?? 0) >= $highRiskThreshold)
-            ->sortByDesc('monthly_unexcused_absences')
-            ->values();
-
-        $predictiveHighRisk = $studentMetricsCollection
-            ->filter(fn ($item) => ($item['prediction_confidence'] ?? 0) >= 70)
-            ->sortByDesc('prediction_confidence')
-            ->values();
-
-        $riskSummary = [
-            'good' => $studentMetricsCollection
-                ->filter(fn ($item) => ! is_null($item['prediction_confidence']) && $item['prediction_confidence'] < 40)
-                ->count(),
-            'medium' => $studentMetricsCollection
-                ->filter(fn ($item) => ! is_null($item['prediction_confidence']) && $item['prediction_confidence'] >= 40 && $item['prediction_confidence'] < 70)
-                ->count(),
-        ];
-
-        // --- Fetch Feature Tables from Python API ---
-        $featureTables = $predictClient->getFeatureTables();
-
-        // Filter feature tables to only include students from the selected classes (grade/section filter)
-        if ($featureTables) {
-            // Get student IDs enrolled in the filtered classes
-            $filteredStudentIds = Student::whereHas('enrollments', function ($q) use ($classIds, $syId) {
-                $q->whereIn('class_id', $classIds)->where('school_year_id', $syId);
-            })->pluck('id')->map(fn ($id) => (int) $id)->toArray();
-
-            // Use Student_ID returned by the Python API (more reliable than name matching)
-            $filteredStudentIdSet = array_fill_keys($filteredStudentIds, true);
-
-            // Filter each table to only show students from selected classes
-            foreach (['table1', 'table2', 'table3'] as $tableKey) {
-                if (! empty($featureTables[$tableKey]['data'])) {
-                    $featureTables[$tableKey]['data'] = array_values(
-                        array_filter($featureTables[$tableKey]['data'], function ($row) use ($filteredStudentIdSet) {
-                            $sid = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
-
-                            return $sid && isset($filteredStudentIdSet[$sid]);
-                        })
-                    );
-                }
-            }
-        }
-
-        return view('errors.503');
-        // return view('teacher.analytics.absenteeism', compact(
-        //     'monthlyTrend',
-        //     'absencesBySubject',
-        //     'topAbsentees',
-        //     'classPredictions',
-        //     'classesForSelect',
-        //     'selectedClassId',
-        //     'studentMetrics',
-        //     'engagementSummary',
-        //     'engagementTop',
-        //     'engagementBottom',
-        //     'highRiskStudents',
-        //     'predictiveHighRisk',
-        //     'riskSummary',
-        //     'highRiskThreshold',
-        //     'gradeLevels',
-        //     'selectedGradeLevelId',
-        //     'featureTables'
-        // ));
+        return view('teacher.analytics.absenteeism', array_merge([
+            'classesForSelect' => $classesForSelect,
+            'selectedClassId' => $selectedClassId,
+            'gradeLevels' => $gradeLevels,
+            'selectedGradeLevelId' => $selectedGradeLevelId,
+        ], $analyticsPayload));
     }
 
     public function classesByGrade(Request $request)
@@ -374,9 +156,11 @@ class AnalyticsController extends Controller
         }
 
         $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
+        $authUser = Auth::user();
+        $isTeacherRole = (bool) ($authUser && $authUser->hasRole('teacher'));
         $teacher = Teacher::where('user_id', Auth::id())->first();
 
-        $availableClassIds = $this->getAccessibleClassIds($activeSchoolYear, $teacher);
+        $availableClassIds = $this->getAccessibleClassIds($activeSchoolYear, $isTeacherRole, $teacher);
 
         if ($availableClassIds->isEmpty()) {
             return response()->json(['classes' => []]);
@@ -400,10 +184,456 @@ class AnalyticsController extends Controller
         return response()->json(['classes' => $classOptions]);
     }
 
-    private function getAccessibleClassIds(SchoolYear $activeSchoolYear, ?Teacher $teacher)
+    private function buildAbsenteeismPayload(Collection $classIds, int $schoolYearId): array
     {
-        if ($teacher) {
-            // Return only advisory classes for teachers (where teacher_id = this teacher)
+        $payloadStartedAt = microtime(true);
+        $riskCalibrationMeta = [
+            'method' => 'python_label_raw_probability',
+            'display_range' => ['min' => 0.0, 'max' => 100.0],
+            'thresholds' => [
+                'high' => self::RISK_HIGH_THRESHOLD,
+                'medium' => self::RISK_MEDIUM_THRESHOLD,
+            ],
+            'note' => 'Risk labels and percentages follow Python model output.',
+        ];
+
+        $pythonStartedAt = microtime(true);
+        $predictClient = new PredictionClient;
+        $featureTables = $predictClient->getFeatureTables();
+        $pythonDurationMs = round((microtime(true) - $pythonStartedAt) * 1000, 1);
+
+        if (! is_array($featureTables)) {
+            Log::warning('Teacher absenteeism analytics could not fetch feature tables', [
+                'school_year_id' => $schoolYearId,
+                'class_ids' => $classIds->all(),
+                'python_fetch_ms' => $pythonDurationMs,
+            ]);
+
+            return [
+                'featureTables' => null,
+                'recognitionTop5' => [],
+                'honorsSummary' => $this->buildHonorsSummary([]),
+                'interventionQueue' => [],
+                'decliningTrendRows' => [],
+                'riskCalibrationMeta' => $riskCalibrationMeta,
+            ];
+        }
+
+        $students = Student::whereHas('enrollments', function ($query) use ($classIds, $schoolYearId) {
+            $query->whereIn('class_id', $classIds)->where('school_year_id', $schoolYearId);
+        })->get(['id', 'first_name', 'last_name']);
+
+        $filteredStudentIds = $students->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $filteredStudentIdSet = array_fill_keys($filteredStudentIds, true);
+        $filteredStudentNameSet = array_fill_keys(
+            $students
+                ->map(fn ($student) => $this->normalizeNameToken($student->first_name.' '.$student->last_name))
+                ->filter()
+                ->all(),
+            true
+        );
+
+        $featureTables = $this->filterFeatureTables($featureTables, $filteredStudentIdSet, $filteredStudentNameSet);
+        $featureTables['table1']['data'] = $this->applyRiskCalibration($featureTables['table1']['data'] ?? []);
+        $featureTables['table3']['data'] = $this->applyRiskCalibration($featureTables['table3']['data'] ?? []);
+        $featureTables['table2']['data'] = $this->enrichEngagementRows($featureTables['table2']['data'] ?? []);
+
+        $recognitionTop5 = $this->buildRecognitionTopFive($featureTables['table2']['data']);
+        $honorsSummary = $this->buildHonorsSummary($featureTables['table2']['data']);
+
+        $studentClassMap = $this->buildStudentClassMap($filteredStudentIds, $classIds, $schoolYearId);
+        $decliningTrendRows = $this->buildDecliningTrendRows($featureTables['table3']['data'] ?? [], $studentClassMap);
+        $interventionQueue = $this->buildInterventionQueue($featureTables['table3']['data'] ?? [], $studentClassMap);
+
+        Log::debug('Teacher absenteeism analytics payload prepared', [
+            'school_year_id' => $schoolYearId,
+            'class_ids' => $classIds->all(),
+            'students_count' => count($filteredStudentIds),
+            'table1_rows' => count($featureTables['table1']['data'] ?? []),
+            'table2_rows' => count($featureTables['table2']['data'] ?? []),
+            'table3_rows' => count($featureTables['table3']['data'] ?? []),
+            'intervention_rows' => count($interventionQueue),
+            'declining_rows' => count($decliningTrendRows),
+            'python_fetch_ms' => $pythonDurationMs,
+            'payload_build_ms' => round((microtime(true) - $payloadStartedAt) * 1000, 1),
+        ]);
+
+        return [
+            'featureTables' => $featureTables,
+            'recognitionTop5' => $recognitionTop5,
+            'honorsSummary' => $honorsSummary,
+            'interventionQueue' => $interventionQueue,
+            'decliningTrendRows' => $decliningTrendRows,
+            'riskCalibrationMeta' => $riskCalibrationMeta,
+        ];
+    }
+
+    private function buildAnalyticsCacheKey(
+        int $userId,
+        int $schoolYearId,
+        ?int $selectedGradeLevelId,
+        ?int $selectedClassId
+    ): string {
+        return implode(':', [
+            'teacher_absenteeism_analytics_v2',
+            "user_{$userId}",
+            "sy_{$schoolYearId}",
+            'grade_'.($selectedGradeLevelId ?? 'all'),
+            'class_'.($selectedClassId ?? 'all'),
+        ]);
+    }
+
+    private function filterFeatureTables(array $featureTables, array $studentIdSet, array $studentNameSet): array
+    {
+        foreach (['table1', 'table2', 'table3'] as $tableKey) {
+            $rows = $featureTables[$tableKey]['data'] ?? [];
+            if (! is_array($rows)) {
+                $featureTables[$tableKey]['data'] = [];
+
+                continue;
+            }
+
+            $featureTables[$tableKey]['data'] = array_values(array_filter(
+                $rows,
+                function ($row) use ($studentIdSet, $studentNameSet) {
+                    if (! is_array($row)) {
+                        return false;
+                    }
+
+                    $studentId = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
+                    $nameRaw = $row['Name'] ?? ($row['Student_Name'] ?? ($row['Student Name'] ?? ''));
+                    $nameToken = $this->normalizeNameToken((string) $nameRaw);
+
+                    return ($studentId > 0 && isset($studentIdSet[$studentId]))
+                        || ($nameToken !== '' && isset($studentNameSet[$nameToken]));
+                }
+            ));
+        }
+
+        return $featureTables;
+    }
+
+    private function applyRiskCalibration(array $rows): array
+    {
+        if (empty($rows)) {
+            return [];
+        }
+
+        foreach ($rows as $index => $row) {
+            $rawRisk = $this->toFloat($row['Prob_HighRisk_pct'] ?? null, 1) ?? 0.0;
+            $normalizedLabel = $this->normalizeRiskLabel($row['Risk_Label'] ?? null, $rawRisk);
+
+            $rows[$index]['raw_prob_highrisk_pct'] = round($rawRisk, 1);
+            $rows[$index]['display_prob_highrisk_pct'] = round($rawRisk, 1);
+            $rows[$index]['Display_Risk_Label'] = $normalizedLabel;
+            $rows[$index]['Display_Risk_Category'] = strtolower($normalizedLabel);
+        }
+
+        return $rows;
+    }
+
+    private function normalizeRiskLabel(?string $riskLabel, float $rawRisk): string
+    {
+        $normalized = strtolower(trim((string) $riskLabel));
+        if ($normalized === 'high') {
+            return 'High';
+        }
+
+        if (in_array($normalized, ['mid', 'medium', 'moderate'], true)) {
+            return 'Medium';
+        }
+
+        if ($normalized === 'low') {
+            return 'Low';
+        }
+
+        // Fallback if Python response does not provide a label.
+        if ($rawRisk >= self::RISK_HIGH_THRESHOLD) {
+            return 'High';
+        }
+
+        if ($rawRisk >= self::RISK_MEDIUM_THRESHOLD) {
+            return 'Medium';
+        }
+
+        return 'Low';
+    }
+
+    private function enrichEngagementRows(array $rows): array
+    {
+        $enriched = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $engagementScore = $this->toFloat($row['EngagementScore'] ?? null, 2) ?? 0.0;
+            $performancePercentage = $this->toFloat($row['PerformancePercentage'] ?? null, 1) ?? 0.0;
+            $attendancePercentage = $this->toFloat($row['AttendancePercentage'] ?? null, 1) ?? 0.0;
+
+            $row['EngagementScore'] = $engagementScore;
+            $row['PerformancePercentage'] = $performancePercentage;
+            $row['AttendancePercentage'] = $attendancePercentage;
+            $row['HonorsClassification'] = $this->classifyHonorsEligibility($performancePercentage, $attendancePercentage);
+
+            $enriched[] = $row;
+        }
+
+        return $enriched;
+    }
+
+    private function classifyHonorsEligibility(float $performancePercentage, float $attendancePercentage): string
+    {
+        if ($performancePercentage >= 95.0 && $attendancePercentage >= 95.0) {
+            return 'With High Honors';
+        }
+
+        if ($performancePercentage >= 90.0 && $attendancePercentage >= 95.0) {
+            return 'With Honors';
+        }
+
+        return 'Regular';
+    }
+
+    private function buildHonorsSummary(array $engagementRows): array
+    {
+        $withHighHonorsRows = array_values(array_filter(
+            $engagementRows,
+            fn ($row) => ($row['HonorsClassification'] ?? null) === 'With High Honors'
+        ));
+        $withHonorsRows = array_values(array_filter(
+            $engagementRows,
+            fn ($row) => ($row['HonorsClassification'] ?? null) === 'With Honors'
+        ));
+        $regularRows = array_values(array_filter(
+            $engagementRows,
+            fn ($row) => ($row['HonorsClassification'] ?? null) === 'Regular'
+        ));
+
+        return [
+            'with_high_honors_count' => count($withHighHonorsRows),
+            'with_honors_count' => count($withHonorsRows),
+            'regular_count' => count($regularRows),
+            'with_high_honors_rows' => $withHighHonorsRows,
+            'with_honors_rows' => $withHonorsRows,
+            'regular_rows' => $regularRows,
+        ];
+    }
+
+    private function buildRecognitionTopFive(array $engagementRows): array
+    {
+        usort($engagementRows, function ($a, $b) {
+            $engagementCmp = (($b['EngagementScore'] ?? 0.0) <=> ($a['EngagementScore'] ?? 0.0));
+            if ($engagementCmp !== 0) {
+                return $engagementCmp;
+            }
+
+            $performanceCmp = (($b['PerformancePercentage'] ?? 0.0) <=> ($a['PerformancePercentage'] ?? 0.0));
+            if ($performanceCmp !== 0) {
+                return $performanceCmp;
+            }
+
+            return strcmp((string) ($a['Name'] ?? ''), (string) ($b['Name'] ?? ''));
+        });
+
+        return array_values(array_slice($engagementRows, 0, 5));
+    }
+
+    private function buildStudentClassMap(array $studentIds, Collection $classIds, int $schoolYearId): array
+    {
+        if (empty($studentIds) || $classIds->isEmpty()) {
+            return [];
+        }
+
+        $map = [];
+        $enrollments = Enrollment::with('class.section')
+            ->whereIn('student_id', $studentIds)
+            ->whereIn('class_id', $classIds)
+            ->where('school_year_id', $schoolYearId)
+            ->get(['student_id', 'class_id']);
+
+        foreach ($enrollments as $enrollment) {
+            $studentId = (int) $enrollment->student_id;
+            if (isset($map[$studentId])) {
+                continue;
+            }
+
+            $classId = (int) $enrollment->class_id;
+            $sectionName = optional(optional($enrollment->class)->section)->name;
+            $map[$studentId] = [
+                'class_id' => $classId,
+                'class_label' => $sectionName ?: ('Class #'.$classId),
+            ];
+        }
+
+        return $map;
+    }
+
+    private function buildDecliningTrendRows(array $table3Rows, array $studentClassMap): array
+    {
+        $rows = [];
+        foreach ($table3Rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $attCurrent = $this->toFloat($row['Att_Current'] ?? null, 1);
+            $attPast1 = $this->toFloat($row['Att_Past1'] ?? null, 1);
+            if ($attCurrent === null || $attPast1 === null) {
+                continue;
+            }
+
+            $drop = round($attPast1 - $attCurrent, 1);
+            if ($drop < self::ATTENDANCE_DROP_WARNING) {
+                continue;
+            }
+
+            $studentId = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
+            $displayRisk = $this->toFloat($row['display_prob_highrisk_pct'] ?? null, 1);
+            $severity = $drop >= self::ATTENDANCE_DROP_CRITICAL ? 'critical' : 'warning';
+            $classData = $studentClassMap[$studentId] ?? ['class_id' => null, 'class_label' => 'N/A'];
+
+            $rows[] = [
+                'student_id' => $studentId,
+                'name' => $row['Name'] ?? 'N/A',
+                'class_id' => $classData['class_id'],
+                'class_label' => $classData['class_label'],
+                'att_current' => $attCurrent,
+                'att_past1' => $attPast1,
+                'attendance_drop' => $drop,
+                'severity' => $severity,
+                'risk_display_pct' => $displayRisk,
+                'weighted_trend' => $this->toFloat($row['Weighted_Trend'] ?? null, 1),
+                'performance_trend' => $this->toFloat($row['Performance_Trend'] ?? null, 1),
+            ];
+        }
+
+        usort($rows, function ($a, $b) {
+            $severityOrder = ['critical' => 0, 'warning' => 1];
+            $severityCmp = ($severityOrder[$a['severity']] ?? 99) <=> ($severityOrder[$b['severity']] ?? 99);
+            if ($severityCmp !== 0) {
+                return $severityCmp;
+            }
+
+            $dropCmp = ($b['attendance_drop'] ?? 0) <=> ($a['attendance_drop'] ?? 0);
+            if ($dropCmp !== 0) {
+                return $dropCmp;
+            }
+
+            return ($b['risk_display_pct'] ?? 0) <=> ($a['risk_display_pct'] ?? 0);
+        });
+
+        return $rows;
+    }
+
+    private function buildInterventionQueue(array $table3Rows, array $studentClassMap): array
+    {
+        $queue = [];
+        foreach ($table3Rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $studentId = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
+            $displayRisk = $this->toFloat($row['display_prob_highrisk_pct'] ?? null, 1);
+            $displayRiskLabel = $this->normalizeRiskLabel(
+                $row['Display_Risk_Label'] ?? ($row['Risk_Label'] ?? null),
+                $displayRisk ?? 0.0
+            );
+            $attCurrent = $this->toFloat($row['Att_Current'] ?? null, 1);
+            $attPast1 = $this->toFloat($row['Att_Past1'] ?? null, 1);
+            $drop = ($attCurrent !== null && $attPast1 !== null) ? round($attPast1 - $attCurrent, 1) : null;
+
+            $reasonTags = [];
+            if ($drop !== null && $drop >= self::ATTENDANCE_DROP_WARNING) {
+                $reasonTags[] = "Attendance dropped by {$drop} points vs previous month";
+            }
+            if ($displayRiskLabel === 'High') {
+                $reasonTags[] = "Python model risk label is High ({$displayRisk}%)";
+            }
+
+            if (empty($reasonTags)) {
+                continue;
+            }
+
+            $severity = 'warning';
+            if (($drop !== null && $drop >= self::ATTENDANCE_DROP_CRITICAL) || $displayRiskLabel === 'High') {
+                $severity = 'critical';
+            }
+
+            $classData = $studentClassMap[$studentId] ?? ['class_id' => null, 'class_label' => 'N/A'];
+            $queue[] = [
+                'student_id' => $studentId,
+                'name' => $row['Name'] ?? 'N/A',
+                'class_id' => $classData['class_id'],
+                'class_label' => $classData['class_label'],
+                'severity' => $severity,
+                'reason_tags' => $reasonTags,
+                'attendance_drop' => $drop,
+                'risk_display_pct' => $displayRisk,
+                'recommended_action' => $severity === 'critical'
+                    ? 'Schedule counseling and guardian contact within this week.'
+                    : 'Set a monitoring check-in and attendance follow-up.',
+            ];
+        }
+
+        usort($queue, function ($a, $b) {
+            $severityOrder = ['critical' => 0, 'warning' => 1];
+            $severityCmp = ($severityOrder[$a['severity']] ?? 99) <=> ($severityOrder[$b['severity']] ?? 99);
+            if ($severityCmp !== 0) {
+                return $severityCmp;
+            }
+
+            $dropCmp = ($b['attendance_drop'] ?? 0) <=> ($a['attendance_drop'] ?? 0);
+            if ($dropCmp !== 0) {
+                return $dropCmp;
+            }
+
+            return ($b['risk_display_pct'] ?? 0) <=> ($a['risk_display_pct'] ?? 0);
+        });
+
+        return $queue;
+    }
+
+    private function normalizeNameToken(?string $value): string
+    {
+        $text = strtolower(trim((string) $value));
+        if ($text === '') {
+            return '';
+        }
+
+        $text = preg_replace('/\s+/', ' ', $text) ?? '';
+
+        return trim($text);
+    }
+
+    private function toFloat(mixed $value, ?int $precision = null): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $numeric = (float) $value;
+        if ($precision !== null) {
+            return round($numeric, $precision);
+        }
+
+        return $numeric;
+    }
+
+    private function getAccessibleClassIds(SchoolYear $activeSchoolYear, bool $isTeacherRole, ?Teacher $teacher): Collection
+    {
+        if ($isTeacherRole) {
+            if (! $teacher) {
+                // Teacher-role users without linked teacher profile should not see all classes.
+                return collect();
+            }
+
+            // Return only advisory classes for teachers (where teacher_id = this teacher).
             return Classes::where('teacher_id', $teacher->id)
                 ->where('school_year_id', $activeSchoolYear->id)
                 ->pluck('id')
@@ -411,6 +641,7 @@ class AnalyticsController extends Controller
                 ->values();
         }
 
+        // Non-teacher roles (e.g. admin) can access all classes for the active school year.
         return Classes::where('school_year_id', $activeSchoolYear->id)
             ->pluck('id')
             ->unique()

@@ -97,14 +97,15 @@ def fetch_attendance():
     SELECT
         student_id as Student_ID,
         YEAR(date) as Year,
+        MONTH(date) as Month_Num,
         MONTHNAME(date) as Month,
         COUNT(*) as Total_School_Days,
         COUNT(CASE WHEN status = 'present' THEN 1 END) as Present,
         COUNT(CASE WHEN status = 'absent' THEN 1 END) as Absent,
         COUNT(CASE WHEN status = 'late' THEN 1 END) as Late
     FROM attendances
-    GROUP BY student_id, YEAR(date), MONTHNAME(date)
-    ORDER BY student_id, Year, MONTH(date)
+    GROUP BY student_id, YEAR(date), MONTH(date), MONTHNAME(date)
+    ORDER BY student_id, Year, Month_Num
     """
     df = pd.read_sql(query, engine)
     df['Student_ID'] = df['Student_ID'].astype(int)

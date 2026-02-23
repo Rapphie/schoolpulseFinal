@@ -1,9 +1,12 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+import os
+import re
+from typing import Any
+
 import joblib
 import numpy as np
 import pandas as pd
-import os
+from fastapi import FastAPI
+from pydantic import BaseModel
 
 # Define request format
 class Features(BaseModel):
@@ -11,32 +14,256 @@ class Features(BaseModel):
 
 class BatchFeatures(BaseModel):
     batch: list[list[float]]
+    student_ids: list[int | str] | None = None
+    student_names: list[str] | None = None
 
 
 # Get the directory where this script is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(SCRIPT_DIR, "models")
+OLD_MODEL_DIR = os.path.join(MODEL_DIR, "old")
+NEW_MODEL_DIR = os.path.join(MODEL_DIR, "new")
 
-# Load the Random Forest models and their configurations
+def _load_joblib_with_fallback(filename: str, candidate_dirs: list[str]) -> tuple[Any, str]:
+    errors = []
+    for directory in candidate_dirs:
+        candidate_path = os.path.join(directory, filename)
+        if not os.path.exists(candidate_path):
+            errors.append(f"{candidate_path} (missing)")
+            continue
+        try:
+            return joblib.load(candidate_path), candidate_path
+        except Exception as exc:
+            errors.append(f"{candidate_path} ({exc})")
+    raise FileNotFoundError("; ".join(errors))
+
+
+def _safe_float(value: Any, decimals: int | None = None) -> float | None:
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if np.isnan(numeric_value):
+        return None
+
+    if decimals is None:
+        return numeric_value
+
+    return round(numeric_value, decimals)
+
+
+def _extract_numeric_student_id(value: Any) -> int | None:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if text == "":
+        return None
+
+    match = re.search(r"(\d+)", text)
+    if not match:
+        return None
+
+    return int(match.group(1))
+
+
+def _student_id_tokens(value: Any) -> set[str]:
+    tokens = set()
+
+    if value is None:
+        return tokens
+
+    text = str(value).strip()
+    if text == "":
+        return tokens
+
+    tokens.add(text.upper())
+    numeric_student_id = _extract_numeric_student_id(text)
+    if numeric_student_id is not None:
+        tokens.add(str(numeric_student_id).upper())
+        tokens.add(f"S{numeric_student_id:03d}".upper())
+        tokens.add(f"S{numeric_student_id}".upper())
+
+    return tokens
+
+
+def _normalize_status_label(status: Any, fallback_probability: float | None = None) -> str:
+    if status is not None:
+        status_text = str(status).strip()
+        if status_text != "" and status_text.lower() != "nan":
+            return status_text.title()
+
+    if fallback_probability is None:
+        return "N/A"
+
+    if fallback_probability >= 0.7:
+        return "High"
+    if fallback_probability >= 0.3:
+        return "Mid"
+    return "Low"
+
+
+def _name_token(value: Any) -> str:
+    if value is None:
+        return ""
+
+    text = str(value).strip().lower()
+    if text == "":
+        return ""
+
+    # Normalize punctuation/spaces so artifact names can match DB names.
+    text = text.replace(",", " ")
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _name_tokens_from_parts(first_name: Any, last_name: Any) -> set[str]:
+    first = str(first_name or "").strip()
+    last = str(last_name or "").strip()
+    tokens = {
+        _name_token(f"{first} {last}"),
+        _name_token(f"{last} {first}"),
+        _name_token(f"{last}, {first}"),
+    }
+    return {token for token in tokens if token != ""}
+
+
+CURRENT_PREDICTIONS_DF = pd.DataFrame()
+NEXT_PREDICTIONS_DF = pd.DataFrame()
+ENGAGEMENT_PREDICTIONS: dict[str, Any] = {}
+CURRENT_PREDICTION_LOOKUP: dict[str, dict[str, Any]] = {}
+CURRENT_PREDICTION_LOOKUP_BY_NAME: dict[str, dict[str, Any]] = {}
+DB_STUDENT_ID_BY_ID_TOKEN: dict[str, int] = {}
+DB_STUDENT_NAME_TOKENS_BY_ID: dict[int, set[str]] = {}
+DB_STUDENT_ID_BY_NAME_TOKEN: dict[str, int] = {}
+DB_STUDENT_INDEX_READY = False
+DB_STUDENT_INDEX_ERROR: str | None = None
+
+
+def _ensure_db_student_index() -> bool:
+    global DB_STUDENT_INDEX_READY, DB_STUDENT_INDEX_ERROR
+
+    if DB_STUDENT_INDEX_READY:
+        return True
+    if DB_STUDENT_INDEX_ERROR is not None:
+        return False
+
+    try:
+        from utils.db_utils import get_db_engine
+
+        engine = get_db_engine()
+        students_df = pd.read_sql("SELECT id, first_name, last_name FROM students", engine)
+    except Exception as exc:
+        DB_STUDENT_INDEX_ERROR = str(exc)
+        print(f"Warning: Could not load DB student index: {exc}")
+        return False
+
+    for _, row in students_df.iterrows():
+        student_id = _extract_numeric_student_id(row.get("id"))
+        if student_id is None:
+            continue
+
+        DB_STUDENT_NAME_TOKENS_BY_ID[student_id] = _name_tokens_from_parts(row.get("first_name"), row.get("last_name"))
+        for token in _student_id_tokens(student_id):
+            DB_STUDENT_ID_BY_ID_TOKEN[token] = student_id
+        for token in DB_STUDENT_NAME_TOKENS_BY_ID[student_id]:
+            DB_STUDENT_ID_BY_NAME_TOKEN[token] = student_id
+
+    DB_STUDENT_INDEX_READY = True
+    print(f"Loaded DB student index entries: {len(DB_STUDENT_NAME_TOKENS_BY_ID)}")
+    return True
+
+
+def _resolve_db_student_id(raw_student_id: Any = None, raw_name: Any = None) -> int | None:
+    if _ensure_db_student_index():
+        name_token = _name_token(raw_name)
+        if name_token != "":
+            mapped = DB_STUDENT_ID_BY_NAME_TOKEN.get(name_token)
+            if mapped is not None:
+                return mapped
+
+        for token in _student_id_tokens(raw_student_id):
+            mapped = DB_STUDENT_ID_BY_ID_TOKEN.get(token)
+            if mapped is not None:
+                return mapped
+
+        return None
+
+    return _extract_numeric_student_id(raw_student_id)
+
+# Load legacy Random Forest model bundles (still used as fallback for direct inference)
 try:
-    table1_model_data = joblib.load(os.path.join(SCRIPT_DIR, "models", "student_table1.joblib"))
+    table1_model_data, table1_model_path = _load_joblib_with_fallback(
+        "student_table1.joblib",
+        [MODEL_DIR, OLD_MODEL_DIR],
+    )
     table1_model = table1_model_data["model"]
     table1_features = table1_model_data["features"]
     table1_label_encoders = table1_model_data["label_encoders"]
     table1_config = table1_model_data.get("config", {})
     TABLE1_MODEL_LOADED = True
+    print(f"Loaded Table 1 model from: {table1_model_path}")
 except Exception as e:
     print(f"Warning: Could not load Table 1 model: {e}")
     TABLE1_MODEL_LOADED = False
 
 try:
-    table3_model_data = joblib.load(os.path.join(SCRIPT_DIR, "models", "student_table3.joblib"))
+    table3_model_data, table3_model_path = _load_joblib_with_fallback(
+        "student_table3.joblib",
+        [MODEL_DIR, OLD_MODEL_DIR],
+    )
     table3_model = table3_model_data["model"]
     table3_features = table3_model_data["features"]
     table3_label_encoders = table3_model_data["label_encoders"]
     TABLE3_MODEL_LOADED = True
+    print(f"Loaded Table 3 model from: {table3_model_path}")
 except Exception as e:
     print(f"Warning: Could not load Table 3 model: {e}")
     TABLE3_MODEL_LOADED = False
+
+# Load new production prediction artifacts (precomputed outputs)
+try:
+    CURRENT_PREDICTIONS_DF = joblib.load(os.path.join(NEW_MODEL_DIR, "current_predictions.joblib"))
+    NEXT_PREDICTIONS_DF = joblib.load(os.path.join(NEW_MODEL_DIR, "next_predictions.joblib"))
+    ENGAGEMENT_PREDICTIONS = joblib.load(os.path.join(NEW_MODEL_DIR, "engagement_predictions.joblib"))
+
+    if not isinstance(CURRENT_PREDICTIONS_DF, pd.DataFrame):
+        raise TypeError("current_predictions.joblib must contain a pandas DataFrame")
+    if not isinstance(NEXT_PREDICTIONS_DF, pd.DataFrame):
+        raise TypeError("next_predictions.joblib must contain a pandas DataFrame")
+    if not isinstance(ENGAGEMENT_PREDICTIONS, dict):
+        raise TypeError("engagement_predictions.joblib must contain a dict")
+
+    for key in ("master", "honors", "support", "as_of"):
+        if key not in ENGAGEMENT_PREDICTIONS:
+            raise KeyError(f"engagement_predictions payload missing key: {key}")
+
+    # Build a lookup used by batch prediction fallback when only new artifacts are available.
+    for _, row in CURRENT_PREDICTIONS_DF.iterrows():
+        risk_score = _safe_float(row.get("Risk Category Score"), decimals=1)
+        if risk_score is None:
+            risk_score = _safe_float(row.get("Risk Raw (Model)"), decimals=1)
+        if risk_score is None:
+            continue
+
+        entry = {
+            "risk_score": risk_score,
+            "status": _normalize_status_label(row.get("Status"), fallback_probability=risk_score / 100.0),
+        }
+        for token in _student_id_tokens(row.get("ID")):
+            CURRENT_PREDICTION_LOOKUP[token] = entry
+        name_token = _name_token(row.get("Name"))
+        if name_token != "":
+            CURRENT_PREDICTION_LOOKUP_BY_NAME[name_token] = entry
+
+    NEW_ARTIFACTS_LOADED = True
+    print(f"Loaded new prediction artifacts from: {NEW_MODEL_DIR}")
+    _ensure_db_student_index()
+except Exception as e:
+    print(f"Warning: Could not load new prediction artifacts: {e}")
+    NEW_ARTIFACTS_LOADED = False
 
 
 app = FastAPI()
@@ -49,6 +276,227 @@ def prob_label(p):
     elif p >= 0.3:
         return "Mid"
     return "Low"
+
+
+def _lookup_prediction_from_new_artifacts(student_id: Any) -> dict[str, Any] | None:
+    numeric_student_id = _extract_numeric_student_id(student_id)
+    if numeric_student_id is not None and _ensure_db_student_index():
+        for db_name_token in DB_STUDENT_NAME_TOKENS_BY_ID.get(numeric_student_id, set()):
+            if db_name_token in CURRENT_PREDICTION_LOOKUP_BY_NAME:
+                return CURRENT_PREDICTION_LOOKUP_BY_NAME[db_name_token]
+
+    input_name_token = _name_token(student_id)
+    if input_name_token in CURRENT_PREDICTION_LOOKUP_BY_NAME:
+        return CURRENT_PREDICTION_LOOKUP_BY_NAME[input_name_token]
+
+    for token in _student_id_tokens(student_id):
+        if token in CURRENT_PREDICTION_LOOKUP:
+            return CURRENT_PREDICTION_LOOKUP[token]
+
+    return None
+
+
+def _build_table1_from_new_artifacts() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if CURRENT_PREDICTIONS_DF.empty:
+        return rows
+
+    for _, row in CURRENT_PREDICTIONS_DF.iterrows():
+        risk_score = _safe_float(row.get("Risk Category Score"), decimals=1)
+        if risk_score is None:
+            risk_score = _safe_float(row.get("Risk Raw (Model)"), decimals=1)
+        risk_label = _normalize_status_label(row.get("Status"), fallback_probability=(risk_score or 0) / 100.0)
+
+        rows.append(
+            {
+                "Student_ID": _resolve_db_student_id(raw_student_id=row.get("ID"), raw_name=row.get("Name")),
+                "Student_ID_raw": row.get("ID"),
+                "Name": row.get("Name", ""),
+                "Status": row.get("Status"),
+                "Risk_Category_Score": risk_score,
+                "Risk_Raw_Model": _safe_float(row.get("Risk Raw (Model)"), decimals=1),
+                "Prob_HighRisk_pct": risk_score,
+                "Risk_Label": risk_label,
+                "Forecast_Attendance_pct": _safe_float(row.get("Forecast % (Attendance)"), decimals=1),
+                "Current_Status_pct": _safe_float(row.get("Current Status"), decimals=1),
+                "History_pct": _safe_float(row.get("History %"), decimals=1),
+                "Drop_vs_History": _safe_float(row.get("Drop vs History"), decimals=1),
+                "Commute": _safe_float(row.get("Commute"), decimals=1),
+            }
+        )
+
+    return rows
+
+
+def _build_table2_from_new_artifacts() -> list[dict[str, Any]]:
+    master = ENGAGEMENT_PREDICTIONS.get("master")
+    if not isinstance(master, pd.DataFrame) or master.empty:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for _, row in master.iterrows():
+        rows.append(
+            {
+                "Student_ID": _resolve_db_student_id(raw_student_id=row.get("Student ID"), raw_name=row.get("Student Name")),
+                "Student_ID_raw": row.get("Student ID"),
+                "Name": row.get("Student Name", ""),
+                "PerformancePercentage": _safe_float(row.get("Average Grade (%)"), decimals=1),
+                "AttendancePercentage": _safe_float(row.get("Current Attendance (%)"), decimals=1),
+                "EngagementScore": _safe_float(row.get("Engagement Score (0-100)"), decimals=2),
+                "Strength": row.get("Best Subject", "N/A"),
+                "Weakness": row.get("Needs Improvement In", "N/A"),
+                "HonorsEligibility": row.get("Honors Eligibility", "N/A"),
+            }
+        )
+
+    return rows
+
+
+def _build_table3_from_new_artifacts() -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    if NEXT_PREDICTIONS_DF.empty:
+        return rows
+
+    as_of = ENGAGEMENT_PREDICTIONS.get("as_of", {}) if isinstance(ENGAGEMENT_PREDICTIONS, dict) else {}
+    as_of_month = as_of.get("month_name")
+    as_of_year = as_of.get("year")
+
+    for _, row in NEXT_PREDICTIONS_DF.iterrows():
+        risk_score = _safe_float(row.get("Risk Score"), decimals=1)
+        risk_label = _normalize_status_label(row.get("Status"), fallback_probability=(risk_score or 0) / 100.0)
+
+        rows.append(
+            {
+                "Student_ID": _resolve_db_student_id(raw_student_id=row.get("ID"), raw_name=row.get("Student Name")),
+                "Student_ID_raw": row.get("ID"),
+                "Name": row.get("Student Name", ""),
+                "Month": as_of_month,
+                "Year": as_of_year,
+                "Status": row.get("Status"),
+                "Risk_Score": risk_score,
+                "Prob_HighRisk_pct": risk_score,
+                "Risk_Label": risk_label,
+                "Forecast_pct": _safe_float(row.get("Forecast %"), decimals=1),
+                "Current_Status_pct": _safe_float(row.get("Current Status"), decimals=1),
+                "History_pct": _safe_float(row.get("History %"), decimals=1),
+                "Trend": _safe_float(row.get("Trend"), decimals=1),
+                "Commute": _safe_float(row.get("Commute"), decimals=1),
+                "SES": row.get("SES"),
+            }
+        )
+
+    return rows
+
+
+def _build_feature_tables_from_new_artifacts() -> dict[str, Any]:
+    as_of = ENGAGEMENT_PREDICTIONS.get("as_of", {}) if isinstance(ENGAGEMENT_PREDICTIONS, dict) else {}
+    as_of_date = as_of.get("as_of_date", "unknown")
+
+    return {
+        "success": True,
+        "source": "new_artifacts",
+        "as_of": as_of,
+        "table1": {
+            "title": "Table 1: Current Predictions",
+            "description": f"Precomputed current-month risk predictions from current_predictions.joblib (as_of={as_of_date})",
+            "data": _build_table1_from_new_artifacts(),
+        },
+        "table2": {
+            "title": "Table 2: Engagement Analysis",
+            "description": f"Precomputed engagement analysis from engagement_predictions.joblib['master'] (as_of={as_of_date})",
+            "data": _build_table2_from_new_artifacts(),
+        },
+        "table3": {
+            "title": "Table 3: Next Predictions",
+            "description": f"Precomputed next-month risk predictions from next_predictions.joblib (as_of={as_of_date})",
+            "data": _build_table3_from_new_artifacts(),
+        },
+    }
+
+
+def _artifact_records(data_key: str) -> list[dict[str, Any]]:
+    value = ENGAGEMENT_PREDICTIONS.get(data_key)
+    if isinstance(value, pd.DataFrame):
+        return value.to_dict(orient="records")
+    return []
+
+
+def _batch_predictions_from_database_table1(
+    student_ids: list[Any],
+    student_names: list[str],
+    requested_count: int,
+) -> dict[str, Any] | None:
+    try:
+        tables_payload = get_feature_tables()
+    except Exception as exc:
+        print(f"Warning: database model fallback failed: {exc}")
+        return None
+
+    if not isinstance(tables_payload, dict) or not tables_payload.get("success"):
+        return None
+    if tables_payload.get("source") != "database":
+        return None
+
+    table1_payload = tables_payload.get("table1") or {}
+    table1_rows = table1_payload.get("data") or []
+    if not isinstance(table1_rows, list):
+        return None
+
+    rows_by_id: dict[int, dict[str, Any]] = {}
+    rows_by_name: dict[str, dict[str, Any]] = {}
+
+    for row in table1_rows:
+        if not isinstance(row, dict):
+            continue
+
+        numeric_student_id = _extract_numeric_student_id(row.get("Student_ID"))
+        if numeric_student_id is not None:
+            rows_by_id[numeric_student_id] = row
+
+        student_name_token = _name_token(row.get("Name"))
+        if student_name_token != "":
+            rows_by_name[student_name_token] = row
+
+    predictions: list[dict[str, Any]] = []
+    for index in range(requested_count):
+        student_id = student_ids[index] if index < len(student_ids) else None
+        student_name = student_names[index] if index < len(student_names) else None
+
+        row = None
+        numeric_student_id = _extract_numeric_student_id(student_id)
+        if numeric_student_id is not None:
+            row = rows_by_id.get(numeric_student_id)
+
+        if row is None and student_name is not None:
+            row = rows_by_name.get(_name_token(student_name))
+
+        if row is None and student_id is not None:
+            row = rows_by_name.get(_name_token(student_id))
+
+        if row is None:
+            predictions.append({"prediction_confidence": None, "risk_label": "N/A"})
+            continue
+
+        risk_pct = _safe_float(row.get("Prob_HighRisk_pct"), decimals=4)
+        if risk_pct is None:
+            predictions.append({"prediction_confidence": None, "risk_label": "N/A"})
+            continue
+
+        probability = max(0.0, min(1.0, risk_pct / 100.0))
+        predictions.append(
+            {
+                "prediction_confidence": float(probability),
+                "risk_label": _normalize_status_label(
+                    row.get("Risk_Label"),
+                    fallback_probability=probability,
+                ),
+            }
+        )
+
+    while len(predictions) < requested_count:
+        predictions.append({"prediction_confidence": None, "risk_label": "N/A"})
+
+    return {"predictions": predictions, "source": "database_model"}
 
 
 @app.post("/prediction_probability")
@@ -77,22 +525,89 @@ def prediction_probability_batch(batch_features: BatchFeatures):
     Batch prediction endpoint.
     Accepts a list of feature vectors and returns predictions for all.
     """
-    if not TABLE1_MODEL_LOADED:
-        return {"error": "Model not loaded", "predictions": []}
+    if not batch_features.batch:
+        return {"predictions": []}
 
-    try:
-        X = np.array(batch_features.batch)
-        probs = table1_model.predict_proba(X)[:, 1]
-        predictions = [
-            {
-                "prediction_confidence": float(p),
-                "risk_label": prob_label(p)
-            }
-            for p in probs
-        ]
-        return {"predictions": predictions}
-    except Exception as e:
-        return {"error": str(e), "predictions": []}
+    requested_count = len(batch_features.batch)
+    student_ids = batch_features.student_ids or []
+    student_names = batch_features.student_names or []
+
+    if TABLE1_MODEL_LOADED:
+        try:
+            X = np.array(batch_features.batch)
+            if X.ndim != 2:
+                raise ValueError(f"X has invalid shape: {X.shape}")
+            if X.shape[1] != len(table1_features):
+                raise ValueError(
+                    f"X has {X.shape[1]} features, but RandomForestClassifier is expecting {len(table1_features)} features as input."
+                )
+            probs = table1_model.predict_proba(X)[:, 1]
+            predictions = [
+                {
+                    "prediction_confidence": float(p),
+                    "risk_label": prob_label(p)
+                }
+                for p in probs
+            ]
+            return {"predictions": predictions, "source": "legacy_model"}
+        except Exception as e:
+            print(f"Warning: legacy batch prediction failed, attempting database fallback: {e}")
+            if student_ids or student_names:
+                db_predictions = _batch_predictions_from_database_table1(
+                    student_ids=student_ids,
+                    student_names=student_names,
+                    requested_count=requested_count,
+                )
+                if db_predictions is not None:
+                    return db_predictions
+                print("Warning: database model fallback did not produce predictions.")
+
+    return {
+        "error": "Database-backed prediction failed. Ensure model, DB data, and student identifiers are available.",
+        "predictions": [],
+    }
+
+
+@app.get("/predictions/current")
+def predictions_current():
+    if not NEW_ARTIFACTS_LOADED:
+        return {"success": False, "error": "New prediction artifacts not loaded", "data": []}
+    return {"success": True, "data": CURRENT_PREDICTIONS_DF.to_dict(orient="records")}
+
+
+@app.get("/predictions/next")
+def predictions_next():
+    if not NEW_ARTIFACTS_LOADED:
+        return {"success": False, "error": "New prediction artifacts not loaded", "data": []}
+    return {"success": True, "data": NEXT_PREDICTIONS_DF.to_dict(orient="records")}
+
+
+@app.get("/predictions/engagement/master")
+def predictions_engagement_master():
+    if not NEW_ARTIFACTS_LOADED:
+        return {"success": False, "error": "New prediction artifacts not loaded", "data": []}
+    return {"success": True, "data": _artifact_records("master")}
+
+
+@app.get("/predictions/engagement/honors")
+def predictions_engagement_honors():
+    if not NEW_ARTIFACTS_LOADED:
+        return {"success": False, "error": "New prediction artifacts not loaded", "data": []}
+    return {"success": True, "data": _artifact_records("honors")}
+
+
+@app.get("/predictions/engagement/support")
+def predictions_engagement_support():
+    if not NEW_ARTIFACTS_LOADED:
+        return {"success": False, "error": "New prediction artifacts not loaded", "data": []}
+    return {"success": True, "data": _artifact_records("support")}
+
+
+@app.get("/predictions/engagement/as-of")
+def predictions_engagement_as_of():
+    if not NEW_ARTIFACTS_LOADED:
+        return {"success": False, "error": "New prediction artifacts not loaded", "data": {}}
+    return {"success": True, "data": ENGAGEMENT_PREDICTIONS.get("as_of", {})}
 
 
 @app.get("/features/tables")
@@ -497,6 +1012,7 @@ def get_feature_tables():
 
         return {
             "success": True,
+            "source": "database",
             "table1": {
                 "title": "Table 1: Mid-Month Prediction (End of Month Risk)",
                 "description": "Random Forest prediction of absenteeism risk by end of current month based on mid-month data",
