@@ -398,6 +398,16 @@
         </div>
     </div>
 
+    @if (!empty($analyticsServiceWarning))
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-warning mb-0" role="alert">
+                    {{ $analyticsServiceWarning }}
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- ML Feature Tables Section -->
     @if (isset($featureTables) && $featureTables)
         @php

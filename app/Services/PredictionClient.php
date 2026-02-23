@@ -91,4 +91,20 @@ class PredictionClient
 
         return null;
     }
+
+    public function isAnalyticsServiceRunning(): bool
+    {
+        try {
+            $response = Http::timeout(2)->get(rtrim($this->baseUrl, '/').'/health');
+            if (! $response->successful()) {
+                return false;
+            }
+
+            $payload = $response->json();
+
+            return (bool) ($payload['success'] ?? true);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
 }

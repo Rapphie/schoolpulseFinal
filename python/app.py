@@ -610,6 +610,11 @@ def predictions_engagement_as_of():
     return {"success": True, "data": ENGAGEMENT_PREDICTIONS.get("as_of", {})}
 
 
+@app.get("/health")
+def health():
+    return {"success": True, "status": "ok"}
+
+
 @app.get("/features/tables")
 def get_feature_tables():
     """

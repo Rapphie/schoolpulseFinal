@@ -16,6 +16,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -418,6 +419,49 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $this->assertSame(1, $featureRequestCount);
     }
 
+    public function test_cached_payload_shows_warning_when_analytics_service_is_down(): void
+    {
+        [$teacherUser, $schoolYear, $class] = $this->createScopedClassContext('health', 5);
+        $student = $this->createStudent('Health', 'Check', 'hl1');
+        $this->enrollStudent($student, $class, $schoolYear);
+
+        $this->fakePredictionApi(
+            table1Rows: [
+                ['Student_ID' => $student->id, 'Name' => 'Health Check', 'Prob_HighRisk_pct' => 35],
+            ],
+            table2Rows: [
+                [
+                    'Student_ID' => $student->id,
+                    'Name' => 'Health Check',
+                    'EngagementScore' => 88,
+                    'PerformancePercentage' => 91,
+                    'AttendancePercentage' => 96,
+                    'Strength' => 'Math (92%)',
+                    'Weakness' => 'Science (84%)',
+                ],
+            ]
+        );
+
+        $firstResponse = $this->actingAs($teacherUser)->get(route('teacher.analytics.absenteeism'));
+        $firstResponse->assertOk();
+        $firstResponse->assertDontSee('Analytics service is currently unavailable.');
+
+        Http::fake([
+            'http://127.0.0.1:8001/health' => function (): void {
+                throw new ConnectionException('Connection refused');
+            },
+        ]);
+
+        $secondResponse = $this->actingAs($teacherUser)->get(route('teacher.analytics.absenteeism'));
+
+        $secondResponse->assertOk();
+        $secondResponse->assertSee(
+            'Analytics service is currently unavailable. Showing cached analytics from the latest successful request.'
+        );
+        $this->assertFalse((bool) $secondResponse->viewData('analyticsServiceRunning'));
+        $this->assertNotNull($secondResponse->viewData('featureTables'));
+    }
+
     private function createScopedClassContext(string $suffix, int $gradeLevel): array
     {
         $schoolYear = $this->createActiveSchoolYear($suffix);
@@ -583,6 +627,10 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         ?callable $onFeaturesRequest = null
     ): void {
         Http::fake([
+            'http://127.0.0.1:8001/health' => Http::response([
+                'success' => true,
+                'status' => 'ok',
+            ], 200),
             'http://127.0.0.1:8001/features/tables' => function (ClientRequest $request) use (
                 $table1Rows,
                 $table2Rows,

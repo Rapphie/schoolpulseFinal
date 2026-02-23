@@ -133,21 +133,47 @@ class AnalyticsController extends Controller
             }
         );
 
+        $analyticsServiceRunning = (bool) ($analyticsPayload['analyticsServiceRunning'] ?? true);
+        if ($cacheHit) {
+            $healthCheckStartedAt = microtime(true);
+            $analyticsServiceRunning = (new PredictionClient)->isAnalyticsServiceRunning();
+            Log::debug('Teacher absenteeism analytics health check completed', [
+                'user_id' => Auth::id(),
+                'school_year_id' => $syId,
+                'is_running' => $analyticsServiceRunning,
+                'duration_ms' => round((microtime(true) - $healthCheckStartedAt) * 1000, 1),
+            ]);
+        }
+
+        $analyticsServiceWarning = $this->buildAnalyticsServiceWarning(
+            $analyticsServiceRunning,
+            $cacheHit,
+            $analyticsPayload
+        );
+
         Log::debug('Teacher absenteeism analytics request completed', [
             'user_id' => Auth::id(),
             'school_year_id' => $syId,
             'selected_grade_level_id' => $selectedGradeLevelId,
             'selected_class_id' => $selectedClassId,
             'cache_hit' => $cacheHit,
+            'analytics_service_running' => $analyticsServiceRunning,
             'duration_ms' => round((microtime(true) - $requestStartedAt) * 1000, 1),
         ]);
 
-        return view('teacher.analytics.absenteeism', array_merge([
-            'classesForSelect' => $classesForSelect,
-            'selectedClassId' => $selectedClassId,
-            'gradeLevels' => $gradeLevels,
-            'selectedGradeLevelId' => $selectedGradeLevelId,
-        ], $analyticsPayload));
+        return view('teacher.analytics.absenteeism', array_merge(
+            [
+                'classesForSelect' => $classesForSelect,
+                'selectedClassId' => $selectedClassId,
+                'gradeLevels' => $gradeLevels,
+                'selectedGradeLevelId' => $selectedGradeLevelId,
+            ],
+            $analyticsPayload,
+            [
+                'analyticsServiceRunning' => $analyticsServiceRunning,
+                'analyticsServiceWarning' => $analyticsServiceWarning,
+            ]
+        ));
     }
 
     public function classesByGrade(Request $request)
@@ -219,6 +245,8 @@ class AnalyticsController extends Controller
                 'interventionQueue' => [],
                 'decliningTrendRows' => [],
                 'riskCalibrationMeta' => $riskCalibrationMeta,
+                'analyticsServiceRunning' => false,
+                'analyticsGeneratedAt' => null,
             ];
         }
 
@@ -278,7 +306,26 @@ class AnalyticsController extends Controller
             'interventionQueue' => $interventionQueue,
             'decliningTrendRows' => $decliningTrendRows,
             'riskCalibrationMeta' => $riskCalibrationMeta,
+            'analyticsServiceRunning' => true,
+            'analyticsGeneratedAt' => now()->toIso8601String(),
         ];
+    }
+
+    private function buildAnalyticsServiceWarning(
+        bool $analyticsServiceRunning,
+        bool $cacheHit,
+        array $analyticsPayload
+    ): ?string {
+        if ($analyticsServiceRunning) {
+            return null;
+        }
+
+        $hasCachedPayload = $cacheHit && ! empty($analyticsPayload['analyticsGeneratedAt']);
+        if ($hasCachedPayload) {
+            return 'Analytics service is currently unavailable. Showing cached analytics from the latest successful request.';
+        }
+
+        return 'Analytics service is currently unavailable. Please start the analytics service and refresh this page.';
     }
 
     private function buildAnalyticsCacheKey(
