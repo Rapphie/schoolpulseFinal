@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\Classes;
 use App\Models\Enrollment;
+use App\Models\Grade;
 use App\Models\GradeLevel;
+use App\Models\Schedule;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Teacher;
 use App\Services\PredictionClient;
 use Illuminate\Http\Request;
@@ -236,12 +239,22 @@ class AnalyticsController extends Controller
         $featureTables = $this->filterFeatureTables($featureTables, $filteredStudentIdSet, $filteredStudentNameSet);
         $featureTables['table1']['data'] = $this->applyRiskCalibration($featureTables['table1']['data'] ?? []);
         $featureTables['table3']['data'] = $this->applyRiskCalibration($featureTables['table3']['data'] ?? []);
-        $featureTables['table2']['data'] = $this->enrichEngagementRows($featureTables['table2']['data'] ?? []);
+
+        $studentClassMap = $this->buildStudentClassMap($filteredStudentIds, $classIds, $schoolYearId);
+        $honorsGradeCompletenessByStudentId = $this->buildHonorsGradeCompletenessMap(
+            $filteredStudentIds,
+            $studentClassMap,
+            $classIds,
+            $schoolYearId
+        );
+        $featureTables['table2']['data'] = $this->enrichEngagementRows(
+            $featureTables['table2']['data'] ?? [],
+            $honorsGradeCompletenessByStudentId
+        );
 
         $recognitionTop5 = $this->buildRecognitionTopFive($featureTables['table2']['data']);
         $honorsSummary = $this->buildHonorsSummary($featureTables['table2']['data']);
 
-        $studentClassMap = $this->buildStudentClassMap($filteredStudentIds, $classIds, $schoolYearId);
         $decliningTrendRows = $this->buildDecliningTrendRows($featureTables['table3']['data'] ?? [], $studentClassMap);
         $interventionQueue = $this->buildInterventionQueue($featureTables['table3']['data'] ?? [], $studentClassMap);
 
@@ -359,7 +372,7 @@ class AnalyticsController extends Controller
         return 'Low';
     }
 
-    private function enrichEngagementRows(array $rows): array
+    private function enrichEngagementRows(array $rows, array $honorsGradeCompletenessByStudentId = []): array
     {
         $enriched = [];
         foreach ($rows as $row) {
@@ -367,14 +380,22 @@ class AnalyticsController extends Controller
                 continue;
             }
 
+            $studentId = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
             $engagementScore = $this->toFloat($row['EngagementScore'] ?? null, 2) ?? 0.0;
             $performancePercentage = $this->toFloat($row['PerformancePercentage'] ?? null, 1) ?? 0.0;
             $attendancePercentage = $this->toFloat($row['AttendancePercentage'] ?? null, 1) ?? 0.0;
+            $hasCompleteQuarterGrades = $studentId > 0
+                && (bool) ($honorsGradeCompletenessByStudentId[$studentId] ?? false);
 
             $row['EngagementScore'] = $engagementScore;
             $row['PerformancePercentage'] = $performancePercentage;
             $row['AttendancePercentage'] = $attendancePercentage;
-            $row['HonorsClassification'] = $this->classifyHonorsEligibility($performancePercentage, $attendancePercentage);
+            $row['HasCompleteQuarterGrades'] = $hasCompleteQuarterGrades;
+            $row['HonorsClassification'] = $this->classifyHonorsEligibility(
+                $performancePercentage,
+                $attendancePercentage,
+                $hasCompleteQuarterGrades
+            );
 
             $enriched[] = $row;
         }
@@ -382,8 +403,15 @@ class AnalyticsController extends Controller
         return $enriched;
     }
 
-    private function classifyHonorsEligibility(float $performancePercentage, float $attendancePercentage): string
-    {
+    private function classifyHonorsEligibility(
+        float $performancePercentage,
+        float $attendancePercentage,
+        bool $hasCompleteQuarterGrades
+    ): string {
+        if (! $hasCompleteQuarterGrades) {
+            return 'Regular';
+        }
+
         if ($performancePercentage >= 95.0 && $attendancePercentage >= 95.0) {
             return 'With High Honors';
         }
@@ -437,6 +465,115 @@ class AnalyticsController extends Controller
         });
 
         return array_values(array_slice($engagementRows, 0, 5));
+    }
+
+    private function buildHonorsGradeCompletenessMap(
+        array $studentIds,
+        array $studentClassMap,
+        Collection $classIds,
+        int $schoolYearId
+    ): array {
+        if (empty($studentIds) || $classIds->isEmpty()) {
+            return [];
+        }
+
+        $schoolYear = SchoolYear::find($schoolYearId);
+        $activeQuarterNumber = (int) ($schoolYear?->currentQuarter()?->quarter ?? 0);
+        if ($activeQuarterNumber < 1) {
+            return array_fill_keys($studentIds, false);
+        }
+
+        $expectedSubjectCountByClassId = $this->buildExpectedSubjectCountByClass($classIds);
+        $quarterValues = $this->quarterSearchValues($activeQuarterNumber);
+
+        $gradedSubjectCountsByStudentId = Grade::query()
+            ->selectRaw('student_id, COUNT(DISTINCT subject_id) as graded_subject_count')
+            ->whereIn('student_id', $studentIds)
+            ->where('school_year_id', $schoolYearId)
+            ->whereIn('quarter', $quarterValues)
+            ->groupBy('student_id')
+            ->pluck('graded_subject_count', 'student_id')
+            ->map(fn ($count) => (int) $count)
+            ->all();
+
+        $result = [];
+        foreach ($studentIds as $studentId) {
+            $classId = $studentClassMap[$studentId]['class_id'] ?? null;
+            $expectedCount = $classId ? (int) ($expectedSubjectCountByClassId[$classId] ?? 0) : 0;
+            $gradedCount = (int) ($gradedSubjectCountsByStudentId[$studentId] ?? 0);
+
+            $result[$studentId] = $expectedCount > 0 && $gradedCount >= $expectedCount;
+        }
+
+        return $result;
+    }
+
+    private function buildExpectedSubjectCountByClass(Collection $classIds): array
+    {
+        if ($classIds->isEmpty()) {
+            return [];
+        }
+
+        $countsByClassId = Schedule::query()
+            ->whereIn('class_id', $classIds->all())
+            ->selectRaw('class_id, COUNT(DISTINCT subject_id) as subject_count')
+            ->groupBy('class_id')
+            ->pluck('subject_count', 'class_id')
+            ->map(fn ($count) => (int) $count)
+            ->all();
+
+        $missingClassIds = $classIds
+            ->filter(fn ($classId) => ! isset($countsByClassId[(int) $classId]))
+            ->map(fn ($classId) => (int) $classId)
+            ->values()
+            ->all();
+
+        if (empty($missingClassIds)) {
+            return $countsByClassId;
+        }
+
+        $classRows = Classes::query()
+            ->whereIn('id', $missingClassIds)
+            ->with('section:id,grade_level_id')
+            ->get(['id', 'section_id']);
+
+        $gradeLevelIds = $classRows
+            ->map(fn ($class) => (int) (optional($class->section)->grade_level_id ?? 0))
+            ->filter(fn ($gradeLevelId) => $gradeLevelId > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $subjectCountsByGradeLevelId = Subject::query()
+            ->whereIn('grade_level_id', $gradeLevelIds)
+            ->where('is_active', true)
+            ->selectRaw('grade_level_id, COUNT(DISTINCT id) as subject_count')
+            ->groupBy('grade_level_id')
+            ->pluck('subject_count', 'grade_level_id')
+            ->map(fn ($count) => (int) $count)
+            ->all();
+
+        foreach ($classRows as $classRow) {
+            $classId = (int) $classRow->id;
+            $gradeLevelId = (int) (optional($classRow->section)->grade_level_id ?? 0);
+            $countsByClassId[$classId] = (int) ($subjectCountsByGradeLevelId[$gradeLevelId] ?? 0);
+        }
+
+        return $countsByClassId;
+    }
+
+    private function quarterSearchValues(int $quarterNumber): array
+    {
+        $quarterNumber = max(1, min(4, $quarterNumber));
+
+        $labelMap = [
+            1 => ['1', 'Q1', '1ST QUARTER', 'FIRST QUARTER'],
+            2 => ['2', 'Q2', '2ND QUARTER', 'SECOND QUARTER'],
+            3 => ['3', 'Q3', '3RD QUARTER', 'THIRD QUARTER'],
+            4 => ['4', 'Q4', '4TH QUARTER', 'FOURTH QUARTER'],
+        ];
+
+        return $labelMap[$quarterNumber];
     }
 
     private function buildStudentClassMap(array $studentIds, Collection $classIds, int $schoolYearId): array

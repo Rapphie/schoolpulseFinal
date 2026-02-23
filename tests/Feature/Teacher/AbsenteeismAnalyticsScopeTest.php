@@ -4,11 +4,15 @@ namespace Tests\Feature\Teacher;
 
 use App\Models\Classes;
 use App\Models\Enrollment;
+use App\Models\Grade;
 use App\Models\GradeLevel;
 use App\Models\Role;
+use App\Models\Schedule;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -29,6 +33,7 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $this->withoutVite();
         Cache::flush();
         SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
         $this->ensureTeacherRole();
     }
 
@@ -123,6 +128,16 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $response = $this->actingAs($teacherAUser)->get(route('teacher.analytics.absenteeism'));
 
         $response->assertOk();
+        $response->assertSee('Absenteeism Analytics Overview');
+        $response->assertSee('id="resetFiltersBtn"', false);
+        $response->assertSee('id="clearSearchBtn"', false);
+        $response->assertSee('High Risk (Current)');
+        $response->assertSee('Honors &amp; Recognition', false);
+        $response->assertSee('id="honorsRecognitionCollapse"', false);
+        $response->assertSee('data-bs-target="#honorsRecognitionCollapse"', false);
+        $response->assertSee('aria-controls="honorsRecognitionCollapse"', false);
+        $response->assertSee('Top 5 Performing Students');
+
         $featureTables = $response->viewData('featureTables');
         $this->assertSame([$advisee->id], $this->extractStudentIds($featureTables['table1']['data'] ?? []));
         $this->assertSame([$advisee->id], $this->extractStudentIds($featureTables['table2']['data'] ?? []));
@@ -144,6 +159,12 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $this->enrollStudent($studentHigh, $class, $schoolYear);
         $this->enrollStudent($studentHonors, $class, $schoolYear);
         $this->enrollStudent($studentRegular, $class, $schoolYear);
+
+        $quarterNumber = (int) ($schoolYear->currentQuarter()?->quarter ?? 1);
+        $subjects = $this->createClassSubjectsAndSchedules($class, 2);
+        $this->createQuarterGrades($studentHigh, $subjects, $class, $schoolYear, $quarterNumber);
+        $this->createQuarterGrades($studentHonors, $subjects, $class, $schoolYear, $quarterNumber);
+        $this->createQuarterGrades($studentRegular, [$subjects[0]], $class, $schoolYear, $quarterNumber);
 
         $this->fakePredictionApi(
             table2Rows: [
@@ -169,8 +190,8 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
                     'Student_ID' => $studentRegular->id,
                     'Name' => 'Regular Student',
                     'EngagementScore' => 82,
-                    'PerformancePercentage' => 89,
-                    'AttendancePercentage' => 95,
+                    'PerformancePercentage' => 96,
+                    'AttendancePercentage' => 96,
                     'Strength' => 'AP (92%)',
                     'Weakness' => 'Science (83%)',
                 ],
@@ -429,13 +450,26 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
 
     private function createActiveSchoolYear(string $suffix): SchoolYear
     {
-        return SchoolYear::create([
+        $schoolYear = SchoolYear::create([
             'name' => 'SY-'.$suffix,
             'start_date' => now()->startOfMonth()->toDateString(),
             'end_date' => now()->addMonths(10)->endOfMonth()->toDateString(),
             'is_active' => true,
             'is_promotion_open' => false,
         ]);
+
+        SchoolYearQuarter::create([
+            'school_year_id' => $schoolYear->id,
+            'quarter' => 1,
+            'name' => 'First Quarter',
+            'start_date' => now()->subMonth()->toDateString(),
+            'end_date' => now()->addMonth()->toDateString(),
+            'grade_submission_deadline' => now()->addMonth()->toDateString(),
+            'is_locked' => false,
+            'is_manually_set_active' => true,
+        ]);
+
+        return $schoolYear;
     }
 
     private function createStudent(string $firstName, string $lastName, string $suffix): Student
@@ -460,6 +494,58 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
             'status' => 'enrolled',
             'enrollment_date' => now()->toDateString(),
         ]);
+    }
+
+    private function createClassSubjectsAndSchedules(Classes $class, int $count = 2): array
+    {
+        $class->loadMissing('section');
+        $gradeLevelId = (int) ($class->section?->grade_level_id ?? 0);
+
+        $subjects = [];
+        for ($index = 1; $index <= $count; $index++) {
+            $token = Str::upper(Str::random(6));
+            $subject = Subject::create([
+                'grade_level_id' => $gradeLevelId,
+                'name' => "Subject {$token}",
+                'code' => "SB{$token}",
+                'description' => 'Quarter completeness subject',
+                'is_active' => true,
+                'duration_minutes' => 60,
+            ]);
+
+            Schedule::create([
+                'class_id' => $class->id,
+                'subject_id' => $subject->id,
+                'teacher_id' => (int) $class->teacher_id,
+                'day_of_week' => ['monday'],
+                'start_time' => sprintf('%02d:00', $index + 7),
+                'end_time' => sprintf('%02d:00', $index + 8),
+                'room' => null,
+            ]);
+
+            $subjects[] = $subject;
+        }
+
+        return $subjects;
+    }
+
+    private function createQuarterGrades(
+        Student $student,
+        array $subjects,
+        Classes $class,
+        SchoolYear $schoolYear,
+        int $quarterNumber
+    ): void {
+        foreach ($subjects as $subject) {
+            Grade::create([
+                'student_id' => $student->id,
+                'subject_id' => $subject->id,
+                'teacher_id' => (int) $class->teacher_id,
+                'school_year_id' => $schoolYear->id,
+                'grade' => 90.0,
+                'quarter' => (string) $quarterNumber,
+            ]);
+        }
     }
 
     private function ensureTeacherRole(): Role
