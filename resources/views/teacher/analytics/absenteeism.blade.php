@@ -14,7 +14,7 @@
             }
         }
 
-        $selectedClassLabel = 'All Classes';
+        $selectedClassLabel = 'All Handled Classes';
         foreach ($classesForSelect as $classOption) {
             if ((int) $selectedClassId === (int) ($classOption['id'] ?? 0)) {
                 $selectedClassLabel = $classOption['label'] ?? $selectedClassLabel;
@@ -114,7 +114,7 @@
         </div>
     @endif
 
-    @if (!empty($analyticsAccessNotice))
+    @if (!empty($analyticsAccessNotice) && ($analyticsScopeMode ?? null) !== 'none')
         <div class="row mb-3">
             <div class="col-12">
                 <div class="alert alert-info mb-0" role="alert">
