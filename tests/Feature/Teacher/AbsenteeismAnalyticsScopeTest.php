@@ -355,6 +355,7 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
             'No advisory class handled and no scheduled subjects handled for the current school year.'
         );
         $response->assertViewHas('featureTables', null);
+        $response->assertSee('No Analytics Scope:');
         $response->assertSee('No advisory class handled and no scheduled subjects handled for the current school year.');
     }
 

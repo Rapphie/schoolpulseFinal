@@ -787,9 +787,22 @@
     @else
         <div class="row mt-4">
             <div class="col-12">
+                @php
+                    $fallbackTitle = 'Data Unavailable:';
+                    $fallbackMessage =
+                        'Unable to load student risk data. Please ensure the prediction service is running.';
+
+                    if (($analyticsScopeMode ?? null) === 'none') {
+                        $fallbackTitle = 'No Analytics Scope:';
+                        $fallbackMessage =
+                            $analyticsAccessNotice ??
+                            'No advisory class handled and no scheduled subjects handled for the current school year.';
+                    } elseif (!empty($analyticsServiceWarning)) {
+                        $fallbackMessage = $analyticsServiceWarning;
+                    }
+                @endphp
                 <div class="border rounded p-3">
-                    <strong>Data Unavailable:</strong> Unable to load student risk data. Please ensure the prediction
-                    service is running.
+                    <strong>{{ $fallbackTitle }}</strong> {{ $fallbackMessage }}
                 </div>
             </div>
         </div>
