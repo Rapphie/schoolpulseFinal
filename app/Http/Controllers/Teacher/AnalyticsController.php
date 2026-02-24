@@ -280,6 +280,8 @@ class AnalyticsController extends Controller
             ];
         }
 
+        $featureTables = $this->normalizeFeatureTables($featureTables);
+
         $students = Student::whereHas('enrollments', function ($query) use ($classIds, $schoolYearId) {
             $query->whereIn('class_id', $classIds)->where('school_year_id', $schoolYearId);
         })->get(['id', 'first_name', 'last_name']);
@@ -401,6 +403,29 @@ class AnalyticsController extends Controller
         }
 
         return $featureTables;
+    }
+
+    private function normalizeFeatureTables(array $featureTables): array
+    {
+        $normalized = $featureTables;
+
+        foreach (['table1', 'table2', 'table3'] as $tableKey) {
+            $table = $featureTables[$tableKey] ?? null;
+            if (! is_array($table)) {
+                $normalized[$tableKey] = ['data' => []];
+
+                continue;
+            }
+
+            $rows = $table['data'] ?? [];
+            if (! is_array($rows)) {
+                $rows = [];
+            }
+
+            $normalized[$tableKey]['data'] = $rows;
+        }
+
+        return $normalized;
     }
 
     private function applyRiskCalibration(array $rows): array

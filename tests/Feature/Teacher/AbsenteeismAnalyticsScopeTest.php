@@ -605,6 +605,39 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $this->assertNotNull($secondResponse->viewData('featureTables'));
     }
 
+    public function test_malformed_feature_tables_payload_is_normalized_without_server_error(): void
+    {
+        [$teacherUser, $schoolYear, $class] = $this->createScopedClassContext('malform', 5);
+        $student = $this->createStudent('Malformed', 'Payload', 'ml1');
+        $this->enrollStudent($student, $class, $schoolYear);
+
+        Http::fake([
+            'http://127.0.0.1:8001/health' => Http::response([
+                'success' => true,
+                'status' => 'ok',
+            ], 200),
+            'http://127.0.0.1:8001/features/tables' => Http::response([
+                'success' => true,
+                'table1' => null,
+                'table2' => 'invalid-table',
+                'table3' => ['data' => 'not-an-array'],
+            ], 200),
+            '*' => Http::response([], 200),
+        ]);
+
+        $response = $this->actingAs($teacherUser)->get(route('teacher.analytics.absenteeism'));
+
+        $response->assertOk();
+        $featureTables = $response->viewData('featureTables');
+
+        $this->assertSame([], $featureTables['table1']['data'] ?? null);
+        $this->assertSame([], $featureTables['table2']['data'] ?? null);
+        $this->assertSame([], $featureTables['table3']['data'] ?? null);
+        $this->assertSame([], $response->viewData('recognitionTop5'));
+        $this->assertSame([], $response->viewData('interventionQueue'));
+        $this->assertSame([], $response->viewData('decliningTrendRows'));
+    }
+
     private function createScopedClassContext(string $suffix, int $gradeLevel): array
     {
         $schoolYear = $this->createActiveSchoolYear($suffix);
