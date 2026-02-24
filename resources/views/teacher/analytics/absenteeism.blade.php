@@ -793,7 +793,7 @@
                         'Unable to load student risk data. Please ensure the prediction service is running.';
 
                     if (($analyticsScopeMode ?? null) === 'none') {
-                        $fallbackTitle = 'No Analytics Scope:';
+                        $fallbackTitle = 'No Analytics Available:';
                         $fallbackMessage =
                             $analyticsAccessNotice ??
                             'No advisory class handled and no scheduled subjects handled for the current school year.';
