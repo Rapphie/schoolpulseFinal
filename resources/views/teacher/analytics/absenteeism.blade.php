@@ -499,7 +499,7 @@
                             <div class="tab-pane fade show active" id="table1-content" role="tabpanel"
                                 aria-labelledby="table1-tab">
                                 <p class="text-muted small mb-3">
-                                    Focus first on students marked as high risk by Python, then review trend and action
+                                    Focus students marked as high risk then review trend and action
                                     queue.
                                 </p>
                                 @if (!empty($featureTables['table1']['data']))
