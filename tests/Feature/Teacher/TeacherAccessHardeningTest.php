@@ -240,6 +240,19 @@ class TeacherAccessHardeningTest extends TestCase
         $response->assertSee('class="mb-3 d-none" id="allDayToggleWrapper"', false);
     }
 
+    public function test_attendance_page_shows_warning_for_teacher_with_no_handled_subjects(): void
+    {
+        $suffix = Str::lower(Str::random(8));
+        $this->createActiveSchoolYear($suffix);
+        [$teacherUser] = $this->createTeacherUser();
+
+        $response = $this->actingAs($teacherUser)->get(route('teacher.attendance.take'));
+
+        $response->assertOk();
+        $response->assertSee('id="noHandledSubjectWarning"', false);
+        $response->assertSee('You do not have any handled subjects yet.', false);
+    }
+
     public function test_attendance_all_subject_for_grade_4_to_6_adviser_returns_warning_and_uses_resolved_class_id(): void
     {
         $suffix = Str::lower(Str::random(8));

@@ -367,10 +367,14 @@ class ScheduleController extends Controller
                 return redirect()->back()->with('error', 'For Grade 1, 2, and 3, schedules cannot be deleted. They are automatically managed based on the adviser.');
             }
 
-            $classId = $schedule->class_id;
+            $sectionId = $schedule->class?->section_id;
             $schedule->delete();
 
-            return redirect()->route('admin.sections.manage', $classId)->with('success', 'Assigned subject schedule deleted successfully.');
+            if (! $sectionId) {
+                return redirect()->route('admin.schedules.index')->with('success', 'Assigned subject schedule deleted successfully.');
+            }
+
+            return redirect()->route('admin.sections.manage', ['section' => $sectionId])->with('success', 'Assigned subject schedule deleted successfully.');
         } catch (Throwable $e) {
             Log::error('ScheduleController@destroy error: '.$e->getMessage(), ['exception' => $e]);
 

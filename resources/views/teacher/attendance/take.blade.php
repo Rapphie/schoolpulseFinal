@@ -80,6 +80,12 @@
                             </div>
                             <small class="form-text text-muted">Only your assigned sections are shown. Click to search and
                                 select.</small>
+                            <div class="alert alert-warning py-2 mt-2 mb-0 {{ $sections->isEmpty() ? '' : 'd-none' }}"
+                                id="noHandledSubjectWarning" role="alert">
+                                <i class="fa fa-exclamation-triangle me-1"></i>
+                                <span id="noHandledSubjectWarningText">You do not have any handled subjects yet. Please
+                                    contact the administrator.</span>
+                            </div>
                         </div>
 
                         <div class="mb-3 d-none" id="allDayToggleWrapper">
@@ -298,6 +304,8 @@
             const $subjectDropdownSearch = $('#subjectDropdownSearch');
             const $subjectDropdownSelected = $('#subjectDropdownSelected');
             const $subjectIdInput = $('#subject_id');
+            const $noHandledSubjectWarning = $('#noHandledSubjectWarning');
+            const $noHandledSubjectWarningText = $('#noHandledSubjectWarningText');
 
             function isGradeFourToSix(gradeLevel) {
                 const level = Number(gradeLevel || 0);
@@ -320,6 +328,24 @@
 
                 const showGradeWarning = isAdviser && isGradeFourToSix(selectedSectionMeta?.gradeLevel);
                 $allDayGradeWarning.toggleClass('d-none', !showGradeWarning);
+            }
+
+            function showNoHandledSubjectWarning(message) {
+                $noHandledSubjectWarningText.text(message);
+                $noHandledSubjectWarning.removeClass('d-none');
+            }
+
+            function hideNoHandledSubjectWarning() {
+                $noHandledSubjectWarning.addClass('d-none');
+            }
+
+            function getNoHandledSubjectWarningMessage() {
+                const baseMessage = 'You do not handle any subjects for this section.';
+                if (selectedSectionMeta && selectedSectionMeta.isAdviser) {
+                    return `${baseMessage} You can still use "Apply to All Subjects of the Day" for your advisory class.`;
+                }
+
+                return baseMessage;
             }
 
             updateAllDayControls();
@@ -346,6 +372,7 @@
                 $dropdownSelected.text(sectionName);
                 $sectionIdInput.val(sectionId).trigger('change');
                 updateAllDayControls();
+                hideNoHandledSubjectWarning();
                 // Hide dropdown after selection
                 $dropdownBtn.dropdown('toggle');
 
@@ -429,65 +456,35 @@
 
                         // Reset dropdown
                         $subjectDropdownSelected.text('Select Subject');
+                        let subjects = [];
 
-                        // Check what kind of data structure we have in the response
                         if (Array.isArray(response)) {
-                            // Response is an array of subjects directly
-                            if (response.length > 0) {
-                                response.forEach(subject => {
-                                    const $li = $('<li></li>');
-                                    const $span = $('<span></span>')
-                                        .addClass('dropdown-item subject-option')
-                                        .attr('data-id', subject.id)
-                                        .text(subject.name)
-                                        .css('cursor', 'pointer');
-
-                                    $li.append($span);
-                                    $('#subjectDropdownMenu').append($li);
-                                });
-                            } else {
-                                $('#subjectDropdownLoading').text(
-                                    'No subjects available for this section').show();
-                            }
+                            subjects = response;
                         } else if (response.subjects && Array.isArray(response.subjects)) {
-                            // Response has a subjects property that is an array
-                            if (response.subjects.length > 0) {
-                                response.subjects.forEach(subject => {
-                                    const $li = $('<li></li>');
-                                    const $span = $('<span></span>')
-                                        .addClass('dropdown-item subject-option')
-                                        .attr('data-id', subject.id)
-                                        .text(subject.name)
-                                        .css('cursor', 'pointer');
-
-                                    $li.append($span);
-                                    $('#subjectDropdownMenu').append($li);
-                                });
-                            } else {
-                                $('#subjectDropdownLoading').text(
-                                    'No subjects available for this section').show();
-                            }
+                            subjects = response.subjects;
                         } else if (response.data && Array.isArray(response.data)) {
-                            // Response has a data property that is an array (common in Laravel API resources)
-                            if (response.data.length > 0) {
-                                response.data.forEach(subject => {
-                                    const $li = $('<li></li>');
-                                    const $span = $('<span></span>')
-                                        .addClass('dropdown-item subject-option')
-                                        .attr('data-id', subject.id)
-                                        .text(subject.name)
-                                        .css('cursor', 'pointer');
-
-                                    $li.append($span);
-                                    $('#subjectDropdownMenu').append($li);
-                                });
-                            } else {
-                                $('#subjectDropdownLoading').text(
-                                    'No subjects available for this section').show();
-                            }
+                            subjects = response.data;
                         } else {
-                            $('#subjectDropdownLoading').text('Unexpected data format from server')
-                                .show();
+                            $('#subjectDropdownLoading').text('Unexpected data format from server').show();
+                            return;
+                        }
+
+                        if (subjects.length > 0) {
+                            subjects.forEach(subject => {
+                                const $li = $('<li></li>');
+                                const $span = $('<span></span>')
+                                    .addClass('dropdown-item subject-option')
+                                    .attr('data-id', subject.id)
+                                    .text(subject.name)
+                                    .css('cursor', 'pointer');
+
+                                $li.append($span);
+                                $('#subjectDropdownMenu').append($li);
+                            });
+                            hideNoHandledSubjectWarning();
+                        } else {
+                            $('#subjectDropdownLoading').text('No subjects available for this section').show();
+                            showNoHandledSubjectWarning(getNoHandledSubjectWarningMessage());
                         }
                     },
                     error: function(xhr, status, error) {
@@ -552,6 +549,9 @@
                 }
 
                 if (!isAllDay && !effectiveSubjectId) {
+                    if ($subjectDropdownMenu.find('.subject-option').length === 0) {
+                        showNoHandledSubjectWarning(getNoHandledSubjectWarningMessage());
+                    }
                     alert('Please select a subject');
                     return;
                 }
