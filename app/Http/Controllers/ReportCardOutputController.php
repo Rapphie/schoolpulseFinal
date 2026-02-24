@@ -168,7 +168,7 @@ class ReportCardOutputController extends Controller
                 $templateProcessor->setValue("subj_{$i}_q2", $row['q2'] !== null && $row['q2'] !== '' ? $row['q2'] : '');
                 $templateProcessor->setValue("subj_{$i}_q3", $row['q3'] !== null && $row['q3'] !== '' ? $row['q3'] : '');
                 $templateProcessor->setValue("subj_{$i}_q4", $row['q4'] !== null && $row['q4'] !== '' ? $row['q4'] : '');
-                $templateProcessor->setValue("subj_{$i}_final", $row['final_grade'] !== null && $row['final_grade'] !== '' ? $row['final_grade'] : '');
+                $templateProcessor->setValue("subj_{$i}_final", GradeService::formatFinalGradeForExport($row['final_grade'] ?? null));
                 $templateProcessor->setValue("subj_{$i}_remarks", $row['remarks'] ?? '');
             }
 

@@ -120,6 +120,18 @@ class GradeService
     }
 
     /**
+     * Format a final grade for report card export.
+     */
+    public static function formatFinalGradeForExport(float|int|string|null $finalGrade): string
+    {
+        if ($finalGrade === null || $finalGrade === '') {
+            return '';
+        }
+
+        return (string) round((float) $finalGrade, 0);
+    }
+
+    /**
      * Get the remarks based on the final grade.
      * Per DepEd guidelines: 75 and above is PASSED, below 75 is FAILED
      *
