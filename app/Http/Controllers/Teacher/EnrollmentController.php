@@ -480,6 +480,7 @@ class EnrollmentController extends Controller
         $request->validate([
             'student_id' => 'required|string',
             'class_id' => 'required|exists:classes,id',
+            'student_type' => 'nullable|string|in:enroll,returning',
             'student_updates' => 'nullable|string', // JSON string of student updates
             'enrollment_status' => 'nullable|string|in:enrolled,transferred',
         ]);
@@ -497,8 +498,24 @@ class EnrollmentController extends Controller
                 return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Enrollment for this school year is not open.');
             }
 
-            // Explicitly prevent enrolling past students if promotion is not open
-            if (! $schoolYear->is_promotion_open) {
+            $studentType = strtolower((string) $request->input('student_type', 'returning'));
+            if ($studentType === '') {
+                $studentType = 'returning';
+            }
+
+            // Pending-profile enrollment branch ("enroll"): allow only in the active school year.
+            $isPendingProfileEnrollment = $studentType === 'enroll';
+            // Returning/past enrollment branch ("returning" or missing): promotion must be open.
+            $isReturningEnrollment = $studentType === 'returning';
+
+            $activeSchoolYearId = SchoolYear::getRealActive()?->id;
+            $isTargetSchoolYearActive = $activeSchoolYearId && (int) $class->school_year_id === (int) $activeSchoolYearId;
+
+            if ($isPendingProfileEnrollment && ! $isTargetSchoolYearActive) {
+                return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Pending-profile enrollment is only allowed for the current active school year.');
+            }
+
+            if ($isReturningEnrollment && ! $schoolYear->is_promotion_open) {
                 return redirect()->route($indexRoute, $indexRouteParameters)->withInput()->with('error', 'Promotion must be enabled to enroll past students.');
             }
 

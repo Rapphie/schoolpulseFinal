@@ -186,12 +186,14 @@ class GradeService
      * Returns an array with quarterly grades, final grade, and remarks.
      *
      * @param  \Illuminate\Support\Collection  $rawGrades  Collection of Grade models grouped by subject_id
+     * @param  array<int>|null  $requiredSubjectIds  Required subject IDs for computing general average
      * @return array Array of processed grades data per subject
      */
-    public static function processGradesForReportCard($rawGrades): array
+    public static function processGradesForReportCard($rawGrades, ?array $requiredSubjectIds = null): array
     {
         $gradesData = [];
         $finalGrades = [];
+        $finalGradesBySubjectId = [];
 
         foreach ($rawGrades as $subjectId => $collection) {
             $subjectName = optional($collection->first()->subject)->name ?? 'Subject';
@@ -214,18 +216,19 @@ class GradeService
                 }
             }
 
-            // Calculate final grade.
+            // Calculate final grade only when all quarters are available.
             $existingGrades = array_filter($quarters, fn ($val) => $val !== null);
             $final = null;
 
-            // Only calculate final grade if at least one quarter has a grade.
-            if (count($existingGrades) > 0) {
-                $final = self::calculateFinalGrade($quarters);
+            if (count($existingGrades) === 4) {
+                $final = self::calculateFinalGrade($quarters, true);
             }
 
             if ($final !== null) {
                 $finalGrades[] = $final;
             }
+
+            $finalGradesBySubjectId[(int) $subjectId] = $final;
 
             $gradesData[] = [
                 'subject_name' => $subjectName,
@@ -238,9 +241,33 @@ class GradeService
             ];
         }
 
-        $generalAverage = count($finalGrades) > 0
-            ? round(array_sum($finalGrades) / count($finalGrades), 0)
-            : null;
+        $generalAverage = null;
+
+        if ($requiredSubjectIds !== null) {
+            $requiredSubjectIds = array_values(array_unique(array_map('intval', $requiredSubjectIds)));
+
+            if ($requiredSubjectIds !== []) {
+                $requiredFinalGrades = [];
+                $allRequiredSubjectsComplete = true;
+
+                foreach ($requiredSubjectIds as $requiredSubjectId) {
+                    $finalGrade = $finalGradesBySubjectId[$requiredSubjectId] ?? null;
+
+                    if ($finalGrade === null) {
+                        $allRequiredSubjectsComplete = false;
+                        break;
+                    }
+
+                    $requiredFinalGrades[] = $finalGrade;
+                }
+
+                if ($allRequiredSubjectsComplete) {
+                    $generalAverage = round(array_sum($requiredFinalGrades) / count($requiredFinalGrades), 0);
+                }
+            }
+        } elseif (count($finalGrades) > 0) {
+            $generalAverage = round(array_sum($finalGrades) / count($finalGrades), 0);
+        }
 
         return [
             'gradesData' => $gradesData,

@@ -733,6 +733,14 @@ class TeacherDashboardController extends Controller
             $class->loadMissing('section.gradeLevel');
 
             $activeSchoolYear = SchoolYear::active()->first();
+            $gradeLevelId = $class->section?->grade_level_id;
+            $requiredSubjectIds = Subject::query()
+                ->where('grade_level_id', $gradeLevelId)
+                ->active()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
 
             // Get grades for the student in the current school year
             $rawGrades = Grade::where('student_id', $student->id)
@@ -742,7 +750,7 @@ class TeacherDashboardController extends Controller
                 ->groupBy('subject_id');
 
             // Use GradeService to process grades with proper DepEd transmutation and calculations
-            $processedGrades = GradeService::processGradesForReportCard($rawGrades);
+            $processedGrades = GradeService::processGradesForReportCard($rawGrades, $requiredSubjectIds);
             $gradesData = $processedGrades['gradesData'];
             $generalAverage = $processedGrades['generalAverage'];
 

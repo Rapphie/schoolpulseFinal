@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
@@ -63,6 +64,7 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
     {
         $admin = $this->createAdminUser();
         [$schoolYear, $class] = $this->createOpenClassWithoutAdviser();
+        $schoolYear->update(['is_promotion_open' => true]);
 
         $student = Student::create([
             'student_id' => Student::generateStudentId(),
@@ -91,6 +93,54 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
             'enrolled_by_user_id' => $admin->id,
             'status' => 'enrolled',
         ]);
+    }
+
+    public function test_admin_store_past_student_pending_profile_enrollment_succeeds_for_active_school_year_when_promotion_closed(): void
+    {
+        $admin = $this->createAdminUser();
+        [$schoolYear, $class] = $this->createOpenClassWithoutAdviser();
+
+        $student = Student::create([
+            'student_id' => Student::generateStudentId(),
+            'first_name' => 'Pending',
+            'last_name' => 'Admin',
+            'gender' => 'female',
+            'birthdate' => '2015-02-10',
+            'enrollment_date' => now(),
+        ]);
+
+        $class->load('section');
+        $profile = StudentProfile::create([
+            'student_id' => $student->id,
+            'school_year_id' => $schoolYear->id,
+            'grade_level_id' => $class->section->grade_level_id,
+            'status' => 'pending',
+        ]);
+
+        $this->assertSame('pending', $profile->status);
+
+        $response = $this->actingAs($admin)
+            ->post(route('admin.enrollment.page.storePastStudent'), [
+                'student_type' => 'enroll',
+                'student_id' => (string) $student->id,
+                'class_id' => $class->id,
+                'enrollment_status' => 'enrolled',
+            ]);
+
+        $response->assertRedirect(route('admin.enrollment.index', ['school_year_id' => $schoolYear->id]));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_id' => $student->id,
+            'class_id' => $class->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => null,
+            'enrolled_by_user_id' => $admin->id,
+            'status' => 'enrolled',
+        ]);
+
+        $profile->refresh();
+        $this->assertSame('enrolled', $profile->status);
     }
 
     public function test_admin_store_error_flashes_old_input_for_wizard_rehydration(): void

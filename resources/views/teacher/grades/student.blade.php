@@ -169,11 +169,11 @@
                                                 {{ $grade['q4'] ?? '' }}
                                             </td>
                                             <td
-                                                class="text-center font-bold {{ $grade['final_grade'] !== null && $grade['final_grade'] < 75 ? 'grade-failed' : 'grade-passed' }}">
+                                                class="text-center font-bold {{ $grade['final_grade'] === null ? '' : ($grade['final_grade'] < 75 ? 'grade-failed' : 'grade-passed') }}">
                                                 {{ $grade['final_grade'] ?? '' }}
                                             </td>
                                             <td
-                                                class="text-center {{ $grade['remarks'] === 'Failed' ? 'grade-failed' : 'grade-passed' }}">
+                                                class="text-center {{ $grade['remarks'] === '' ? '' : ($grade['remarks'] === 'Failed' ? 'grade-failed' : 'grade-passed') }}">
                                                 {{ $grade['remarks'] }}
                                             </td>
                                         </tr>
@@ -186,11 +186,11 @@
                                         <td class="font-bold">General Average</td>
                                         <td colspan="4"></td>
                                         <td
-                                            class="text-center font-bold {{ $generalAverage !== null && $generalAverage < 75 ? 'grade-failed' : 'grade-passed' }}">
+                                            class="text-center font-bold {{ $generalAverage === null ? '' : ($generalAverage < 75 ? 'grade-failed' : 'grade-passed') }}">
                                             {{ $generalAverage ?? '' }}
                                         </td>
                                         <td
-                                            class="text-center font-bold {{ $generalAverage !== null && $generalAverage < 75 ? 'grade-failed' : 'grade-passed' }}">
+                                            class="text-center font-bold {{ $generalAverage === null ? '' : ($generalAverage < 75 ? 'grade-failed' : 'grade-passed') }}">
                                             @if ($generalAverage !== null)
                                                 {{ $generalAverage >= 75 ? 'Passed' : 'Failed' }}
                                             @endif

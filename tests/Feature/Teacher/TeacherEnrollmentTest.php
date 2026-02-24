@@ -12,6 +12,7 @@ use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Setting;
 use App\Models\Student;
+use App\Models\StudentProfile;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -234,6 +235,7 @@ class TeacherEnrollmentTest extends TestCase
 
         [$teacher, $teacherUser] = $this->createTeacherUser();
         [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $schoolYear->update(['is_promotion_open' => true]);
         $this->enableTeacherEnrollment();
 
         $student = Student::create([
@@ -262,6 +264,94 @@ class TeacherEnrollmentTest extends TestCase
             'teacher_id' => $teacher->id,
             'enrolled_by_user_id' => $teacherUser->id,
             'status' => 'enrolled',
+        ]);
+    }
+
+    public function test_teacher_store_past_student_pending_profile_enrollment_succeeds_for_active_school_year_when_promotion_closed(): void
+    {
+        Cache::flush();
+
+        [$teacher, $teacherUser] = $this->createTeacherUser();
+        [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $this->enableTeacherEnrollment();
+
+        $student = Student::create([
+            'student_id' => Student::generateStudentId(),
+            'first_name' => 'Pending',
+            'last_name' => 'Profile',
+            'gender' => 'female',
+            'birthdate' => '2015-08-10',
+            'enrollment_date' => now(),
+        ]);
+
+        $class->load('section');
+        $profile = StudentProfile::create([
+            'student_id' => $student->id,
+            'school_year_id' => $schoolYear->id,
+            'grade_level_id' => $class->section->grade_level_id,
+            'status' => 'pending',
+            'created_by_teacher_id' => $teacher->id,
+        ]);
+
+        $this->assertSame('pending', $profile->status);
+
+        $response = $this->actingAs($teacherUser)
+            ->post(route('teacher.enrollment.storePastStudent'), [
+                'student_type' => 'enroll',
+                'student_id' => (string) $student->id,
+                'class_id' => $class->id,
+                'enrollment_status' => 'enrolled',
+            ]);
+
+        $response->assertRedirect(route('teacher.enrollment.index', ['school_year_id' => $schoolYear->id]));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_id' => $student->id,
+            'class_id' => $class->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $teacher->id,
+            'enrolled_by_user_id' => $teacherUser->id,
+            'status' => 'enrolled',
+        ]);
+
+        $profile->refresh();
+        $this->assertSame('enrolled', $profile->status);
+    }
+
+    public function test_teacher_store_past_student_returning_enrollment_requires_promotion_when_closed(): void
+    {
+        Cache::flush();
+
+        [$teacher, $teacherUser] = $this->createTeacherUser();
+        [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $this->enableTeacherEnrollment();
+
+        $student = Student::create([
+            'student_id' => Student::generateStudentId(),
+            'first_name' => 'Returning',
+            'last_name' => 'Blocked',
+            'gender' => 'male',
+            'birthdate' => '2015-07-07',
+            'enrollment_date' => now(),
+        ]);
+
+        $response = $this->actingAs($teacherUser)
+            ->from(route('teacher.enrollment.index', ['school_year_id' => $schoolYear->id]))
+            ->post(route('teacher.enrollment.storePastStudent'), [
+                'student_type' => 'returning',
+                'student_id' => (string) $student->id,
+                'class_id' => $class->id,
+                'enrollment_status' => 'enrolled',
+            ]);
+
+        $response->assertRedirect(route('teacher.enrollment.index', ['school_year_id' => $schoolYear->id]));
+        $response->assertSessionHas('error', 'Promotion must be enabled to enroll past students.');
+
+        $this->assertDatabaseMissing('enrollments', [
+            'student_id' => $student->id,
+            'class_id' => $class->id,
+            'school_year_id' => $schoolYear->id,
         ]);
     }
 
@@ -298,6 +388,7 @@ class TeacherEnrollmentTest extends TestCase
 
         [$teacher, $teacherUser] = $this->createTeacherUser();
         [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $schoolYear->update(['is_promotion_open' => true]);
         $class->update(['capacity' => 0]);
         $this->enableTeacherEnrollment();
 

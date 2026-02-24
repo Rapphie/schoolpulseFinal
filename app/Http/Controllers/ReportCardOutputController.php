@@ -7,6 +7,7 @@ use App\Models\Classes;
 use App\Models\Grade;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Services\GradeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -34,6 +35,14 @@ class ReportCardOutputController extends Controller
             }
 
             $class->loadMissing('section.gradeLevel');
+            $gradeLevelId = $class->section?->grade_level_id;
+            $requiredSubjectIds = Subject::query()
+                ->where('grade_level_id', $gradeLevelId)
+                ->active()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
 
             // Load active school year
             $schoolYear = SchoolYear::active()->first();
@@ -49,7 +58,7 @@ class ReportCardOutputController extends Controller
                 ->groupBy('subject_id');
 
             // Use GradeService to process grades with proper DepEd transmutation and calculations
-            $processedGrades = GradeService::processGradesForReportCard($rawGrades);
+            $processedGrades = GradeService::processGradesForReportCard($rawGrades, $requiredSubjectIds);
             $gradesData = $processedGrades['gradesData'];
             $generalAverage = $processedGrades['generalAverage'];
 
