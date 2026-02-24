@@ -37,3 +37,4 @@ boost.json
 /.junie
 phpunit.xml
 /.playwright-cli
+*.json
