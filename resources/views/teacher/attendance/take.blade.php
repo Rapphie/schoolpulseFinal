@@ -65,7 +65,11 @@
                                     @foreach ($sections as $class)
                                         <li>
                                             <span class="dropdown-item section-option" style="cursor:pointer;"
-                                                data-id="{{ $class->section->id }}">
+                                                data-id="{{ $class->section->id }}"
+                                                data-section-id="{{ $class->section->id }}"
+                                                data-class-id="{{ $class->id }}"
+                                                data-is-adviser="{{ (int) ((int) $class->teacher_id === (int) $teacherId) }}"
+                                                data-grade-level="{{ (int) ($class->section->gradeLevel->level ?? 0) }}">
                                                 {{ 'Grade ' . ($class->section->gradeLevel->level ?? 'Error') }} -
                                                 {{ $class->section->name }}
                                             </span>
@@ -78,16 +82,18 @@
                                 select.</small>
                         </div>
 
-                        @if ($isElementaryAdviser)
-                            <div class="mb-3">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="allDayToggle" name="all_day">
-                                    <label class="form-check-label fw-bold" for="allDayToggle">
-                                        Apply to All Subjects of the Day
-                                    </label>
-                                </div>
+                        <div class="mb-3 d-none" id="allDayToggleWrapper">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="allDayToggle" name="all_day">
+                                <label class="form-check-label fw-bold" for="allDayToggle">
+                                    Apply to All Subjects of the Day
+                                </label>
                             </div>
-                        @endif
+                            <div class="alert alert-warning py-2 mt-2 mb-0 d-none" id="allDayGradeWarning" role="alert">
+                                All-subject attendance marks all scheduled class subjects, including those not handled by
+                                you.
+                            </div>
+                        </div>
 
                         <div class="mb-3">
                             <label for="subject_id" class="form-label">Subject <span class="text-danger">*</span></label>
@@ -263,6 +269,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const isActiveQuarterLocked = @json($isActiveQuarterLocked);
+            let selectedSectionMeta = null;
 
             // Attendance sheet search functionality
             $('#attendanceSearchInput').on('keyup', function() {
@@ -283,6 +290,39 @@
             const $dropdownSearch = $('#sectionDropdownSearch');
             const $dropdownSelected = $('#sectionDropdownSelected');
             const $sectionIdInput = $('#section_id');
+            const $allDayToggleWrapper = $('#allDayToggleWrapper');
+            const $allDayToggle = $('#allDayToggle');
+            const $allDayGradeWarning = $('#allDayGradeWarning');
+            const $subjectDropdownBtn = $('#subjectDropdownBtn');
+            const $subjectDropdownMenu = $('#subjectDropdownMenu');
+            const $subjectDropdownSearch = $('#subjectDropdownSearch');
+            const $subjectDropdownSelected = $('#subjectDropdownSelected');
+            const $subjectIdInput = $('#subject_id');
+
+            function isGradeFourToSix(gradeLevel) {
+                const level = Number(gradeLevel || 0);
+                return level >= 4 && level <= 6;
+            }
+
+            function updateAllDayControls() {
+                const isAdviser = Boolean(selectedSectionMeta && selectedSectionMeta.isAdviser);
+                $allDayToggle.prop('disabled', !isAdviser);
+
+                if (isAdviser) {
+                    $allDayToggleWrapper.removeClass('d-none');
+                } else {
+                    $allDayToggleWrapper.addClass('d-none');
+                    $allDayToggle.prop('checked', false);
+                    $subjectDropdownBtn.prop('disabled', false);
+                    $subjectDropdownSelected.text('Select Subject');
+                    $subjectIdInput.val('');
+                }
+
+                const showGradeWarning = isAdviser && isGradeFourToSix(selectedSectionMeta?.gradeLevel);
+                $allDayGradeWarning.toggleClass('d-none', !showGradeWarning);
+            }
+
+            updateAllDayControls();
             // Filter items as user types
             $dropdownSearch.on('keyup', function() {
                 const search = $(this).val().toLowerCase();
@@ -293,10 +333,19 @@
             });
             // Select item
             $dropdownMenu.on('click', '.section-option', function(e) {
+                const $selectedOption = $(this);
                 const sectionName = $(this).text();
                 const sectionId = $(this).data('id');
+                selectedSectionMeta = {
+                    sectionId: Number($selectedOption.data('section-id')),
+                    classId: Number($selectedOption.data('class-id')),
+                    isAdviser: Number($selectedOption.data('is-adviser')) === 1,
+                    gradeLevel: Number($selectedOption.data('grade-level')),
+                };
+
                 $dropdownSelected.text(sectionName);
                 $sectionIdInput.val(sectionId).trigger('change');
+                updateAllDayControls();
                 // Hide dropdown after selection
                 $dropdownBtn.dropdown('toggle');
 
@@ -309,13 +358,6 @@
                 $dropdownMenu.find('.section-option').parent().show();
                 setTimeout(() => $dropdownSearch.focus(), 100);
             });
-            // Subject dropdown search and select
-            const $subjectDropdownBtn = $('#subjectDropdownBtn');
-            const $subjectDropdownMenu = $('#subjectDropdownMenu');
-            const $subjectDropdownSearch = $('#subjectDropdownSearch');
-            const $subjectDropdownSelected = $('#subjectDropdownSelected');
-            const $subjectIdInput = $('#subject_id');
-
             // Filter subject items as user types
             $subjectDropdownSearch.on('keyup', function() {
                 const search = $(this).val().toLowerCase();
@@ -343,8 +385,14 @@
             });
 
             // Handle All-Day Toggle
-            $('#allDayToggle').on('change', function() {
+            $allDayToggle.on('change', function() {
+                const isAdviser = Boolean(selectedSectionMeta && selectedSectionMeta.isAdviser);
                 const isChecked = $(this).is(':checked');
+                if (isChecked && !isAdviser) {
+                    $(this).prop('checked', false);
+                    return;
+                }
+
                 if (isChecked) {
                     $subjectDropdownBtn.prop('disabled', true);
                     $subjectDropdownSelected.text('All Scheduled Subjects');
@@ -371,16 +419,11 @@
                 $('#subjectDropdownMenu li:not(:first-child):not(:nth-child(2))').remove();
                 $('#subjectDropdownLoading').text('Loading subjects...').show();
 
-                // Make AJAX call to  subjects for this section
-                console.log('Loading subjects for section ID:', sectionId);
-
                 $.ajax({
                     url: "{{ route('teacher.subjects.by-section', ['section' => ':sectionId']) }}".replace(
                         ':sectionId', sectionId),
                     type: 'GET',
                     success: function(response) {
-                        console.log('Subject response:', response); // Debug log
-
                         // Remove loading message
                         $('#subjectDropdownLoading').hide();
 
@@ -443,15 +486,11 @@
                                     'No subjects available for this section').show();
                             }
                         } else {
-                            // We don't know the format, let's show what we received
-                            console.error('Unexpected response format:', response);
                             $('#subjectDropdownLoading').text('Unexpected data format from server')
                                 .show();
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('Error loading subjects:', xhr, status, error);
-
                         let errorMsg = 'Error loading subjects';
 
                         // Try to get more detailed error information
@@ -487,57 +526,15 @@
 
             let studentsData = {}; // To store loaded students data
 
-            // Grade Level Change Event
-            $('#grade_level_id').on('change', async function() {
-                const gradeLevelId = $(this).val();
-                const sectionDropdown = $('#section_id');
-
-                // Reset section dropdown
-                sectionDropdown.empty().prop('disabled', true);
-
-                if (!gradeLevelId) {
-                    sectionDropdown.append('<option value="">Select Grade Level First</option>');
-                    return;
-                }
-
-                sectionDropdown.append('<option value="">Loading sections...</option>');
-
-                try {
-                    const response = await $.ajax({
-                        url: '{{ route('teacher.sections.by-grade-level') }}',
-                        type: 'GET',
-                        data: {
-                            grade_level: gradeLevelId
-                        }
-                    });
-
-                    sectionDropdown.empty().prop('disabled', false);
-                    sectionDropdown.append('<option value="">Select Section</option>');
-
-                    if (response.allClasses && response.allClasses.length > 0) {
-                        const options = response.allClasses.map(classes =>
-                            `<option value="${classes.id}">${classes.section.name}</option>`
-                        ).join('');
-                        sectionDropdown.append(options);
-                    } else {
-                        sectionDropdown.append(
-                            '<option value="">No sections available</option>');
-                    }
-                } catch (error) {
-                    console.error('Error loading sections:', error);
-                    const errorMessage = error.responseJSON?.message || 'Error loading sections';
-                    sectionDropdown.empty().prop('disabled', true);
-                    sectionDropdown.append(`<option value="">Error: ${errorMessage}</option>`);
-                }
-            });
-
             // Load Students Button Click Event
             $('#loadStudentsBtn').on('click', function() {
                 const sectionId = $('#section_id').val();
-                const subjectId = $('#subject_id').val();
+                const selectedSubjectId = $('#subject_id').val();
                 const date = $('#date').val();
                 const quarter = $('#quarter').val();
-                const isAllDay = $('#allDayToggle').is(':checked');
+                const canUseAllDay = Boolean(selectedSectionMeta && selectedSectionMeta.isAdviser);
+                const isAllDay = canUseAllDay && $('#allDayToggle').is(':checked');
+                const effectiveSubjectId = isAllDay ? 'all' : selectedSubjectId;
 
                 if (!quarter) {
                     alert('No active quarter available. Please contact the administrator.');
@@ -549,7 +546,12 @@
                     return;
                 }
 
-                if (!isAllDay && !subjectId) {
+                if (isAllDay && !canUseAllDay) {
+                    alert('All-subject attendance is only available for your advisory class.');
+                    return;
+                }
+
+                if (!isAllDay && !effectiveSubjectId) {
                     alert('Please select a subject');
                     return;
                 }
@@ -559,9 +561,7 @@
                     return;
                 }
 
-                // In a real application, you would make an AJAX call to get the students
-                // For this demo, we'll simulate loading students
-                loadStudents(sectionId, subjectId, date);
+                loadStudents(sectionId, effectiveSubjectId, date);
             });
 
             // Mark All Status Event
@@ -588,7 +588,7 @@
                     '<tr><td colspan="5" class="text-center">Loading students...</td></tr>');
                 $('#attendanceCard').show();
 
-                const isAllDay = $('#allDayToggle').is(':checked');
+                const isAllDay = subjectId === 'all';
 
                 // Make AJAX call to get students for this section, subject and date
                 $.ajax({
@@ -596,10 +596,16 @@
                     type: 'GET',
                     data: {
                         section_id: sectionId,
-                        subject_id: isAllDay ? 'all' : subjectId,
+                        subject_id: subjectId,
                         date: date
                     },
                     success: function(response) {
+                        if (response.warning) {
+                            $allDayGradeWarning.text(response.warning).removeClass('d-none');
+                        } else {
+                            updateAllDayControls();
+                        }
+
                         // Update class info
                         $('#info-section').text(response.section.name);
                         $('#info-subject').text(isAllDay ? 'All Scheduled Subjects' : response.subject
@@ -613,7 +619,6 @@
 
                             let dayOfWeek = response.schedule.day_of_week;
                             let displayDays = '';
-                            console.log('type is:', typeof dayOfWeek, dayOfWeek);
 
                             try {
                                 // Check if dayOfWeek have more than one day
@@ -653,8 +658,6 @@
                                     displayDays = dayOfWeek;
                                 }
                             } catch (e) {
-                                // If any error occurs, use the original value
-                                console.log('Error processing day of week:', e);
                                 displayDays = dayOfWeek;
                             }
 
@@ -673,7 +676,7 @@
 
                         // Update form hidden fields
                         $('#form_section_id').val(sectionId);
-                        $('#form_subject_id').val(subjectId);
+                        $('#form_subject_id').val(isAllDay ? 'all' : subjectId);
                         $('#form_date').val(date);
                         $('#form_quarter').val($('#quarter').val());
 
@@ -740,7 +743,6 @@
                         $('#studentsTableBody').html(
                             `<tr><td colspan="5" class="text-center text-danger">${errorMessage}</td></tr>`
                         );
-                        console.error('Error loading students:', xhr);
                     }
                 });
 
@@ -774,6 +776,12 @@
                         // Show success message at the top of the modal
                         $('#attendanceSummaryModalLabel').html(
                             '<i class="text-success fa fa-check-circle me-2"></i> Attendance Saved Successfully'
+                        );
+                        const warningHtml = response.warning ?
+                            `<div class="mt-2 small text-warning"><i class="fa fa-exclamation-triangle me-1"></i>${response.warning}</div>` :
+                            '';
+                        $('#successAlert').html(
+                            `<i class="fa fa-check-circle me-1"></i> Attendance has been successfully recorded.${warningHtml}`
                         );
 
                         // Calculate summary
@@ -831,9 +839,12 @@
                             $('#noClassInfo').show().find('p').text(
                                 'Select a class to view information');
                             $('#classSelectionForm')[0].reset();
-                            $('#section_id').empty().prop('disabled', true).append(
-                                '<option value="">Select Grade Level First</option>'
-                            );
+                            $dropdownSelected.text('Select Section');
+                            $sectionIdInput.val('');
+                            $subjectDropdownSelected.text('Select Subject');
+                            $subjectIdInput.val('');
+                            selectedSectionMeta = null;
+                            updateAllDayControls();
                             $(this).off('hidden.bs.modal'); // Unbind event
                         });
                     },

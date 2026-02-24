@@ -51,26 +51,51 @@ class AssessmentController extends Controller
     public function index(Classes $class, Request $request)
     {
         $class->load('section.gradeLevel');
+        $teacher = Auth::user()->teacher;
+
+        if (! $teacher) {
+            abort(403, 'You must be a registered teacher to manage assessments.');
+        }
+
+        $activeSchoolYear = SchoolYear::active()->first();
+
+        $subjectsQuery = $teacher->schedules()
+            ->where('class_id', $class->id);
+
+        if ($activeSchoolYear) {
+            $subjectsQuery->whereHas('class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            });
+        }
+
+        $subjects = $subjectsQuery
+            ->with('subject')
+            ->get()
+            ->pluck('subject')
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        if ($subjects->isEmpty()) {
+            return redirect()
+                ->route('teacher.assessments.list')
+                ->with('error', 'You do not handle any subject for this class in the active school year.');
+        }
+
         $quarterLockContext = $this->quarterLockService->contextForSchoolYear((int) $class->school_year_id);
         $activeQuarter = $quarterLockContext['activeQuarter'];
         $quarterLocks = $quarterLockContext['quarterLocks'];
 
-        // Get the selected subject or default to the first subject
-        $subjects = $class->schedules()->with('subject')->get()->pluck('subject')->unique('id');
-
         if ($request->has('subject_id') && $request->subject_id) {
-            $selectedSubject = Subject::find($request->subject_id);
+            $selectedSubject = $subjects->firstWhere('id', (int) $request->subject_id);
         } else {
             $selectedSubject = $subjects->first();
         }
 
         if (! $selectedSubject) {
-            return redirect()->back()->with('error', 'No subjects found for this class.');
-        }
-
-        $teacher = Auth::user()->teacher;
-        if (! $teacher) {
-            abort(403, 'You must be a registered teacher to manage assessments.');
+            return redirect()
+                ->route('teacher.assessments.list')
+                ->with('error', 'You do not handle any subject for this class in the active school year.');
         }
 
         $this->ensureDefaultAssessments($class, $selectedSubject, $teacher);
@@ -224,29 +249,34 @@ class AssessmentController extends Controller
     public function list()
     {
         $teacher = Auth::user()->teacher;
+
+        if (! $teacher) {
+            abort(403, 'You must be a registered teacher to view assessments.');
+        }
+
         $activeSchoolYear = SchoolYear::active()->first();
 
         if (! $activeSchoolYear) {
             return view('teacher.classes')->with('error', 'No active school year has been set.');
         }
 
-        // 1. Get IDs of classes where the teacher is the adviser
-        $advisoryClassIds = $teacher->advisoryClasses()
-            ->where('school_year_id', $activeSchoolYear->id)
-            ->pluck('id');
-
-        // 2. Get IDs of classes where the teacher has a schedule
         $scheduledClassIds = $teacher->schedules()
             ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
-            ->pluck('class_id');
+            ->pluck('class_id')
+            ->unique();
 
-        // 3. Merge and get unique IDs, then fetch the full Class models
-        $allClassIds = $advisoryClassIds->merge($scheduledClassIds)->unique();
-
-        $classes = Classes::whereIn('id', $allClassIds)
-            ->with(['section.gradeLevel', 'teacher.user', 'enrollments']) // Eager load needed data
+        $classes = Classes::whereIn('id', $scheduledClassIds)
+            ->with([
+                'section.gradeLevel',
+                'teacher.user',
+                'enrollments',
+                'schedules' => function ($query) use ($teacher) {
+                    $query->where('teacher_id', $teacher->id)->with('subject');
+                },
+            ])
             ->get()
-            ->sortBy('section.gradeLevel.level');
+            ->sortBy('section.gradeLevel.level')
+            ->values();
 
         return view('teacher.assessments.list', compact('classes', 'teacher'));
     }

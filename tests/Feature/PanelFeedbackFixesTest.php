@@ -360,7 +360,7 @@ class PanelFeedbackFixesTest extends TestCase
     // 6. Attendance: All Day toggle only for Grades 1-3 advisers
     // ========================================================================
 
-    public function test_attendance_page_hides_all_day_toggle_for_grade_4_6_adviser(): void
+    public function test_attendance_page_shows_all_day_toggle_for_grade_4_6_adviser(): void
     {
         $data = $this->getBaseTestData();
         $activeSchoolYear = $data['schoolYear'];
@@ -405,7 +405,7 @@ class PanelFeedbackFixesTest extends TestCase
         $response = $this->actingAs($teacher->user)->get(route('teacher.attendance.take'));
 
         $response->assertStatus(200);
-        $response->assertDontSee('Apply to All Subjects of the Day');
+        $response->assertSee('Apply to All Subjects of the Day');
     }
 
     public function test_attendance_page_shows_all_day_toggle_for_grade_1_3_adviser(): void

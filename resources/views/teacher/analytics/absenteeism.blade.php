@@ -1,305 +1,9 @@
 @extends('base')
 
 @section('title', 'Absenteeism Analytics')
-
-@push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-    <style>
-        .risk-high {
-            background-color: #f8d7da !important;
-        }
-
-        .risk-medium {
-            background-color: #fff3cd !important;
-        }
-
-        .risk-low {
-            background-color: #d1e7dd !important;
-        }
-
-        .status-badge {
-            font-size: 0.85rem;
-            padding: 0.4em 0.8em;
-        }
-
-        .table-info-text {
-            font-size: 0.9rem;
-            color: #6c757d;
-        }
-
-        /* Progress bar styling */
-        .metric-bar {
-            height: 8px;
-            border-radius: 4px;
-            background-color: #e9ecef;
-            overflow: hidden;
-            min-width: 60px;
-        }
-
-        .metric-bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-
-        .metric-cell {
-            min-width: 100px;
-        }
-
-        .metric-value {
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        .metric-label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #6c757d;
-        }
-
-        /* Color coding for metrics */
-        .metric-excellent {
-            color: #198754;
-        }
-
-        .metric-good {
-            color: #20c997;
-        }
-
-        .metric-fair {
-            color: #ffc107;
-        }
-
-        .metric-poor {
-            color: #dc3545;
-        }
-
-        .bar-excellent {
-            background-color: #198754;
-        }
-
-        .bar-good {
-            background-color: #20c997;
-        }
-
-        .bar-fair {
-            background-color: #ffc107;
-        }
-
-        .bar-poor {
-            background-color: #dc3545;
-        }
-
-        /* Student insights badges */
-        .insight-badge {
-            display: inline-block;
-            padding: 0.35em 0.65em;
-            font-size: 0.75rem;
-            font-weight: 500;
-            border-radius: 0.375rem;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .insight-strength {
-            background-color: #d1e7dd;
-            color: #0f5132;
-        }
-
-        .insight-weakness {
-            background-color: #f8d7da;
-            color: #842029;
-        }
-
-        .insight-balanced {
-            background-color: #e2e3e5;
-            color: #41464b;
-        }
-
-        /* Engagement score styling */
-        .engagement-score {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .engagement-circle {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.85rem;
-            color: white;
-        }
-
-        .engagement-high {
-            background: linear-gradient(135deg, #198754, #20c997);
-        }
-
-        .engagement-medium {
-            background: linear-gradient(135deg, #ffc107, #fd7e14);
-        }
-
-        .engagement-low {
-            background: linear-gradient(135deg, #dc3545, #e35d6a);
-        }
-
-        .recognition-card {
-            border-left: 4px solid #0d6efd;
-        }
-
-        .recognition-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .honors-toggle-header {
-            padding-top: 0.75rem;
-            padding-bottom: 0.75rem;
-        }
-
-        .honors-toggle-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .honors-toggle-btn .toggle-chevron {
-            transition: transform 0.2s ease;
-        }
-
-        .honors-toggle-btn[aria-expanded="true"] .toggle-chevron {
-            transform: rotate(180deg);
-        }
-
-        .severity-badge-critical {
-            background-color: #dc3545;
-            color: #fff;
-        }
-
-        .severity-badge-warning {
-            background-color: #ffc107;
-            color: #212529;
-        }
-
-        /* Hide default DataTables search since we have custom one */
-        .dataTables_filter {
-            display: none;
-        }
-
-        /* DataTables styling improvements */
-        .dataTables_wrapper .dataTables_length select {
-            padding: 0.25rem 0.5rem;
-        }
-
-        .dataTables_wrapper .dataTables_info {
-            font-size: 0.85rem;
-            color: #6c757d;
-        }
-
-        .dataTables_wrapper .dataTables_paginate .paginate_button {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.85rem;
-        }
-
-        .analytics-hero {
-            border: 1px solid #d7e3ff;
-            background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 52%, #ffffff 100%);
-        }
-
-        .analytics-hero-title {
-            font-size: 1.45rem;
-            font-weight: 700;
-            color: #0b3d91;
-        }
-
-        .scope-pill {
-            font-size: 0.78rem;
-            padding: 0.4rem 0.65rem;
-        }
-
-        .filter-card {
-            border: 1px solid #e9ecef;
-        }
-
-        .summary-card {
-            border: 1px solid #e9ecef;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .summary-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.08) !important;
-        }
-
-        .summary-value {
-            font-size: 1.65rem;
-            font-weight: 700;
-            line-height: 1.1;
-        }
-
-        .summary-caption {
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #6c757d;
-            margin-bottom: 0.25rem;
-        }
-
-        .section-header {
-            border-bottom: 1px solid #f0f2f5;
-            background-color: #fcfdff;
-        }
-
-        /* Risk filter tabs styling */
-        .risk-filter-tabs .nav-link {
-            color: #6c757d;
-            border: 1px solid #dee2e6;
-            margin-right: 0.25rem;
-            padding: 0.35rem 0.75rem;
-            font-size: 0.85rem;
-        }
-
-        .risk-filter-tabs .nav-link.active {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-            color: white;
-        }
-
-        .risk-filter-tabs .nav-link:hover:not(.active) {
-            background-color: #f8f9fa;
-        }
-
-        .risk-filter-tabs .nav-link .badge {
-            font-size: 0.7rem;
-            padding: 0.2em 0.5em;
-        }
-
-        @media (max-width: 767.98px) {
-            .analytics-hero-title {
-                font-size: 1.2rem;
-            }
-
-            .summary-value {
-                font-size: 1.4rem;
-            }
-
-            .engagement-circle {
-                width: 34px;
-                height: 34px;
-                font-size: 0.75rem;
-            }
-        }
-    </style>
-@endpush
-
+@section('head')
+    <link rel="stylesheet" href="{{ asset('css/absenteeism/absenteeism.css') }}">
+@endsection
 @section('content')
     @php
         $selectedGradeLabel = 'All Grade Levels';
@@ -344,10 +48,12 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="card shadow-sm filter-card">
-                <div class="card-header bg-white border-0 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div
+                    class="card-header bg-white border-0 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
                         <h6 class="m-0 fw-bold">Filters</h6>
-                        <p class="text-muted small mb-0">Apply grade/class scope and search once across all analytics tables.</p>
+                        <p class="text-muted small mb-0">Apply grade/class scope and search once across all analytics
+                            tables.</p>
                     </div>
                     <button type="button" id="resetFiltersBtn" class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-rotate-left me-1" aria-hidden="true"></i> Reset Filters
@@ -408,24 +114,37 @@
         </div>
     @endif
 
+    @if (!empty($analyticsAccessNotice))
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-info mb-0" role="alert">
+                    {{ $analyticsAccessNotice }}
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- ML Feature Tables Section -->
     @if (isset($featureTables) && $featureTables)
         @php
-            $honorsSummary = $honorsSummary ?? [];
-            $recognitionTop5 = $recognitionTop5 ?? [];
-            $interventionQueue = $interventionQueue ?? [];
-            $decliningTrendRows = $decliningTrendRows ?? [];
-            $riskCalibrationMeta = $riskCalibrationMeta ?? [];
+            $honorsSummary ?? [];
+            $recognitionTop5 ?? [];
+            $interventionQueue ?? [];
+            $decliningTrendRows ?? [];
+            $riskCalibrationMeta ?? [];
+            $showHonors = (bool) ($canViewHonors ?? false);
             $calibrationNote =
-                $riskCalibrationMeta['note'] ??
-                'Risk labels and percentages follow Python model output.';
+                $riskCalibrationMeta['note'] ?? 'Risk labels and percentages came from model prediction';
             $currentRiskRows = $featureTables['table1']['data'] ?? [];
             $highRiskCount = 0;
             $mediumRiskCount = 0;
             $lowRiskCount = 0;
 
             foreach ($currentRiskRows as $riskRow) {
-                $riskCategory = strtolower((string) ($riskRow['Display_Risk_Category'] ?? $riskRow['Display_Risk_Label'] ?? $riskRow['Risk_Label'] ?? 'low'));
+                $riskCategory = strtolower(
+                    (string) ($riskRow['Display_Risk_Category'] ??
+                        ($riskRow['Display_Risk_Label'] ?? ($riskRow['Risk_Label'] ?? 'low'))),
+                );
                 $riskCategory = $riskCategory === 'mid' ? 'medium' : $riskCategory;
 
                 if ($riskCategory === 'high') {
@@ -485,10 +204,10 @@
 
         <div class="card shadow-sm mb-3">
             <div class="card-header honors-toggle-header section-header d-flex justify-content-between align-items-center">
-                <h6 class="m-0 fw-bold">Honors &amp; Recognition</h6>
-                <button class="btn btn-sm btn-outline-primary honors-toggle-btn" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#honorsRecognitionCollapse"
-                    aria-expanded="true" aria-controls="honorsRecognitionCollapse">
+                <h6 class="m-0 fw-bold">{{ $showHonors ? 'Honors & Recognition' : 'Top Performing Students' }}</h6>
+                <button class="btn btn-sm btn-outline-primary honors-toggle-btn" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#honorsRecognitionCollapse" aria-expanded="true"
+                    aria-controls="honorsRecognitionCollapse">
                     <span>Show/Hide</span>
                     <i class="fas fa-chevron-down toggle-chevron" aria-hidden="true"></i>
                 </button>
@@ -496,77 +215,87 @@
         </div>
 
         <div class="collapse show" id="honorsRecognitionCollapse">
-            <div class="row g-3 mb-4">
-                <div class="col-md-4">
-                    <div class="card shadow-sm recognition-card h-100">
-                        <div class="card-body">
-                            <p class="text-muted mb-1 small">With High Honors</p>
-                            <p class="recognition-value text-primary mb-0">
-                                {{ (int) ($honorsSummary['with_high_honors_count'] ?? 0) }}
-                            </p>
+            @if ($showHonors)
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card shadow-sm recognition-card h-100">
+                            <div class="card-body">
+                                <p class="text-muted mb-1 small">With High Honors</p>
+                                <p class="recognition-value text-primary mb-0">
+                                    {{ (int) ($honorsSummary['with_high_honors_count'] ?? 0) }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm recognition-card h-100">
+                            <div class="card-body">
+                                <p class="text-muted mb-1 small">With Honors</p>
+                                <p class="recognition-value text-info mb-0">
+                                    {{ (int) ($honorsSummary['with_honors_count'] ?? 0) }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card shadow-sm recognition-card h-100">
+                            <div class="card-body">
+                                <p class="text-muted mb-1 small">Top 5 Recognition</p>
+                                <p class="recognition-value text-success mb-0">{{ count($recognitionTop5) }}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card shadow-sm recognition-card h-100">
-                        <div class="card-body">
-                            <p class="text-muted mb-1 small">With Honors</p>
-                            <p class="recognition-value text-info mb-0">
-                                {{ (int) ($honorsSummary['with_honors_count'] ?? 0) }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card shadow-sm recognition-card h-100">
-                        <div class="card-body">
-                            <p class="text-muted mb-1 small">Top 5 Recognition</p>
-                            <p class="recognition-value text-success mb-0">{{ count($recognitionTop5) }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            @endif
 
             <div class="row g-4 mb-4">
                 <div class="col-12">
                     <div class="card shadow-sm">
                         <div class="card-header py-3 section-header">
-                            <h6 class="m-0 fw-bold">Top 5 Performing Students</h6>
+                            <h6 class="m-0 fw-bold">Top Performing Students</h6>
                         </div>
                         <div class="card-body">
                             <p class="text-muted small mb-3">Ranked by engagement score, then performance percentage.
                             </p>
                             @if (!empty($recognitionTop5))
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle" id="recognitionTopTable">
+                                    <table class="table table-sm table-hover align-middle" id="recognitionTopTable"
+                                        data-honors-enabled="{{ $showHonors ? '1' : '0' }}">
                                         <thead class="table-light">
                                             <tr>
                                                 <th style="width: 70px;">Rank</th>
                                                 <th>Student Name</th>
                                                 <th class="text-center" style="width: 130px;">Engagement</th>
-                                                <th style="width: 170px;">Honors</th>
+                                                @if ($showHonors)
+                                                    <th style="width: 170px;">Honors</th>
+                                                @endif
                                                 <th>Strongest Subject</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach ($recognitionTop5 as $index => $row)
-                                                @php
-                                                    $honors = $row['HonorsClassification'] ?? 'Regular';
-                                                    $honorsBadge = match ($honors) {
-                                                        'With High Honors' => 'bg-primary',
-                                                        'With Honors' => 'bg-info text-dark',
-                                                        default => 'bg-secondary',
-                                                    };
-                                                @endphp
+                                                @if ($showHonors)
+                                                    @php
+                                                        $honors = $row['HonorsClassification'] ?? 'Regular';
+                                                        $honorsBadge = match ($honors) {
+                                                            'With High Honors' => 'bg-primary',
+                                                            'With Honors' => 'bg-info text-dark',
+                                                            default => 'bg-secondary',
+                                                        };
+                                                    @endphp
+                                                @endif
                                                 <tr>
                                                     <td><span class="badge bg-dark">#{{ $index + 1 }}</span></td>
                                                     <td><strong>{{ $row['Name'] ?? '—' }}</strong></td>
                                                     <td class="text-center">
                                                         {{ number_format((float) ($row['EngagementScore'] ?? 0), 1) }}
                                                     </td>
-                                                    <td>
-                                                        <span class="badge {{ $honorsBadge }}">{{ $honors }}</span>
-                                                    </td>
+                                                    @if ($showHonors)
+                                                        <td>
+                                                            <span
+                                                                class="badge {{ $honorsBadge }}">{{ $honors }}</span>
+                                                        </td>
+                                                    @endif
                                                     <td>{{ $row['Strength'] ?? '—' }}</td>
                                                 </tr>
                                             @endforeach
@@ -694,9 +423,11 @@
                                             <tr>
                                                 <td><strong>{{ $item['name'] ?? '—' }}</strong></td>
                                                 <td>{{ $item['class_label'] ?? 'N/A' }}</td>
-                                                <td class="text-center">{{ number_format((float) ($item['att_past1'] ?? 0), 1) }}%
+                                                <td class="text-center">
+                                                    {{ number_format((float) ($item['att_past1'] ?? 0), 1) }}%
                                                 </td>
-                                                <td class="text-center">{{ number_format((float) ($item['att_current'] ?? 0), 1) }}%
+                                                <td class="text-center">
+                                                    {{ number_format((float) ($item['att_current'] ?? 0), 1) }}%
                                                 </td>
                                                 <td class="text-center text-danger fw-semibold">
                                                     {{ number_format((float) ($item['attendance_drop'] ?? 0), 1) }}
@@ -816,9 +547,14 @@
                                                             $row['Display_Risk_Label'] ?? ($row['Risk_Label'] ?? 'Low');
                                                         $displayRiskLabel =
                                                             $displayRiskLabel === 'Mid' ? 'Medium' : $displayRiskLabel;
-                                                        $displayRiskPct = (float) ($row['display_prob_highrisk_pct'] ?? ($row['Prob_HighRisk_pct'] ?? 0));
-                                                        $riskCategory = strtolower($row['Display_Risk_Category'] ?? $displayRiskLabel);
-                                                        $riskCategory = $riskCategory === 'mid' ? 'medium' : $riskCategory;
+                                                        $displayRiskPct =
+                                                            (float) ($row['display_prob_highrisk_pct'] ??
+                                                                ($row['Prob_HighRisk_pct'] ?? 0));
+                                                        $riskCategory = strtolower(
+                                                            $row['Display_Risk_Category'] ?? $displayRiskLabel,
+                                                        );
+                                                        $riskCategory =
+                                                            $riskCategory === 'mid' ? 'medium' : $riskCategory;
                                                         $riskBadge = match ($displayRiskLabel) {
                                                             'High' => 'bg-danger',
                                                             'Medium' => 'bg-warning text-dark',
@@ -898,9 +634,14 @@
                                                             $row['Display_Risk_Label'] ?? ($row['Risk_Label'] ?? 'Low');
                                                         $displayRiskLabel =
                                                             $displayRiskLabel === 'Mid' ? 'Medium' : $displayRiskLabel;
-                                                        $displayRiskPct = (float) ($row['display_prob_highrisk_pct'] ?? ($row['Prob_HighRisk_pct'] ?? 0));
-                                                        $riskCategory = strtolower($row['Display_Risk_Category'] ?? $displayRiskLabel);
-                                                        $riskCategory = $riskCategory === 'mid' ? 'medium' : $riskCategory;
+                                                        $displayRiskPct =
+                                                            (float) ($row['display_prob_highrisk_pct'] ??
+                                                                ($row['Prob_HighRisk_pct'] ?? 0));
+                                                        $riskCategory = strtolower(
+                                                            $row['Display_Risk_Category'] ?? $displayRiskLabel,
+                                                        );
+                                                        $riskCategory =
+                                                            $riskCategory === 'mid' ? 'medium' : $riskCategory;
                                                         $riskBadge = match ($displayRiskLabel) {
                                                             'High' => 'bg-danger',
                                                             'Medium' => 'bg-warning text-dark',
@@ -933,16 +674,19 @@
                             <!-- Table 2: Student Insights -->
                             <div class="tab-pane fade" id="table2-content" role="tabpanel" aria-labelledby="table2-tab">
                                 <p class="text-muted small mb-3">
-                                    Engagement score, honors classification, and subject-level strengths/weaknesses.
+                                    Engagement score{{ $showHonors ? ', honors classification,' : '' }} and subject-level strengths/weaknesses.
                                 </p>
                                 @if (!empty($featureTables['table2']['data']))
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover align-middle" id="insightsTable">
+                                        <table class="table table-sm table-hover align-middle" id="insightsTable"
+                                            data-honors-enabled="{{ $showHonors ? '1' : '0' }}">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th>Student Name</th>
                                                     <th class="text-center" style="width: 140px;">Engagement Score</th>
-                                                    <th style="width: 170px;">Honors</th>
+                                                    @if ($showHonors)
+                                                        <th style="width: 170px;">Honors</th>
+                                                    @endif
                                                     <th style="width: 250px;">Strongest Subject</th>
                                                     <th style="width: 250px;">Needs Improvement</th>
                                                 </tr>
@@ -990,9 +734,12 @@
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td>
-                                                            <span class="badge {{ $honorsBadge }}">{{ $honors }}</span>
-                                                        </td>
+                                                        @if ($showHonors)
+                                                            <td>
+                                                                <span
+                                                                    class="badge {{ $honorsBadge }}">{{ $honors }}</span>
+                                                            </td>
+                                                        @endif
                                                         <td>
                                                             @if ($isBalancedStrength)
                                                                 <span class="insight-badge insight-balanced">
@@ -1136,18 +883,28 @@
             }
 
             if (document.getElementById('recognitionTopTable')) {
+                const recognitionHasHonorsColumn = document.getElementById('recognitionTopTable').dataset
+                    .honorsEnabled === '1';
                 recognitionTable = $('#recognitionTopTable').DataTable({
                     ...dataTableOptions,
                     order: [
                         [2, 'desc']
                     ],
-                    columnDefs: [{
+                    columnDefs: recognitionHasHonorsColumn ? [{
                             orderable: true,
                             targets: [0, 1, 2]
                         },
                         {
                             orderable: false,
                             targets: [3, 4]
+                        }
+                    ] : [{
+                            orderable: true,
+                            targets: [0, 1, 2]
+                        },
+                        {
+                            orderable: false,
+                            targets: [3]
                         }
                     ]
                 });
@@ -1288,32 +1045,54 @@
 
             // Table 2: Student Insights - sort by engagement score descending
             if (document.getElementById('insightsTable')) {
+                const insightsHasHonorsColumn = document.getElementById('insightsTable').dataset
+                    .honorsEnabled === '1';
                 table2 = $('#insightsTable').DataTable({
                     ...dataTableOptions,
                     order: [
                         [1, 'desc']
                     ], // Sort by Engagement Score descending
-                    columnDefs: [{
-                            orderable: true,
-                            targets: [0, 1]
-                        },
-                        {
-                            orderable: false,
-                            targets: [3, 4]
-                        }, // Don't sort by strength/weakness
-                        {
-                            type: 'num',
-                            targets: [1],
-                            render: function(data, type, row) {
-                                if (type === 'sort' || type === 'type') {
-                                    const match = $(data).find('.engagement-circle').text().match(
-                                        /(\d+)/);
-                                    return match ? parseInt(match[1]) : 0;
+                    columnDefs: insightsHasHonorsColumn ? [{
+                                orderable: true,
+                                targets: [0, 1]
+                            },
+                            {
+                                orderable: false,
+                                targets: [3, 4]
+                            },
+                            {
+                                type: 'num',
+                                targets: [1],
+                                render: function(data, type, row) {
+                                    if (type === 'sort' || type === 'type') {
+                                        const match = $(data).find('.engagement-circle').text().match(
+                                            /(\d+)/);
+                                        return match ? parseInt(match[1]) : 0;
+                                    }
+                                    return data;
                                 }
-                                return data;
                             }
-                        }
-                    ]
+                        ] : [{
+                                orderable: true,
+                                targets: [0, 1]
+                            },
+                            {
+                                orderable: false,
+                                targets: [2, 3]
+                            },
+                            {
+                                type: 'num',
+                                targets: [1],
+                                render: function(data, type, row) {
+                                    if (type === 'sort' || type === 'type') {
+                                        const match = $(data).find('.engagement-circle').text().match(
+                                            /(\d+)/);
+                                        return match ? parseInt(match[1]) : 0;
+                                    }
+                                    return data;
+                                }
+                            }
+                        ]
                 });
             }
 

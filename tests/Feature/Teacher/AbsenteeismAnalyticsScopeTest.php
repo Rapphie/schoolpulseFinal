@@ -137,7 +137,7 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $response->assertSee('id="honorsRecognitionCollapse"', false);
         $response->assertSee('data-bs-target="#honorsRecognitionCollapse"', false);
         $response->assertSee('aria-controls="honorsRecognitionCollapse"', false);
-        $response->assertSee('Top 5 Performing Students');
+        $response->assertSee('Top Performing Students');
 
         $featureTables = $response->viewData('featureTables');
         $this->assertSame([$advisee->id], $this->extractStudentIds($featureTables['table1']['data'] ?? []));
@@ -213,6 +213,149 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
         $this->assertSame(1, (int) ($honorsSummary['with_high_honors_count'] ?? 0));
         $this->assertSame(1, (int) ($honorsSummary['with_honors_count'] ?? 0));
         $this->assertSame(1, (int) ($honorsSummary['regular_count'] ?? 0));
+    }
+
+    public function test_teacher_without_advisory_class_uses_scheduled_scope_and_hides_honors_surfaces(): void
+    {
+        $suffix = Str::lower(Str::random(8));
+        $schoolYear = $this->createActiveSchoolYear($suffix);
+        $gradeLevel = $this->createGradeLevel($suffix, 5);
+
+        $scheduledSection = Section::create([
+            'name' => 'SEC-SCHED-'.$suffix,
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Scheduled section',
+        ]);
+        $otherSection = Section::create([
+            'name' => 'SEC-OTHER-'.$suffix,
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Other section',
+        ]);
+
+        [$teacherUser, $teacher] = $this->createTeacherUser();
+        [, $adviser] = $this->createTeacherUser();
+        [, $otherAdviser] = $this->createTeacherUser();
+
+        $scheduledClass = Classes::create([
+            'section_id' => $scheduledSection->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $adviser->id,
+            'capacity' => 30,
+        ]);
+        $otherClass = Classes::create([
+            'section_id' => $otherSection->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $otherAdviser->id,
+            'capacity' => 30,
+        ]);
+
+        $subject = Subject::create([
+            'grade_level_id' => $gradeLevel->id,
+            'name' => 'Subject-'.$suffix,
+            'code' => 'SUB-'.Str::upper(Str::random(4)),
+            'description' => 'Scheduled fallback subject',
+            'is_active' => true,
+        ]);
+
+        Schedule::create([
+            'class_id' => $scheduledClass->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $teacher->id,
+            'day_of_week' => ['monday'],
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'room' => 'R1',
+        ]);
+
+        $scheduledStudent = $this->createStudent('Scheduled', 'Student', $suffix.'a');
+        $otherStudent = $this->createStudent('Other', 'Student', $suffix.'b');
+        $this->enrollStudent($scheduledStudent, $scheduledClass, $schoolYear);
+        $this->enrollStudent($otherStudent, $otherClass, $schoolYear);
+
+        $this->fakePredictionApi(
+            table1Rows: [
+                ['Student_ID' => $scheduledStudent->id, 'Name' => 'Scheduled Student', 'Prob_HighRisk_pct' => 81],
+                ['Student_ID' => $otherStudent->id, 'Name' => 'Other Student', 'Prob_HighRisk_pct' => 87],
+            ],
+            table2Rows: [
+                [
+                    'Student_ID' => $scheduledStudent->id,
+                    'Name' => 'Scheduled Student',
+                    'EngagementScore' => 89,
+                    'PerformancePercentage' => 91,
+                    'AttendancePercentage' => 94,
+                    'Strength' => 'Math (90%)',
+                    'Weakness' => 'Science (82%)',
+                ],
+                [
+                    'Student_ID' => $otherStudent->id,
+                    'Name' => 'Other Student',
+                    'EngagementScore' => 92,
+                    'PerformancePercentage' => 93,
+                    'AttendancePercentage' => 95,
+                    'Strength' => 'English (92%)',
+                    'Weakness' => 'AP (83%)',
+                ],
+            ],
+            table3Rows: [
+                [
+                    'Student_ID' => $scheduledStudent->id,
+                    'Name' => 'Scheduled Student',
+                    'Prob_HighRisk_pct' => 84,
+                    'Att_Current' => 85,
+                    'Att_Past1' => 92,
+                    'Att_Past2' => 91,
+                    'Weighted_Trend' => -5,
+                    'Performance_Trend' => -2,
+                ],
+                [
+                    'Student_ID' => $otherStudent->id,
+                    'Name' => 'Other Student',
+                    'Prob_HighRisk_pct' => 89,
+                    'Att_Current' => 84,
+                    'Att_Past1' => 93,
+                    'Att_Past2' => 92,
+                    'Weighted_Trend' => -6,
+                    'Performance_Trend' => -3,
+                ],
+            ]
+        );
+
+        $response = $this->actingAs($teacherUser)->get(route('teacher.analytics.absenteeism'));
+
+        $response->assertOk();
+        $response->assertViewHas('analyticsScopeMode', 'scheduled');
+        $response->assertViewHas('canViewHonors', false);
+        $response->assertSee(
+            'No advisory class handled for the current school year. Showing predictions, risk, and top-performing students for scheduled subjects only.'
+        );
+        $response->assertDontSee('Honors &amp; Recognition', false);
+        $response->assertDontSee('With High Honors');
+        $response->assertSee('Top Performing Students');
+
+        $featureTables = $response->viewData('featureTables');
+        $this->assertSame([$scheduledStudent->id], $this->extractStudentIds($featureTables['table1']['data'] ?? []));
+        $this->assertSame([$scheduledStudent->id], $this->extractStudentIds($featureTables['table2']['data'] ?? []));
+        $this->assertSame([$scheduledStudent->id], $this->extractStudentIds($featureTables['table3']['data'] ?? []));
+    }
+
+    public function test_teacher_with_no_advisory_or_scheduled_classes_gets_notice_with_http_200(): void
+    {
+        $suffix = Str::lower(Str::random(8));
+        $this->createActiveSchoolYear($suffix);
+        [$teacherUser] = $this->createTeacherUser();
+
+        $response = $this->actingAs($teacherUser)->get(route('teacher.analytics.absenteeism'));
+
+        $response->assertOk();
+        $response->assertViewHas('analyticsScopeMode', 'none');
+        $response->assertViewHas('canViewHonors', false);
+        $response->assertViewHas(
+            'analyticsAccessNotice',
+            'No advisory class handled and no scheduled subjects handled for the current school year.'
+        );
+        $response->assertViewHas('featureTables', null);
+        $response->assertSee('No advisory class handled and no scheduled subjects handled for the current school year.');
     }
 
     public function test_top_five_is_sorted_by_engagement_then_performance_then_name(): void

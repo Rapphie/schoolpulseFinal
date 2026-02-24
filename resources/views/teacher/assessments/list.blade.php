@@ -16,10 +16,14 @@
             </ol>
         </nav>
 
+        @if (session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
         @if (isset($error))
             <div class="alert alert-warning">{{ $error }}</div>
         @elseif($classes->isEmpty())
-            <div class="alert alert-info">You are not assigned to any classes for the current school year.</div>
+            <div class="alert alert-info">You do not handle any subjects for the current school year.</div>
         @else
             <div class="card shadow mb-4">
                 <div class="card-body">
@@ -59,10 +63,9 @@
                                         </td>
                                         <td>
                                             @php
-                                                // Filter schedules to get subjects taught by the current teacher in this specific class
-                                                $subjectsInClass = $teacher->schedules
-                                                    ->where('class_id', $class->id)
-                                                    ->map(fn($schedule) => $schedule->subject);
+                                                $subjectsInClass = $class->schedules
+                                                    ->map(fn($schedule) => $schedule->subject)
+                                                    ->filter();
                                             @endphp
                                             @forelse($subjectsInClass->unique('id') as $subject)
                                                 <span class="badge bg-info">{{ $subject->name }}</span>
@@ -74,9 +77,10 @@
                                         </td>
                                         <td>
                                             @php
-                                                $classSchedules = $teacher->schedules->where('class_id', $class->id);
+                                                $classSchedules = $class->schedules;
                                                 $uniqueSubjects = $classSchedules
                                                     ->map(fn($schedule) => $schedule->subject)
+                                                    ->filter()
                                                     ->unique('id');
                                                 $subjectsCount = $uniqueSubjects->count();
                                                 $singleSubject = $subjectsCount === 1 ? $uniqueSubjects->first() : null;
@@ -196,7 +200,6 @@
                         }
                     })
                     .catch(error => {
-                        console.error('Error fetching subjects:', error);
                         subjectsList.innerHTML =
                             '<div class="alert alert-danger">Error loading subjects. Please try again.</div>';
                     });

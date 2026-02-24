@@ -42,11 +42,15 @@ class AnalyticsController extends Controller
         $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
         $syId = $activeSchoolYear->id;
 
-        // Determine role/scope: teacher sees own advisory classes; admin sees all classes.
+        // Determine role/scope: teacher uses advisory-first fallback-to-scheduled scope.
         $authUser = Auth::user();
         $isTeacherRole = (bool) ($authUser && $authUser->hasRole('teacher'));
         $teacher = Teacher::where('user_id', Auth::id())->first();
-        $availableClassIds = $this->getAccessibleClassIds($activeSchoolYear, $isTeacherRole, $teacher);
+        $scopeContext = $this->resolveAccessibleClassScope($activeSchoolYear, $isTeacherRole, $teacher);
+        $availableClassIds = $scopeContext['class_ids'];
+        $analyticsScopeMode = $scopeContext['mode'];
+        $canViewHonors = $scopeContext['can_view_honors'];
+        $analyticsAccessNotice = $scopeContext['access_notice'];
 
         $selectedGradeLevelId = $request->query('grade_level_id');
         if ($selectedGradeLevelId !== null && $selectedGradeLevelId !== '') {
@@ -117,43 +121,51 @@ class AnalyticsController extends Controller
             $selectedClassId = null; // ignore invalid
         }
 
-        $cacheKey = $this->buildAnalyticsCacheKey(
-            (int) Auth::id(),
-            $syId,
-            $selectedGradeLevelId,
-            $selectedClassId
-        );
+        $cacheHit = false;
+        $analyticsServiceRunning = true;
+        $analyticsServiceWarning = null;
+        $analyticsPayload = $this->buildEmptyAbsenteeismPayload();
 
-        $cacheHit = Cache::has($cacheKey);
-        $analyticsPayload = Cache::remember(
-            $cacheKey,
-            now()->addSeconds(self::ANALYTICS_CACHE_TTL_SECONDS),
-            function () use ($classIds, $syId) {
-                return $this->buildAbsenteeismPayload($classIds, $syId);
+        if ($classIds->isNotEmpty()) {
+            $cacheKey = $this->buildAnalyticsCacheKey(
+                (int) Auth::id(),
+                $syId,
+                $selectedGradeLevelId,
+                $selectedClassId
+            );
+
+            $cacheHit = Cache::has($cacheKey);
+            $analyticsPayload = Cache::remember(
+                $cacheKey,
+                now()->addSeconds(self::ANALYTICS_CACHE_TTL_SECONDS),
+                function () use ($classIds, $syId) {
+                    return $this->buildAbsenteeismPayload($classIds, $syId);
+                }
+            );
+
+            $analyticsServiceRunning = (bool) ($analyticsPayload['analyticsServiceRunning'] ?? true);
+            if ($cacheHit) {
+                $healthCheckStartedAt = microtime(true);
+                $analyticsServiceRunning = (new PredictionClient)->isAnalyticsServiceRunning();
+                Log::debug('Teacher absenteeism analytics health check completed', [
+                    'user_id' => Auth::id(),
+                    'school_year_id' => $syId,
+                    'is_running' => $analyticsServiceRunning,
+                    'duration_ms' => round((microtime(true) - $healthCheckStartedAt) * 1000, 1),
+                ]);
             }
-        );
 
-        $analyticsServiceRunning = (bool) ($analyticsPayload['analyticsServiceRunning'] ?? true);
-        if ($cacheHit) {
-            $healthCheckStartedAt = microtime(true);
-            $analyticsServiceRunning = (new PredictionClient)->isAnalyticsServiceRunning();
-            Log::debug('Teacher absenteeism analytics health check completed', [
-                'user_id' => Auth::id(),
-                'school_year_id' => $syId,
-                'is_running' => $analyticsServiceRunning,
-                'duration_ms' => round((microtime(true) - $healthCheckStartedAt) * 1000, 1),
-            ]);
+            $analyticsServiceWarning = $this->buildAnalyticsServiceWarning(
+                $analyticsServiceRunning,
+                $cacheHit,
+                $analyticsPayload
+            );
         }
-
-        $analyticsServiceWarning = $this->buildAnalyticsServiceWarning(
-            $analyticsServiceRunning,
-            $cacheHit,
-            $analyticsPayload
-        );
 
         Log::debug('Teacher absenteeism analytics request completed', [
             'user_id' => Auth::id(),
             'school_year_id' => $syId,
+            'analytics_scope_mode' => $analyticsScopeMode,
             'selected_grade_level_id' => $selectedGradeLevelId,
             'selected_class_id' => $selectedClassId,
             'cache_hit' => $cacheHit,
@@ -167,6 +179,9 @@ class AnalyticsController extends Controller
                 'selectedClassId' => $selectedClassId,
                 'gradeLevels' => $gradeLevels,
                 'selectedGradeLevelId' => $selectedGradeLevelId,
+                'analyticsScopeMode' => $analyticsScopeMode,
+                'canViewHonors' => $canViewHonors,
+                'analyticsAccessNotice' => $analyticsAccessNotice,
             ],
             $analyticsPayload,
             [
@@ -189,7 +204,8 @@ class AnalyticsController extends Controller
         $isTeacherRole = (bool) ($authUser && $authUser->hasRole('teacher'));
         $teacher = Teacher::where('user_id', Auth::id())->first();
 
-        $availableClassIds = $this->getAccessibleClassIds($activeSchoolYear, $isTeacherRole, $teacher);
+        $scopeContext = $this->resolveAccessibleClassScope($activeSchoolYear, $isTeacherRole, $teacher);
+        $availableClassIds = $scopeContext['class_ids'];
 
         if ($availableClassIds->isEmpty()) {
             return response()->json(['classes' => []]);
@@ -211,6 +227,20 @@ class AnalyticsController extends Controller
         })->values();
 
         return response()->json(['classes' => $classOptions]);
+    }
+
+    private function buildEmptyAbsenteeismPayload(): array
+    {
+        return [
+            'featureTables' => null,
+            'recognitionTop5' => [],
+            'honorsSummary' => $this->buildHonorsSummary([]),
+            'interventionQueue' => [],
+            'decliningTrendRows' => [],
+            'riskCalibrationMeta' => [],
+            'analyticsServiceRunning' => true,
+            'analyticsGeneratedAt' => null,
+        ];
     }
 
     private function buildAbsenteeismPayload(Collection $classIds, int $schoolYearId): array
@@ -809,27 +839,67 @@ class AnalyticsController extends Controller
         return $numeric;
     }
 
-    private function getAccessibleClassIds(SchoolYear $activeSchoolYear, bool $isTeacherRole, ?Teacher $teacher): Collection
+    private function resolveAccessibleClassScope(SchoolYear $activeSchoolYear, bool $isTeacherRole, ?Teacher $teacher): array
     {
         if ($isTeacherRole) {
             if (! $teacher) {
-                // Teacher-role users without linked teacher profile should not see all classes.
-                return collect();
+                return [
+                    'class_ids' => collect(),
+                    'mode' => 'none',
+                    'can_view_honors' => false,
+                    'access_notice' => 'No advisory class handled and no scheduled subjects handled for the current school year.',
+                ];
             }
 
-            // Return only advisory classes for teachers (where teacher_id = this teacher).
-            return Classes::where('teacher_id', $teacher->id)
+            $advisoryClassIds = Classes::where('teacher_id', $teacher->id)
                 ->where('school_year_id', $activeSchoolYear->id)
                 ->pluck('id')
                 ->unique()
                 ->values();
+
+            if ($advisoryClassIds->isNotEmpty()) {
+                return [
+                    'class_ids' => $advisoryClassIds,
+                    'mode' => 'advisory',
+                    'can_view_honors' => true,
+                    'access_notice' => null,
+                ];
+            }
+
+            $scheduledClassIds = $teacher->schedules()
+                ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                    $query->where('school_year_id', $activeSchoolYear->id);
+                })
+                ->pluck('class_id')
+                ->unique()
+                ->values();
+
+            if ($scheduledClassIds->isNotEmpty()) {
+                return [
+                    'class_ids' => $scheduledClassIds,
+                    'mode' => 'scheduled',
+                    'can_view_honors' => false,
+                    'access_notice' => 'No advisory class handled for the current school year. Showing predictions, risk, and top-performing students for scheduled subjects only.',
+                ];
+            }
+
+            return [
+                'class_ids' => collect(),
+                'mode' => 'none',
+                'can_view_honors' => false,
+                'access_notice' => 'No advisory class handled and no scheduled subjects handled for the current school year.',
+            ];
         }
 
-        // Non-teacher roles (e.g. admin) can access all classes for the active school year.
-        return Classes::where('school_year_id', $activeSchoolYear->id)
-            ->pluck('id')
-            ->unique()
-            ->values();
+        return [
+            'class_ids' => Classes::where('school_year_id', $activeSchoolYear->id)
+                ->pluck('id')
+                ->unique()
+                ->values(),
+            'mode' => 'all',
+            'can_view_honors' => true,
+            'access_notice' => null,
+        ];
     }
 
     private function formatClassLabel(Classes $class): string

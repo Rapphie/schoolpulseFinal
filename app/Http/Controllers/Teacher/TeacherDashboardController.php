@@ -687,7 +687,7 @@ class TeacherDashboardController extends Controller
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@grades error: '.$e->getMessage(), ['exception' => $e]);
 
-            return redirect()->back()->with('error', 'Unable to load grades: '.$e->getMessage());
+            return redirect()->back();
         }
     }
 
@@ -854,39 +854,53 @@ class TeacherDashboardController extends Controller
             // Get the active school year
             $activeSchoolYear = SchoolYear::active()->first();
 
-            // Get the active quarter for the active school year
-            $activeQuarter = null;
-            if ($activeSchoolYear) {
-                $activeQuarter = \App\Models\SchoolYearQuarter::where('school_year_id', $activeSchoolYear->id)
-                    ->current()
-                    ->first();
+            if (! $activeSchoolYear) {
+                return redirect()->back()->with('error', 'Unable to load attendance page because no active school year is set.');
             }
 
+            // Get the active quarter for the active school year
+            $activeQuarter = null;
+            $activeQuarter = \App\Models\SchoolYearQuarter::where('school_year_id', $activeSchoolYear->id)
+                ->current()
+                ->first();
+
             // Get all schedules for this teacher in the active school year
-            $schedules = Schedule::with('class.section', 'subject')
+            $schedules = Schedule::with('class.section.gradeLevel', 'subject')
                 ->where('teacher_id', $teacherId)
                 ->whereHas('class', function ($query) use ($activeSchoolYear) {
                     $query->where('school_year_id', $activeSchoolYear->id);
                 })
                 ->get();
 
-            // Get unique sections (classes) from the schedules
-            $sections = $schedules->pluck('class')->unique('id');
+            // Get unique classes from teacher schedules for the active school year.
+            $sections = $schedules->pluck('class')
+                ->filter()
+                ->unique('id')
+                ->sortBy(function ($class) {
+                    return [
+                        (int) ($class->section?->gradeLevel?->level ?? 0),
+                        (string) ($class->section?->name ?? ''),
+                    ];
+                })
+                ->values();
 
-            // Check if teacher is a block adviser for grade level 1-3
-            // Only block advisers (Grades 1-3) should see the "Apply to All Subjects" toggle,
-            // since Grades 4-6 are departmentalized and require per-subject attendance.
-            $isElementaryAdviser = $teacher->advisoryClasses()
-                ->where('school_year_id', $activeSchoolYear->id)
-                ->whereHas('section.gradeLevel', function ($query) {
-                    $query->whereBetween('level', [1, 3]);
-                })->exists();
+            $sectionOptions = $sections->map(function ($class) use ($teacher) {
+                $gradeLevel = (int) ($class->section?->gradeLevel?->level ?? 0);
 
-            return view('teacher.attendance.take', compact('sections', 'teacherId', 'activeQuarter', 'isElementaryAdviser'));
+                return [
+                    'class_id' => (int) $class->id,
+                    'section_id' => (int) ($class->section?->id ?? 0),
+                    'section_name' => (string) ($class->section?->name ?? 'Unknown Section'),
+                    'grade_level' => $gradeLevel,
+                    'is_adviser' => (int) $class->teacher_id === (int) $teacher->id,
+                ];
+            })->values();
+
+            return view('teacher.attendance.take', compact('sections', 'sectionOptions', 'teacherId', 'activeQuarter'));
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@takeAttendance error: '.$e->getMessage(), ['exception' => $e]);
 
-            return redirect()->back()->with('error', 'Unable to load attendance page: '.$e->getMessage());
+            return redirect()->back()->with('error', 'Unable to load attendance page right now. Please try again.');
         }
     }
 
@@ -1015,48 +1029,67 @@ class TeacherDashboardController extends Controller
     {
         try {
             $request->validate([
-                'section_id' => 'required',
-                'subject_id' => 'required', // Removed exists:subjects,id because 'all' is possible
+                'section_id' => 'required|integer',
+                'subject_id' => 'required',
                 'date' => 'required|date',
             ]);
 
-            $isAllDay = $request->input('subject_id') === 'all';
-
-            $section = Classes::with('sections')->findOrFail($request->input('section_id'));
-
-            $subject = null;
-            if (! $isAllDay) {
-                $subject = Subject::findOrFail($request->input('subject_id'));
-            }
-
-            $date = $request->input('date');
-
             $activeSchoolYear = SchoolYear::active()->first();
-
             if (! $activeSchoolYear) {
                 return response()->json(['message' => 'No active school year found.'], 400);
             }
 
-            // Get the class for this section and active school year
-            $class = Classes::where('section_id', $section->id)
-                ->where('school_year_id', $activeSchoolYear->id)
-                ->firstOrFail();
+            $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
+            $class = $this->resolveClassForSection((int) $request->input('section_id'), (int) $activeSchoolYear->id);
 
-            // Get schedule for this class and subject if available
-            $schedule = null;
-            if (! $isAllDay && $subject) {
-                $schedule = Schedule::where([
-                    'class_id' => $class->id,
-                    'subject_id' => $subject->id,
-                ])->first();
+            if (! $class) {
+                return $this->validationErrorResponse(
+                    'The selected section is not available for the active school year.',
+                    'section_id'
+                );
             }
 
-            // Get all students enrolled in this class
-            $students = Student::whereIn('id', function ($query) use ($class) {
+            $isAllDay = $request->input('subject_id') === 'all';
+            $subject = null;
+            $schedule = null;
+
+            if ($isAllDay) {
+                if (! $this->isAdviserForClass($teacher, $class)) {
+                    return $this->validationErrorResponse(
+                        'All-subject attendance is only allowed for your advisory class.',
+                        'subject_id'
+                    );
+                }
+            } else {
+                $subjectId = (int) $request->input('subject_id');
+                $subject = Subject::find($subjectId);
+
+                if (! $subject) {
+                    return $this->validationErrorResponse('The selected subject is invalid.', 'subject_id');
+                }
+
+                $schedule = Schedule::where([
+                    'class_id' => $class->id,
+                    'subject_id' => $subjectId,
+                    'teacher_id' => $teacher->id,
+                ])->first();
+
+                if (! $schedule) {
+                    return $this->validationErrorResponse(
+                        'You are not scheduled to handle this subject for the selected section.',
+                        'subject_id'
+                    );
+                }
+            }
+
+            $date = $request->input('date');
+
+            $students = Student::whereIn('id', function ($query) use ($class, $activeSchoolYear) {
                 $query->select('student_id')
                     ->from('enrollments')
-                    ->where('class_id', $class->id);
-            })->get();
+                    ->where('class_id', $class->id)
+                    ->where('school_year_id', $activeSchoolYear->id);
+            })->orderBy('last_name')->orderBy('first_name')->get();
 
             // Map student -> profile IDs for active year to resolve attendance rows linked to profiles
             $studentIds = $students->pluck('id')->toArray();
@@ -1067,9 +1100,11 @@ class TeacherDashboardController extends Controller
 
             $profileIds = array_values($profileMap);
 
-            // Get existing attendance records for this section, subject and date (profile-aware)
+            // Get existing attendance records for this class, subject and date (profile-aware)
             $existingAttendanceQuery = Attendance::where([
                 'date' => $date,
+                'class_id' => $class->id,
+                'school_year_id' => $activeSchoolYear->id,
             ]);
 
             if (! $isAllDay && $subject) {
@@ -1111,20 +1146,28 @@ class TeacherDashboardController extends Controller
                     'id' => $student->id,
                     'student_id' => $student->student_id ?? $student->lrn ?? 'N/A',
                     'name' => $student->full_name ?? $student->name,
+                    'gender' => $student->gender,
                     'attendance' => $attendance[$student->id] ?? null,
                 ];
             }
 
+            $warning = null;
+            if ($isAllDay && $this->isGradeFourToSixClass($class)) {
+                $warning = 'All-subject attendance marks all scheduled class subjects, including those not handled by you.';
+            }
+
             return response()->json([
-                'section' => $section,
+                'section' => $class->section,
+                'class_id' => $class->id,
                 'subject' => $isAllDay ? ['name' => 'All Scheduled Subjects', 'code' => 'MULTIPLE'] : $subject,
                 'schedule' => $schedule,
                 'students' => $formattedStudents,
+                'warning' => $warning,
             ]);
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@getStudents error: '.$e->getMessage(), ['exception' => $e]);
 
-            return response()->json(['success' => false, 'message' => 'Unable to retrieve students: '.$e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Unable to retrieve students right now. Please try again.'], 500);
         }
     }
 
@@ -1202,22 +1245,39 @@ class TeacherDashboardController extends Controller
     {
         try {
             $validated = $request->validate([
-                'section_id' => 'required',
-                'subject_id' => 'required', // Removed exists:subjects,id
+                'section_id' => 'required|integer',
+                'subject_id' => 'required',
                 'date' => 'required|date',
-                'quarter' => 'required|string', // Accept string (e.g., '1st Quarter')
+                'quarter' => 'required|string',
                 'status' => 'required|array',
                 'remarks' => 'nullable|array',
             ]);
+
             $userId = Auth::id();
             $teacher = Teacher::where('user_id', $userId)->firstOrFail();
             $teacherId = $teacher->id;
-
-            $isAllDay = $request->input('subject_id') === 'all';
             $activeSchoolYear = SchoolYear::active()->first();
 
             if (! $activeSchoolYear) {
                 return response()->json(['message' => 'No active school year found.'], 400);
+            }
+
+            $class = $this->resolveClassForSection((int) $validated['section_id'], (int) $activeSchoolYear->id);
+            if (! $class) {
+                return $this->validationErrorResponse(
+                    'The selected section is not available for the active school year.',
+                    'section_id'
+                );
+            }
+
+            $isAllDay = $validated['subject_id'] === 'all';
+            $isAdviser = $this->isAdviserForClass($teacher, $class);
+
+            if ($isAllDay && ! $isAdviser) {
+                return $this->validationErrorResponse(
+                    'All-subject attendance is only allowed for your advisory class.',
+                    'subject_id'
+                );
             }
 
             $quarterNumber = (int) filter_var($request->input('quarter'), FILTER_SANITIZE_NUMBER_INT);
@@ -1229,56 +1289,81 @@ class TeacherDashboardController extends Controller
                 ], 423);
             }
 
-            // Get subjects to apply attendance to
             $subjectIds = [];
             if ($isAllDay) {
-                $dayOfWeek = strtolower(Carbon::parse($request->input('date'))->format('l'));
-                $subjectIds = Schedule::where('class_id', $request->input('section_id'))
-                    ->whereJsonContains('day_of_week', $dayOfWeek)
-                    ->pluck('subject_id')
-                    ->unique()
-                    ->toArray();
-
-                if (empty($subjectIds)) {
-                    // Fallback: get all subjects for this class if no schedule found for today
-                    $subjectIds = Schedule::where('class_id', $request->input('section_id'))
-                        ->pluck('subject_id')
-                        ->unique()
-                        ->toArray();
-                }
+                $subjectIds = $this->resolveAllDaySubjectIdsForClass($class, $validated['date']);
             } else {
-                $subjectIds = [$request->input('subject_id')];
+                $subjectId = (int) $validated['subject_id'];
+                $subjectExists = Subject::where('id', $subjectId)->exists();
+
+                if (! $subjectExists) {
+                    return $this->validationErrorResponse('The selected subject is invalid.', 'subject_id');
+                }
+
+                $isTeacherScheduledForSubject = Schedule::where('class_id', $class->id)
+                    ->where('subject_id', $subjectId)
+                    ->where('teacher_id', $teacherId)
+                    ->exists();
+
+                if (! $isTeacherScheduledForSubject) {
+                    return $this->validationErrorResponse(
+                        'You are not scheduled to handle this subject for the selected section.',
+                        'subject_id'
+                    );
+                }
+
+                $subjectIds = [$subjectId];
             }
 
             if (empty($subjectIds)) {
-                return response()->json(['message' => 'No subjects found for this section.'], 400);
+                return response()->json(['message' => 'No scheduled subjects found for the selected class.'], 400);
             }
 
-            // Process each student's attendance
             $statusArray = $request->input('status', []);
             $remarksArray = $request->input('remarks', []);
+            $enrolledStudentIds = Enrollment::query()
+                ->where('class_id', $class->id)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->pluck('student_id')
+                ->map(fn ($studentId) => (int) $studentId)
+                ->all();
+
+            $validStudentLookup = array_fill_keys($enrolledStudentIds, true);
+            $studentProfileIdByStudentId = \App\Models\StudentProfile::query()
+                ->whereIn('student_id', $enrolledStudentIds)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->pluck('id', 'student_id')
+                ->map(fn ($profileId) => (int) $profileId)
+                ->all();
 
             foreach ($statusArray as $studentId => $status) {
                 if (! is_numeric($studentId)) {
-                    continue; // Skip if not a valid student ID
+                    continue;
+                }
+
+                $studentId = (int) $studentId;
+                if (! isset($validStudentLookup[$studentId])) {
+                    continue;
                 }
 
                 $remarks = $remarksArray[$studentId] ?? null;
+                $studentProfileId = $studentProfileIdByStudentId[$studentId] ?? null;
 
                 foreach ($subjectIds as $subjectId) {
                     Attendance::updateOrCreate(
                         [
                             'student_id' => $studentId,
                             'subject_id' => $subjectId,
-                            'class_id' => $request->input('section_id'),
-                            'date' => $request->input('date'),
-                            'quarter' => $request->input('quarter'),
+                            'class_id' => $class->id,
+                            'date' => $validated['date'],
+                            'quarter' => $validated['quarter'],
                             'school_year_id' => $activeSchoolYear->id,
                         ],
                         [
                             'status' => $status,
                             'remarks' => $remarks,
                             'teacher_id' => $teacherId,
+                            'student_profile_id' => $studentProfileId,
                         ]
                     );
                 }
@@ -1286,15 +1371,67 @@ class TeacherDashboardController extends Controller
                 $this->checkAbsences($studentId, $teacherId);
             }
 
-            return response()->json([
+            $responsePayload = [
                 'success' => true,
                 'message' => 'Attendance saved successfully for '.(count($subjectIds)).' subjects.',
-            ]);
+            ];
+
+            if ($isAllDay && $isAdviser && $this->isGradeFourToSixClass($class)) {
+                $responsePayload['warning'] = 'All-subject attendance marks all scheduled class subjects, including those not handled by you.';
+            }
+
+            return response()->json($responsePayload);
         } catch (Throwable $e) {
             Log::error('TeacherDashboardController@saveAttendance error: '.$e->getMessage(), ['exception' => $e]);
 
-            return response()->json(['success' => false, 'message' => 'Unable to save attendance: '.$e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Unable to save attendance right now. Please try again.'], 500);
         }
+    }
+
+    private function resolveClassForSection(int $sectionId, int $schoolYearId): ?Classes
+    {
+        if ($sectionId <= 0 || $schoolYearId <= 0) {
+            return null;
+        }
+
+        return Classes::query()
+            ->with('section.gradeLevel')
+            ->where('section_id', $sectionId)
+            ->where('school_year_id', $schoolYearId)
+            ->first();
+    }
+
+    private function isAdviserForClass(Teacher $teacher, Classes $class): bool
+    {
+        return (int) $class->teacher_id === (int) $teacher->id;
+    }
+
+    private function isGradeFourToSixClass(Classes $class): bool
+    {
+        $gradeLevel = (int) ($class->section?->gradeLevel?->level ?? 0);
+
+        return $gradeLevel >= 4 && $gradeLevel <= 6;
+    }
+
+    private function resolveAllDaySubjectIdsForClass(Classes $class, string $date): array
+    {
+        return Schedule::query()
+            ->where('class_id', $class->id)
+            ->pluck('subject_id')
+            ->map(fn ($subjectId) => (int) $subjectId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function validationErrorResponse(string $message, string $field): \Illuminate\Http\JsonResponse
+    {
+        return response()->json([
+            'message' => $message,
+            'errors' => [
+                $field => [$message],
+            ],
+        ], 422);
     }
 
     private function checkAbsences($studentId, $teacherId)
