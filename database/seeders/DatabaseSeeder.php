@@ -41,88 +41,88 @@ class DatabaseSeeder extends Seeder
             'first_name' => 'Admin',
             'last_name' => 'Account',
             'email' => 'admin@gmail.com',
-            'password' => Hash::make('temp'),
+            'password' => Hash::make('tagurot'),
             'role_id' => 1,
         ]);
-        $teacherUsers = [
-            [
-                'first_name' => 'Christian',
-                'last_name' => 'Plasabas',
-                'email' => 'tempinnovision@gmail.com',
-                'phone' => '09123456789',
-                'gender' => 'male',
-                'date_of_birth' => '1990-01-01',
-                'address' => '123 Teacher St, City, Country',
-                'qualification' => 'Bachelor of Education',
-            ],
-            [
-                'first_name' => 'Kim Cyril',
-                'last_name' => 'Torregoza',
-                'email' => 'torregoza.kimcyril@dnsc.edu.ph',
-                'phone' => '09170000001',
-                'gender' => 'female',
-                'date_of_birth' => '1991-01-01',
-                'address' => 'DNSC Campus, Main Ave',
-                'qualification' => 'Bachelors in Secondary Education',
-            ],
-            [
-                'first_name' => 'Christine Janelle',
-                'last_name' => 'Epe',
-                'email' => 'epe.christinejanelle@dnsc.edu.ph',
-                'phone' => '09170000002',
-                'gender' => 'female',
-                'date_of_birth' => '1992-02-02',
-                'address' => 'DNSC Campus, West Wing',
-                'qualification' => 'Bachelor of Science in Education',
-            ],
-            [
-                'first_name' => 'Norriene Grace',
-                'last_name' => 'Millan',
-                'email' => 'millan.norrienegrace@dnsc.edu.ph',
-                'phone' => '09170000003',
-                'gender' => 'female',
-                'date_of_birth' => '1993-03-03',
-                'address' => 'DNSC Campus, East Wing',
-                'qualification' => 'Bachelor of Elementary Education',
-            ],
-        ];
+        // $teacherUsers = [
+        //     [
+        //         'first_name' => 'Christian',
+        //         'last_name' => 'Plasabas',
+        //         'email' => 'tempinnovision@gmail.com',
+        //         'phone' => '09123456789',
+        //         'gender' => 'male',
+        //         'date_of_birth' => '1990-01-01',
+        //         'address' => '123 Teacher St, City, Country',
+        //         'qualification' => 'Bachelor of Education',
+        //     ],
+        //     [
+        //         'first_name' => 'Kim Cyril',
+        //         'last_name' => 'Torregoza',
+        //         'email' => 'torregoza.kimcyril@dnsc.edu.ph',
+        //         'phone' => '09170000001',
+        //         'gender' => 'female',
+        //         'date_of_birth' => '1991-01-01',
+        //         'address' => 'DNSC Campus, Main Ave',
+        //         'qualification' => 'Bachelors in Secondary Education',
+        //     ],
+        //     [
+        //         'first_name' => 'Christine Janelle',
+        //         'last_name' => 'Epe',
+        //         'email' => 'epe.christinejanelle@dnsc.edu.ph',
+        //         'phone' => '09170000002',
+        //         'gender' => 'female',
+        //         'date_of_birth' => '1992-02-02',
+        //         'address' => 'DNSC Campus, West Wing',
+        //         'qualification' => 'Bachelor of Science in Education',
+        //     ],
+        //     [
+        //         'first_name' => 'Norriene Grace',
+        //         'last_name' => 'Millan',
+        //         'email' => 'millan.norrienegrace@dnsc.edu.ph',
+        //         'phone' => '09170000003',
+        //         'gender' => 'female',
+        //         'date_of_birth' => '1993-03-03',
+        //         'address' => 'DNSC Campus, East Wing',
+        //         'qualification' => 'Bachelor of Elementary Education',
+        //     ],
+        // ];
 
-        foreach ($teacherUsers as $teacherData) {
-            $teacherUser = User::create([
-                'first_name' => $teacherData['first_name'],
-                'last_name' => $teacherData['last_name'],
-                'email' => $teacherData['email'],
-                'password' => Hash::make('123'),
-                'role_id' => 2,
-            ]);
+        // foreach ($teacherUsers as $teacherData) {
+        //     $teacherUser = User::create([
+        //         'first_name' => $teacherData['first_name'],
+        //         'last_name' => $teacherData['last_name'],
+        //         'email' => $teacherData['email'],
+        //         'password' => Hash::make('123'),
+        //         'role_id' => 2,
+        //     ]);
 
-            Teacher::create([
-                'user_id' => $teacherUser->id,
-                'phone' => $teacherData['phone'],
-                'gender' => $teacherData['gender'],
-                'date_of_birth' => $teacherData['date_of_birth'],
-                'address' => $teacherData['address'],
-                'qualification' => $teacherData['qualification'],
-                'status' => 'active',
-            ]);
+        //     Teacher::create([
+        //         'user_id' => $teacherUser->id,
+        //         'phone' => $teacherData['phone'],
+        //         'gender' => $teacherData['gender'],
+        //         'date_of_birth' => $teacherData['date_of_birth'],
+        //         'address' => $teacherData['address'],
+        //         'qualification' => $teacherData['qualification'],
+        //         'status' => 'active',
+        //     ]);
 
-            Mail::to($teacherUser->email)->queue(new \App\Mail\WelcomeEmail($teacherUser, '123'));
-        }
-        $guardianUser = User::create([
-            'first_name' => 'Kim',
-            'last_name' => 'Lee',
-            'email' => 'panetmo@gmail.com',
-            'password' => Hash::make(12345678),
-            'role_id' => 3,
-        ]);
+        //     Mail::to($teacherUser->email)->queue(new \App\Mail\WelcomeEmail($teacherUser, '123'));
+        // }
+        // $guardianUser = User::create([
+        //     'first_name' => 'Kim',
+        //     'last_name' => 'Lee',
+        //     'email' => 'panetmo@gmail.com',
+        //     'password' => Hash::make(12345678),
+        //     'role_id' => 3,
+        // ]);
 
-        Guardian::create([
-            'user_id' => $guardianUser->id,
-            'phone' => '09123456789',
-            'relationship' => 'parent',
-        ]);
-        Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, '12345678'));
-        Mail::to($teacherUser->email)->send(new \App\Mail\WelcomeEmail($teacherUser, '123'));
+        // Guardian::create([
+        //     'user_id' => $guardianUser->id,
+        //     'phone' => '09123456789',
+        //     'relationship' => 'parent',
+        // ]);
+        // Mail::to($guardianUser->email)->send(new \App\Mail\WelcomeEmail($guardianUser, '12345678'));
+        // Mail::to($teacherUser->email)->send(new \App\Mail\WelcomeEmail($teacherUser, '123'));
 
         // GradeLevel::factory(6)->create();
         // // Create teachers
