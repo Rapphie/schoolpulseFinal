@@ -44,7 +44,7 @@ class GradeLevelController extends Controller
 
         $validatedSections = $request->validate([
             'sections' => 'required|array|min:1',
-            'sections.*' => 'required|string|max:255',
+            'sections.*' => 'nullable|string|max:255',
         ]);
 
         try {

@@ -1,10 +1,6 @@
 @extends('base')
 
-@section('title', 'Edit Teacher')
-
-@section('content')
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+@section('title', 'Edit Teacher')-center mb-4">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ route('admin.teachers.index') }}">Teachers</a></li>
@@ -15,6 +11,10 @@
 
         <div class="row">
             <!-- Edit Teacher Details Form -->
+
+@section('content')
+    <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items
             <div class="col-lg-8 col-md-8 col-sm-8">
                 <div class="card shadow mb-4">
                     <div class="card-header py-3">

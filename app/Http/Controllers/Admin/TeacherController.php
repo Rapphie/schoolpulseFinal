@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Mail\WelcomeEmail;
+use App\Mail\WelcomeEmailForUpdatedEmail;
 use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Schedule;
@@ -279,7 +280,7 @@ class TeacherController extends Controller
             'status' => 'nullable|in:active,on-leave,inactive',
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
-
+        $oldTeacherEmail = $teacher->email;
         DB::beginTransaction();
         try {
             // Handle file upload
@@ -317,6 +318,10 @@ class TeacherController extends Controller
             }
 
             DB::commit();
+            if ($oldTeacherEmail !== $userData['email']) {
+
+                Mail::to($teacher->email)->queue(new WelcomeEmailForUpdatedEmail($teacher, 123));
+            }
 
             return redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher updated successfully.');
