@@ -322,7 +322,7 @@
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">
-                            Students flagged for immediate intervention based on declining trends and Python risk label.
+                            Students flagged for immediate intervention based on declining trends.
                         </p>
                         @if (!empty($interventionQueue))
                             <div class="table-responsive">
@@ -460,7 +460,7 @@
                             Student Risk Monitoring
                         </h6>
                         <span class="badge bg-light text-dark border">
-                            Python risk label + probability
+                            Risk label + probability
                         </span>
                     </div>
                     <div class="card-body">
