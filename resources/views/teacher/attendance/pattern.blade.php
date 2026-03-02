@@ -12,7 +12,7 @@
                 <p>Select filters to view the monthly attendance patterns of students you teach.</p>
                 <form method="GET" action="{{ route('teacher.attendance.pattern') }}" class="mb-4">
                     <div class="row g-3 align-items-end">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="grade_level_id" class="form-label">Grade Level</label>
                             <select name="grade_level_id" id="grade_level_id" class="form-select">
                                 <option value="">-- All Grades --</option>
@@ -24,7 +24,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="section_id" class="form-label">Section</label>
                             <select name="section_id" id="section_id" class="form-select">
                                 <option value="">-- All Sections --</option>
@@ -36,7 +36,7 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="subject_id" class="form-label">Subject</label>
                             <select name="subject_id" id="subject_id" class="form-select">
                                 <option value="">-- All Subjects --</option>
@@ -49,12 +49,16 @@
                             </select>
                         </div>
                         <div class="col-md-2">
+                            <label for="month" class="form-label">Month</label>
+                            <input type="month" name="month" id="month" class="form-select"
+                                value="{{ request('month') }}">
+                        </div>
+                        <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">Filter</button>
                         </div>
-                        <div class="col-md-1">
-                            {{-- This link will be updated by the script below --}}
-                            <a href="#" id="exportBtn" class="btn btn-success w-100" title="Export">
-                                <i data-feather="download" class="feather-sm"></i>
+                        <div class="col-md-2">
+                            <a href="#" id="exportBtn" class="btn btn-success w-100" title="Export SF2">
+                                <i data-feather="download" class="feather-sm"></i> SF2
                             </a>
                         </div>
                     </div>
@@ -163,7 +167,6 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Feather icons replacement
             if (typeof feather !== 'undefined') {
                 feather.replace();
             }
@@ -171,34 +174,43 @@
             const gradeLevelFilter = document.getElementById('grade_level_id');
             const sectionFilter = document.getElementById('section_id');
             const subjectFilter = document.getElementById('subject_id');
+            const monthFilter = document.getElementById('month');
             const exportBtn = document.getElementById('exportBtn');
 
             function updateExportLink() {
-                // This is the correct route name for the export function
                 const baseUrl = "{{ route('teacher.attendance.pattern.export') }}";
                 const params = new URLSearchParams();
 
-                if (gradeLevelFilter.value) {
-                    params.append('grade_level_id', gradeLevelFilter.value);
-                }
                 if (sectionFilter.value) {
                     params.append('section_id', sectionFilter.value);
                 }
-                if (subjectFilter.value) {
-                    params.append('subject_id', subjectFilter.value);
+                if (monthFilter.value) {
+                    params.append('month', monthFilter.value);
                 }
 
-                // Update the href attribute of the export button
-                exportBtn.href = `${baseUrl}?${params.toString()}`;
+                const hasRequired = sectionFilter.value && monthFilter.value;
+                const url = `${baseUrl}?${params.toString()}`;
+
+                if (hasRequired) {
+                    exportBtn.href = url;
+                    exportBtn.classList.remove('disabled');
+                    exportBtn.style.pointerEvents = 'auto';
+                    exportBtn.title = 'Export SF2 for ' + (sectionFilter.options[sectionFilter.selectedIndex]?.text || 'Section');
+                } else {
+                    exportBtn.href = '#';
+                    exportBtn.classList.add('disabled');
+                    exportBtn.style.pointerEvents = 'none';
+                    exportBtn.title = 'Select Section and Month to export SF2';
+                }
             }
 
-            // Update the link immediately when the page loads
             updateExportLink();
 
-            // Add event listeners to update the link whenever a filter is changed
             gradeLevelFilter.addEventListener('change', updateExportLink);
             sectionFilter.addEventListener('change', updateExportLink);
             subjectFilter.addEventListener('change', updateExportLink);
+            monthFilter.addEventListener('change', updateExportLink);
+            monthFilter.addEventListener('input', updateExportLink);
         });
     </script>
 @endpush

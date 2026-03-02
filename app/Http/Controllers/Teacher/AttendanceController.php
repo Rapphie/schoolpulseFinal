@@ -3,17 +3,22 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Teacher\ExportAttendancePatternSf2Request;
 use App\Models\Attendance;
+use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Schedule;
 use App\Models\Section;
-use App\Models\Classes;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Services\Attendance\Sf2WorkbookExportService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AttendanceController extends Controller
 {
@@ -75,7 +80,6 @@ class AttendanceController extends Controller
         $subjectIds = \App\Models\Schedule::whereIn('class_id', $classIds)->pluck('subject_id')->unique();
         $subjects = Subject::whereIn('id', $subjectIds)->orderBy('name')->get();
 
-
         // --- Filtering Logic ---
         $students = collect();
         $selectedGradeLevelId = $request->input('grade_level_id');
@@ -117,7 +121,7 @@ class AttendanceController extends Controller
             // Process the already-loaded attendance records in PHP
             $students->each(function ($student) {
                 $student->attendance_summary = $student->attendances
-                    ->groupBy(fn($att) => \Carbon\Carbon::parse($att->date)->format('F'));
+                    ->groupBy(fn ($att) => \Carbon\Carbon::parse($att->date)->format('F'));
             });
         }
 
@@ -134,17 +138,17 @@ class AttendanceController extends Controller
 
     public function normalizeAttendanceRecords($attendanceData)
     {
-        $attendance_month = $attendanceData->format('F');;
+        $attendance_month = $attendanceData->format('F');
         $max_days_per_month = [
-            "June" => 11,
-            "July" => 23,
-            "August" => 20,
-            "September" => 22,
-            "October" => 23,
-            "November" => 21,
-            "January" => 14,
-            "February" => 19,
-            "March" => 23
+            'June' => 11,
+            'July' => 23,
+            'August' => 20,
+            'September' => 22,
+            'October' => 23,
+            'November' => 21,
+            'January' => 14,
+            'February' => 19,
+            'March' => 23,
         ];
 
         // Default value in case the month isn't found
@@ -154,7 +158,7 @@ class AttendanceController extends Controller
             // if month key exists, so we can safely get the value
             $monthly_max_school_days = $max_days_per_month[$attendance_month];
         } else {
-            return with('error', "Invalid school month days");
+            return with('error', 'Invalid school month days');
         }
 
         $max_present_days = 197;
@@ -162,93 +166,63 @@ class AttendanceController extends Controller
         // $normalized_score = row['monthly_avg_score'] / 100.0;
         // $engagement_score = (normalized_present * ENGAGEMENT_WEIGHT_PRESENT) + (normalized_score * ENGAGEMENT_WEIGHT_SCORE);
     }
-    public function exportAttendancePattern(Request $request)
+
+    public function exportAttendancePattern(ExportAttendancePatternSf2Request $request): BinaryFileResponse|RedirectResponse
     {
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
         $activeSchoolYear = \App\Models\SchoolYear::where('is_active', true)->firstOrFail();
 
-        $selectedGradeLevelId = $request->input('grade_level_id');
-        $selectedSectionId = $request->input('section_id');
-        $selectedSubjectId = $request->input('subject_id');
+        $sectionId = $request->input('section_id');
+        $month = $request->input('month');
+        $schoolId = $request->input('school_id');
+        $schoolName = $request->input('school_name');
 
-        // Redirect back if no filter is applied, as there would be nothing to export.
-        if (!$selectedGradeLevelId && !$selectedSectionId && !$selectedSubjectId) {
-            return redirect()->back()->with('error', 'Please apply a filter before exporting.');
+        $section = Section::findOrFail($sectionId);
+
+        $class = Classes::where('section_id', $sectionId)
+            ->where('school_year_id', $activeSchoolYear->id)
+            ->first();
+
+        if (! $class) {
+            return redirect()->back()->with('error', 'No class found for the selected section in the current school year.');
         }
 
-        $classIds = \App\Models\Schedule::where('teacher_id', $teacher->id)
-            ->whereHas('class', function ($query) use ($activeSchoolYear) {
-                $query->where('school_year_id', $activeSchoolYear->id);
-            })
-            ->pluck('class_id')->unique();
+        if ($class->teacher_id !== $teacher->id) {
+            return redirect()->back()->with('error', 'You are not the adviser of this section. Only the class adviser can export SF2.');
+        }
 
-        $studentQuery = Student::query();
-        $studentQuery->whereHas('enrollments', function ($query) use ($selectedSectionId, $selectedGradeLevelId, $classIds, $activeSchoolYear) {
-            $query->where('school_year_id', $activeSchoolYear->id)
-                ->whereIn('class_id', $classIds);
+        $sectionSlug = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $section->name));
+        $monthSlug = str_replace('-', '', $month);
+        $fileName = "sf2_{$sectionSlug}_{$monthSlug}.xlsx";
 
-            if ($selectedSectionId) {
-                $query->whereHas('class', function ($q) use ($selectedSectionId) {
-                    $q->where('section_id', $selectedSectionId);
-                });
-            } elseif ($selectedGradeLevelId) {
-                $query->whereHas('class.section', function ($q) use ($selectedGradeLevelId) {
-                    $q->where('grade_level_id', $selectedGradeLevelId);
-                });
-            }
-        });
+        try {
+            $exportService = new Sf2WorkbookExportService(
+                $section,
+                $month,
+                $schoolId,
+                $schoolName
+            );
 
-        $studentQuery->with(['attendances' => function ($query) use ($teacher, $selectedSubjectId) {
-            $query->where('teacher_id', $teacher->id);
-            if ($selectedSubjectId) {
-                $query->where('subject_id', $selectedSubjectId);
-            }
-        }]);
-        $students = $studentQuery->orderBy('last_name')->get();
+            $spreadsheet = $exportService->build();
+            $tempFile = tempnam(sys_get_temp_dir(), 'sf2_');
 
-        $fileName = "attendance_pattern_" . date('Y-m-d') . ".csv";
-        $headers = [
-            "Content-type"        => "text/csv",
-            "Content-Disposition" => "attachment; filename=$fileName",
-            "Pragma"              => "no-cache",
-            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
-            "Expires"             => "0"
-        ];
+            $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer->save($tempFile);
 
-        $columns = ['Student Name', 'Month', 'Present', 'Absent', 'Late', 'Excused', 'Total Days'];
-        $months = ['June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May'];
+            return response()->download(
+                $tempFile,
+                $fileName,
+                ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+            )->deleteFileAfterSend(true);
+        } catch (\Throwable $e) {
+            Log::error('AttendanceController@exportAttendancePattern SF2 export failed', [
+                'exception' => $e,
+                'section_id' => $sectionId,
+                'month' => $month,
+                'teacher_id' => $teacher->id,
+            ]);
 
-        $callback = function () use ($students, $columns, $months) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, $columns);
-
-            foreach ($students as $student) {
-                $attendanceSummary = $student->attendances
-                    ->groupBy(fn($att) => \Carbon\Carbon::parse($att->date)->format('F'));
-
-                foreach ($months as $month) {
-                    if (isset($attendanceSummary[$month]) && $attendanceSummary[$month]->count() > 0) {
-                        $present = $attendanceSummary[$month]->where('status', 'present')->count();
-                        $absent = $attendanceSummary[$month]->where('status', 'absent')->count();
-                        $late = $attendanceSummary[$month]->where('status', 'late')->count();
-                        $excused = $attendanceSummary[$month]->where('status', 'excused')->count();
-                        $total = $present + $absent + $late + $excused;
-
-                        fputcsv($file, [
-                            $student->last_name . ', ' . $student->first_name,
-                            $month,
-                            $present,
-                            $absent,
-                            $late,
-                            $excused,
-                            $total
-                        ]);
-                    }
-                }
-            }
-            fclose($file);
-        };
-        //
-        return new StreamedResponse($callback, 200, $headers);
+            return redirect()->back()->with('error', 'Failed to generate SF2 export: '.$e->getMessage());
+        }
     }
 }
