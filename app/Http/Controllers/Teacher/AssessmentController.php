@@ -624,52 +624,51 @@ class AssessmentController extends Controller
                 'rejected_cells' => $rejectedCells,
             ]);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Error saving grades', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            report($e);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Unexpected error saving grades.',
-                'error' => app()->environment('local') ? $e->getMessage() : null,
             ], 500);
         }
     }
 
-    public function exportClassRecord(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
-    {
-        $teacher = Auth::user()->teacher;
-        if (! $teacher) {
-            abort(403, 'You must be a registered teacher to export class records.');
-        }
+    // public function exportClassRecord(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
+    // {
+    //     $teacher = Auth::user()->teacher;
+    //     if (! $teacher) {
+    //         abort(403, 'You must be a registered teacher to export class records.');
+    //     }
 
-        $validated = $request->validated();
-        $quarter = (int) ($validated['quarter'] ?? 0);
-        if ($quarter < 1 || $quarter > 4) {
-            abort(422, 'A valid quarter is required to export a class record.');
-        }
+    //     $validated = $request->validated();
+    //     $quarter = (int) ($validated['quarter'] ?? 0);
+    //     if ($quarter < 1 || $quarter > 4) {
+    //         abort(422, 'A valid quarter is required to export a class record.');
+    //     }
 
-        $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
+    //     $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
 
-        return Excel::download(
-            new AssessmentClassRecordExport($class, $subject, $teacher->id, $quarter),
-            $this->buildClassRecordFilename($class, $subject, "q{$quarter}")
-        );
-    }
+    //     return Excel::download(
+    //         new AssessmentClassRecordExport($class, $subject, $teacher->id, $quarter),
+    //         $this->buildClassRecordFilename($class, $subject, "q{$quarter}")
+    //     );
+    // }
 
-    public function exportClassRecordAll(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
-    {
-        $teacher = Auth::user()->teacher;
-        if (! $teacher) {
-            abort(403, 'You must be a registered teacher to export class records.');
-        }
+    // public function exportClassRecordAll(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
+    // {
+    //     $teacher = Auth::user()->teacher;
+    //     if (! $teacher) {
+    //         abort(403, 'You must be a registered teacher to export class records.');
+    //     }
 
-        $validated = $request->validated();
-        $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
+    //     $validated = $request->validated();
+    //     $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
 
-        return Excel::download(
-            new AssessmentClassRecordWorkbookExport($class, $subject, $teacher->id),
-            $this->buildClassRecordFilename($class, $subject, 'all-quarters')
-        );
-    }
+    //     return Excel::download(
+    //         new AssessmentClassRecordWorkbookExport($class, $subject, $teacher->id),
+    //         $this->buildClassRecordFilename($class, $subject, 'all-quarters')
+    //     );
+    // }
 
     private function resolveExportSubject(Classes $class, int $subjectId, int $teacherId): Subject
     {
