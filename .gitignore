@@ -40,4 +40,5 @@ todo.md
 boost.json
 phpunit.xml
 .mcp.json
-*.xlsx
+/*.xlsx
+/output
