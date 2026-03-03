@@ -682,8 +682,8 @@ class ClassroomSectionController extends Controller
             // Guardian fields
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required_unless:use_existing_guardian,1|email|max:255',
-            'guardian_phone' => 'required|string|max:25',
+            'guardian_email' => 'nullable|email|max:255',
+            'guardian_phone' => 'nullable|string|max:25',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
         $useExistingGuardian = (bool) ($validated['use_existing_guardian'] ?? false);
@@ -714,6 +714,7 @@ class ClassroomSectionController extends Controller
             $guardianUser = null;
             $guardianUserWasCreated = false;
             $connectedStudentName = null;
+            $guardianEmail = $validated['guardian_email'] ?? null;
 
             if ($useExistingGuardian && empty($validated['guardian_id'])) {
                 return back()
@@ -723,9 +724,9 @@ class ClassroomSectionController extends Controller
                     ]);
             }
 
-            if (! $useExistingGuardian) {
+            if (! $useExistingGuardian && ! empty($guardianEmail)) {
                 $existingGuardianUser = User::query()
-                    ->where('email', $validated['guardian_email'])
+                    ->where('email', $guardianEmail)
                     ->with('guardian')
                     ->first();
 
@@ -771,14 +772,14 @@ class ClassroomSectionController extends Controller
                     ]);
 
                     $guardian->update([
-                        'phone' => $validated['guardian_phone'],
+                        'phone' => $validated['guardian_phone'] ?? $guardian->phone,
                         'relationship' => $validated['guardian_relationship'],
                     ]);
                 } else {
                     $guardianUser = User::create([
                         'first_name' => $validated['guardian_first_name'],
                         'last_name' => $validated['guardian_last_name'],
-                        'email' => $validated['guardian_email'],
+                        'email' => $validated['guardian_email'] ?? null,
                         'password' => Hash::make($plainPassword),
                         'role_id' => 3,
                     ]);
@@ -786,7 +787,7 @@ class ClassroomSectionController extends Controller
 
                     $guardian = Guardian::create([
                         'user_id' => $guardianUser->id,
-                        'phone' => $validated['guardian_phone'],
+                        'phone' => $validated['guardian_phone'] ?? null,
                         'relationship' => $validated['guardian_relationship'],
                     ]);
                 }
@@ -819,7 +820,7 @@ class ClassroomSectionController extends Controller
             });
 
             // Send email AFTER the DB transaction to avoid sending within a transaction
-            if ($guardianUser && $guardianUserWasCreated) {
+            if ($guardianUser && $guardianUserWasCreated && ! empty($guardianUser->email)) {
                 Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
             }
         } catch (\Throwable $throwable) {
@@ -952,8 +953,8 @@ class ClassroomSectionController extends Controller
             'family_income' => 'nullable|string|in:Low,Medium,High',
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required|email|max:255'.($guardianUser ? '|unique:users,email,'.$guardianUser->id : '|unique:users,email'),
-            'guardian_phone' => 'required|string|max:25',
+            'guardian_email' => 'nullable|email|max:255'.($guardianUser ? '|unique:users,email,'.$guardianUser->id : '|unique:users,email'),
+            'guardian_phone' => 'nullable|string|max:25',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
         ]);
 
@@ -963,13 +964,13 @@ class ClassroomSectionController extends Controller
                     $guardianUser->update([
                         'first_name' => $validated['guardian_first_name'],
                         'last_name' => $validated['guardian_last_name'],
-                        'email' => $validated['guardian_email'],
+                        'email' => array_key_exists('guardian_email', $validated) ? $validated['guardian_email'] : $guardianUser->email,
                     ]);
                 } else {
                     $guardianUser = User::create([
                         'first_name' => $validated['guardian_first_name'],
                         'last_name' => $validated['guardian_last_name'],
-                        'email' => $validated['guardian_email'],
+                        'email' => $validated['guardian_email'] ?? null,
                         'password' => Hash::make(12345678),
                         'role_id' => 3,
                     ]);
@@ -977,13 +978,13 @@ class ClassroomSectionController extends Controller
 
                 if ($guardian) {
                     $guardian->update([
-                        'phone' => $validated['guardian_phone'],
+                        'phone' => array_key_exists('guardian_phone', $validated) ? $validated['guardian_phone'] : $guardian->phone,
                         'relationship' => $validated['guardian_relationship'],
                     ]);
                 } else {
                     $guardian = Guardian::create([
                         'user_id' => $guardianUser->id,
-                        'phone' => $validated['guardian_phone'],
+                        'phone' => $validated['guardian_phone'] ?? null,
                         'relationship' => $validated['guardian_relationship'],
                     ]);
                 }

@@ -83,6 +83,50 @@ class AdminEnrollmentCreatePageTest extends TestCase
         $response->assertSessionHas('success', 'Student enrolled successfully.');
     }
 
+    public function test_admin_can_enroll_multiple_students_without_guardian_email(): void
+    {
+        Mail::fake();
+
+        $admin = $this->createAdminUser();
+        [$schoolYear, $class] = $this->createActiveClass();
+
+        $firstResponse = $this->actingAs($admin)
+            ->post(route('admin.enrollment.store', $class), [
+                'first_name' => 'First',
+                'last_name' => 'NoEmail',
+                'gender' => 'male',
+                'birthdate' => '2016-03-15',
+                'address' => '123 Test Street',
+                'guardian_first_name' => 'Maria',
+                'guardian_last_name' => 'Guardian',
+                'guardian_email' => '',
+                'guardian_phone' => '',
+                'guardian_relationship' => 'parent',
+            ]);
+
+        $firstResponse->assertRedirect(route('admin.sections.manage', $class->section));
+        $firstResponse->assertSessionHas('success', 'Student enrolled successfully.');
+
+        $secondResponse = $this->actingAs($admin)
+            ->post(route('admin.enrollment.store', $class), [
+                'first_name' => 'Second',
+                'last_name' => 'NoEmail',
+                'gender' => 'female',
+                'birthdate' => '2016-03-16',
+                'address' => '456 Test Street',
+                'guardian_first_name' => 'Nora',
+                'guardian_last_name' => 'Guardian',
+                'guardian_email' => '',
+                'guardian_phone' => '',
+                'guardian_relationship' => 'guardian',
+            ]);
+
+        $secondResponse->assertRedirect(route('admin.sections.manage', $class->section));
+        $secondResponse->assertSessionHas('success', 'Student enrolled successfully.');
+        $this->assertSame(2, User::query()->whereNull('email')->count());
+        Mail::assertNothingQueued();
+    }
+
     public function test_admin_can_search_existing_guardians_for_dropdown(): void
     {
         $admin = $this->createAdminUser();
@@ -254,8 +298,6 @@ class AdminEnrollmentCreatePageTest extends TestCase
             'birthdate',
             'guardian_first_name',
             'guardian_last_name',
-            'guardian_email',
-            'guardian_phone',
             'guardian_relationship',
         ]);
     }
@@ -282,6 +324,63 @@ class AdminEnrollmentCreatePageTest extends TestCase
             ]);
 
         $response->assertSessionHas('error', 'This class has reached its full capacity.');
+    }
+
+    public function test_admin_can_clear_guardian_contact_details_when_updating_student(): void
+    {
+        $admin = $this->createAdminUser();
+        $guardianRole = Role::firstOrCreate(
+            ['name' => 'guardian'],
+            ['description' => 'Guardian role']
+        );
+        $guardianUser = User::factory()->create([
+            'role_id' => $guardianRole->id,
+            'email' => 'clear.guardian.'.Str::lower(Str::random(8)).'@example.com',
+            'first_name' => 'Clear',
+            'last_name' => 'Guardian',
+        ]);
+        $guardian = Guardian::create([
+            'user_id' => $guardianUser->id,
+            'phone' => '09175550000',
+            'relationship' => 'parent',
+        ]);
+        $student = Student::create([
+            'student_id' => Student::generateStudentId(),
+            'first_name' => 'Update',
+            'last_name' => 'Student',
+            'gender' => 'female',
+            'birthdate' => '2016-03-15',
+            'guardian_id' => $guardian->id,
+            'enrollment_date' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->from(route('admin.students.edit', $student))
+            ->put(route('admin.students.update', $student), [
+                'lrn' => '',
+                'first_name' => 'Update',
+                'last_name' => 'Student',
+                'gender' => 'female',
+                'birthdate' => '2016-03-15',
+                'address' => '',
+                'distance_km' => '',
+                'transportation' => '',
+                'family_income' => '',
+                'guardian_first_name' => 'Clear',
+                'guardian_last_name' => 'Guardian',
+                'guardian_email' => '',
+                'guardian_phone' => '',
+                'guardian_relationship' => 'parent',
+            ]);
+
+        $response->assertRedirect(route('admin.students.edit', $student));
+        $response->assertSessionHas('success', 'Student updated successfully.');
+
+        $guardianUser->refresh();
+        $guardian->refresh();
+
+        $this->assertNull($guardianUser->email);
+        $this->assertNull($guardian->phone);
     }
 
     private function createAdminUser(): User

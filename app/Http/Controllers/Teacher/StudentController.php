@@ -220,8 +220,8 @@ class StudentController extends Controller
             // Guardian fields
             'guardian_first_name' => 'required|string|max:255',
             'guardian_last_name' => 'required|string|max:255',
-            'guardian_email' => 'required|email|max:255|unique:users,email',
-            'guardian_phone' => 'required|string|max:20',
+            'guardian_email' => 'nullable|email|max:255|unique:users,email',
+            'guardian_phone' => 'nullable|string|max:20',
             'guardian_relationship' => 'required|in:parent,sibling,relative,guardian',
 
             // Initial grade level (for creating StudentProfile)
@@ -243,7 +243,7 @@ class StudentController extends Controller
                 $guardianUser = User::create([
                     'first_name' => $validated['guardian_first_name'],
                     'last_name' => $validated['guardian_last_name'],
-                    'email' => $validated['guardian_email'],
+                    'email' => $validated['guardian_email'] ?? null,
                     'password' => Hash::make($plainPassword),
                     'role_id' => 3, // Guardian role
                 ]);
@@ -251,7 +251,7 @@ class StudentController extends Controller
                 // Create guardian record
                 $guardian = Guardian::create([
                     'user_id' => $guardianUser->id,
-                    'phone' => $validated['guardian_phone'],
+                    'phone' => $validated['guardian_phone'] ?? null,
                     'relationship' => $validated['guardian_relationship'],
                 ]);
 
@@ -279,8 +279,10 @@ class StudentController extends Controller
                     'created_by_teacher_id' => $teacher?->id,
                 ]);
 
-                // Send welcome email to guardian
-                Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+                // Send welcome email to guardian only if email is provided
+                if (! empty($guardianUser->email)) {
+                    Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+                }
             });
 
             return redirect()->route('teacher.students.index')
@@ -485,11 +487,11 @@ class StudentController extends Controller
                     $student->guardian->user->update([
                         'first_name' => $validated['guardian_first_name'] ?? $student->guardian->user->first_name,
                         'last_name' => $validated['guardian_last_name'] ?? $student->guardian->user->last_name,
-                        'email' => $validated['guardian_email'] ?? $student->guardian->user->email,
+                        'email' => array_key_exists('guardian_email', $validated) ? $validated['guardian_email'] : $student->guardian->user->email,
                     ]);
 
                     $student->guardian->update([
-                        'phone' => $validated['guardian_phone'] ?? $student->guardian->phone,
+                        'phone' => array_key_exists('guardian_phone', $validated) ? $validated['guardian_phone'] : $student->guardian->phone,
                         'relationship' => $validated['guardian_relationship'] ?? $student->guardian->relationship,
                     ]);
                 }

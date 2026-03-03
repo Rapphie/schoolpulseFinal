@@ -77,6 +77,60 @@ class TeacherEnrollmentTest extends TestCase
         $this->assertSame('enrolled', $enrollment->status);
     }
 
+    public function test_teacher_can_enroll_multiple_students_without_guardian_email(): void
+    {
+        Mail::fake();
+        Cache::flush();
+
+        [$teacher, $teacherUser] = $this->createTeacherUser();
+        [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
+        $this->enableTeacherEnrollment();
+
+        $firstResponse = $this->actingAs($teacherUser)
+            ->from(route('teacher.enrollment.index'))
+            ->post(route('teacher.enrollment.store'), [
+                'class_id' => $class->id,
+                'lrn' => '202602160101',
+                'first_name' => 'FirstBlank',
+                'last_name' => 'Guardian',
+                'gender' => 'female',
+                'birthdate' => '2016-03-15',
+                'address' => '123 Test St',
+                'guardian_first_name' => 'Parent',
+                'guardian_last_name' => 'One',
+                'guardian_email' => '',
+                'guardian_phone' => '',
+                'guardian_relationship' => 'parent',
+                'enrollment_status' => 'enrolled',
+            ]);
+
+        $firstResponse->assertRedirect();
+        $firstResponse->assertSessionHas('success');
+
+        $secondResponse = $this->actingAs($teacherUser)
+            ->from(route('teacher.enrollment.index'))
+            ->post(route('teacher.enrollment.store'), [
+                'class_id' => $class->id,
+                'lrn' => '202602160102',
+                'first_name' => 'SecondBlank',
+                'last_name' => 'Guardian',
+                'gender' => 'male',
+                'birthdate' => '2016-03-16',
+                'address' => '456 Test St',
+                'guardian_first_name' => 'Parent',
+                'guardian_last_name' => 'Two',
+                'guardian_email' => '',
+                'guardian_phone' => '',
+                'guardian_relationship' => 'guardian',
+                'enrollment_status' => 'enrolled',
+            ]);
+
+        $secondResponse->assertRedirect();
+        $secondResponse->assertSessionHas('success');
+        $this->assertSame(2, User::query()->whereNull('email')->count());
+        Mail::assertNothingQueued();
+    }
+
     public function test_teacher_can_search_guardians_for_dropdown(): void
     {
         Cache::flush();

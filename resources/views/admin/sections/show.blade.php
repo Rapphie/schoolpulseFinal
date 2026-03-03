@@ -265,14 +265,14 @@
                                 required>
                         </div>
                         <div class="form-group mb-2">
-                            <label for="guardian_email">Email <span class="text-danger">*</span></label>
+                            <label for="guardian_email">Email</label>
                             <input type="email" class="form-control" id="guardian_email" name="guardian_email"
-                                required>
+                                >
                         </div>
                         <div class="form-group mb-2">
-                            <label for="guardian_phone">Contact Number <span class="text-danger">*</span></label>
+                            <label for="guardian_phone">Contact Number</label>
                             <input type="text" class="form-control" id="guardian_phone" name="guardian_phone"
-                                required>
+                                >
                         </div>
                         <div class="form-group mb-2">
                             <label for="guardian_relationship">Relationship <span class="text-danger">*</span></label>

@@ -274,12 +274,11 @@
                                         @enderror
                                     </div>
                                     <div class="col-12">
-                                        <label for="guardian_email" class="form-label">Email <span
-                                                class="text-danger">*</span></label>
+                                        <label for="guardian_email" class="form-label">Email</label>
                                         <input type="email"
                                             class="form-control @error('guardian_email') is-invalid @enderror"
                                             id="guardian_email" name="guardian_email"
-                                            value="{{ old('guardian_email') }}" required>
+                                            value="{{ old('guardian_email') }}">
                                         @error('guardian_email')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
@@ -287,12 +286,11 @@
                                         <small class="text-muted">Login credentials will be sent here</small>
                                     </div>
                                     <div class="col-12">
-                                        <label for="guardian_phone" class="form-label">Phone Number <span
-                                                class="text-danger">*</span></label>
+                                        <label for="guardian_phone" class="form-label">Phone Number</label>
                                         <input type="text"
                                             class="form-control @error('guardian_phone') is-invalid @enderror"
                                             id="guardian_phone" name="guardian_phone"
-                                            value="{{ old('guardian_phone') }}" required>
+                                            value="{{ old('guardian_phone') }}">
                                         @error('guardian_phone')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror

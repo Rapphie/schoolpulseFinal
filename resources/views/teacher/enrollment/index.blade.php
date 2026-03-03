@@ -316,7 +316,7 @@
                                     <div class="alert alert-warning mt-3">
                                         <i data-feather="alert-triangle" class="icon-sm me-2"></i>
                                         <strong>Promotion Not Enabled</strong><br>
-                                        Returning students from previous school years cannot be re-enrolled at this time. 
+                                        Returning students from previous school years cannot be re-enrolled at this time.
                                         Promotion must be enabled in the school year settings to allow returning students to enroll.
                                     </div>
                                 @endif
@@ -483,18 +483,16 @@
                                                 required>
                                         </div>
                                         <div class="col-md-6">
-                                            <label for="guardian_email" class="form-label">Email <span
-                                                    class="text-danger">*</span></label>
+                                            <label for="guardian_email" class="form-label">Email</label>
                                             <input type="email" class="form-control" id="guardian_email"
-                                                name="guardian_email" value="{{ old('guardian_email') }}" required
+                                                name="guardian_email" value="{{ old('guardian_email') }}"
                                                 placeholder="parent@email.com">
                                             <small class="text-muted">Login credentials will be sent to this email</small>
                                         </div>
                                         <div class="col-md-6">
-                                            <label for="guardian_phone" class="form-label">Phone <span
-                                                    class="text-danger">*</span></label>
+                                            <label for="guardian_phone" class="form-label">Phone</label>
                                             <input type="text" class="form-control" id="guardian_phone"
-                                                name="guardian_phone" value="{{ old('guardian_phone') }}" required
+                                                name="guardian_phone" value="{{ old('guardian_phone') }}"
                                                 placeholder="09XX XXX XXXX">
                                         </div>
                                         <div class="col-md-12">

@@ -545,16 +545,14 @@
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="guardian_email" class="form-label">Email <span
-                                        class="text-danger">*</span></label>
+                                <label for="guardian_email" class="form-label">Email</label>
                                 <input type="email" class="form-control" id="guardian_email" name="guardian_email"
-                                    value="{{ old('guardian_email') }}" required>
+                                    value="{{ old('guardian_email') }}">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="guardian_phone" class="form-label">Phone <span
-                                        class="text-danger">*</span></label>
+                                <label for="guardian_phone" class="form-label">Phone</label>
                                 <input type="text" class="form-control" id="guardian_phone" name="guardian_phone"
-                                    value="{{ old('guardian_phone') }}" required>
+                                    value="{{ old('guardian_phone') }}">
                             </div>
                         </div>
                         <div class="mb-3">
