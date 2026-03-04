@@ -117,7 +117,7 @@
             <div class="card-body">
                 @if ($class->enrollments->isNotEmpty())
                     <div class="table-responsive">
-                        <table class="table table-bordered" width="100%">
+                        <table class="table table-bordered" id="enrolledStudentsTable" width="100%">
                             <thead>
                                 <tr>
                                     <th>LRN</th>
@@ -131,12 +131,11 @@
                                 @foreach ($class->enrollments as $enrollment)
                                     <tr>
                                         <td>{{ $enrollment->student->lrn ?? 'N/A' }}</td>
-                                        <td>{{ $enrollment->student->last_name }}, {{ $enrollment->student->first_name }}
-                                        </td>
+                                        <td>{{ $enrollment->student->last_name }}, {{ $enrollment->student->first_name }}</td>
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
                                         <td>{{ $enrollment->student->guardian->user->first_name ?? 'N/A' }}
                                             {{ $enrollment->student->guardian->user->last_name ?? '' }}</td>
-                                        <td class="d-flex flex-wrap gap-2">
+                                        <td class="d-flex gap-2">
                                             <a class="btn btn-sm btn-outline-primary"
                                                 href="{{ route('admin.students.show', $enrollment->student) }}">
                                                 View
@@ -552,6 +551,19 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Enrolled Students DataTable
+            if (typeof jQuery !== 'undefined' && $.fn.DataTable) {
+                $('#enrolledStudentsTable').DataTable({
+                    columnDefs: [
+                        { orderable: false, targets: 4 }
+                    ],
+                    order: [[1, 'asc']],
+                    responsive: true,
+                    destroy: true
+                });
+            }
+
+            // Initialize Section History DataTable
             const sectionHistory = @json($sectionHistory ?? []);
             const table = $('#sectionHistoryTable').DataTable({
                 data: sectionHistory,
