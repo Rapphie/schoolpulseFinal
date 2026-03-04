@@ -41,4 +41,5 @@ boost.json
 phpunit.xml
 .mcp.json
 /*.xlsx
+/input
 /output

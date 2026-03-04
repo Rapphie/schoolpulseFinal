@@ -133,8 +133,7 @@
                                         <td>{{ $enrollment->student->lrn ?? 'N/A' }}</td>
                                         <td>{{ $enrollment->student->last_name }}, {{ $enrollment->student->first_name }}</td>
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
-                                        <td>{{ $enrollment->student->guardian->user->first_name ?? 'N/A' }}
-                                            {{ $enrollment->student->guardian->user->last_name ?? '' }}</td>
+                                        <td>{{ $enrollment->student->guardian->user->last_name ?? 'N/A' }}, {{ $enrollment->student->guardian->user->first_name ?? '' }} @if($enrollment->student->guardian)<span class="badge bg-secondary text-white ms-1">{{ $enrollment->student->guardian->relationship }}</span>@endif</td>
                                         <td class="d-flex gap-2">
                                             <a class="btn btn-sm btn-outline-primary"
                                                 href="{{ route('admin.students.show', $enrollment->student) }}">
