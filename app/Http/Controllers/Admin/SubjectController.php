@@ -4,102 +4,88 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\GradeLevel;
+use App\Models\GradeLevelSubject;
 use App\Models\Subject;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
 
 class SubjectController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request): View
     {
-        $subjects = Subject::all();
-        $gradeLevels = GradeLevel::all();
+        $subjects = Subject::query()->with('gradeLevel')->orderBy('name')->get();
+        $gradeLevels = GradeLevel::query()->orderBy('level')->get();
+        $gradeLevelSubjects = GradeLevelSubject::query()
+            ->with(['gradeLevel', 'subject'])
+            ->get()
+            ->sortBy([
+                fn (GradeLevelSubject $gradeLevelSubject) => $gradeLevelSubject->gradeLevel?->level ?? PHP_INT_MAX,
+                fn (GradeLevelSubject $gradeLevelSubject) => mb_strtolower(
+                    (string) $gradeLevelSubject->subject?->name
+                ),
+            ])
+            ->values();
 
-        return view('admin.subjects.index', compact('subjects', 'gradeLevels'));
+        $selectedGradeLevel = $request->integer('grade_level') ?: null;
+
+        return view('admin.subjects.index', compact('subjects', 'gradeLevels', 'gradeLevelSubjects', 'selectedGradeLevel'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         return redirect()->route('admin.subjects.index');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        // Validate the incoming request
         $validated = $request->validate([
-            'grade_level_id' => 'required|exists:grade_levels,id',
-            'subjects' => 'required|array|min:1',
-            'subjects.*.name' => 'required|string|max:255',
-            'subjects.*.code' => 'required|string|max:100',
-            'subjects.*.duration_minutes' => 'nullable|integer|min:15|max:480',
+            'name' => 'required|string|max:255|unique:subjects,name',
+            'code' => 'required|string|max:100|unique:subjects,code',
+            'description' => 'nullable|string',
+            'duration_minutes' => 'nullable|integer|min:15|max:480',
         ]);
 
         try {
-            DB::beginTransaction();
+            Subject::query()->create([
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'description' => $validated['description'] ?? null,
+                'duration_minutes' => $validated['duration_minutes'] ?? null,
+                'grade_level_id' => null,
+                'is_active' => true,
+            ]);
 
-            $gradeLevelId = $validated['grade_level_id'];
-
-            foreach ($validated['subjects'] as $subjectData) {
-                Subject::create([
-                    'name' => $subjectData['name'],
-                    'code' => $subjectData['code'],
-                    'grade_level_id' => $gradeLevelId,
-                    'duration_minutes' => $subjectData['duration_minutes'] ?? null,
-                    'is_active' => true,
-                ]);
-            }
-
-            DB::commit();
-
-            return redirect()->route('admin.subjects.index')->with('success', 'Subjects added successfully.');
+            return redirect()->route('admin.subjects.index')
+                ->with('success', 'Subject created successfully.');
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error adding subjects: '.$e->getMessage());
+            Log::error('Error creating subject: '.$e->getMessage());
 
-            return back()->with('error', 'An error occurred while adding subjects. Please try again.');
+            return back()
+                ->withInput()
+                ->with('error', 'An error occurred while creating the subject. Please try again.');
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Subject $subject)
     {
         //
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Subject $subject)
+    public function edit(Subject $subject): View
     {
         return view('admin.subjects.edit', compact('subject'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Subject $subject)
+    public function update(Request $request, Subject $subject): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:subjects,name,'.$subject->id,
             'code' => 'required|string|max:50|unique:subjects,code,'.$subject->id,
             'description' => 'nullable|string',
-            'grade_level_id' => 'required|exists:grade_levels,id',
             'duration_minutes' => 'nullable|integer|min:15|max:480',
         ]);
-
-        $validated['is_active'] = $request->has('is_active');
 
         $subject->update($validated);
 
@@ -107,10 +93,7 @@ class SubjectController extends Controller
             ->with('success', 'Subject updated successfully.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Subject $subject)
+    public function destroy(Subject $subject): RedirectResponse
     {
         try {
             $subject->delete();
@@ -118,7 +101,7 @@ class SubjectController extends Controller
             return redirect()->route('admin.subjects.index')
                 ->with('success', 'subject deleted successfully.');
         } catch (\Illuminate\Database\QueryException $e) {
-            if ($e->getCode() == '23000') { // Integrity constraint violation
+            if ($e->getCode() == '23000') {
                 return redirect()->route('admin.subjects.index')
                     ->with('error', 'Cannot delete subject because they are referenced in other records.');
             }
@@ -134,6 +117,13 @@ class SubjectController extends Controller
     public function getSubjectsByGradeLevel($gradeLevel)
     {
         $subjects = Subject::where('grade_level_id', $gradeLevel)->get();
+
+        return response()->json($subjects);
+    }
+
+    public function getCatalogSubjects()
+    {
+        $subjects = Subject::query()->orderBy('name')->get();
 
         return response()->json($subjects);
     }

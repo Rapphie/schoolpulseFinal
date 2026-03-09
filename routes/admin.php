@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminReportController;
 use App\Http\Controllers\Admin\ClassroomSectionController;
 use App\Http\Controllers\Admin\GradeLevelController;
+use App\Http\Controllers\Admin\GradeLevelSubjectController;
 use App\Http\Controllers\Admin\ScheduleController;
 use App\Http\Controllers\Admin\SchoolYearQuarterController;
 use App\Http\Controllers\Admin\SettingController;
@@ -81,6 +82,11 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
         // Subjects
         Route::resource('subjects', SubjectController::class);
         Route::get('subjects/grade/{gradeLevel}', [SubjectController::class, 'getSubjectsByGradeLevel'])->name('subjects.by_grade_level');
+
+        // Subject Assignments
+        Route::post('subject-assignments', [GradeLevelSubjectController::class, 'store'])->name('subject-assignments.store');
+        Route::patch('subject-assignments/{gradeLevelSubject}', [GradeLevelSubjectController::class, 'update'])->name('subject-assignments.update');
+        Route::delete('subject-assignments/{gradeLevelSubject}', [GradeLevelSubjectController::class, 'destroy'])->name('subject-assignments.destroy');
 
         // Analytics
         Route::get('analytics', [AdminDashboardController::class, 'dashboard'])->name('analytics.show');
