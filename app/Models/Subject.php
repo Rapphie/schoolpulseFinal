@@ -35,6 +35,11 @@ class Subject extends Model
         return $this->belongsTo(GradeLevel::class);
     }
 
+    public function gradeLevelSubjects(): HasMany
+    {
+        return $this->hasMany(GradeLevelSubject::class);
+    }
+
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);

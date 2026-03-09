@@ -29,4 +29,14 @@ class GradeLevel extends Model
     {
         return $this->hasMany(Enrollment::class);
     }
+
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(Subject::class);
+    }
+
+    public function gradeLevelSubjects(): HasMany
+    {
+        return $this->hasMany(GradeLevelSubject::class);
+    }
 }

@@ -71,6 +71,16 @@ class SchoolYear extends Model
         return $this->hasMany(Attendance::class);
     }
 
+    public function monthDays(): HasMany
+    {
+        return $this->hasMany(SchoolYearMonthDay::class)->orderBy('month');
+    }
+
+    public function getMonthsInRange(): array
+    {
+        return SchoolYearMonthDay::getMonthsInRange($this->start_date, $this->end_date);
+    }
+
     public static function getActive(): ?self
     {
         $viewSchoolYearId = static::getAdminViewSchoolYearId();
