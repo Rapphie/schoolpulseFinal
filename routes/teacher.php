@@ -9,7 +9,10 @@ use App\Http\Controllers\Teacher\EnrollmentController;
 use App\Http\Controllers\Teacher\LeastLearnedController;
 use App\Http\Controllers\Teacher\OralParticipationController;
 use App\Http\Controllers\Teacher\StudentController;
+use App\Http\Controllers\Teacher\TeacherAttendanceController;
+use App\Http\Controllers\Teacher\TeacherClassController;
 use App\Http\Controllers\Teacher\TeacherDashboardController;
+use App\Http\Controllers\Teacher\TeacherScheduleController;
 use App\Http\Controllers\TeacherSectionsController;
 use Illuminate\Support\Facades\Route;
 
@@ -80,26 +83,28 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         });
 
         // Class Management
-        Route::get('/classes/{section?}', [TeacherDashboardController::class, 'classes'])->name('classes');
-        Route::get('/classes/view/{class}', [TeacherDashboardController::class, 'viewClass'])->name('classes.view');
+        Route::get('/classes/{section?}', [TeacherClassController::class, 'classes'])->name('classes');
+        Route::get('/classes/view/{class}', [TeacherClassController::class, 'viewClass'])->name('classes.view');
         Route::get('/classes/{class}/subjects', [AssessmentController::class, 'getSubjectsForClass'])->name('classes.subjects');
         // Adviser schedule creation
-        Route::post('/classes/{class}/store-schedule', [TeacherDashboardController::class, 'storeSchedule'])->name('classes.schedule.store');
-        Route::delete('/classes/{class}/schedules/{schedule}', [TeacherDashboardController::class, 'destroySchedule'])->name('classes.schedule.destroy');
-        Route::get('/sections/{section}/students', [TeacherDashboardController::class, 'getStudentsForSection'])->name('sections.students');
+        Route::post('/classes/{class}/store-schedule', [TeacherClassController::class, 'storeSchedule'])->name('classes.schedule.store');
+        Route::delete('/classes/{class}/schedules/{schedule}', [TeacherClassController::class, 'destroySchedule'])->name('classes.schedule.destroy');
+        Route::get('/sections/{section}/students', [TeacherClassController::class, 'getStudentsForSection'])->name('sections.students');
 
         // Schedules & Students
-        Route::get('/schedules', [TeacherDashboardController::class, 'loggedTeacherSchedules'])->name('schedules.index');
+        Route::get('/schedules', [TeacherScheduleController::class, 'index'])->name('schedules.index');
         Route::get('/students-overview', [TeacherDashboardController::class, 'students'])->name('students-overview');
-        Route::get('/grades', [TeacherDashboardController::class, 'grades'])->name('grades');
-        Route::get('/grades/{class}', [TeacherDashboardController::class, 'showGrades'])->name('grades.show');
-        Route::get('/grades/{class}/student/{student}', [TeacherDashboardController::class, 'studentGrades'])->name('grades.student');
+        Route::get('/grades', [TeacherClassController::class, 'grades'])->name('grades');
+        Route::get('/grades/{class}', [TeacherClassController::class, 'showGrades'])->name('grades.show');
+        Route::get('/grades/{class}/student/{student}', [TeacherClassController::class, 'studentGrades'])->name('grades.student');
         Route::get('/grades/{class}/student/{student}/download-report-card', [ReportCardOutputController::class, 'generateReportCard'])
             ->name('grades.student.download');
 
         // Section & Subject Queries
-        Route::get('/sections-by-grade-level', [TeacherSectionsController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');
+        Route::get('/sections-by-grade-level', [TeacherClassController::class, 'getSectionsByGradeLevel'])->name('sections.by-grade-level');
         Route::get('/sections/{section}/subjects', [TeacherSectionsController::class, 'getSubjectsBySection'])->name('subjects.by-section');
+        Route::get('/sections/{section}/grades', [TeacherClassController::class, 'getGradesForSection'])->name('grades.by-section');
+        Route::get('/sections/{section}/students-list', [TeacherClassController::class, 'getStudentsBySection'])->name('students.by-section');
 
         // File Uploads
         Route::post('/upload-class-record', [ClassRecordController::class, 'upload'])->name('class-record.upload');
@@ -120,14 +125,14 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
 
         // Attendance Management
         Route::prefix('attendance')->name('attendance.')->group(function () {
-            Route::get('/take', [TeacherDashboardController::class, 'takeAttendance'])->name('take');
-            Route::get('/records', [TeacherDashboardController::class, 'attendanceRecords'])->name('records');
-            Route::post('/scan', [TeacherDashboardController::class, 'scanAttendance'])->name('scan');
-            Route::get('/get-students', [TeacherDashboardController::class, 'getStudents'])->name('get-students');
-            Route::post('/save', [TeacherDashboardController::class, 'saveAttendance'])->name('save');
-            Route::put('/{id}/delete', [TeacherDashboardController::class, 'updateAttendance'])->name('update');
-            Route::delete('/{id}/delete', [TeacherDashboardController::class, 'destroyAttendance'])->name('delete');
-            Route::get('/summary', [TeacherDashboardController::class, 'getAttendanceSummary'])->name('summary');
+            Route::get('/take', [TeacherAttendanceController::class, 'takeAttendance'])->name('take');
+            Route::get('/records', [TeacherAttendanceController::class, 'attendanceRecords'])->name('records');
+            Route::post('/scan', [TeacherAttendanceController::class, 'scanAttendance'])->name('scan');
+            Route::get('/get-students', [TeacherAttendanceController::class, 'getStudents'])->name('get-students');
+            Route::post('/save', [TeacherAttendanceController::class, 'saveAttendance'])->name('save');
+            Route::put('/{id}/delete', [TeacherAttendanceController::class, 'updateAttendance'])->name('update');
+            Route::delete('/{id}/delete', [TeacherAttendanceController::class, 'destroyAttendance'])->name('delete');
+            Route::get('/summary', [TeacherAttendanceController::class, 'getAttendanceSummary'])->name('summary');
             Route::get('/pattern', [\App\Http\Controllers\Teacher\AttendanceController::class, 'attendancePattern'])->name('pattern');
             Route::get('/export', [\App\Http\Controllers\Teacher\AttendanceController::class, 'exportAttendancePattern'])->name('pattern.export');
         });
