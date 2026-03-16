@@ -79,6 +79,12 @@
                                     <div class="alert alert-warning">
                                         No active school year found. Please create a school year first.
                                     </div>
+                                @elseif (!($hasGradeLevelSubjectsTable ?? false))
+                                    <div class="alert alert-danger">
+                                        Assessment weights are unavailable because the required
+                                        <code>grade_level_subjects</code> table is missing in this environment.
+                                        Run migrations on the server and reload this page.
+                                    </div>
                                 @elseif ($gradeLevelSubjects->isEmpty())
                                     <div class="alert alert-info">
                                         No subject assignments found. Please assign subjects to grade levels first.

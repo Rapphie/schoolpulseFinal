@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class SettingController extends Controller
@@ -24,20 +25,25 @@ class SettingController extends Controller
         $schoolYear = SchoolYear::getRealActive();
 
         $gradeLevels = GradeLevel::query()->orderBy('level')->get();
-        $gradeLevelSubjects = GradeLevelSubject::query()
-            ->with(['gradeLevel', 'subject'])
-            ->whereHas('gradeLevel')
-            ->whereHas('subject')
-            ->orderBy('grade_level_id')
-            ->get()
-            ->groupBy('grade_level_id')
-            ->map(function (Collection $subjects): Collection {
-                return $subjects->sortBy(
-                    fn (GradeLevelSubject $gradeLevelSubject) => mb_strtolower(
-                        (string) $gradeLevelSubject->subject?->name
-                    )
-                )->values();
-            });
+        $hasGradeLevelSubjectsTable = Schema::hasTable('grade_level_subjects');
+        $gradeLevelSubjects = collect();
+
+        if ($hasGradeLevelSubjectsTable) {
+            $gradeLevelSubjects = GradeLevelSubject::query()
+                ->with(['gradeLevel', 'subject'])
+                ->whereHas('gradeLevel')
+                ->whereHas('subject')
+                ->orderBy('grade_level_id')
+                ->get()
+                ->groupBy('grade_level_id')
+                ->map(function (Collection $subjects): Collection {
+                    return $subjects->sortBy(
+                        fn (GradeLevelSubject $gradeLevelSubject) => mb_strtolower(
+                            (string) $gradeLevelSubject->subject?->name
+                        )
+                    )->values();
+                });
+        }
 
         $monthsInRange = [];
         $monthDays = [];
@@ -63,6 +69,7 @@ class SettingController extends Controller
             'schoolYear',
             'gradeLevels',
             'gradeLevelSubjects',
+            'hasGradeLevelSubjectsTable',
             'monthsInRange',
             'monthDays'
         ));
@@ -82,6 +89,12 @@ class SettingController extends Controller
                 break;
 
             case 'assessment_weights':
+                if (! Schema::hasTable('grade_level_subjects')) {
+                    return redirect()
+                        ->route('admin.settings.index', ['panel' => 'assessment_weights'])
+                        ->with('error', 'Assessment weights are unavailable because required tables are not migrated yet.');
+                }
+
                 $this->updateAssessmentWeights($validated['weights'] ?? []);
                 break;
 
