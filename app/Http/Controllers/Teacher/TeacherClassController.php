@@ -15,6 +15,7 @@ use App\Services\GradeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class TeacherClassController extends Controller
@@ -327,6 +328,42 @@ class TeacherClassController extends Controller
             Log::error('TeacherClassController@destroySchedule error: '.$e->getMessage(), ['exception' => $e]);
 
             return redirect()->back()->with('error', 'Unable to remove schedule: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Rename the section.
+     */
+    public function renameSection(Request $request, Classes $class)
+    {
+        try {
+            $teacher = Auth::user()->teacher;
+
+            if (! $teacher || (int) $class->teacher_id !== (int) $teacher->id) {
+                abort(403, 'Only the adviser can rename this section.');
+            }
+
+            $section = $class->section;
+            $gradeLevelId = $section->grade_level_id;
+
+            $validated = $request->validate([
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('sections', 'name')->where(function ($query) use ($gradeLevelId) {
+                        $query->where('grade_level_id', $gradeLevelId);
+                    })->ignore($section->id),
+                ],
+            ]);
+
+            $section->update(['name' => $validated['name']]);
+
+            return redirect()->back()->with('success', 'Section renamed successfully.');
+        } catch (Throwable $e) {
+            Log::error('TeacherClassController@renameSection error: '.$e->getMessage(), ['exception' => $e]);
+
+            return redirect()->back()->with('error', 'Unable to rename section: '.$e->getMessage());
         }
     }
 

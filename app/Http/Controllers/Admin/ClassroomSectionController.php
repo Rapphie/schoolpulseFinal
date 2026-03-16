@@ -1068,6 +1068,33 @@ class ClassroomSectionController extends Controller
     }
 
     /**
+     * Rename the section.
+     */
+    public function renameSection(Request $request, Section $section)
+    {
+        try {
+            $gradeLevelId = $section->grade_level_id;
+
+            $validated = $request->validate([
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    Rule::unique('sections', 'name')->where(function (QueryBuilder $query) use ($gradeLevelId) {
+                        $query->where('grade_level_id', $gradeLevelId);
+                    })->ignore($section->id),
+                ],
+            ]);
+
+            $section->update(['name' => $validated['name']]);
+
+            return redirect()->back()->with('success', 'Section renamed successfully.');
+        } catch (\Throwable $throwable) {
+            return back()->withInput()->with('error', 'Failed to rename section: '.$throwable->getMessage());
+        }
+    }
+
+    /**
      * Return schedule data for a section (JSON helper used by dashboards/widgets).
      */
     public function schedule(Section $section)

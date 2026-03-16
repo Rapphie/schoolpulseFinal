@@ -89,6 +89,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
         // Adviser schedule creation
         Route::post('/classes/{class}/store-schedule', [TeacherClassController::class, 'storeSchedule'])->name('classes.schedule.store');
         Route::delete('/classes/{class}/schedules/{schedule}', [TeacherClassController::class, 'destroySchedule'])->name('classes.schedule.destroy');
+        Route::put('/classes/{class}/rename-section', [TeacherClassController::class, 'renameSection'])->name('classes.section.rename');
         Route::get('/sections/{section}/students', [TeacherClassController::class, 'getStudentsForSection'])->name('sections.students');
 
         // Schedules & Students

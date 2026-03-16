@@ -12,7 +12,15 @@
                         <li class="breadcrumb-item active" aria-current="page">Manage Class</li>
                     </ol>
                 </nav>
-                <h1 class="h3 mb-0 text-dark">Manage: {{ $section->gradeLevel?->name ?? 'Unknown Grade' }}-{{ $section->name }}</h1>
+                <h1 class="h3 mb-0 text-dark d-inline-flex align-items-center">
+                    Manage: {{ $section->gradeLevel?->name ?? 'Unknown Grade' }}-{{ $section->name }}
+                    @if ($isEditable)
+                        <button type="button" class="btn btn-link text-secondary p-0 ms-2" data-bs-toggle="modal"
+                            data-bs-target="#renameSectionModal" title="Rename Section">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    @endif
+                </h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear?->name ?? 'N/A' }}</p>
             </div>
             <div class="d-flex align-items-center gap-2">
@@ -509,6 +517,36 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary">Update Capacity</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rename Section Modal -->
+        <div class="modal fade" id="renameSectionModal" tabindex="-1" aria-labelledby="renameSectionModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="renameSectionModalLabel">Rename Section</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{{ route('admin.sections.rename', $section) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="section_name" class="form-label">Section Name <span
+                                        class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="section_name" name="name"
+                                    value="{{ $section->name }}" required>
+                                <div class="form-text">Grade Level: {{ $section->gradeLevel?->name ?? 'Unknown Grade' }}</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
                         </div>
                     </form>
                 </div>

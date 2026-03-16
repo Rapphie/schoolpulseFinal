@@ -19,8 +19,16 @@
                         <li class="breadcrumb-item active" aria-current="page">View Class</li>
                     </ol>
                 </nav>
-                <h1 class="h3 mb-0 text-dark">{{ $class->section->gradeLevel->name }} -
-                    {{ $class->section->name }}</h1>
+                <h1 class="h3 mb-0 text-dark d-inline-flex align-items-center">
+                    {{ $class->section->gradeLevel->name }} -
+                    {{ $class->section->name }}
+                    @if ($isAdviser && $class->schoolYear->is_active)
+                        <button type="button" class="btn btn-link text-secondary p-0 ms-2" data-bs-toggle="modal"
+                            data-bs-target="#renameSectionModal" title="Rename Section">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    @endif
+                </h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
             </div>
             @if ($isAdviser)
@@ -574,8 +582,69 @@
         </div>
     </div>
 
-    @if ($isAdviser)
+    @if ($isAdviser && $class->schoolYear->is_active)
         <!-- Section History Modal -->
+        <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="sectionHistoryModalLabel">Section History</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
+                                <thead>
+                                    <tr>
+                                        <th>School Year</th>
+                                        <th>Adviser</th>
+                                        <th>Enrolled</th>
+                                        <th>Capacity</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Data populated by DataTables -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rename Section Modal -->
+        <div class="modal fade" id="renameSectionModal" tabindex="-1" aria-labelledby="renameSectionModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="renameSectionModalLabel">Rename Section</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{{ route('teacher.classes.section.rename', $class) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="section_name" class="form-label">Section Name <span
+                                        class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="section_name" name="name"
+                                    value="{{ $class->section->name }}" required>
+                                <div class="form-text">Grade Level: {{ $class->section->gradeLevel->name }}</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @elseif ($isAdviser)
+        <!-- Section History Modal (view-only for non-active school years) -->
         <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
             aria-hidden="true">
             <div class="modal-dialog modal-lg">
