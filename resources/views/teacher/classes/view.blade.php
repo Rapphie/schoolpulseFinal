@@ -681,6 +681,8 @@
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', function() {
+                const isLowerGradeSection = @json($isLowerGrade);
+
                 // ── Time dropdown population (15-min intervals, 7 AM – 5 PM) ──
                 function populateTimeDropdowns(startId, endId) {
                     const startSel = document.getElementById(startId);
@@ -691,7 +693,11 @@
                     let cur = new Date();
                     cur.setHours(7, 0, 0, 0);
                     const stop = new Date();
-                    stop.setHours(17, 0, 0, 0);
+                    if (isLowerGradeSection) {
+                        stop.setHours(15, 30, 0, 0);
+                    } else {
+                        stop.setHours(16, 0, 0, 0);
+                    }
                     while (cur <= stop) {
                         const h = cur.getHours(),
                             m = cur.getMinutes();

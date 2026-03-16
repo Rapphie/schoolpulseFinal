@@ -744,6 +744,8 @@
     </script>
     <script>
         (function() {
+            const isLowerGradeSection = @json($isLowerGrade);
+
             function populateTimeDropdowns(startId, endId) {
                 const startTimeSelect = document.getElementById(startId);
                 const endTimeSelect = document.getElementById(endId);
@@ -756,7 +758,11 @@
                 currentTime.setHours(7, 0, 0, 0);
 
                 const lastTime = new Date();
-                lastTime.setHours(17, 0, 0, 0);
+                if (isLowerGradeSection) {
+                    lastTime.setHours(15, 30, 0, 0);
+                } else {
+                    lastTime.setHours(16, 0, 0, 0);
+                }
 
                 while (currentTime <= lastTime) {
                     const hours = currentTime.getHours();
