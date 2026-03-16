@@ -1,6 +1,6 @@
 @extends('base')
 
-@section('title', 'Manage: ' . $section->gradeLevel->name . '-' . $section->name)
+@section('title', 'Manage: ' . ($section->gradeLevel?->name ?? 'Unknown Grade') . '-' . $section->name)
 
 @section('content')
     <div class="container-fluid">
@@ -12,8 +12,8 @@
                         <li class="breadcrumb-item active" aria-current="page">Manage Class</li>
                     </ol>
                 </nav>
-                <h1 class="h3 mb-0 text-dark">Manage: {{ $section->gradeLevel->name }}-{{ $section->name }}</h1>
-                <p class="mb-0 text-muted">School Year: {{ $class->schoolYear->name }}</p>
+                <h1 class="h3 mb-0 text-dark">Manage: {{ $section->gradeLevel?->name ?? 'Unknown Grade' }}-{{ $section->name }}</h1>
+                <p class="mb-0 text-muted">School Year: {{ $class->schoolYear?->name ?? 'N/A' }}</p>
             </div>
             <div class="d-flex align-items-center gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal"
@@ -32,7 +32,7 @@
         @if (!$isEditable)
             <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
                 <i class="fas fa-info-circle me-2"></i>
-                <div>You are viewing a historical school year (<strong>{{ $class->schoolYear->name }}</strong>). Editing is
+                <div>You are viewing a historical school year (<strong>{{ $class->schoolYear?->name ?? 'N/A' }}</strong>). Editing is
                     disabled.</div>
             </div>
         @endif
@@ -45,11 +45,11 @@
                         <div class="row no-gutters align-items-center">
                             <div class="col mr-2">
                                 <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                    {{ $section->gradeLevel->name }} Adviser
+                                    {{ $section->gradeLevel?->name ?? 'Unknown Grade' }} Adviser
                                 </div>
                                 <div class="h5 mb-0 font-weight-bold text-dark">
-                                    {{ $class->teacher->user->first_name ?? 'Not' }}
-                                    {{ $class->teacher->user->last_name ?? 'Assigned' }}
+                                    {{ $class->teacher?->user?->first_name ?? 'Not' }}
+                                    {{ $class->teacher?->user?->last_name ?? 'Assigned' }}
                                 </div>
                             </div>
                             <div class="col-auto">
@@ -133,7 +133,7 @@
                                         <td>{{ $enrollment->student->lrn ?? 'N/A' }}</td>
                                         <td>{{ $enrollment->student->last_name }}, {{ $enrollment->student->first_name }}</td>
                                         <td>{{ ucfirst($enrollment->student->gender) }}</td>
-                                        <td>{{ $enrollment->student->guardian->user->last_name ?? 'N/A' }}, {{ $enrollment->student->guardian->user->first_name ?? '' }} @if($enrollment->student->guardian)<span class="badge bg-secondary text-white ms-1">{{ $enrollment->student->guardian->relationship }}</span>@endif</td>
+                                        <td>{{ $enrollment->student->guardian?->user?->last_name ?? 'N/A' }}, {{ $enrollment->student->guardian?->user?->first_name ?? '' }} @if($enrollment->student->guardian)<span class="badge bg-secondary text-white ms-1">{{ $enrollment->student->guardian->relationship }}</span>@endif</td>
                                         <td class="d-flex gap-2">
                                             <a class="btn btn-sm btn-outline-primary"
                                                 href="{{ route('admin.students.show', $enrollment->student) }}">
@@ -198,8 +198,8 @@
                                     <tr>
                                         <td class="fw-bold">{{ $subject->name }}</td>
                                         @if ($schedule)
-                                            <td>{{ $schedule->teacher->user->first_name }}
-                                                {{ $schedule->teacher->user->last_name }}</td>
+                                            <td>{{ $schedule->teacher?->user?->first_name ?? 'Unassigned' }}
+                                                {{ $schedule->teacher?->user?->last_name ?? '' }}</td>
                                             <td>
                                                 @php
                                                     $dayArray = is_array($schedule->day_of_week)
@@ -284,7 +284,7 @@
                         </table>
                     </div>
                 @else
-                    <p class="text-center text-muted">No subjects have been created for {{ $section->gradeLevel->name }}
+                    <p class="text-center text-muted">No subjects have been created for {{ $section->gradeLevel?->name ?? 'this grade level' }}
                         yet.
                         <a href="{{ route('admin.subjects.index') }}">Add subjects here.</a>
                     </p>
@@ -324,8 +324,8 @@
                                     <select class="form-select" name="teacher_id" required>
                                         <option value="">-- Select a teacher --</option>
                                         @foreach ($teachers as $teacher)
-                                            <option value="{{ $teacher->id }}">{{ $teacher->user->first_name }}
-                                                {{ $teacher->user->last_name }}</option>
+                                            <option value="{{ $teacher->id }}">{{ $teacher->user?->first_name ?? 'Unknown' }}
+                                                {{ $teacher->user?->last_name ?? 'Teacher' }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -401,8 +401,8 @@
                                     <select class="form-select" id="edit_teacher_id" name="teacher_id" required>
                                         <option value="">-- Select a teacher --</option>
                                         @foreach ($teachers as $teacher)
-                                            <option value="{{ $teacher->id }}">{{ $teacher->user->first_name }}
-                                                {{ $teacher->user->last_name }}</option>
+                                            <option value="{{ $teacher->id }}">{{ $teacher->user?->first_name ?? 'Unknown' }}
+                                                {{ $teacher->user?->last_name ?? 'Teacher' }}</option>
                                         @endforeach
                                     </select>
                                 </div>
@@ -465,7 +465,7 @@
                                 <div class="position-relative">
                                     <input type="text" class="form-control adviser-input" id="adviser_search"
                                         placeholder="Search for a teacher..." autocomplete="off"
-                                        value="{{ $class->teacher ? $class->teacher->user->first_name . ' ' . $class->teacher->user->last_name : '' }}">
+                                        value="{{ $class->teacher?->user ? $class->teacher->user->first_name . ' ' . $class->teacher->user->last_name : '' }}">
                                     <input type="hidden" name="teacher_id" id="adviser_teacher_id"
                                         value="{{ $class->teacher_id ?? '' }}" required>
                                     <div class="dropdown-menu adviser-menu w-100" id="adviserDropdown"></div>
@@ -852,7 +852,7 @@
     </script>
     <script>
         (function() {
-            const teachersList = @json($teachers->map(fn($t) => ['id' => $t->id, 'name' => $t->user->first_name . ' ' . $t->user->last_name]));
+            const teachersList = @json($teachers->map(fn($t) => ['id' => $t->id, 'name' => trim(($t->user?->first_name ?? 'Unknown') . ' ' . ($t->user?->last_name ?? 'Teacher'))]));
 
             const adviserInput = document.getElementById('adviser_search');
             const adviserHidden = document.getElementById('adviser_teacher_id');

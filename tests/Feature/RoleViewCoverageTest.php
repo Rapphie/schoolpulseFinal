@@ -112,6 +112,18 @@ class RoleViewCoverageTest extends TestCase
         }
     }
 
+    public function test_admin_manage_section_handles_class_without_adviser(): void
+    {
+        $this->class->update(['teacher_id' => null]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->get(route('admin.sections.manage', ['section' => $this->section]));
+
+        $response->assertStatus(200);
+        $response->assertSee('Not');
+        $response->assertSee('Assigned');
+    }
+
     public function test_teacher_views_render_successfully(): void
     {
         $routes = [
