@@ -24,7 +24,7 @@ class GuardianFactory extends Factory
             'user_id' => $userId,
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
-            'phone' => '09' . $this->faker->numerify('#########'),
+            'phone' => '09'.$this->faker->numerify('#########'),
             'relationship' => $this->faker->randomElement(['parent', 'sibling', 'relative', 'guardian']),
         ];
     }

@@ -15,6 +15,7 @@ class WelcomeEmail extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public $user;
+
     public $password;
 
     /**

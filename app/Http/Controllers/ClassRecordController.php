@@ -2,25 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\ClassRecordImport;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Models\Student;
 use App\Models\Teacher;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ClassRecordController extends Controller
 {
     public function upload(Request $request)
     {
         $request->validate([
-            'class_record_file' => 'required|mimes:xlsx,csv'
+            'class_record_file' => 'required|mimes:xlsx,csv',
         ]);
 
         // Create a new instance of our import class
-        $import = new ClassRecordImport();
+        $import = new ClassRecordImport;
 
         // Import the file and pass our import object to it
         Excel::import($import, $request->file('class_record_file'));
@@ -43,8 +42,6 @@ class ClassRecordController extends Controller
         try {
             $data = $request->json()->all();
 
-
-
             $userId = Auth::user()->id;
             $teacherId = Teacher::where('user_id', $userId)->value('id');
 
@@ -53,11 +50,13 @@ class ClassRecordController extends Controller
             $femaleStudents = $data['femaleStudents'];
             $maleStudents = array_map(function ($student) {
                 $student['gender'] = 'male';
+
                 return $student;
             }, $data['maleStudents']);
 
             $femaleStudents = array_map(function ($student) {
                 $student['gender'] = 'female';
+
                 return $student;
             }, $data['femaleStudents']);
 
@@ -65,7 +64,7 @@ class ClassRecordController extends Controller
             $allStudents = array_merge($maleStudents, $femaleStudents);
             $existingFullNames = []; // Array to collect names of duplicates
             foreach ($allStudents as $studentData) {
-                $student =  Student::firstOrCreate(
+                $student = Student::firstOrCreate(
                     [
                         'first_name' => $studentData['first_name'],
                         'last_name' => $studentData['last_name'],
@@ -90,32 +89,31 @@ class ClassRecordController extends Controller
                     ]);
                 } else {
                     // Student already existed. Instead of returning, collect their name.
-                    $existingFullNames[] = $student->last_name . ', ' . $student->first_name;
+                    $existingFullNames[] = $student->last_name.', '.$student->first_name;
                 }
             }
 
-
-
-            if (!empty($existingFullNames)) {
+            if (! empty($existingFullNames)) {
                 // If the duplicates array is not empty, return a single conflict error.
                 $count = count($existingFullNames);
                 $plural = $count === 1 ? 'student' : 'students';
                 $studentList = '';
                 foreach ($existingFullNames as $index => $name) {
-                    $studentList .= ($index + 1) . '. ' . $name . "\n";
+                    $studentList .= ($index + 1).'. '.$name."\n";
                 }
                 $studentList = trim($studentList);
 
                 return response()->json([
-                    'error'   => true,
+                    'error' => true,
                     'message' => "Found {$count} duplicate {$plural}. The following students already exist and were not re-added:
 
-{$studentList}"
+{$studentList}",
                 ], 409); // 409 Conflict
             }
+
             return response()->json(['success' => true, 'message' => 'Class record saved successfully!']);
         } catch (\Throwable $th) {
-            return response()->json(['error' => true, 'message' => 'Failed to save class record: ' . $th->getMessage()]);
+            return response()->json(['error' => true, 'message' => 'Failed to save class record: '.$th->getMessage()]);
         }
 
         // foreach ($allStudents as $studentData) {

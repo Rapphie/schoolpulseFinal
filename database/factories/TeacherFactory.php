@@ -25,14 +25,14 @@ class TeacherFactory extends Factory
             ->inRandomOrder()
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             $user = User::factory()->teacher()->create();
         }
         $userId = $user->id;
 
         return [
             'user_id' => $userId,
-            'phone' => '09' . $this->faker->numerify('#########'),
+            'phone' => '09'.$this->faker->numerify('#########'),
             'gender' => $this->faker->randomElement(['male', 'female', 'other']),
             'date_of_birth' => $this->faker->dateTimeBetween('-60 years', '-25 years'),
             'address' => $this->faker->address(),
@@ -43,7 +43,7 @@ class TeacherFactory extends Factory
                 'Bachelor of Arts in Education',
                 'Doctor of Education',
                 'Bachelor of Elementary Education',
-                'Bachelor of Secondary Education'
+                'Bachelor of Secondary Education',
             ]),
             'status' => $this->faker->randomElement(['active', 'on-leave', 'inactive']),
         ];

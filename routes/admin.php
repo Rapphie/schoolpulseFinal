@@ -101,7 +101,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:admin']], 
             Route::get('/{section}/data', [ClassroomSectionController::class, 'getSectionData'])->name('data');
             Route::get('/{section}/manage', [ClassroomSectionController::class, 'manageClass'])->name('manage');
             Route::put('/{section}', [ClassroomSectionController::class, 'update'])->name('update');
-            Route::put('/{section}/rename', [ClassroomSectionController::class, 'renameSection'])->name('sections.rename');
+            Route::put('/{section}/rename', [ClassroomSectionController::class, 'renameSection'])->name('rename');
             Route::delete('/destroy/{class}', [ClassroomSectionController::class, 'destroyClass'])->name('destroy');
 
             // Section Students

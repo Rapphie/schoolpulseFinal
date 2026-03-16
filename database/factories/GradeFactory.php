@@ -21,7 +21,7 @@ class GradeFactory extends Factory
         $teacher = \App\Models\Teacher::inRandomOrder()->first();
 
         return [
-            'student_id' =>  $student,
+            'student_id' => $student,
             'subject_id' => $subject,
             'grade' => $this->faker->numberBetween(75, 100),
             'quarter' => $this->faker->numberBetween(1, 4),

@@ -26,7 +26,7 @@ class LeastLearnedController extends Controller
     {
         try {
             $teacher = optional(Auth::user())->teacher;
-            if (!$teacher) {
+            if (! $teacher) {
                 abort(403, 'Only teachers can access Least Learned records.');
             }
 
@@ -117,12 +117,12 @@ class LeastLearnedController extends Controller
     public function store(StoreLeastLearnedRequest $request): RedirectResponse
     {
         $teacher = optional(Auth::user())->teacher;
-        if (!$teacher) {
+        if (! $teacher) {
             abort(403, 'Only teachers can submit least learned reports.');
         }
 
         $activeSchoolYear = SchoolYear::active()->first();
-        if (!$activeSchoolYear) {
+        if (! $activeSchoolYear) {
             throw ValidationException::withMessages([
                 'school_year_id' => 'No active school year configured. Please contact the administrator.',
             ]);
@@ -145,7 +145,7 @@ class LeastLearnedController extends Controller
             })
             ->exists();
 
-        if (!$teachesSection) {
+        if (! $teachesSection) {
             throw ValidationException::withMessages([
                 'section_id' => 'You are not assigned to the selected section for the active school year.',
             ]);
@@ -159,7 +159,7 @@ class LeastLearnedController extends Controller
             })
             ->exists();
 
-        if (!$teachesSubject) {
+        if (! $teachesSubject) {
             throw ValidationException::withMessages([
                 'subject_id' => 'You are not assigned to teach this subject for the selected section.',
             ]);
@@ -172,7 +172,7 @@ class LeastLearnedController extends Controller
         );
 
         $examTitle = $request->input('exam_title');
-        if (!$examTitle) {
+        if (! $examTitle) {
             $examTitle = sprintf(
                 '%s - %s',
                 $section->name,
@@ -231,7 +231,7 @@ class LeastLearnedController extends Controller
     public function show(LLC $llc)
     {
         $teacher = optional(Auth::user())->teacher;
-        if (!$teacher || (int) $llc->teacher_id !== (int) $teacher->id) {
+        if (! $teacher || (int) $llc->teacher_id !== (int) $teacher->id) {
             abort(403, 'You are not allowed to view this record.');
         }
 
@@ -285,7 +285,7 @@ class LeastLearnedController extends Controller
             $decoded = $decoded['categories'];
         }
 
-        if (!is_array($decoded) || empty($decoded)) {
+        if (! is_array($decoded) || empty($decoded)) {
             throw ValidationException::withMessages([
                 'categories_payload' => 'Please provide at least one category mapping.',
             ]);
@@ -320,7 +320,7 @@ class LeastLearnedController extends Controller
             }
 
             for ($i = $start; $i <= $end; $i++) {
-                if (!array_key_exists($i, $normalizedItems)) {
+                if (! array_key_exists($i, $normalizedItems)) {
                     throw ValidationException::withMessages([
                         'categories_payload' => "Missing wrong-answer count for Item {$i} in {$name}.",
                     ]);
@@ -346,13 +346,13 @@ class LeastLearnedController extends Controller
         if (count($coveredItems) !== $totalItems) {
             $missing = [];
             for ($i = 1; $i <= $totalItems; $i++) {
-                if (!isset($coveredItems[$i])) {
+                if (! isset($coveredItems[$i])) {
                     $missing[] = $i;
                 }
             }
 
             throw ValidationException::withMessages([
-                'categories_payload' => 'Item coverage mismatch. Missing: ' . implode(', ', $missing) . '.',
+                'categories_payload' => 'Item coverage mismatch. Missing: '.implode(', ', $missing).'.',
             ]);
         }
 

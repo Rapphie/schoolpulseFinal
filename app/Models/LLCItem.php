@@ -11,15 +11,15 @@ class LLCItem extends Model
     /** @use HasFactory<\Database\Factories\LLCItemFactory> */
     use HasFactory;
 
-    protected $table = "llc_items";
+    protected $table = 'llc_items';
 
     protected $fillable = [
-        "llc_id",
-        "item_number",
-        "students_wrong",
-        "category_name",
-        "item_start",
-        "item_end"
+        'llc_id',
+        'item_number',
+        'students_wrong',
+        'category_name',
+        'item_start',
+        'item_end',
     ];
 
     public function llc(): BelongsTo

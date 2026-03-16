@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Classes;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
-use App\Models\Classes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,13 +14,13 @@ class TeacherSectionsController extends Controller
     {
         // Active school year alignment with schema (uses is_active)
         $currentSchoolYear = SchoolYear::active()->first();
-        if (!$currentSchoolYear) {
+        if (! $currentSchoolYear) {
             return response()->json(['message' => 'No active school year found.'], 400);
         }
 
         // Logged-in teacher id
         $teacherId = optional(Auth::user()->teacher)->id;
-        if (!$teacherId) {
+        if (! $teacherId) {
             return response()->json(['message' => 'Current user is not a teacher.'], 403);
         }
 
@@ -33,7 +33,7 @@ class TeacherSectionsController extends Controller
             });
 
         // Optional grade level filter
-        if (!is_null($gradeLevelInput) && $gradeLevelInput !== '') {
+        if (! is_null($gradeLevelInput) && $gradeLevelInput !== '') {
             $classesQuery->whereHas('section', function ($q) use ($gradeLevelInput) {
                 $q->where('grade_level_id', $gradeLevelInput)
                     ->orWhereIn('grade_level_id', function ($sub) use ($gradeLevelInput) {
@@ -47,7 +47,7 @@ class TeacherSectionsController extends Controller
             ->sortBy(function ($class) {
                 return [
                     optional($class->section->gradeLevel)->level ?? 0,
-                    optional($class->section)->name ?? ''
+                    optional($class->section)->name ?? '',
                 ];
             })
             ->values();

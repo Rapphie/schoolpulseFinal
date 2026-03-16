@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Student>
@@ -23,7 +22,7 @@ class StudentFactory extends Factory
         $teacher = \App\Models\Teacher::inRandomOrder()->first();
 
         return [
-            'student_id' => date('Y') . '-' . $section->id . '-' . $this->faker->unique()->numberBetween(0, 100),
+            'student_id' => date('Y').'-'.$section->id.'-'.$this->faker->unique()->numberBetween(0, 100),
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
             'section_id' => $section->id,

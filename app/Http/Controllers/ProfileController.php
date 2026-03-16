@@ -15,6 +15,7 @@ class ProfileController extends Controller
     public function profile()
     {
         $user = Auth::user();
+
         return view('profile', compact('user'));
     }
 
@@ -28,7 +29,7 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
             'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ]);
 

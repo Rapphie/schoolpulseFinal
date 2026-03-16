@@ -3,14 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-
 use App\Mail\TemporaryPasswordMail;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Carbon;
-
 
 class ForgotPasswordController extends Controller
 {
@@ -29,6 +27,7 @@ class ForgotPasswordController extends Controller
         $user->temporary_password_expires_at = $expiresAt;
         $user->save();
         Mail::to($user->email)->queue(new TemporaryPasswordMail($user, $tempPassword, $expiresAt));
+
         return back()->with('status', 'A temporary password has been sent to your email.');
     }
 }

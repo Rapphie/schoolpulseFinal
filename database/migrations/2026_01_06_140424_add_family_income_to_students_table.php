@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasColumn('students', 'family_income')) {
+        if (! Schema::hasColumn('students', 'family_income')) {
             Schema::table('students', function (Blueprint $table) {
                 // Adding family_income column for ML feature extraction (Socioeconomic_Status)
                 $table->string('family_income')->nullable()->after('address')->comment('Socioeconomic status (Low, Medium, High)');

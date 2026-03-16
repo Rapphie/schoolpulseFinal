@@ -3,8 +3,8 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class ForcePasswordChange
@@ -18,7 +18,7 @@ class ForcePasswordChange
     {
         $user = Auth::user();
 
-        if ($user && $user->temporary_password && !$request->routeIs('password.change') && !$request->routeIs('password.update')) {
+        if ($user && $user->temporary_password && ! $request->routeIs('password.change') && ! $request->routeIs('password.update')) {
             return redirect()->route('password.change')->with(
                 'error',
                 'Please change your password before you proceed.'

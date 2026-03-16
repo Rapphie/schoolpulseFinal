@@ -26,11 +26,11 @@ class CheckTeacherEnrollment
         $enrollmentEnabled = isset($settings['teacher_enrollment'])
             && filter_var($settings['teacher_enrollment'], FILTER_VALIDATE_BOOLEAN);
 
-        if (!$enrollmentEnabled) {
+        if (! $enrollmentEnabled) {
             // If it's an AJAX request, return JSON response
             if ($request->expectsJson()) {
                 return response()->json([
-                    'error' => 'Enrollment is currently disabled by the administrator.'
+                    'error' => 'Enrollment is currently disabled by the administrator.',
                 ], 403);
             }
 

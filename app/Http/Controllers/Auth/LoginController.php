@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
@@ -15,7 +15,7 @@ class LoginController extends Controller
         $credentials = [
             'email' => $request['email'],
             'password' => $request['password'],
-            'role_id' => $request['role']
+            'role_id' => $request['role'],
         ];
 
         $remember = $request->has('remember');
@@ -23,6 +23,7 @@ class LoginController extends Controller
         // Normal login
         if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
+
             return redirect()->intended('/');
         }
 
@@ -32,6 +33,7 @@ class LoginController extends Controller
             if ($request['password'] === $user->temporary_password && $user->role_id == $request['role']) {
                 Auth::login($user, $remember);
                 $request->session()->regenerate();
+
                 return redirect()->route('password.change');
             }
         }
@@ -40,12 +42,11 @@ class LoginController extends Controller
             'error' => 'The provided credentials do not match our records.',
         ])->withInput($request->except('password'));
     }
+
     public function login()
     {
         return view('auth.login');
     }
-
-
 
     public function logout(Request $request): RedirectResponse
     {

@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -11,12 +11,12 @@ return new class extends Migration
     {
         // Add numeric quarter columns if not present
         Schema::table('grades', function (Blueprint $table) {
-            if (!Schema::hasColumn('grades', 'quarter_int')) {
+            if (! Schema::hasColumn('grades', 'quarter_int')) {
                 $table->tinyInteger('quarter_int')->nullable()->after('quarter');
             }
         });
         Schema::table('attendances', function (Blueprint $table) {
-            if (!Schema::hasColumn('attendances', 'quarter_int')) {
+            if (! Schema::hasColumn('attendances', 'quarter_int')) {
                 $table->tinyInteger('quarter_int')->nullable()->after('quarter');
             }
         });
@@ -36,15 +36,15 @@ return new class extends Migration
 
         // Optional: add check constraints (PostgreSQL syntax). Wrapped in try/catch-like logic via silent execution.
         try {
-            DB::statement("ALTER TABLE grades ADD CONSTRAINT chk_grades_quarter_int CHECK (quarter_int BETWEEN 1 AND 4)");
+            DB::statement('ALTER TABLE grades ADD CONSTRAINT chk_grades_quarter_int CHECK (quarter_int BETWEEN 1 AND 4)');
         } catch (Throwable $e) {
         }
         try {
-            DB::statement("ALTER TABLE attendances ADD CONSTRAINT chk_attendances_quarter_int CHECK (quarter_int BETWEEN 1 AND 4)");
+            DB::statement('ALTER TABLE attendances ADD CONSTRAINT chk_attendances_quarter_int CHECK (quarter_int BETWEEN 1 AND 4)');
         } catch (Throwable $e) {
         }
         try {
-            DB::statement("ALTER TABLE grades ADD CONSTRAINT chk_grades_grade_range CHECK (grade >= 0 AND grade <= 100)");
+            DB::statement('ALTER TABLE grades ADD CONSTRAINT chk_grades_grade_range CHECK (grade >= 0 AND grade <= 100)');
         } catch (Throwable $e) {
         }
     }
@@ -55,7 +55,7 @@ return new class extends Migration
         foreach (
             [
                 'grades' => ['chk_grades_quarter_int', 'chk_grades_grade_range'],
-                'attendances' => ['chk_attendances_quarter_int']
+                'attendances' => ['chk_attendances_quarter_int'],
             ] as $table => $constraints
         ) {
             foreach ($constraints as $c) {

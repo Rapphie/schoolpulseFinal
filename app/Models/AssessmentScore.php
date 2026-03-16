@@ -44,6 +44,7 @@ class AssessmentScore extends Model
             if ($profile) {
                 return $query->where('student_profile_id', $profile->id);
             }
+
             return $query->where('student_id', $studentId);
         }
 

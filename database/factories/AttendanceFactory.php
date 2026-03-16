@@ -20,7 +20,6 @@ class AttendanceFactory extends Factory
         $subject = \App\Models\Subject::inRandomOrder()->first();
         $teacher = \App\Models\Teacher::inRandomOrder()->first();
 
-
         return [
             'student_id' => $student,
             'subject_id' => $subject,
@@ -30,7 +29,7 @@ class AttendanceFactory extends Factory
             'school_year' => '2024-2025',
             'time_in' => $this->faker->dateTimeBetween('08:00:00', '08:30:00'),
             // 'time_out' => $this->faker->dateTimeBetween('15:00:00', '17:00:00'),
-            'teacher_id' =>  $teacher, // Teacher role
+            'teacher_id' => $teacher, // Teacher role
         ];
     }
 }

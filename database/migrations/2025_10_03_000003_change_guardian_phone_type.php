@@ -2,15 +2,15 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
         // Add new varchar column if not exists
-        if (!Schema::hasColumn('guardians', 'phone_varchar')) {
+        if (! Schema::hasColumn('guardians', 'phone_varchar')) {
             Schema::table('guardians', function (Blueprint $table) {
                 $table->string('phone_varchar', 25)->nullable()->after('user_id');
             });

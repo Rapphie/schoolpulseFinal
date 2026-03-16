@@ -2,10 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Section;
-use App\Models\Subject;
-use App\Models\Teacher;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class ScheduleFactory extends Factory
@@ -29,7 +25,7 @@ class ScheduleFactory extends Factory
             'day_of_week' => $this->faker->randomElement($days),
             'start_time' => $startTime,
             'end_time' => $endTime,
-            'room' => 'Room ' . strtoupper($this->faker->randomLetter()) . $this->faker->numberBetween(1, 20),
+            'room' => 'Room '.strtoupper($this->faker->randomLetter()).$this->faker->numberBetween(1, 20),
         ];
     }
 

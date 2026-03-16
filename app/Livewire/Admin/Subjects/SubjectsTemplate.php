@@ -9,8 +9,11 @@ use Livewire\Component;
 class SubjectsTemplate extends Component
 {
     public $gradeLevels;
+
     public $selectedGradeLevel;
+
     public $subjects = [];
+
     public $previewSubjects = [];
 
     public function mount()

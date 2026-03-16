@@ -106,7 +106,7 @@ class CheckAbsencesTest extends TestCase
             ->whereIn('date', [Carbon::now()->toDateString(), Carbon::now()->subDay()->toDateString(), Carbon::now()->subDays(2)->toDateString()])
             ->count());
 
-        $cacheKey = 'absent_alert_sent_' . $student->id;
+        $cacheKey = 'absent_alert_sent_'.$student->id;
         $this->assertNull(cache($cacheKey));
 
         $controller = app(TeacherDashboardController::class);
@@ -115,8 +115,8 @@ class CheckAbsencesTest extends TestCase
         $method->invoke($controller, $student->id, $teacher->id);
 
         Mail::assertQueued(AbsentAlertMail::class, 2);
-        Mail::assertQueued(AbsentAlertMail::class, fn(AbsentAlertMail $mail) => $mail->hasTo($teacherEmail));
-        Mail::assertQueued(AbsentAlertMail::class, fn(AbsentAlertMail $mail) => $mail->hasTo($guardianEmail));
+        Mail::assertQueued(AbsentAlertMail::class, fn (AbsentAlertMail $mail) => $mail->hasTo($teacherEmail));
+        Mail::assertQueued(AbsentAlertMail::class, fn (AbsentAlertMail $mail) => $mail->hasTo($guardianEmail));
 
         $this->assertNotNull(cache($cacheKey));
         Log::shouldNotHaveReceived('error');

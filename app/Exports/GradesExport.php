@@ -3,7 +3,6 @@
 namespace App\Exports;
 
 use App\Models\Grade;
-use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -11,13 +10,15 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use Illuminate\Support\Facades\DB;
 
-class GradesExport implements FromCollection, WithMapping, WithHeadings, ShouldAutoSize, WithStyles
+class GradesExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     private ?int $schoolYearId;
+
     private ?int $gradeLevelId;
+
     private ?int $classId;
+
     private ?string $filterType;
 
     public function __construct(?int $schoolYearId = null, ?int $gradeLevelId = null, ?int $classId = null, ?string $filterType = null)
@@ -102,15 +103,15 @@ class GradesExport implements FromCollection, WithMapping, WithHeadings, ShouldA
 
     public function map($grade): array
     {
-        $gradeLabel = $grade->grade_level_name ?? ($grade->grade_level ? 'Grade ' . $grade->grade_level : 'N/A');
+        $gradeLabel = $grade->grade_level_name ?? ($grade->grade_level ? 'Grade '.$grade->grade_level : 'N/A');
         $teacherName = $grade->teacher_first_name
-            ? trim($grade->teacher_first_name . ' ' . $grade->teacher_last_name)
+            ? trim($grade->teacher_first_name.' '.$grade->teacher_last_name)
             : 'N/A';
         $status = $grade->grade >= 75 ? 'Passing' : 'Failing';
 
         return [
             $grade->lrn ?? 'N/A',
-            trim(($grade->last_name ?? '') . ', ' . ($grade->first_name ?? '')),
+            trim(($grade->last_name ?? '').', '.($grade->first_name ?? '')),
             $gradeLabel,
             $grade->section_name ?? 'N/A',
             $grade->subject_name ?? 'N/A',
@@ -124,6 +125,6 @@ class GradesExport implements FromCollection, WithMapping, WithHeadings, ShouldA
     public function styles(Worksheet $sheet)
     {
         $highestColumn = $sheet->getHighestColumn();
-        $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:'.$highestColumn.'1')->getFont()->setBold(true);
     }
 }

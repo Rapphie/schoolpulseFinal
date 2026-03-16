@@ -14,7 +14,9 @@ class AbsentAlertMail extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public $student;
+
     public $teacher;
+
     public $consecutiveAbsences;
 
     /**

@@ -2,23 +2,25 @@
 
 namespace App\Exports;
 
-use App\Models\Enrollment;
 use App\Models\Attendance;
+use App\Models\Enrollment;
 use App\Models\Grade;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\WithMultipleSheets;
-use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class CumulativeExport implements WithMultipleSheets
 {
     protected ?int $schoolYearId;
+
     protected ?int $gradeLevelId;
+
     protected ?int $classId;
 
     public function __construct(?int $schoolYearId = null, ?int $gradeLevelId = null, ?int $classId = null)
@@ -38,10 +40,12 @@ class CumulativeExport implements WithMultipleSheets
     }
 }
 
-class EnrollmentSheet implements FromCollection, WithTitle, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class EnrollmentSheet implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected ?int $schoolYearId;
+
     protected ?int $gradeLevelId;
+
     protected ?int $classId;
 
     public function __construct(?int $schoolYearId, ?int $gradeLevelId, ?int $classId)
@@ -74,9 +78,9 @@ class EnrollmentSheet implements FromCollection, WithTitle, WithHeadings, WithMa
             ->join('classes', 'enrollments.class_id', '=', 'classes.id')
             ->join('sections', 'classes.section_id', '=', 'sections.id')
             ->join('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($this->schoolYearId, fn($q) => $q->where('enrollments.school_year_id', $this->schoolYearId))
-            ->when($this->gradeLevelId, fn($q) => $q->where('grade_levels.id', $this->gradeLevelId))
-            ->when($this->classId, fn($q) => $q->where('classes.id', $this->classId))
+            ->when($this->schoolYearId, fn ($q) => $q->where('enrollments.school_year_id', $this->schoolYearId))
+            ->when($this->gradeLevelId, fn ($q) => $q->where('grade_levels.id', $this->gradeLevelId))
+            ->when($this->classId, fn ($q) => $q->where('classes.id', $this->classId))
             ->orderBy('grade_levels.level')
             ->orderBy('sections.name')
             ->orderBy('students.last_name')
@@ -95,7 +99,7 @@ class EnrollmentSheet implements FromCollection, WithTitle, WithHeadings, WithMa
             $row->last_name,
             $row->first_name,
             ucfirst($row->gender ?? 'N/A'),
-            $row->grade_level_name ?? ('Grade ' . $row->grade_level),
+            $row->grade_level_name ?? ('Grade '.$row->grade_level),
             $row->section_name ?? 'Unassigned',
             $row->created_at ? $row->created_at->format('Y-m-d') : 'N/A',
         ];
@@ -109,10 +113,12 @@ class EnrollmentSheet implements FromCollection, WithTitle, WithHeadings, WithMa
     }
 }
 
-class AttendanceSummarySheet implements FromCollection, WithTitle, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class AttendanceSummarySheet implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected ?int $schoolYearId;
+
     protected ?int $gradeLevelId;
+
     protected ?int $classId;
 
     public function __construct(?int $schoolYearId, ?int $gradeLevelId, ?int $classId)
@@ -147,9 +153,9 @@ class AttendanceSummarySheet implements FromCollection, WithTitle, WithHeadings,
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
             ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($this->schoolYearId, fn($q) => $q->where('attendances.school_year_id', $this->schoolYearId))
-            ->when($this->gradeLevelId, fn($q) => $q->where('grade_levels.id', $this->gradeLevelId))
-            ->when($this->classId, fn($q) => $q->where('classes.id', $this->classId))
+            ->when($this->schoolYearId, fn ($q) => $q->where('attendances.school_year_id', $this->schoolYearId))
+            ->when($this->gradeLevelId, fn ($q) => $q->where('grade_levels.id', $this->gradeLevelId))
+            ->when($this->classId, fn ($q) => $q->where('classes.id', $this->classId))
             ->groupBy('sections.id', 'sections.name', 'grade_levels.id', 'grade_levels.name', 'grade_levels.level')
             ->orderBy('grade_levels.level')
             ->orderBy('sections.name')
@@ -168,13 +174,13 @@ class AttendanceSummarySheet implements FromCollection, WithTitle, WithHeadings,
         $rate = $total > 0 ? round(($present / $total) * 100, 1) : 0;
 
         return [
-            $row->grade_level_name ?? ('Grade ' . $row->grade_level),
+            $row->grade_level_name ?? ('Grade '.$row->grade_level),
             $row->section_name ?? 'Unassigned',
             $total,
             $present,
             (int) $row->absent,
             (int) $row->late,
-            $rate . '%',
+            $rate.'%',
         ];
     }
 
@@ -186,10 +192,12 @@ class AttendanceSummarySheet implements FromCollection, WithTitle, WithHeadings,
     }
 }
 
-class GradesSummarySheet implements FromCollection, WithTitle, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class GradesSummarySheet implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected ?int $schoolYearId;
+
     protected ?int $gradeLevelId;
+
     protected ?int $classId;
 
     public function __construct(?int $schoolYearId, ?int $gradeLevelId, ?int $classId)
@@ -216,7 +224,7 @@ class GradesSummarySheet implements FromCollection, WithTitle, WithHeadings, Wit
                 \Illuminate\Support\Facades\DB::raw('AVG(grades.grade) as average'),
                 \Illuminate\Support\Facades\DB::raw('MAX(grades.grade) as highest'),
                 \Illuminate\Support\Facades\DB::raw('MIN(grades.grade) as lowest'),
-                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN grades.grade >= 75 THEN 1 ELSE 0 END) as passing")
+                \Illuminate\Support\Facades\DB::raw('SUM(CASE WHEN grades.grade >= 75 THEN 1 ELSE 0 END) as passing')
             )
             ->join('subjects', 'grades.subject_id', '=', 'subjects.id')
             ->join('students', 'grades.student_id', '=', 'students.id')
@@ -227,9 +235,9 @@ class GradesSummarySheet implements FromCollection, WithTitle, WithHeadings, Wit
             ->leftJoin('classes', 'enrollments.class_id', '=', 'classes.id')
             ->leftJoin('sections', 'classes.section_id', '=', 'sections.id')
             ->leftJoin('grade_levels', 'sections.grade_level_id', '=', 'grade_levels.id')
-            ->when($this->schoolYearId, fn($q) => $q->where('grades.school_year_id', $this->schoolYearId))
-            ->when($this->gradeLevelId, fn($q) => $q->where('grade_levels.id', $this->gradeLevelId))
-            ->when($this->classId, fn($q) => $q->where('classes.id', $this->classId))
+            ->when($this->schoolYearId, fn ($q) => $q->where('grades.school_year_id', $this->schoolYearId))
+            ->when($this->gradeLevelId, fn ($q) => $q->where('grade_levels.id', $this->gradeLevelId))
+            ->when($this->classId, fn ($q) => $q->where('classes.id', $this->classId))
             ->groupBy('sections.id', 'sections.name', 'grade_levels.id', 'grade_levels.name', 'grade_levels.level', 'subjects.id', 'subjects.name')
             ->orderBy('grade_levels.level')
             ->orderBy('sections.name')
@@ -249,14 +257,14 @@ class GradesSummarySheet implements FromCollection, WithTitle, WithHeadings, Wit
         $passingRate = $records > 0 ? round(($passing / $records) * 100, 1) : 0;
 
         return [
-            $row->grade_level_name ?? ('Grade ' . $row->grade_level),
+            $row->grade_level_name ?? ('Grade '.$row->grade_level),
             $row->section_name ?? 'Unassigned',
             $row->subject_name ?? 'N/A',
             $records,
             round($row->average, 1),
             round($row->highest, 1),
             round($row->lowest, 1),
-            $passingRate . '%',
+            $passingRate.'%',
         ];
     }
 

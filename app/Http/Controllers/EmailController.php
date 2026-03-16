@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\WelcomeEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use App\Mail\WelcomeEmail;
 use Illuminate\Support\Facades\Mail;
 
 class EmailController extends Controller
@@ -23,14 +23,14 @@ class EmailController extends Controller
                 'from' => env('MAIL_FROM_ADDRESS'),
                 'to' => [$request->to],
                 'subject' => $request->subject,
-                'html' => '<p>' . nl2br(e($request->message)) . '</p>',
+                'html' => '<p>'.nl2br(e($request->message)).'</p>',
             ]);
 
         if ($response->successful()) {
             return back()->with('success', 'Email sent successfully!');
         }
 
-        return back()->with('error', 'Failed to send email: ' . ($response->json('message') ?? 'Unknown error'));
+        return back()->with('error', 'Failed to send email: '.($response->json('message') ?? 'Unknown error'));
     }
 
     public function sendTeacherWelcomeEmail()

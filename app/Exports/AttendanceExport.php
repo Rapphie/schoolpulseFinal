@@ -12,11 +12,14 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class AttendanceExport implements FromCollection, WithMapping, WithHeadings, ShouldAutoSize, WithStyles
+class AttendanceExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     private ?int $schoolYearId;
+
     private ?int $gradeLevelId;
+
     private ?int $classId;
+
     private ?string $status;
 
     public function __construct(?int $schoolYearId = null, ?int $gradeLevelId = null, ?int $classId = null, ?string $status = null)
@@ -79,12 +82,12 @@ class AttendanceExport implements FromCollection, WithMapping, WithHeadings, Sho
         $subject = $attendance->subject;
         $teacher = $attendance->teacher;
 
-        $gradeLabel = $attendance->grade_name ?? ($attendance->grade_level ? 'Grade ' . $attendance->grade_level : 'N/A');
+        $gradeLabel = $attendance->grade_name ?? ($attendance->grade_level ? 'Grade '.$attendance->grade_level : 'N/A');
 
         return [
             $attendance->date ? Carbon::parse($attendance->date)->format('M d, Y') : 'N/A',
             $student->lrn ?? 'N/A',
-            $student ? trim(($student->last_name ?? '') . ', ' . ($student->first_name ?? '')) : 'N/A',
+            $student ? trim(($student->last_name ?? '').', '.($student->first_name ?? '')) : 'N/A',
             $gradeLabel,
             $attendance->section_name ?? 'N/A',
             $subject->name ?? 'N/A',
@@ -98,6 +101,6 @@ class AttendanceExport implements FromCollection, WithMapping, WithHeadings, Sho
     public function styles(Worksheet $sheet)
     {
         $highestColumn = $sheet->getHighestColumn();
-        $sheet->getStyle('A1:' . $highestColumn . '1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:'.$highestColumn.'1')->getFont()->setBold(true);
     }
 }

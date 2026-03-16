@@ -19,6 +19,7 @@ class LLCFactory extends Factory
         $section = \App\Models\Section::inRandomOrder()->first() ?? \App\Models\Section::factory()->create();
         $subject = \App\Models\Subject::inRandomOrder()->first();
         $teacher = \App\Models\Teacher::inRandomOrder()->first();
+
         return [
             'subject_id' => $subject,
             'section_id' => $section,

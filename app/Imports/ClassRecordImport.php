@@ -37,39 +37,37 @@ class ClassRecordImport implements ToCollection
      */
     private ?int $lrnColumn = null;
 
-
     /**
      * A map of the header text we're searching for in the file (key)
      * and the clean key we want to use in our final output (value).
      * We search for these in uppercase to make the search case-insensitive.
+     *
      * @var string[]
      */
     private array $headerMap = [
-        'REGION'          => 'region',
-        'DIVISION'        => 'division',
-        'DISTRICT'        => 'district',
-        'SCHOOL NAME'     => 'school_name',
-        'SCHOOL ID'       => 'school_id',
-        'SCHOOL YEAR'     => 'school_year',
+        'REGION' => 'region',
+        'DIVISION' => 'division',
+        'DISTRICT' => 'district',
+        'SCHOOL NAME' => 'school_name',
+        'SCHOOL ID' => 'school_id',
+        'SCHOOL YEAR' => 'school_year',
         'GRADE & SECTION:' => 'grade_section',
-        'TEACHER:'        => 'teacher',
-        'SUBJECT:'        => 'subject',
+        'TEACHER:' => 'teacher',
+        'SUBJECT:' => 'subject',
     ];
 
     /**
      * A map for quarter names to their numeric values.
-     * @var array
      */
     private array $quarterMap = [
-        'FIRST QUARTER'  => 1,
+        'FIRST QUARTER' => 1,
         'SECOND QUARTER' => 2,
-        'THIRD QUARTER'  => 3,
+        'THIRD QUARTER' => 3,
         'FOURTH QUARTER' => 4,
     ];
 
     /**
      * This method processes the entire sheet.
-     * @param Collection $rows
      */
     public function collection(Collection $rows)
     {
@@ -110,7 +108,7 @@ class ClassRecordImport implements ToCollection
                         $lrn = null;
                         if ($this->lrnColumn !== null) {
                             $lrnValue = $rows[$j][$this->lrnColumn] ?? null;
-                            if (!empty(trim($lrnValue))) {
+                            if (! empty(trim($lrnValue))) {
                                 $lrn = trim($lrnValue);
                             }
                         }
@@ -119,8 +117,8 @@ class ClassRecordImport implements ToCollection
                         // ✨ NEW: Combine all student data into a single structured array.
                         $studentData = [
                             'first_name' => $parsedName['first_name'],
-                            'last_name'  => $parsedName['last_name'],
-                            'lrn'        => $lrn,
+                            'last_name' => $parsedName['last_name'],
+                            'lrn' => $lrn,
                         ];
 
                         // ✨ NEW: Add the structured data to the correct list.
@@ -130,6 +128,7 @@ class ClassRecordImport implements ToCollection
                             $this->femaleStudents[] = $studentData;
                         }
                     }
+
                     // Continue to the next cell, as we've processed this column.
                     continue;
                 }
@@ -137,6 +136,7 @@ class ClassRecordImport implements ToCollection
                 // Check if the cell contains a quarter name.
                 if (in_array($cleanedCellValue, $quartersToFind)) {
                     $this->headerData['quarter'] = $this->quarterMap[$cleanedCellValue];
+
                     // Continue to the next cell, as we've found what we need.
                     continue;
                 }
@@ -146,7 +146,7 @@ class ClassRecordImport implements ToCollection
                     // The value is the *next* non-empty cell to the right.
                     $value = null;
                     for ($j = $i + 1; $j < count($row); $j++) {
-                        if (!empty($row[$j])) {
+                        if (! empty($row[$j])) {
                             $value = trim($row[$j]);
                             break; // Exit after finding the first value.
                         }
@@ -194,13 +194,12 @@ class ClassRecordImport implements ToCollection
 
         return [
             'first_name' => $firstName,
-            'last_name'  => $lastName,
+            'last_name' => $lastName,
         ];
     }
 
     /**
      * Find and set the LRN column index.
-     * @param Collection $rows
      */
     private function findLrnColumn(Collection $rows)
     {
@@ -208,6 +207,7 @@ class ClassRecordImport implements ToCollection
             foreach ($row as $key => $value) {
                 if (strtoupper(trim($value)) === 'LRN') {
                     $this->lrnColumn = $key;
+
                     return; // Exit once found
                 }
             }
@@ -216,7 +216,6 @@ class ClassRecordImport implements ToCollection
 
     /**
      * A public method to get the extracted data after parsing.
-     * @return array
      */
     public function getExtractedHeaderData(): array
     {
@@ -225,7 +224,6 @@ class ClassRecordImport implements ToCollection
 
     /**
      * Gets the list of male students.
-     * @return array
      */
     public function getMaleStudents(): array
     {
@@ -234,7 +232,6 @@ class ClassRecordImport implements ToCollection
 
     /**
      * Gets the list of female students.
-     * @return array
      */
     public function getFemaleStudents(): array
     {

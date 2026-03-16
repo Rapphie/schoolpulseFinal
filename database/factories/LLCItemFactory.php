@@ -18,9 +18,10 @@ class LLCItemFactory extends Factory
     {
         $llc = \App\Models\LLC::inRandomOrder()->first() ?? \App\Models\LLC::factory()->create();
         $teacher = \App\Models\Teacher::inRandomOrder()->first();
+
         return [
-            "llc_id" => $llc,
-            "teacher_id" => $teacher,
+            'llc_id' => $llc,
+            'teacher_id' => $teacher,
         ];
     }
 }

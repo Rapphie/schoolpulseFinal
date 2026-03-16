@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Teacher;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class SectionFactory extends Factory
@@ -15,7 +14,7 @@ class SectionFactory extends Factory
         $gradeLevel = \App\Models\GradeLevel::inRandomOrder()->first();
 
         return [
-            'name' => strtoupper($this->faker->randomLetter() . $this->faker->randomLetter()),
+            'name' => strtoupper($this->faker->randomLetter().$this->faker->randomLetter()),
             'grade_level_id' => $gradeLevel,
             'description' => $this->faker->sentence(),
             'teacher_id' => Teacher::factory(),

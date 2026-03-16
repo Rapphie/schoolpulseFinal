@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\AssessmentScore;
+use App\Models\Attendance;
 use App\Models\Enrollment;
 use App\Models\Grade;
-use App\Models\Attendance;
-use App\Models\AssessmentScore;
 use App\Models\StudentProfile;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 class BackfillStudentProfiles extends Command
 {
     protected $signature = 'profiles:backfill {--dry-run : Show what would be created without making changes}';
+
     protected $description = 'Create student profiles for existing enrollments that do not have one.';
 
     public function handle(): int
@@ -41,13 +42,14 @@ class BackfillStudentProfiles extends Command
         foreach ($enrollments as $enrollment) {
             $gradeLevelId = $enrollment->class?->section?->grade_level_id;
 
-            if (!$gradeLevelId) {
+            if (! $gradeLevelId) {
                 $skipped++;
                 $bar->advance();
+
                 continue;
             }
 
-            if (!$dryRun) {
+            if (! $dryRun) {
                 DB::transaction(function () use ($enrollment, $gradeLevelId, &$created, &$linked) {
                     $profile = StudentProfile::firstOrCreate(
                         [
@@ -96,7 +98,7 @@ class BackfillStudentProfiles extends Command
                 ->first();
 
             if ($profile) {
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $grade->update(['student_profile_id' => $profile->id]);
                 }
                 $gLinked++;
@@ -127,9 +129,9 @@ class BackfillStudentProfiles extends Command
                 ->where('school_year_id', $att->school_year_id)
                 ->first();
 
-            if (!$profile && $gradeLevelId) {
+            if (! $profile && $gradeLevelId) {
                 // create profile when grade level can be inferred
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $profile = StudentProfile::firstOrCreate(
                         ['student_id' => $att->student_id, 'school_year_id' => $att->school_year_id],
                         ['grade_level_id' => $gradeLevelId, 'status' => 'enrolled']
@@ -138,7 +140,7 @@ class BackfillStudentProfiles extends Command
             }
 
             if ($profile) {
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $att->update(['student_profile_id' => $profile->id]);
                 }
                 $aLinked++;
@@ -169,8 +171,8 @@ class BackfillStudentProfiles extends Command
                 ->where('school_year_id', $assessment?->school_year_id)
                 ->first();
 
-            if (!$profile && $gradeLevelId && $assessment?->school_year_id) {
-                if (!$dryRun) {
+            if (! $profile && $gradeLevelId && $assessment?->school_year_id) {
+                if (! $dryRun) {
                     $profile = StudentProfile::firstOrCreate(
                         ['student_id' => $score->student_id, 'school_year_id' => $assessment->school_year_id],
                         ['grade_level_id' => $gradeLevelId, 'status' => 'enrolled']
@@ -179,7 +181,7 @@ class BackfillStudentProfiles extends Command
             }
 
             if ($profile) {
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $score->update(['student_profile_id' => $profile->id]);
                 }
                 $sLinked++;

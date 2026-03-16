@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -12,7 +12,7 @@ return new class extends Migration
         // Add surrogate id and replace composite primary key with a unique index.
         Schema::table('grades', function (Blueprint $table) {
             // Only proceed if id column not present
-            if (!Schema::hasColumn('grades', 'id')) {
+            if (! Schema::hasColumn('grades', 'id')) {
                 // Drop existing primary key so we can add an auto-increment id
                 DB::statement('ALTER TABLE grades DROP PRIMARY KEY');
                 $table->id()->first();

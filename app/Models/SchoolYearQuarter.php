@@ -69,6 +69,7 @@ class SchoolYearQuarter extends Model
         }
 
         $today = Carbon::today();
+
         return $query->where('start_date', '<=', $today)
             ->where('end_date', '>=', $today);
     }
@@ -86,7 +87,7 @@ class SchoolYearQuarter extends Model
      */
     public function scopeForActiveSchoolYear(Builder $query): Builder
     {
-        return $query->whereHas('schoolYear', fn($q) => $q->where('is_active', true));
+        return $query->whereHas('schoolYear', fn ($q) => $q->where('is_active', true));
     }
 
     /*
@@ -111,6 +112,7 @@ class SchoolYearQuarter extends Model
         }
 
         $today = Carbon::today();
+
         return $today->between($this->start_date, $this->end_date);
     }
 
@@ -135,9 +137,10 @@ class SchoolYearQuarter extends Model
      */
     public function isSubmissionDeadlinePassed(): bool
     {
-        if (!$this->grade_submission_deadline) {
+        if (! $this->grade_submission_deadline) {
             return false;
         }
+
         return Carbon::today()->gt($this->grade_submission_deadline);
     }
 
@@ -154,9 +157,10 @@ class SchoolYearQuarter extends Model
      */
     public function daysUntilDeadline(): ?int
     {
-        if (!$this->grade_submission_deadline) {
+        if (! $this->grade_submission_deadline) {
             return null;
         }
+
         return Carbon::today()->diffInDays($this->grade_submission_deadline, false);
     }
 
@@ -177,6 +181,7 @@ class SchoolYearQuarter extends Model
         if ($this->isCurrent()) {
             return 'Active';
         }
+
         return 'Ended';
     }
 
@@ -205,7 +210,7 @@ class SchoolYearQuarter extends Model
 
         return static::query()
             ->where('school_year_id', $schoolYearId)
-            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
             ->where(function ($query) use ($start, $end) {
                 $query->where(function ($q) use ($start) {
                     $q->where('start_date', '<=', $start)
@@ -229,7 +234,7 @@ class SchoolYearQuarter extends Model
     public function isWithinSchoolYear(): bool
     {
         $schoolYear = $this->schoolYear;
-        if (!$schoolYear) {
+        if (! $schoolYear) {
             return false;
         }
 

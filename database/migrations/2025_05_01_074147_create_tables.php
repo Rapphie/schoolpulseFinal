@@ -77,8 +77,6 @@ return new class extends Migration
             $table->foreign('grade_level_id')->references('id')->on('grade_levels')->onDelete('cascade');
         });
 
-
-
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('grade_level_id');
@@ -154,7 +152,6 @@ return new class extends Migration
             $table->foreign('guardian_id')->references('id')->on('guardians')->onDelete('set null');
         });
 
-
         Schema::create('classes', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('section_id');
@@ -188,8 +185,6 @@ return new class extends Migration
             $table->foreign('subject_id')->references('id')->on('subjects')->onDelete('cascade');
             $table->foreign('teacher_id')->references('id')->on('teachers')->onDelete('cascade');
         });
-
-
 
         Schema::create('grades', function (Blueprint $table) {
             $table->unsignedBigInteger('student_id');

@@ -11,7 +11,7 @@ class Grade extends Model
     /** @use HasFactory<\Database\Factories\GradeFactory> */
     use HasFactory;
 
-    protected $table = "grades";
+    protected $table = 'grades';
 
     protected $fillable = [
         'student_id',
@@ -25,7 +25,9 @@ class Grade extends Model
 
     // After adding a surrogate primary key `id` via migration
     protected $primaryKey = 'id';
+
     public $incrementing = true;
+
     protected $keyType = 'int';
 
     protected $casts = [
@@ -53,6 +55,7 @@ class Grade extends Model
             if ($profile) {
                 return $query->where('student_profile_id', $profile->id);
             }
+
             return $query->where('student_id', $studentId)->where('school_year_id', $schoolYearId);
         }
 

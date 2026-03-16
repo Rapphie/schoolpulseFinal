@@ -47,7 +47,7 @@ class GmailSmtpConnectionTest extends TestCase
             $started = true;
             $this->addToAssertionCount(1);
         } catch (TransportExceptionInterface $exception) {
-            $this->fail('Unable to connect to Gmail SMTP: ' . $exception->getMessage());
+            $this->fail('Unable to connect to Gmail SMTP: '.$exception->getMessage());
         } finally {
             if ($started) {
                 $smtpTransport->stop();

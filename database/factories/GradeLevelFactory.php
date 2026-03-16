@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\GradeLevel;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -32,7 +31,7 @@ class GradeLevelFactory extends Factory
         $level = static::$sequence;
 
         return [
-            'name' => 'Grade ' . $level,
+            'name' => 'Grade '.$level,
             'level' => $level,
             'description' => fake()->sentence(),
         ];
@@ -40,15 +39,12 @@ class GradeLevelFactory extends Factory
 
     /**
      * Configure the factory to create a specific grade level (1-6)
-     *
-     * @param int $level
-     * @return \Illuminate\Database\Eloquent\Factories\Factory
      */
     public function level(int $level): Factory
     {
         return $this->state(function (array $attributes) use ($level) {
             return [
-                'name' => 'Grade ' . $level,
+                'name' => 'Grade '.$level,
                 'level' => $level,
             ];
         });

@@ -2,10 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Attendance;
 use App\Models\AssessmentScore;
+use App\Models\Attendance;
 use App\Models\StudentProfile;
-use App\Models\SchoolYear;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -30,8 +29,8 @@ class StudentFeaturesService
         }
 
         $baseMonthly = Attendance::query()
-            ->when($profile, fn($q) => $q->where('student_profile_id', $profile->id), fn($q) => $q->where('student_id', $studentId))
-            ->when(!$profile && $schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+            ->when($profile, fn ($q) => $q->where('student_profile_id', $profile->id), fn ($q) => $q->where('student_id', $studentId))
+            ->when(! $profile && $schoolYearId, fn ($q) => $q->where('school_year_id', $schoolYearId))
             ->whereBetween('date', [$monthStart, $monthEnd]);
 
         $monthlyTotal = (clone $baseMonthly)->count();
@@ -43,8 +42,8 @@ class StudentFeaturesService
 
         // Rolling 3-month counts
         $baseRolling = Attendance::query()
-            ->when($profile, fn($q) => $q->where('student_profile_id', $profile->id), fn($q) => $q->where('student_id', $studentId))
-            ->when(!$profile && $schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+            ->when($profile, fn ($q) => $q->where('student_profile_id', $profile->id), fn ($q) => $q->where('student_id', $studentId))
+            ->when(! $profile && $schoolYearId, fn ($q) => $q->where('school_year_id', $schoolYearId))
             ->whereBetween('date', [$rollStart, $rollEnd]);
         $r3Absent = (clone $baseRolling)->where('status', 'absent')->count();
         $r3Excused = (clone $baseRolling)->where('status', 'excused')->count();
@@ -55,18 +54,18 @@ class StudentFeaturesService
         $rollingAvg = $this->avgScoreBetween($studentId, $schoolYearId, $rollStart, $rollEnd);
 
         $named = [
-            'monthly_unexcused_absences' => (float)$monthlyAbsent,
-            'monthly_excused_absences' => (float)$monthlyExcused,
-            'monthly_late_occurrences' => (float)$monthlyLate,
-            'monthly_unexcused_absent_rate' => (float)($monthlyAbsent / $den),
-            'monthly_excused_absent_rate' => (float)($monthlyExcused / $den),
-            'monthly_late_rate' => (float)($monthlyLate / $den),
-            'monthly_present_rate' => (float)($monthlyPresent / $den),
-            'rolling_3month_unexcused_absences' => (float)$r3Absent,
-            'rolling_3month_excused_absences' => (float)$r3Excused,
-            'rolling_3month_late_occurrences' => (float)$r3Late,
-            'monthly_avg_score' => (float)$monthlyAvg,
-            'rolling_3month_avg_score' => (float)$rollingAvg,
+            'monthly_unexcused_absences' => (float) $monthlyAbsent,
+            'monthly_excused_absences' => (float) $monthlyExcused,
+            'monthly_late_occurrences' => (float) $monthlyLate,
+            'monthly_unexcused_absent_rate' => (float) ($monthlyAbsent / $den),
+            'monthly_excused_absent_rate' => (float) ($monthlyExcused / $den),
+            'monthly_late_rate' => (float) ($monthlyLate / $den),
+            'monthly_present_rate' => (float) ($monthlyPresent / $den),
+            'rolling_3month_unexcused_absences' => (float) $r3Absent,
+            'rolling_3month_excused_absences' => (float) $r3Excused,
+            'rolling_3month_late_occurrences' => (float) $r3Late,
+            'monthly_avg_score' => (float) $monthlyAvg,
+            'rolling_3month_avg_score' => (float) $rollingAvg,
         ];
 
         $ordered = [
@@ -91,14 +90,13 @@ class StudentFeaturesService
      * Compute features for a batch of students in one go to avoid N+1 queries.
      * Returns an associative array keyed by student_id with same structure as computeFeaturesVector.
      *
-     * @param array $studentIds
-     * @param int|null $schoolYearId
-     * @param Carbon $date
      * @return array<int,array{ordered:array,named:array}>
      */
     public function computeBatchFeaturesForStudents(array $studentIds, ?int $schoolYearId, Carbon $date): array
     {
-        if (empty($studentIds)) return [];
+        if (empty($studentIds)) {
+            return [];
+        }
 
         $monthStart = $date->copy()->startOfMonth()->toDateString();
         $monthEnd = $date->copy()->endOfMonth()->toDateString();
@@ -118,7 +116,7 @@ class StudentFeaturesService
 
         // Monthly attendance aggregates per student (profile-aware)
         $monthly = collect();
-        if (!empty($profileIds)) {
+        if (! empty($profileIds)) {
             $monthlyProfileAgg = DB::table('attendances')
                 ->selectRaw('student_profile_id,
                     SUM(status = "present") as present_count,
@@ -141,8 +139,8 @@ class StudentFeaturesService
         }
 
         // Fallback: include attendances keyed by student_id for any students not covered by profiles
-        $remaining = array_filter($studentIds, fn($id) => !array_key_exists($id, $profileMap));
-        if (!empty($remaining)) {
+        $remaining = array_filter($studentIds, fn ($id) => ! array_key_exists($id, $profileMap));
+        if (! empty($remaining)) {
             $monthlyFallback = DB::table('attendances')
                 ->selectRaw('student_id,
                     SUM(status = "present") as present_count,
@@ -153,7 +151,7 @@ class StudentFeaturesService
                 ->whereIn('student_id', $remaining)
                 ->whereBetween('date', [$monthStart, $monthEnd])
                 ->groupBy('student_id')
-                ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+                ->when($schoolYearId, fn ($q) => $q->where('school_year_id', $schoolYearId))
                 ->get()
                 ->keyBy('student_id');
 
@@ -162,7 +160,7 @@ class StudentFeaturesService
 
         // Rolling 3-month attendance aggregates per student (profile-aware similar to monthly)
         $rolling = collect();
-        if (!empty($profileIds)) {
+        if (! empty($profileIds)) {
             $rollingProfileAgg = DB::table('attendances')
                 ->selectRaw('student_profile_id,
                     SUM(status = "absent") as r_absent,
@@ -181,8 +179,8 @@ class StudentFeaturesService
             }
         }
 
-        $remaining = array_filter($studentIds, fn($id) => !array_key_exists($id, $profileMap));
-        if (!empty($remaining)) {
+        $remaining = array_filter($studentIds, fn ($id) => ! array_key_exists($id, $profileMap));
+        if (! empty($remaining)) {
             $rollingFallback = DB::table('attendances')
                 ->selectRaw('student_id,
                     SUM(status = "absent") as r_absent,
@@ -191,7 +189,7 @@ class StudentFeaturesService
                 ->whereIn('student_id', $remaining)
                 ->whereBetween('date', [$rollStart, $rollEnd])
                 ->groupBy('student_id')
-                ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+                ->when($schoolYearId, fn ($q) => $q->where('school_year_id', $schoolYearId))
                 ->get()
                 ->keyBy('student_id');
 
@@ -201,13 +199,13 @@ class StudentFeaturesService
         // Scores: average of (score / max_score) per student for month and rolling window
         // Monthly scores (prefer assessment_scores linked to student_profiles)
         $monthlyScores = collect();
-        if (!empty($profileIds)) {
+        if (! empty($profileIds)) {
             $ms = DB::table('assessment_scores as sc')
                 ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
                 ->selectRaw('sc.student_profile_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
                 ->whereIn('sc.student_profile_id', $profileIds)
                 ->whereBetween('a.assessment_date', [$monthStart, $monthEnd])
-                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->when($schoolYearId, fn ($q) => $q->where('a.school_year_id', $schoolYearId))
                 ->groupBy('sc.student_profile_id')
                 ->get()
                 ->keyBy('student_profile_id');
@@ -219,13 +217,13 @@ class StudentFeaturesService
             }
         }
 
-        if (!empty($remaining)) {
+        if (! empty($remaining)) {
             $msFallback = DB::table('assessment_scores as sc')
                 ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
                 ->selectRaw('sc.student_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
                 ->whereIn('sc.student_id', $remaining)
                 ->whereBetween('a.assessment_date', [$monthStart, $monthEnd])
-                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->when($schoolYearId, fn ($q) => $q->where('a.school_year_id', $schoolYearId))
                 ->groupBy('sc.student_id')
                 ->get()
                 ->keyBy('student_id');
@@ -234,13 +232,13 @@ class StudentFeaturesService
         }
 
         $rollingScores = collect();
-        if (!empty($profileIds)) {
+        if (! empty($profileIds)) {
             $rs = DB::table('assessment_scores as sc')
                 ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
                 ->selectRaw('sc.student_profile_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
                 ->whereIn('sc.student_profile_id', $profileIds)
                 ->whereBetween('a.assessment_date', [$rollStart, $rollEnd])
-                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->when($schoolYearId, fn ($q) => $q->where('a.school_year_id', $schoolYearId))
                 ->groupBy('sc.student_profile_id')
                 ->get()
                 ->keyBy('student_profile_id');
@@ -252,13 +250,13 @@ class StudentFeaturesService
             }
         }
 
-        if (!empty($remaining)) {
+        if (! empty($remaining)) {
             $rsFallback = DB::table('assessment_scores as sc')
                 ->join('assessments as a', 'sc.assessment_id', '=', 'a.id')
                 ->selectRaw('sc.student_id, AVG(CASE WHEN a.max_score > 0 THEN sc.score / a.max_score ELSE NULL END) as avg_score')
                 ->whereIn('sc.student_id', $remaining)
                 ->whereBetween('a.assessment_date', [$rollStart, $rollEnd])
-                ->when($schoolYearId, fn($q) => $q->where('a.school_year_id', $schoolYearId))
+                ->when($schoolYearId, fn ($q) => $q->where('a.school_year_id', $schoolYearId))
                 ->groupBy('sc.student_id')
                 ->get()
                 ->keyBy('student_id');
@@ -288,18 +286,18 @@ class StudentFeaturesService
             $rollingAvg = $rs->avg_score ?? 0.0;
 
             $named = [
-                'monthly_unexcused_absences' => (float)$monthlyAbsent,
-                'monthly_excused_absences' => (float)$monthlyExcused,
-                'monthly_late_occurrences' => (float)$monthlyLate,
-                'monthly_unexcused_absent_rate' => (float)($monthlyAbsent / $den),
-                'monthly_excused_absent_rate' => (float)($monthlyExcused / $den),
-                'monthly_late_rate' => (float)($monthlyLate / $den),
-                'monthly_present_rate' => (float)($monthlyPresent / $den),
-                'rolling_3month_unexcused_absences' => (float)$r3Absent,
-                'rolling_3month_excused_absences' => (float)$r3Excused,
-                'rolling_3month_late_occurrences' => (float)$r3Late,
-                'monthly_avg_score' => (float)$monthlyAvg,
-                'rolling_3month_avg_score' => (float)$rollingAvg,
+                'monthly_unexcused_absences' => (float) $monthlyAbsent,
+                'monthly_excused_absences' => (float) $monthlyExcused,
+                'monthly_late_occurrences' => (float) $monthlyLate,
+                'monthly_unexcused_absent_rate' => (float) ($monthlyAbsent / $den),
+                'monthly_excused_absent_rate' => (float) ($monthlyExcused / $den),
+                'monthly_late_rate' => (float) ($monthlyLate / $den),
+                'monthly_present_rate' => (float) ($monthlyPresent / $den),
+                'rolling_3month_unexcused_absences' => (float) $r3Absent,
+                'rolling_3month_excused_absences' => (float) $r3Excused,
+                'rolling_3month_late_occurrences' => (float) $r3Late,
+                'monthly_avg_score' => (float) $monthlyAvg,
+                'rolling_3month_avg_score' => (float) $rollingAvg,
             ];
 
             $ordered = [
@@ -327,19 +325,18 @@ class StudentFeaturesService
      * Persist feature snapshots to `student_feature_snapshots` table.
      * Uses updateOrInsert to avoid duplicate unique key violations.
      *
-     * @param array $featureMap keyed by student id => ['ordered'=>[], 'named'=>[]]
-     * @param int|null $schoolYearId
-     * @param string|null $modelVersion
-     * @return void
+     * @param  array  $featureMap  keyed by student id => ['ordered'=>[], 'named'=>[]]
      */
     public function persistSnapshots(array $featureMap, ?int $schoolYearId, ?string $modelVersion = null): void
     {
-        if (empty($featureMap)) return;
+        if (empty($featureMap)) {
+            return;
+        }
         if ($schoolYearId === null || $schoolYearId <= 0) {
             throw new \InvalidArgumentException('A valid school_year_id is required to persist snapshots.');
         }
         // Use provided version or fall back to date-based version (e.g. v2026-01-12)
-        $modelVersion = $modelVersion ?: ('v' . now()->format('Y-m-d'));
+        $modelVersion = $modelVersion ?: ('v'.now()->format('Y-m-d'));
         $rows = [];
         foreach ($featureMap as $studentId => $data) {
             $ordered = $data['ordered'] ?? [];
@@ -370,9 +367,9 @@ class StudentFeaturesService
      */
     public function calculateEngagementScore(array $namedFeatures): float
     {
-        $attendanceRate = (float)($namedFeatures['monthly_present_rate'] ?? 0.0); // already 0-1 scale
-        $absencePenalty = 1.0 - (float)($namedFeatures['monthly_unexcused_absent_rate'] ?? 0.0);
-        $academicPerformance = (float)($namedFeatures['monthly_avg_score'] ?? 0.0);
+        $attendanceRate = (float) ($namedFeatures['monthly_present_rate'] ?? 0.0); // already 0-1 scale
+        $absencePenalty = 1.0 - (float) ($namedFeatures['monthly_unexcused_absent_rate'] ?? 0.0);
+        $academicPerformance = (float) ($namedFeatures['monthly_avg_score'] ?? 0.0);
 
         $composite = (
             ($attendanceRate * 0.5) +
@@ -381,6 +378,7 @@ class StudentFeaturesService
         );
 
         $bounded = max(0.0, min(1.0, $composite));
+
         return round($bounded * 100, 2);
     }
 
@@ -408,16 +406,21 @@ class StudentFeaturesService
             ->with(['assessment:id,max_score,assessment_date'])
             ->get();
 
-        if ($rows->isEmpty()) return 0.0;
+        if ($rows->isEmpty()) {
+            return 0.0;
+        }
         $vals = [];
         foreach ($rows as $r) {
-            $max = (float)($r->assessment->max_score ?? 0);
-            $score = (float)($r->score ?? 0);
+            $max = (float) ($r->assessment->max_score ?? 0);
+            $score = (float) ($r->score ?? 0);
             if ($max > 0) {
                 $vals[] = $score / $max;
             }
         }
-        if (empty($vals)) return 0.0;
+        if (empty($vals)) {
+            return 0.0;
+        }
+
         return array_sum($vals) / count($vals);
     }
 }

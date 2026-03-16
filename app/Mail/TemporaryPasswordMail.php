@@ -17,7 +17,9 @@ class TemporaryPasswordMail extends Mailable implements ShouldQueue
      * Create a new message instance.
      */
     public $user;
+
     public $temporaryPassword;
+
     public $expiresAt;
 
     public function __construct($user, $temporaryPassword, $expiresAt)

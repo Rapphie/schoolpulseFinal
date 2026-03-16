@@ -2,10 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-
 
 class SubjectSeeder extends Seeder
 {
@@ -71,14 +69,13 @@ class SubjectSeeder extends Seeder
                 ->where('level', $subject['level'])
                 ->value('id');
 
-
-            if (!$gradeLevelId) {
+            if (! $gradeLevelId) {
                 continue;
             }
 
             $subjectExists = DB::table('subjects')->where('level', $gradeLevelId)->where('name', $subject['name'])->exists();
 
-            if (!$subjectExists) {
+            if (! $subjectExists) {
                 DB::table('subjects')->insert($subject);
             }
         }

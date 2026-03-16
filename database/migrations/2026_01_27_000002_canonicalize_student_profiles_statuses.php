@@ -31,6 +31,7 @@ return new class extends Migration
      * Reverse the migrations.
      *
      * Revert to previous enum (including 'active' and 'transferee').
+     *
      * @return void
      */
     public function down()

@@ -2,31 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Schedule;
+use App\Models\Attendance;
+use App\Models\Classes;
+use App\Models\Grade;
+use App\Models\GradeLevel;
+use App\Models\SchoolYear;
 use App\Models\Section;
+use App\Models\Student;
+use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Models\Grade;
-use App\Models\Classes;
-use App\Models\GradeLevel;
-use App\Models\Student;
-use App\Models\Attendance;
-use App\Models\Subject;
-use App\Models\Setting;
-use App\Models\Enrollment;
-use App\Models\SchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use PhpParser\Node\Stmt\TryCatch;
 
 class AdminController extends Controller
 {
-
     // Teachers Management
 
     /**
@@ -39,8 +31,10 @@ class AdminController extends Controller
         })->get();
 
         $teachers = Teacher::where('user_id', $teacherUsers);
+
         return view('admin.teachers.index', compact('teachers'));
     }
+
     /**
      * Admin: Reset a user's password and email a temporary password
      */
@@ -52,8 +46,10 @@ class AdminController extends Controller
         $user->temporary_password_expires_at = $expiresAt;
         $user->save();
         \Illuminate\Support\Facades\Mail::to($user->email)->queue(new \App\Mail\TemporaryPasswordMail($user, $tempPassword, $expiresAt));
-        return back()->with('success', 'Temporary password sent to user email.');;
+
+        return back()->with('success', 'Temporary password sent to user email.');
     }
+
     public function storeTeacher(Request $request)
     {
         $validated = $request->validate([
@@ -77,7 +73,7 @@ class AdminController extends Controller
             'role_id' => 2, // Teacher role
         ]);
 
-        $teacher = new Teacher();
+        $teacher = new Teacher;
         $teacher->fill($validated);
         $teacher->user_id = $user->id;
 
@@ -110,7 +106,7 @@ class AdminController extends Controller
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $teacher->user_id,
+            'email' => 'required|string|email|max:255|unique:users,email,'.$teacher->user_id,
             'phone' => 'nullable|string|max:255',
             'gender' => 'nullable|string|in:male,female,other',
             'date_of_birth' => 'nullable|date',
@@ -155,6 +151,7 @@ class AdminController extends Controller
         try {
             // Attach the subject and section to the teacher
             $teacher->subjects()->attach($request->subject_id, ['section_id' => $request->section_id]);
+
             return back()->with('success', 'Subject assigned successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'Failed to add Subject');
@@ -207,12 +204,13 @@ class AdminController extends Controller
         try {
             $insertSection = Section::create($validated);
         } catch (\Throwable $e) {
-            Log::error('Section creation failed: ' . $e->getMessage());
+            Log::error('Section creation failed: '.$e->getMessage());
+
             return redirect()->route('admin.sections.index')
-                ->with('error', 'Failed to create Section: ' . $e->getMessage());
+                ->with('error', 'Failed to create Section: '.$e->getMessage());
         }
 
-        if (!$insertSection) {
+        if (! $insertSection) {
             return redirect()->route('admin.sections.index')
                 ->with('error', 'Failed to create Section.');
         }
@@ -347,7 +345,7 @@ class AdminController extends Controller
             })->count(),
             'total_subjects' => Subject::count(),
             'average_grade' => number_format(Grade::avg('grade') ?? 0, 2),
-            'attendance_rate' => number_format((Attendance::query()->where('status', 'present')->count() / max(1, Attendance::query()->count())) * 100, 2)
+            'attendance_rate' => number_format((Attendance::query()->where('status', 'present')->count() / max(1, Attendance::query()->count())) * 100, 2),
         ];
 
         return view('admin.reports.cumulative', compact('cumulativeData'));

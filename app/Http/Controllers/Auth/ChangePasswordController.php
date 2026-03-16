@@ -23,7 +23,6 @@ class ChangePasswordController extends Controller
     /**
      * Update the user's password.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function changePassword(Request $request)
@@ -38,7 +37,7 @@ class ChangePasswordController extends Controller
                     }
                 } else {
                     // If it's not a temporary password flow, check the actual password
-                    if (!Hash::check($value, $user->password)) {
+                    if (! Hash::check($value, $user->password)) {
                         $fail('The provided password does not match your current password.');
                     }
                 }
@@ -52,6 +51,7 @@ class ChangePasswordController extends Controller
             'temporary_password_expires_at' => null,
         ])->save();
         session()->forget('error');
+
         return redirect('/')->with('success', 'Your password has been changed successfully.');
     }
 }

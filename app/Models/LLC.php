@@ -4,15 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LLC extends Model
 {
     /** @use HasFactory<\Database\Factories\LLCFactory> */
     use HasFactory;
 
-    protected $table = "llc";
+    protected $table = 'llc';
 
     protected $fillable = [
         'subject_id',
@@ -24,6 +24,7 @@ class LLC extends Model
         'total_students',
         'total_items',
     ];
+
     public function class(): BelongsTo
     {
         return $this->belongsTo(Classes::class);

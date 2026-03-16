@@ -8,22 +8,27 @@ use Maatwebsite\Excel\Concerns\ToCollection;
 class ReportCardImport implements ToCollection
 {
     private array $headerData = [];
+
     private array $maleStudents = [];
+
     private array $femaleStudents = [];
+
     private array $maleGrades = [];
+
     private array $femaleGrades = [];
+
     private ?array $quarterColumns = null;
 
     private array $headerMap = [
-        'REGION'          => 'region',
-        'DIVISION'        => 'division',
-        'DISTRICT'        => 'district',
-        'SCHOOL NAME:'    => 'school_name', // Corrected: Includes colon
-        'SCHOOL ID'       => 'school_id',
-        'SCHOOL YEAR:'    => 'school_year',
+        'REGION' => 'region',
+        'DIVISION' => 'division',
+        'DISTRICT' => 'district',
+        'SCHOOL NAME:' => 'school_name', // Corrected: Includes colon
+        'SCHOOL ID' => 'school_id',
+        'SCHOOL YEAR:' => 'school_year',
         'GRADE & SECTION:' => 'grade_section',
-        'TEACHER:'        => 'teacher',
-        'SUBJECT:'        => 'subject',
+        'TEACHER:' => 'teacher',
+        'SUBJECT:' => 'subject',
     ];
 
     private array $quarterMap = [
@@ -35,7 +40,6 @@ class ReportCardImport implements ToCollection
 
     /**
      * This is the main method that processes the Excel sheet.
-     * @param Collection $rows
      */
     public function collection(Collection $rows)
     {
@@ -46,23 +50,27 @@ class ReportCardImport implements ToCollection
         $isFemaleSection = false;
 
         foreach ($rows as $row) {
-            if ($row->filter()->isEmpty()) continue;
+            if ($row->filter()->isEmpty()) {
+                continue;
+            }
 
-            $trimmedRow = $row->map(fn($item) => trim($item));
+            $trimmedRow = $row->map(fn ($item) => trim($item));
 
             // Check for section markers (MALE/FEMALE) based on the typical layout
             $markerCell = strtoupper($trimmedRow[1] ?? ''); // Student names/markers are in the 2nd column (index 1)
             if ($markerCell === 'MALE') {
                 $isFemaleSection = false;
+
                 continue;
             }
             if ($markerCell === 'FEMALE') {
                 $isFemaleSection = true;
+
                 continue;
             }
 
             // A valid student row must have a number in the first column and a name in the second
-            if (isset($trimmedRow[0]) && is_numeric($trimmedRow[0]) && !empty($trimmedRow[1])) {
+            if (isset($trimmedRow[0]) && is_numeric($trimmedRow[0]) && ! empty($trimmedRow[1])) {
                 $studentName = $trimmedRow[1];
                 $grades = [];
 
@@ -71,7 +79,7 @@ class ReportCardImport implements ToCollection
                     foreach ($this->quarterColumns as $quarterKey => $columnIndex) {
                         $gradeValue = $trimmedRow[$columnIndex] ?? null;
                         if (is_numeric($gradeValue)) {
-                            $grades[$quarterKey] = (float)$gradeValue;
+                            $grades[$quarterKey] = (float) $gradeValue;
                         }
                     }
                 }
@@ -92,13 +100,15 @@ class ReportCardImport implements ToCollection
     {
         foreach ($rows->take(10) as $row) {
             foreach ($row as $cellIndex => $cellValue) {
-                if (empty($cellValue)) continue;
+                if (empty($cellValue)) {
+                    continue;
+                }
                 $cleanedCellValue = strtoupper(trim($cellValue));
                 if (array_key_exists($cleanedCellValue, $this->headerMap)) {
                     $dataKey = $this->headerMap[$cleanedCellValue];
                     // Find the next non-empty cell for the value
                     for ($j = $cellIndex + 1; $j < $row->count(); $j++) {
-                        if (!empty($row[$j])) {
+                        if (! empty($row[$j])) {
                             $this->headerData[$dataKey] = trim($row[$j]);
                             break;
                         }
@@ -115,7 +125,9 @@ class ReportCardImport implements ToCollection
 
         foreach ($rows->take(15) as $row) {
             foreach ($row as $colIndex => $cellValue) {
-                if (empty($cellValue)) continue;
+                if (empty($cellValue)) {
+                    continue;
+                }
 
                 // The headers in your file are "1st Quarter", not "1ST QUARTER"
                 // We need to match that, but do it case-insensitively.
@@ -137,11 +149,11 @@ class ReportCardImport implements ToCollection
     public function getExtractedData(): array
     {
         return [
-            'headers'       => $this->headerData,
-            'male_students'   => $this->maleStudents,
+            'headers' => $this->headerData,
+            'male_students' => $this->maleStudents,
             'female_students' => $this->femaleStudents,
-            'male_grades'     => $this->maleGrades,
-            'female_grades'   => $this->femaleGrades,
+            'male_grades' => $this->maleGrades,
+            'female_grades' => $this->femaleGrades,
         ];
     }
 }
