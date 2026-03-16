@@ -4,24 +4,6 @@
     <div class="container-fluid">
         <h1 class="mb-4">Settings</h1>
 
-        @if (session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
-
-        @if (session('error'))
-            <div class="alert alert-danger">{{ session('error') }}</div>
-        @endif
-
-        @if ($errors->any())
-            <div class="alert alert-danger">
-                <ul class="mb-0">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
         <div class="row">
             <div class="col-md-3">
                 <div class="list-group">
@@ -35,7 +17,8 @@
                     </a>
                     <a href="{{ route('admin.settings.index', ['panel' => 'school_year_month_days']) }}"
                         class="list-group-item list-group-item-action {{ $panel === 'school_year_month_days' ? 'active' : '' }}">
-                        School Year Month Days
+                        School Year Month Days <span class="badge bg-success text-white">active</span>
+
                     </a>
                 </div>
             </div>
@@ -90,67 +73,103 @@
                                         No subject assignments found. Please assign subjects to grade levels first.
                                     </div>
                                 @else
-                                    <div class="table-responsive">
-                                        <table class="table table-bordered">
-                                            <thead>
-                                                <tr>
-                                                    <th>Grade Level</th>
-                                                    <th>Subject</th>
-                                                    <th>Written Works (%)</th>
-                                                    <th>Performance Tasks (%)</th>
-                                                    <th>Quarterly Assessments (%)</th>
-                                                    <th>Total (%)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach ($gradeLevels as $gradeLevel)
-                                                    @php
-                                                        $subjects = $gradeLevelSubjects->get($gradeLevel->id, collect());
-                                                    @endphp
-                                                    @foreach ($subjects as $gls)
-                                                        <tr class="{{ $gls->is_active ? '' : 'table-secondary' }}">
-                                                            <td>{{ $gradeLevel->name }}</td>
-                                                            <td>
-                                                                {{ $gls->subject?->name ?? 'Unknown Subject' }}
-                                                                @if (!$gls->is_active)
-                                                                    <span class="badge bg-secondary">Inactive</span>
-                                                                @endif
-                                                            </td>
-                                                            <td>
-                                                                <input type="number"
-                                                                    name="weights[{{ $gls->id }}][written_works_weight]"
-                                                                    class="form-control form-control-sm weight-input"
-                                                                    value="{{ $gls->written_works_weight }}" min="0"
-                                                                    max="100"
-                                                                    {{ !$gls->is_active ? 'readonly' : '' }}>
-                                                            </td>
-                                                            <td>
-                                                                <input type="number"
-                                                                    name="weights[{{ $gls->id }}][performance_tasks_weight]"
-                                                                    class="form-control form-control-sm weight-input"
-                                                                    value="{{ $gls->performance_tasks_weight }}" min="0"
-                                                                    max="100"
-                                                                    {{ !$gls->is_active ? 'readonly' : '' }}>
-                                                            </td>
-                                                            <td>
-                                                                <input type="number"
-                                                                    name="weights[{{ $gls->id }}][quarterly_assessments_weight]"
-                                                                    class="form-control form-control-sm weight-input"
-                                                                    value="{{ $gls->quarterly_assessments_weight }}"
-                                                                    min="0" max="100"
-                                                                    {{ !$gls->is_active ? 'readonly' : '' }}>
-                                                            </td>
-                                                            <td>
-                                                                <span
-                                                                    class="weight-total {{ $gls->getTotalWeight() !== 100 ? 'text-danger' : 'text-success' }}">
-                                                                    {{ $gls->getTotalWeight() }}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    @endforeach
-                                                @endforeach
-                                            </tbody>
-                                        </table>
+                                    @php
+                                        /** @var \Illuminate\Support\Collection<int, \Illuminate\Support\Collection> $subjectsByGradeLevel */
+                                        $subjectsByGradeLevel = $gradeLevelSubjects ?? collect();
+                                        $gradeTabs = $gradeLevels->filter(
+                                            fn($gradeLevel) => $subjectsByGradeLevel
+                                                ->get($gradeLevel->id, collect())
+                                                ->isNotEmpty(),
+                                        );
+                                    @endphp
+
+                                    {{-- cspell:ignore tablist --}}
+                                    <ul class="nav nav-tabs mb-3" id="assessment-weight-grade-tabs" role="tablist">
+                                        @foreach ($gradeTabs as $gradeLevel)
+                                            <li class="nav-item" role="presentation">
+                                                <button
+                                                    class="nav-link {{ $loop->first ? 'active' : '' }}"
+                                                    id="grade-tab-{{ $gradeLevel->id }}"
+                                                    data-bs-toggle="tab"
+                                                    data-bs-target="#grade-panel-{{ $gradeLevel->id }}"
+                                                    type="button"
+                                                    role="tab"
+                                                    aria-controls="grade-panel-{{ $gradeLevel->id }}"
+                                                    aria-selected="{{ $loop->first ? 'true' : 'false' }}">
+                                                    {{ $gradeLevel->name }}
+                                                </button>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+
+                                    <div class="tab-content" id="assessment-weight-grade-tab-content">
+                                        @foreach ($gradeTabs as $gradeLevel)
+                                            @php
+                                                $subjects = $subjectsByGradeLevel->get($gradeLevel->id, collect());
+                                            @endphp
+                                            <div
+                                                class="tab-pane fade {{ $loop->first ? 'show active' : '' }}"
+                                                id="grade-panel-{{ $gradeLevel->id }}"
+                                                role="tabpanel"
+                                                aria-labelledby="grade-tab-{{ $gradeLevel->id }}"
+                                                tabindex="0">
+                                                <div class="table-responsive">
+                                                    <table class="table table-bordered">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Subject</th>
+                                                                <th>Written Works (%)</th>
+                                                                <th>Performance Tasks (%)</th>
+                                                                <th>Quarterly Assessments (%)</th>
+                                                                <th>Total (%)</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach ($subjects as $gls)
+                                                                <tr class="{{ $gls->is_active ? '' : 'table-secondary' }}">
+                                                                    <td>
+                                                                        {{ $gls->subject?->name ?? 'Unknown Subject' }}
+                                                                        @if (!$gls->is_active)
+                                                                            <span class="badge bg-secondary">Inactive</span>
+                                                                        @endif
+                                                                    </td>
+                                                                    <td>
+                                                                        <input type="number"
+                                                                            name="weights[{{ $gls->id }}][written_works_weight]"
+                                                                            class="form-control form-control-sm weight-input"
+                                                                            value="{{ $gls->written_works_weight }}"
+                                                                            min="0" max="100"
+                                                                            {{ !$gls->is_active ? 'readonly' : '' }}>
+                                                                    </td>
+                                                                    <td>
+                                                                        <input type="number"
+                                                                            name="weights[{{ $gls->id }}][performance_tasks_weight]"
+                                                                            class="form-control form-control-sm weight-input"
+                                                                            value="{{ $gls->performance_tasks_weight }}"
+                                                                            min="0" max="100"
+                                                                            {{ !$gls->is_active ? 'readonly' : '' }}>
+                                                                    </td>
+                                                                    <td>
+                                                                        <input type="number"
+                                                                            name="weights[{{ $gls->id }}][quarterly_assessments_weight]"
+                                                                            class="form-control form-control-sm weight-input"
+                                                                            value="{{ $gls->quarterly_assessments_weight }}"
+                                                                            min="0" max="100"
+                                                                            {{ !$gls->is_active ? 'readonly' : '' }}>
+                                                                    </td>
+                                                                    <td>
+                                                                        <span
+                                                                            class="weight-total {{ $gls->getTotalWeight() !== 100 ? 'text-danger' : 'text-success' }}">
+                                                                            {{ $gls->getTotalWeight() }}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        @endforeach
                                     </div>
                                     <small class="text-muted">Inactive subjects are shown muted and cannot be
                                         edited.</small>
