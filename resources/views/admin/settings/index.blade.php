@@ -105,7 +105,7 @@
                                                         <tr class="{{ $gls->is_active ? '' : 'table-secondary' }}">
                                                             <td>{{ $gradeLevel->name }}</td>
                                                             <td>
-                                                                {{ $gls->subject->name }}
+                                                                {{ $gls->subject?->name ?? 'Unknown Subject' }}
                                                                 @if (!$gls->is_active)
                                                                     <span class="badge bg-secondary">Inactive</span>
                                                                 @endif
@@ -170,8 +170,9 @@
                                     <div class="mb-3">
                                         <strong>School Year:</strong> {{ $schoolYear->name }}
                                         <br>
-                                        <strong>Period:</strong> {{ $schoolYear->start_date->format('F j, Y') }} -
-                                        {{ $schoolYear->end_date->format('F j, Y') }}
+                                        <strong>Period:</strong>
+                                        {{ $schoolYear->start_date?->format('F j, Y') ?? 'N/A' }} -
+                                        {{ $schoolYear->end_date?->format('F j, Y') ?? 'N/A' }}
                                     </div>
 
                                     <div class="table-responsive">

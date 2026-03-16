@@ -24,7 +24,10 @@ class SettingController extends Controller
         $schoolYear = SchoolYear::getRealActive();
 
         $gradeLevels = GradeLevel::query()->orderBy('level')->get();
-        $gradeLevelSubjects = GradeLevelSubject::with(['gradeLevel', 'subject'])
+        $gradeLevelSubjects = GradeLevelSubject::query()
+            ->with(['gradeLevel', 'subject'])
+            ->whereHas('gradeLevel')
+            ->whereHas('subject')
             ->orderBy('grade_level_id')
             ->get()
             ->groupBy('grade_level_id')
