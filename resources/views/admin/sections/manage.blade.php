@@ -752,41 +752,26 @@
                 startTimeSelect.innerHTML = '<option value="">-- Select --</option>';
                 endTimeSelect.innerHTML = '<option value="">-- Select --</option>';
 
-                // Default options
-                let startOptions = [];
-                let endOptions = [];
+                const currentTime = new Date();
+                currentTime.setHours(7, 0, 0, 0);
 
-                // Fixed start time: 7:30 AM
-                startOptions.push({ value: '07:30', text: '7:30 AM' });
+                const lastTime = new Date();
+                lastTime.setHours(17, 0, 0, 0);
 
-                // Fixed end times based on grade level
-                // Grade 1-3: 3:30 PM, Grade 4-6: 4:00 PM
-                // However, user wants specific end times for each grade.
-                // Let's assume the user wants the dropdowns to ONLY contain the allowed times.
-                // Wait, "the choices for the schedule modal".
-                // "start time should be 7:30am" -> only choice is 7:30am?
-                // "end time for grade 1 2 3 should be 3:30pm" -> only choice is 3:30pm?
-                // "grade 4 5 6 4:00pm" -> only choice is 4:00pm?
+                while (currentTime <= lastTime) {
+                    const hours = currentTime.getHours();
+                    const minutes = currentTime.getMinutes();
+                    const period = hours >= 12 ? 'PM' : 'AM';
+                    const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+                    const displayMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
+                    const label = `${displayHours}:${displayMinutes} ${period}`;
+                    const value = `${hours.toString().padStart(2, '0')}:${displayMinutes}`;
 
-                if (typeof isLowerGrade !== 'undefined' && isLowerGrade) {
-                    // Grade 1, 2, 3
-                    endOptions.push({ value: '15:30', text: '3:30 PM' });
-                } else {
-                    // Grade 4, 5, 6
-                    endOptions.push({ value: '16:00', text: '4:00 PM' });
+                    startTimeSelect.add(new Option(label, value));
+                    endTimeSelect.add(new Option(label, value));
+
+                    currentTime.setMinutes(minutes + 15);
                 }
-
-                startOptions.forEach(opt => {
-                    startTimeSelect.add(new Option(opt.text, opt.value));
-                });
-
-                endOptions.forEach(opt => {
-                    endTimeSelect.add(new Option(opt.text, opt.value));
-                });
-
-                // Set default selection
-                if (startTimeSelect.options.length > 0) startTimeSelect.selectedIndex = 0;
-                if (endTimeSelect.options.length > 0) endTimeSelect.selectedIndex = 0;
             }
 
             populateTimeDropdowns('start_time', 'end_time');
