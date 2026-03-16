@@ -10,6 +10,12 @@ class GradeLevelSubject extends Model
 {
     use HasFactory;
 
+    public const DEFAULT_ASSESSMENT_WEIGHTS = [
+        'written_works_weight' => 40,
+        'performance_tasks_weight' => 40,
+        'quarterly_assessments_weight' => 20,
+    ];
+
     protected $fillable = [
         'grade_level_id',
         'subject_id',
@@ -39,5 +45,13 @@ class GradeLevelSubject extends Model
     public function getTotalWeight(): int
     {
         return $this->written_works_weight + $this->performance_tasks_weight + $this->quarterly_assessments_weight;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public static function defaultAssessmentWeights(): array
+    {
+        return self::DEFAULT_ASSESSMENT_WEIGHTS;
     }
 }

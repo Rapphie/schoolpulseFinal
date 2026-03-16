@@ -47,21 +47,26 @@ class SettingController extends Controller
         }
 
         $monthsInRange = [];
-        $monthDays = [];
+        $monthDays = collect();
+        $monthDaysSetupWarning = null;
 
         if ($schoolYear && $hasSchoolYearMonthDaysTable) {
             $monthsInRange = $schoolYear->getMonthsInRange();
+            $monthDays = $schoolYear->monthDays()
+                ->whereIn('month', $monthsInRange)
+                ->get()
+                ->keyBy('month');
 
-            foreach ($monthsInRange as $month) {
-                SchoolYearMonthDay::query()->firstOrCreate([
-                    'school_year_id' => $schoolYear->id,
-                    'month' => $month,
-                ], [
-                    'school_days' => 0,
-                ]);
+            $hasMissingMonths = collect($monthsInRange)
+                ->contains(fn (int $month): bool => ! $monthDays->has($month));
+
+            $hasUnmappedMonths = collect($monthsInRange)
+                ->contains(fn (int $month): bool => ! SchoolYearMonthDay::hasDefaultSchoolDaysForMonth($month));
+
+            if ($hasMissingMonths || $hasUnmappedMonths) {
+                $monthDaysSetupWarning = 'Active school year school days is not set for all months. '
+                    .'Run "php artisan settings:backfill-active-school-year" and review this panel.';
             }
-
-            $monthDays = $schoolYear->monthDays()->get()->keyBy('month');
         }
 
         return view('admin.settings.index', compact(
@@ -73,7 +78,8 @@ class SettingController extends Controller
             'hasGradeLevelSubjectsTable',
             'hasSchoolYearMonthDaysTable',
             'monthsInRange',
-            'monthDays'
+            'monthDays',
+            'monthDaysSetupWarning'
         ));
     }
 

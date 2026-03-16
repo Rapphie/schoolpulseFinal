@@ -187,6 +187,12 @@
                                         {{ $schoolYear->end_date?->format('F j, Y') ?? 'N/A' }}
                                     </div>
 
+                                    @if (!empty($monthDaysSetupWarning))
+                                        <div class="alert alert-warning">
+                                            {{ $monthDaysSetupWarning }}
+                                        </div>
+                                    @endif
+
                                     <div class="table-responsive">
                                         <table class="table table-bordered">
                                             <thead>
@@ -203,7 +209,7 @@
                                                             <input type="number"
                                                                 name="school_days[{{ $month }}]"
                                                                 class="form-control form-control-sm"
-                                                                value="{{ $monthDays->get($month)?->school_days ?? 0 }}"
+                                                                value="{{ $monthDays->get($month)?->school_days ?? '' }}"
                                                                 min="0" max="31">
                                                         </td>
                                                     </tr>
