@@ -172,6 +172,12 @@
                                     <div class="alert alert-warning">
                                         No active school year found. Please create a school year first.
                                     </div>
+                                @elseif (!($hasSchoolYearMonthDaysTable ?? false))
+                                    <div class="alert alert-danger">
+                                        School year month days are unavailable because the required
+                                        <code>school_year_month_days</code> table is missing in this environment.
+                                        Run migrations on the server and reload this page.
+                                    </div>
                                 @else
                                     <div class="mb-3">
                                         <strong>School Year:</strong> {{ $schoolYear->name }}

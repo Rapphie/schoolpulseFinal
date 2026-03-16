@@ -26,6 +26,7 @@ class SettingController extends Controller
 
         $gradeLevels = GradeLevel::query()->orderBy('level')->get();
         $hasGradeLevelSubjectsTable = Schema::hasTable('grade_level_subjects');
+        $hasSchoolYearMonthDaysTable = Schema::hasTable('school_year_month_days');
         $gradeLevelSubjects = collect();
 
         if ($hasGradeLevelSubjectsTable) {
@@ -48,7 +49,7 @@ class SettingController extends Controller
         $monthsInRange = [];
         $monthDays = [];
 
-        if ($schoolYear) {
+        if ($schoolYear && $hasSchoolYearMonthDaysTable) {
             $monthsInRange = $schoolYear->getMonthsInRange();
 
             foreach ($monthsInRange as $month) {
@@ -70,6 +71,7 @@ class SettingController extends Controller
             'gradeLevels',
             'gradeLevelSubjects',
             'hasGradeLevelSubjectsTable',
+            'hasSchoolYearMonthDaysTable',
             'monthsInRange',
             'monthDays'
         ));
@@ -99,6 +101,12 @@ class SettingController extends Controller
                 break;
 
             case 'school_year_month_days':
+                if (! Schema::hasTable('school_year_month_days')) {
+                    return redirect()
+                        ->route('admin.settings.index', ['panel' => 'school_year_month_days'])
+                        ->with('error', 'School year month days are unavailable because required tables are not migrated yet.');
+                }
+
                 $result = $this->updateSchoolYearMonthDays($validated['school_days'] ?? []);
 
                 if ($result instanceof RedirectResponse) {
