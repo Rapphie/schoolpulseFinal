@@ -52,7 +52,8 @@
             color: #495057;
         }
 
-        .student-name {
+        .grade-table,
+        .grade-table td.student-name {
             text-align: left;
             font-weight: bold;
             min-width: 220px;
@@ -315,6 +316,8 @@
                                 </option>
                             @endforeach
                         </select>
+                    @elseif($selectedSubject)
+                        <span class="badge bg-primary">{{ $selectedSubject->name }}</span>
                     @endif
                 </div>
             </div>

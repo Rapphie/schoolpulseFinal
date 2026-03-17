@@ -96,6 +96,39 @@ class TeacherAccessHardeningTest extends TestCase
         $response->assertSessionHas('error', 'You do not handle any subject for this class in the active school year.');
     }
 
+    public function test_grades_index_displays_single_subject_badge_when_teacher_handles_only_one_subject(): void
+    {
+        $suffix = Str::lower(Str::random(8));
+        $schoolYear = $this->createActiveSchoolYear($suffix);
+        $gradeLevel = $this->createGradeLevel($suffix, 5);
+        $section = $this->createSection('ONESUB', $suffix, $gradeLevel);
+        [$teacherUser, $teacher] = $this->createTeacherUser();
+
+        $class = Classes::create([
+            'section_id' => $section->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 30,
+        ]);
+
+        $subject = $this->createSubject($gradeLevel, $suffix);
+        Schedule::create([
+            'class_id' => $class->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $teacher->id,
+            'day_of_week' => ['monday'],
+            'start_time' => '08:00',
+            'end_time' => '09:00',
+            'room' => 'R1',
+        ]);
+
+        $response = $this->actingAs($teacherUser)->get(route('teacher.assessments.index', ['class' => $class->id]));
+
+        $response->assertOk();
+        $response->assertDontSee('id="subjectFilter"', false);
+        $response->assertSeeInOrder(['Subject:', $subject->name], false);
+    }
+
     public function test_attendance_blocks_non_adviser_all_subject_requests(): void
     {
         $suffix = Str::lower(Str::random(8));
