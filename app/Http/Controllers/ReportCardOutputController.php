@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Grade;
+use App\Models\GradeLevelSubject;
 use App\Models\SchoolYear;
 use App\Models\Student;
-use App\Models\Subject;
 use App\Services\GradeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -36,10 +36,9 @@ class ReportCardOutputController extends Controller
 
             $class->loadMissing('section.gradeLevel');
             $gradeLevelId = $class->section?->grade_level_id;
-            $requiredSubjectIds = Subject::query()
-                ->where('grade_level_id', $gradeLevelId)
-                ->active()
-                ->pluck('id')
+            $requiredSubjectIds = GradeLevelSubject::where('grade_level_id', $gradeLevelId)
+                ->where('is_active', true)
+                ->pluck('subject_id')
                 ->map(fn ($id) => (int) $id)
                 ->values()
                 ->all();
@@ -91,16 +90,16 @@ class ReportCardOutputController extends Controller
                 4 => 'apr',
             ];
 
-            $attendanceByMonth = Attendance::selectRaw('
-                MONTH(date) as month_num,
-                SUM(CASE WHEN status IN ("present", "late", "excused") THEN 1 ELSE 0 END) as present_days,
-                SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_days
-            ')
-                ->where('student_id', $student->id)
+            $attendanceByMonth = Attendance::where('student_id', $student->id)
                 ->where('school_year_id', $schoolYear->id)
-                ->groupBy('month_num')
                 ->get()
-                ->keyBy('month_num');
+                ->groupBy(fn ($attendance) => (int) date('n', strtotime((string) $attendance->date)))
+                ->map(function ($rows) {
+                    return (object) [
+                        'present_days' => $rows->whereIn('status', ['present', 'late', 'excused'])->count(),
+                        'absent_days' => $rows->where('status', 'absent')->count(),
+                    ];
+                });
 
             $attendanceData = [];
             $totalSchoolDays = 0;

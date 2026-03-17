@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Grade;
+use App\Models\GradeLevelSubject;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
 use App\Models\Section;
@@ -274,8 +276,9 @@ class TeacherClassController extends Controller
             $message = 'Schedule assigned successfully.';
 
             if (! empty($validated['schedule_id'])) {
-                $schedule = $class->schedules()->where('id', $validated['schedule_id'])->firstOrFail();
-                $schedule->update($payload);
+                $class->schedules()
+                    ->where('id', $validated['schedule_id'])
+                    ->update($payload);
                 $message = 'Schedule updated successfully.';
             } else {
                 $existingSchedule = $class->schedules()
@@ -283,7 +286,9 @@ class TeacherClassController extends Controller
                     ->first();
 
                 if ($existingSchedule) {
-                    $existingSchedule->update($payload);
+                    $class->schedules()
+                        ->where('id', $existingSchedule->id)
+                        ->update($payload);
                     $message = 'Schedule updated successfully.';
                 } else {
                     $class->schedules()->create($payload);
@@ -535,10 +540,9 @@ class TeacherClassController extends Controller
 
             $activeSchoolYear = SchoolYear::active()->first();
             $gradeLevelId = $class->section?->grade_level_id;
-            $requiredSubjectIds = Subject::query()
-                ->where('grade_level_id', $gradeLevelId)
-                ->active()
-                ->pluck('id')
+            $requiredSubjectIds = GradeLevelSubject::where('grade_level_id', $gradeLevelId)
+                ->where('is_active', true)
+                ->pluck('subject_id')
                 ->map(fn ($id) => (int) $id)
                 ->values()
                 ->all();
@@ -554,25 +558,43 @@ class TeacherClassController extends Controller
             $generalAverage = $processedGrades['generalAverage'];
 
             $maxDaysPerMonth = [
-                'jun' => 11, 'jul' => 23, 'aug' => 20, 'sep' => 22, 'oct' => 23,
-                'nov' => 21, 'dec' => 14, 'jan' => 21, 'feb' => 19, 'mar' => 23, 'apr' => 0,
+                'jun' => 11,
+                'jul' => 23,
+                'aug' => 20,
+                'sep' => 22,
+                'oct' => 23,
+                'nov' => 21,
+                'dec' => 14,
+                'jan' => 21,
+                'feb' => 19,
+                'mar' => 23,
+                'apr' => 0,
             ];
 
             $monthMapping = [
-                6 => 'jun', 7 => 'jul', 8 => 'aug', 9 => 'sep', 10 => 'oct',
-                11 => 'nov', 12 => 'dec', 1 => 'jan', 2 => 'feb', 3 => 'mar', 4 => 'apr',
+                6 => 'jun',
+                7 => 'jul',
+                8 => 'aug',
+                9 => 'sep',
+                10 => 'oct',
+                11 => 'nov',
+                12 => 'dec',
+                1 => 'jan',
+                2 => 'feb',
+                3 => 'mar',
+                4 => 'apr',
             ];
 
-            $attendanceByMonth = Attendance::selectRaw('
-                MONTH(date) as month_num,
-                SUM(CASE WHEN status IN ("present", "late", "excused") THEN 1 ELSE 0 END) as present_days,
-                SUM(CASE WHEN status = "absent" THEN 1 ELSE 0 END) as absent_days
-            ')
-                ->where('student_id', $student->id)
+            $attendanceByMonth = Attendance::where('student_id', $student->id)
                 ->where('school_year_id', $activeSchoolYear->id)
-                ->groupBy('month_num')
                 ->get()
-                ->keyBy('month_num');
+                ->groupBy(fn ($attendance) => (int) date('n', strtotime((string) $attendance->date)))
+                ->map(function ($rows) {
+                    return (object) [
+                        'present_days' => $rows->whereIn('status', ['present', 'late', 'excused'])->count(),
+                        'absent_days' => $rows->where('status', 'absent')->count(),
+                    ];
+                });
 
             $attendanceData = [];
             $totalSchoolDays = 0;
@@ -603,8 +625,16 @@ class TeacherClassController extends Controller
                 ->values();
 
             return view('teacher.grades.student', compact(
-                'class', 'student', 'gradesData', 'generalAverage', 'activeSchoolYear',
-                'attendanceData', 'totalSchoolDays', 'totalDaysPresent', 'totalDaysAbsent', 'gradeHistory'
+                'class',
+                'student',
+                'gradesData',
+                'generalAverage',
+                'activeSchoolYear',
+                'attendanceData',
+                'totalSchoolDays',
+                'totalDaysPresent',
+                'totalDaysAbsent',
+                'gradeHistory'
             ));
         } catch (Throwable $e) {
             Log::error('TeacherClassController@studentGrades error: '.$e->getMessage(), ['exception' => $e]);

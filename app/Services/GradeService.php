@@ -10,6 +10,15 @@ namespace App\Services;
  */
 class GradeService
 {
+    private const MAPEH_LABEL = 'MAPEH';
+
+    private const MAPEH_COMPONENT_NAMES = [
+        'music',
+        'arts',
+        'physical education',
+        'health',
+    ];
+
     /**
      * DepEd Transmutation Table
      * Maps raw/initial grade ranges to transmuted grades
@@ -181,6 +190,99 @@ class GradeService
         return 'Did Not Meet Expectations';
     }
 
+    private static function normalizeSubjectName(string $subjectName): string
+    {
+        $normalized = strtolower($subjectName);
+        $normalized = preg_replace('/[^a-z0-9]+/i', ' ', $normalized) ?? '';
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? '';
+
+        return trim($normalized);
+    }
+
+    /**
+     * @param  array<int, string>  $subjectNamesById
+     * @return array<int>|null
+     */
+    private static function maybeSubjectIdsForMapehComponents(array $subjectNamesById): ?array
+    {
+        $componentIdsByName = [];
+        $componentNamesLookup = array_flip(self::MAPEH_COMPONENT_NAMES);
+
+        foreach ($subjectNamesById as $subjectId => $subjectName) {
+            $normalizedSubjectName = self::normalizeSubjectName($subjectName);
+
+            if ($normalizedSubjectName === self::normalizeSubjectName(self::MAPEH_LABEL)) {
+                return null;
+            }
+
+            if (isset($componentNamesLookup[$normalizedSubjectName])) {
+                $componentIdsByName[$normalizedSubjectName] = (int) $subjectId;
+            }
+        }
+
+        foreach (self::MAPEH_COMPONENT_NAMES as $componentName) {
+            if (! isset($componentIdsByName[$componentName])) {
+                return null;
+            }
+        }
+
+        return array_values(array_map(
+            fn (string $componentName): int => $componentIdsByName[$componentName],
+            self::MAPEH_COMPONENT_NAMES
+        ));
+    }
+
+    /**
+     * @param  array<int>  $componentSubjectIds
+     * @param  array<int, array<int, float|int|null>>  $quarterlyGradesBySubjectId
+     * @return array<string, float|int|string|null>|null
+     */
+    private static function buildSyntheticMapehRow(array $componentSubjectIds, array $quarterlyGradesBySubjectId): ?array
+    {
+        if (count($componentSubjectIds) !== count(self::MAPEH_COMPONENT_NAMES)) {
+            return null;
+        }
+
+        $syntheticQuarters = [1 => null, 2 => null, 3 => null, 4 => null];
+
+        foreach ([1, 2, 3, 4] as $quarter) {
+            $quarterValues = [];
+
+            foreach ($componentSubjectIds as $subjectId) {
+                $subjectQuarterlyGrades = $quarterlyGradesBySubjectId[$subjectId] ?? null;
+                $quarterValue = $subjectQuarterlyGrades[$quarter] ?? null;
+
+                if ($quarterValue === null) {
+                    $quarterValues = [];
+                    break;
+                }
+
+                $quarterValues[] = (float) $quarterValue;
+            }
+
+            if (count($quarterValues) === count($componentSubjectIds)) {
+                $syntheticQuarters[$quarter] = round(array_sum($quarterValues) / count($quarterValues), 2);
+            }
+        }
+
+        $existingSyntheticQuarterGrades = array_filter($syntheticQuarters, fn ($value) => $value !== null);
+        $syntheticFinal = null;
+
+        if (count($existingSyntheticQuarterGrades) === 4) {
+            $syntheticFinal = self::calculateFinalGrade($syntheticQuarters, true);
+        }
+
+        return [
+            'subject_name' => self::MAPEH_LABEL,
+            'q1' => $syntheticQuarters[1] !== null ? round($syntheticQuarters[1], 0) : null,
+            'q2' => $syntheticQuarters[2] !== null ? round($syntheticQuarters[2], 0) : null,
+            'q3' => $syntheticQuarters[3] !== null ? round($syntheticQuarters[3], 0) : null,
+            'q4' => $syntheticQuarters[4] !== null ? round($syntheticQuarters[4], 0) : null,
+            'final_grade' => $syntheticFinal,
+            'remarks' => self::getRemarks($syntheticFinal),
+        ];
+    }
+
     /**
      * Process student grades for report card display.
      * Returns an array with quarterly grades, final grade, and remarks.
@@ -194,6 +296,8 @@ class GradeService
         $gradesData = [];
         $finalGrades = [];
         $finalGradesBySubjectId = [];
+        $subjectNamesById = [];
+        $quarterlyGradesBySubjectId = [];
 
         foreach ($rawGrades as $subjectId => $collection) {
             $subjectName = optional($collection->first()->subject)->name ?? 'Subject';
@@ -229,8 +333,11 @@ class GradeService
             }
 
             $finalGradesBySubjectId[(int) $subjectId] = $final;
+            $subjectNamesById[(int) $subjectId] = $subjectName;
+            $quarterlyGradesBySubjectId[(int) $subjectId] = $quarters;
 
             $gradesData[] = [
+                'subject_id' => (int) $subjectId,
                 'subject_name' => $subjectName,
                 'q1' => $quarters[1] !== null ? round($quarters[1], 0) : null,
                 'q2' => $quarters[2] !== null ? round($quarters[2], 0) : null,
@@ -241,6 +348,45 @@ class GradeService
             ];
         }
 
+        $mapehComponentSubjectIds = self::maybeSubjectIdsForMapehComponents($subjectNamesById);
+        $syntheticMapehRow = null;
+        $syntheticMapehFinal = null;
+
+        if ($mapehComponentSubjectIds !== null) {
+            $syntheticMapehRow = self::buildSyntheticMapehRow($mapehComponentSubjectIds, $quarterlyGradesBySubjectId);
+            $syntheticMapehFinal = $syntheticMapehRow['final_grade'] ?? null;
+
+            if ($syntheticMapehRow !== null) {
+                $componentSubjectIdsLookup = array_flip($mapehComponentSubjectIds);
+                $collapsedGradesData = [];
+                $hasInsertedSyntheticMapeh = false;
+
+                foreach ($gradesData as $row) {
+                    $rowSubjectId = $row['subject_id'];
+
+                    if (isset($componentSubjectIdsLookup[$rowSubjectId])) {
+                        if (! $hasInsertedSyntheticMapeh) {
+                            $collapsedGradesData[] = ['subject_id' => null] + $syntheticMapehRow;
+                            $hasInsertedSyntheticMapeh = true;
+                        }
+
+                        continue;
+                    }
+
+                    $collapsedGradesData[] = $row;
+                }
+
+                $gradesData = $collapsedGradesData;
+            }
+        }
+
+        $finalGrades = [];
+        foreach ($gradesData as $row) {
+            if (($row['final_grade'] ?? null) !== null) {
+                $finalGrades[] = $row['final_grade'];
+            }
+        }
+
         $generalAverage = null;
 
         if ($requiredSubjectIds !== null) {
@@ -249,8 +395,26 @@ class GradeService
             if ($requiredSubjectIds !== []) {
                 $requiredFinalGrades = [];
                 $allRequiredSubjectsComplete = true;
+                $mapehComponentSubjectIdsLookup = $mapehComponentSubjectIds !== null
+                    ? array_flip($mapehComponentSubjectIds)
+                    : [];
+                $countedSyntheticMapeh = false;
 
                 foreach ($requiredSubjectIds as $requiredSubjectId) {
+                    if (isset($mapehComponentSubjectIdsLookup[$requiredSubjectId])) {
+                        if (! $countedSyntheticMapeh) {
+                            if ($syntheticMapehFinal === null) {
+                                $allRequiredSubjectsComplete = false;
+                                break;
+                            }
+
+                            $requiredFinalGrades[] = $syntheticMapehFinal;
+                            $countedSyntheticMapeh = true;
+                        }
+
+                        continue;
+                    }
+
                     $finalGrade = $finalGradesBySubjectId[$requiredSubjectId] ?? null;
 
                     if ($finalGrade === null) {
@@ -268,6 +432,11 @@ class GradeService
         } elseif (count($finalGrades) > 0) {
             $generalAverage = round(array_sum($finalGrades) / count($finalGrades), 0);
         }
+
+        foreach ($gradesData as &$row) {
+            unset($row['subject_id']);
+        }
+        unset($row);
 
         return [
             'gradesData' => $gradesData,
