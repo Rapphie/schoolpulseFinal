@@ -34,7 +34,7 @@
                         <div class="col-md-8 mb-3">
                             <label for="class_id" class="form-label">2. Select Class <span
                                     class="text-danger">*</span></label>
-                            <select class="form-select" id="class_id" name="class_id" required disabled>
+                            <select class="form-select" id="class_id" name="class_id" required>
                                 <option value="">-- Select a grade level first --</option>
                             </select>
                         </div>
@@ -43,7 +43,7 @@
                         <div class="col-md-6 mb-3">
                             <label for="subject_id" class="form-label">3. Select Subject <span
                                     class="text-danger">*</span></label>
-                            <select class="form-select" id="subject_id" name="subject_id" required disabled>
+                            <select class="form-select" id="subject_id" name="subject_id" required>
                                 <option value="">-- Select a grade level first --</option>
                             </select>
                         </div>
@@ -128,6 +128,9 @@
             const gradeLevelSelect = document.getElementById('grade_level_id');
             const classSelect = document.getElementById('class_id');
             const subjectSelect = document.getElementById('subject_id');
+            const oldGradeLevel = @json(old('grade_level_id'));
+            const oldClass = @json(old('class_id'));
+            const oldSubject = @json(old('subject_id'));
 
             // Pass the full collections from PHP to JavaScript
             const classes = @json($classes);
@@ -136,11 +139,9 @@
             gradeLevelSelect.addEventListener('change', function() {
                 const gradeId = parseInt(this.value, 10);
 
-                // Reset and disable class and subject selects
+                // Reset class and subject options when grade level changes.
                 classSelect.innerHTML = '<option value="">-- Select a grade level first --</option>';
-                classSelect.disabled = true;
                 subjectSelect.innerHTML = '<option value="">-- Select a grade level first --</option>';
-                subjectSelect.disabled = true;
 
                 if (gradeId) {
                     // Populate Classes
@@ -153,7 +154,6 @@
                                 classItem.id);
                             classSelect.add(option);
                         });
-                        classSelect.disabled = false;
                     } else {
                         classSelect.innerHTML = '<option value="">No classes found for this grade</option>';
                     }
@@ -166,13 +166,25 @@
                             const option = new Option(subject.name, subject.id);
                             subjectSelect.add(option);
                         });
-                        subjectSelect.disabled = false;
                     } else {
                         subjectSelect.innerHTML =
                             '<option value="">No subjects found for this grade</option>';
                     }
                 }
             });
+
+            if (oldGradeLevel) {
+                gradeLevelSelect.value = String(oldGradeLevel);
+                gradeLevelSelect.dispatchEvent(new Event('change'));
+
+                if (oldClass) {
+                    classSelect.value = String(oldClass);
+                }
+
+                if (oldSubject) {
+                    subjectSelect.value = String(oldSubject);
+                }
+            }
         });
     </script>
 @endpush

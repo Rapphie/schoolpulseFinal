@@ -23,7 +23,7 @@
                 </h1>
                 <p class="mb-0 text-muted">School Year: {{ $class->schoolYear?->name ?? 'N/A' }}</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex justify-content-center gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-toggle="modal"
                     data-bs-target="#sectionHistoryModal">History</button>
                 @if ($isEditable)
@@ -238,6 +238,7 @@
                                                             data-bs-toggle="modal" data-bs-target="#editScheduleModal"
                                                             data-schedule-id="{{ $schedule->id }}"
                                                             data-update-url="{{ route('admin.schedules.update', $schedule->id) }}"
+                                                            data-class-id="{{ $class->id }}"
                                                             data-teacher-id="{{ $schedule->teacher_id }}"
                                                             data-days="{{ is_array($schedule->day_of_week) ? implode(',', $schedule->day_of_week) : $schedule->day_of_week }}"
                                                             data-start-time="{{ $schedule->start_time }}"
@@ -398,6 +399,7 @@
                         @method('PUT')
                         <div class="modal-body">
                             <input type="hidden" name="subject_id" id="edit_subject_id">
+                            <input type="hidden" name="class_id" id="edit_class_id" value="{{ $class->id }}">
                             <input type="hidden" name="section_id" value="{{ $section->id }}">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -796,11 +798,13 @@
                 const room = button?.getAttribute('data-room');
                 const subjectId = button?.getAttribute('data-subject-id');
                 const subjectName = button?.getAttribute('data-subject-name');
+                const classId = button?.getAttribute('data-class-id');
                 const isLowerGrade = button?.getAttribute('data-is-lower-grade') === 'true';
 
                 const form = document.getElementById('editScheduleForm');
                 const teacherSelect = document.getElementById('edit_teacher_id');
                 const subjectInput = document.getElementById('edit_subject_id');
+                const classInput = document.getElementById('edit_class_id');
                 const subjectDisplay = document.getElementById('edit_subject_display');
                 const startInput = document.getElementById('edit_start_time');
                 const endInput = document.getElementById('edit_end_time');
@@ -845,6 +849,7 @@
                 }
 
                 if (subjectInput) subjectInput.value = subjectId || '';
+                if (classInput) classInput.value = classId || '{{ $class->id }}';
                 if (subjectDisplay) subjectDisplay.value = subjectName || '';
 
                 const dayArray = days ? days.split(',').map(d => d.trim().toLowerCase()) : [];
@@ -871,6 +876,7 @@
                 if (teacherNote) teacherNote.remove();
 
                 document.getElementById('edit_subject_id').value = '';
+                document.getElementById('edit_class_id').value = '{{ $class->id }}';
                 document.getElementById('edit_subject_display').value = '';
                 document.getElementById('edit_teacher_id').value = '';
                 document.getElementById('edit_start_time').value = '';

@@ -11,16 +11,6 @@
                     <li class="breadcrumb-item active" aria-current="page">List</li>
                 </ol>
             </nav>
-            <div>
-                <button type="button" class="btn btn-primary btn-sm d-flex align-items-center me-2" data-bs-toggle="modal"
-                    data-bs-target="#assignSubjectModal">
-                    <i data-feather="plus" class="me-1"></i>Assign Subject to Grade Level
-                </button>
-                <button type="button" class="btn btn-success btn-sm d-flex align-items-center" data-bs-toggle="modal"
-                    data-bs-target="#addSubjectModal">
-                    <i data-feather="plus" class="me-1"></i>Create Catalog Subject
-                </button>
-            </div>
         </div>
         <div class="card-body">
             @if (session('success'))
@@ -55,151 +45,172 @@
                 <div class="tab-pane fade show active" id="matrix" role="tabpanel" aria-labelledby="matrix-tab">
                     <div class="table-responsive">
                         <div class="row mb-4">
-                            <div class="col-md-4">
-                                <div class="input-group">
-                                    <span class="input-group-text bg-white border-end-0"><i data-feather="search"></i></span>
-                                    <input type="text" class="form-control border-start-0" id="searchMatrix"
-                                        placeholder="Search...">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select" id="matrixGradeLevelFilter">
-                                    <option value="">All Grade Levels</option>
-                                    @foreach ($gradeLevels as $gradeLevel)
-                                        <option value="{{ $gradeLevel->name }}">{{ $gradeLevel->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select" id="matrixStatusFilter">
-                                    <option value="">All Status</option>
-                                    <option value="Active">Active</option>
-                                    <option value="Inactive">Inactive</option>
-                                </select>
-                            </div>
-                        </div>
-                        <table class="table table-bordered" id="matrixTable" width="100%">
-                            <thead>
-                                <tr>
-                                    <th>Grade Level</th>
-                                    <th>Subject</th>
-                                    <th>Code</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($gradeLevelSubjects as $gls)
-                                    <tr class="{{ $gls->is_active ? '' : 'table-secondary' }}">
-                                        <td>{{ $gls->gradeLevel->name }}</td>
-                                        <td>{{ $gls->subject->name }}</td>
-                                        <td>{{ $gls->subject->code }}</td>
-                                        <td>
-                                            <span
-                                                class="badge rounded-pill bg-{{ $gls->is_active ? 'success' : 'danger' }}">
-                                                {{ $gls->is_active ? 'Active' : 'Inactive' }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="d-flex justify-content-center align-items-start">
-                                                <button type="button"
-                                                    class="btn btn-{{ $gls->is_active ? 'warning' : 'success' }} btn-sm mx-1 toggle-status-btn"
-                                                    data-id="{{ $gls->id }}" data-status="{{ $gls->is_active }}"
-                                                    title="{{ $gls->is_active ? 'Deactivate' : 'Activate' }}">
-                                                    <i data-feather="{{ $gls->is_active ? 'x-circle' : 'check-circle' }}"
-                                                        class="feather-sm"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="tab-pane fade" id="catalog" role="tabpanel" aria-labelledby="catalog-tab">
-                    <div class="table-responsive">
-                        <div class="row mb-4">
                             <div class="col-md-6">
                                 <div class="input-group">
                                     <span class="input-group-text bg-white border-end-0"><i data-feather="search"></i></span>
-                                    <input type="text" class="form-control border-start-0" id="searchCatalog"
-                                        placeholder="Search subjects...">
+                                    <input type="text" class="form-control border-start-0" id="searchMatrix"
+                                        placeholder="Search current grade level subjects...">
                                 </div>
                             </div>
                         </div>
-                        <table class="table table-bordered" id="catalogTable" width="100%">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Code</th>
-                                    <th>Description</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($subjects as $subject)
-                                    <tr>
-                                        <td>{{ $subject->id }}</td>
-                                        <td>{{ $subject->name }}</td>
-                                        <td>{{ $subject->code }}</td>
-                                        <td>{{ $subject->description ?? 'N/A' }}</td>
-                                        <td>
-                                            <div class="d-flex justify-content-center align-items-start">
-                                                <button type="button" class="btn btn-primary btn-sm mx-1 edit-catalog-btn"
-                                                    data-bs-toggle="modal" data-bs-target="#editSubjectModal" title="Edit"
-                                                    data-id="{{ $subject->id }}" data-name="{{ $subject->name }}"
-                                                    data-code="{{ $subject->code }}"
-                                                    data-description="{{ $subject->description ?? '' }}">
-                                                    <i data-feather="edit-2" class="feather-sm"></i>
-                                                </button>
-                                                <form action="{{ route('admin.subjects.destroy', $subject->id) }}"
-                                                    method="POST" class="mx-1"
-                                                    onsubmit="return confirm('Are you sure you want to delete this subject?');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger btn-sm" title="Delete">
-                                                        <i data-feather="trash-2" class="feather-sm"></i>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Add Catalog Subject Modal -->
-    <div class="modal fade" id="addSubjectModal" tabindex="-1" aria-labelledby="addSubjectModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="addSubjectModalLabel">Create Catalog Subject</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="addSubjectForm" action="{{ route('admin.subjects.store') }}" method="POST">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="subject_name" class="form-label">Subject Name <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" name="name" class="form-control" id="subject_name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="subject_code" class="form-label">Subject Code <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" name="code" class="form-control" id="subject_code" required>
-                        </div>
-                        <div class="mb-3">
+                        <ul class="nav nav-pills mb-3" id="gradeLevelMatrixTabs" role="tablist">
+                            @foreach ($gradeLevels as $index => $gradeLevel)
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link {{ $index === 0 ? 'active' : '' }}"
+                                        id="grade-tab-{{ $gradeLevel->id }}" data-bs-toggle="tab"
+                                        data-bs-target="#grade-pane-{{ $gradeLevel->id }}" type="button"
+                                        role="tab" aria-controls="grade-pane-{{ $gradeLevel->id }}"
+                                        <h6 class="text-primary mb-3">Grade Level Matrix</h6>
+                                        <div class="table-responsive">
+                                            <div class="row mb-4">
+                                                <div class="col-md-6">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text bg-white border-end-0"><i data-feather="search"></i></span>
+                                                        <input type="text" class="form-control border-start-0" id="searchMatrix"
+                                                            placeholder="Search current grade level subjects...">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                    <table class="table table-bordered matrix-grade-table" width="100%">
+                                            <ul class="nav nav-pills mb-3" id="gradeLevelMatrixTabs" role="tablist">
+                                                @foreach ($gradeLevels as $index => $gradeLevel)
+                                                    <li class="nav-item" role="presentation">
+                                                        <button class="nav-link {{ $index === 0 ? 'active' : '' }}"
+                                                            id="grade-tab-{{ $gradeLevel->id }}" data-bs-toggle="tab"
+                                                            data-bs-target="#grade-pane-{{ $gradeLevel->id }}" type="button"
+                                                            role="tab" aria-controls="grade-pane-{{ $gradeLevel->id }}"
+                                                            aria-selected="{{ $index === 0 ? 'true' : 'false' }}">
+                                                            {{ $gradeLevel->name }}
+                                                        </button>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                                    <td>
+                                            <div class="tab-content" id="gradeLevelMatrixTabsContent">
+                                                @foreach ($gradeLevels as $index => $gradeLevel)
+                                                    @php
+                                                        $gradeRows = $gradeLevelSubjects
+                                                            ->where('grade_level_id', $gradeLevel->id)
+                                                            ->sortBy([
+                                                                fn ($gradeLevelSubject) => $gradeLevelSubject->is_active ? 0 : 1,
+                                                                fn ($gradeLevelSubject) => mb_strtolower((string) $gradeLevelSubject->subject?->name),
+                                                            ])
+                                                            ->values();
+                                                    @endphp
+                                                    <div class="tab-pane fade {{ $index === 0 ? 'show active' : '' }}"
+                                                        id="grade-pane-{{ $gradeLevel->id }}" role="tabpanel"
+                                                        aria-labelledby="grade-tab-{{ $gradeLevel->id }}">
+                                                        <table class="table table-bordered matrix-grade-table" width="100%">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>Subject</th>
+                                                                    <th>Code</th>
+                                                                    <th>Status</th>
+                                                                    <th>
+                                                                        <div class="d-flex flex-column gap-2">
+                                                                            <span>Actions</span>
+                                                                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center"
+                                                                                data-bs-toggle="modal" data-bs-target="#assignSubjectModal">
+                                                                                <i data-feather="plus" class="me-1"></i>Assign Subject
+                                                                            </button>
+                                                                            <button type="button" class="btn btn-success btn-sm d-flex align-items-center"
+                                                                                data-bs-toggle="modal" data-bs-target="#addSubjectModal">
+                                                                                <i data-feather="plus" class="me-1"></i>Create Subject
+                                                                            </button>
+                                                                        </div>
+                                                                    </th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @forelse ($gradeRows as $gls)
+                                                                    <tr class="{{ $gls->is_active ? '' : 'table-secondary' }}">
+                                                                        <td>{{ $gls->subject->name }}</td>
+                                                                        <td>{{ $gls->subject->code }}</td>
+                                                                        <td>
+                                                                            <span
+                                                                                class="badge rounded-pill bg-{{ $gls->is_active ? 'success' : 'danger' }}">
+                                                                                {{ $gls->is_active ? 'Active' : 'Inactive' }}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <div class="d-flex justify-content-center align-items-start">
+                                                                                <button type="button"
+                                                                                    class="btn btn-{{ $gls->is_active ? 'warning' : 'success' }} btn-sm mx-1 toggle-status-btn"
+                                                                                    data-id="{{ $gls->id }}" data-status="{{ $gls->is_active }}"
+                                                                                    title="{{ $gls->is_active ? 'Deactivate' : 'Activate' }}">
+                                                                                    <i data-feather="{{ $gls->is_active ? 'x-circle' : 'check-circle' }}"
+                                                                                        class="feather-sm"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                @empty
+                                                                    <tr>
+                                                                        <td colspan="4" class="text-center text-muted">No subjects assigned to this grade level yet.</td>
+                                                                    </tr>
+                                                                @endforelse
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                @endforeach
+                                        <td>
+                                        </div>
+
+                                        <hr class="my-4">
+
+                                        <h6 class="text-primary mb-3">Subject Catalog</h6>
+                                        <div class="table-responsive">
+                                            <div class="row mb-4">
+                                                <div class="col-md-6">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text bg-white border-end-0"><i data-feather="search"></i></span>
+                                                        <input type="text" class="form-control border-start-0" id="searchCatalog"
+                                                            placeholder="Search subjects...">
+                                                    onsubmit="return confirm('Are you sure you want to delete this subject?');">
                             <label for="subject_description" class="form-label">Description</label>
                             <textarea name="description" class="form-control" id="subject_description" rows="2"></textarea>
+                                            <table class="table table-bordered" id="catalogTable" width="100%">
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Name</th>
+                                                        <th>Code</th>
+                                                        <th>Description</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach ($subjects as $subject)
+                                                        <tr>
+                                                            <td>{{ $subject->id }}</td>
+                                                            <td>{{ $subject->name }}</td>
+                                                            <td>{{ $subject->code }}</td>
+                                                            <td>{{ $subject->description ?? 'N/A' }}</td>
+                                                            <td>
+                                                                <div class="d-flex justify-content-center align-items-start">
+                                                                    <button type="button" class="btn btn-primary btn-sm mx-1 edit-catalog-btn"
+                                                                        data-bs-toggle="modal" data-bs-target="#editSubjectModal" title="Edit"
+                                                                        data-id="{{ $subject->id }}" data-name="{{ $subject->name }}"
+                                                                        data-code="{{ $subject->code }}"
+                                                                        data-description="{{ $subject->description ?? '' }}">
+                                                                        <i data-feather="edit-2" class="feather-sm"></i>
+                                                                    </button>
+                                                                    <form action="{{ route('admin.subjects.destroy', $subject->id) }}" method="POST"
+                                                                        class="mx-1"
+                                                                        onsubmit="return confirm('Are you sure you want to delete this subject?');">
+                                                                        @csrf
+                                                                        @method('DELETE')
+                                                                        <button type="submit" class="btn btn-danger btn-sm" title="Delete">
+                                                                            <i data-feather="trash-2" class="feather-sm"></i>
+                                                                        </button>
+                                                                    </form>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
                         </div>
                     </form>
                 </div>
@@ -315,18 +326,30 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const matrixTable = $('#matrixTable').DataTable({
-                responsive: true,
-                order: [
-                    [0, 'asc'],
-                    [1, 'asc']
-                ],
-                dom: 'lrtip',
-                columnDefs: [{
-                    orderable: false,
-                    targets: [4]
-                }]
+            const gradeMatrixTabStorageKey = 'admin-subjects-active-grade-tab';
+
+            const restoreTab = function(containerSelector, storageKey) {
+                const savedTarget = sessionStorage.getItem(storageKey);
+                if (!savedTarget) {
+                    return;
+                }
+
+                const savedTabTrigger = document.querySelector(
+                    `${containerSelector} [data-bs-toggle="tab"][data-bs-target="${savedTarget}"]`
+                );
+
+                if (savedTabTrigger) {
+                    bootstrap.Tab.getOrCreateInstance(savedTabTrigger).show();
+                }
+            };
+
+            document.querySelectorAll('#gradeLevelMatrixTabs [data-bs-toggle="tab"]').forEach(function(tabTrigger) {
+                tabTrigger.addEventListener('shown.bs.tab', function(event) {
+                    sessionStorage.setItem(gradeMatrixTabStorageKey, event.target.getAttribute('data-bs-target'));
+                });
             });
+
+            restoreTab('#gradeLevelMatrixTabs', gradeMatrixTabStorageKey);
 
             const catalogTable = $('#catalogTable').DataTable({
                 responsive: true,
@@ -341,15 +364,20 @@
             });
 
             $('#searchMatrix').on('keyup', function() {
-                matrixTable.search(this.value).draw();
-            });
+                const query = this.value.toLowerCase().trim();
 
-            $('#matrixGradeLevelFilter').on('change', function() {
-                matrixTable.column(0).search(this.value).draw();
-            });
+                $('.matrix-grade-table tbody tr').each(function() {
+                    const $row = $(this);
+                    const isEmptyStateRow = $row.find('td').length === 1;
 
-            $('#matrixStatusFilter').on('change', function() {
-                matrixTable.column(4).search(this.value).draw();
+                    if (isEmptyStateRow) {
+                        $row.show();
+                        return;
+                    }
+
+                    const rowText = $row.text().toLowerCase();
+                    $row.toggle(rowText.includes(query));
+                });
             });
 
             $('#searchCatalog').on('keyup', function() {
@@ -418,6 +446,7 @@
                     feather.replace();
                 }
             });
+
         });
     </script>
 @endpush
