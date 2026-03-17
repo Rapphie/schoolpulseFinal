@@ -132,7 +132,7 @@ class OralParticipationSidebarSelectorTest extends TestCase
         $differentGradeClass = $this->createClass($differentGradeSection);
 
         $gradeFourSubjectA = $this->createSubject($gradeFour, 'Filipino');
-        $gradeFourSubjectB = $this->createSubject($gradeFour, 'MAPEH');
+        $gradeFourSubjectB = $this->createSubject($gradeFour, 'Arts');
         $gradeFiveSubject = $this->createSubject($gradeFive, 'Mathematics');
 
         ['teacher' => $otherTeacher] = $this->createTeacherPair('sections-other');
