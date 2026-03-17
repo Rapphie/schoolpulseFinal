@@ -6,6 +6,7 @@ use App\Models\GradeLevel;
 use App\Models\GradeLevelSubject;
 use App\Models\SchoolYear;
 use App\Models\SchoolYearMonthDay;
+use App\Models\SchoolYearQuarter;
 use App\Models\Subject;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
@@ -16,6 +17,9 @@ class BackfillSchoolYearSettingsCommandTest extends TestCase
 
     public function test_command_warns_when_active_school_year_is_missing(): void
     {
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+
         $this->artisan('settings:backfill-active-school-year')
             ->expectsOutputToContain('No active school year found.')
             ->assertExitCode(1);
@@ -23,8 +27,12 @@ class BackfillSchoolYearSettingsCommandTest extends TestCase
 
     public function test_command_backfills_missing_month_days_and_missing_weights_only(): void
     {
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        $suffix = (string) now()->getTimestamp();
+
         $schoolYear = SchoolYear::create([
-            'name' => '2099-2100',
+            'name' => '2099-2100-'.$suffix,
             'start_date' => '2099-06-01',
             'end_date' => '2099-08-31',
             'is_active' => true,
@@ -45,16 +53,16 @@ class BackfillSchoolYearSettingsCommandTest extends TestCase
 
         $subjectA = Subject::create([
             'grade_level_id' => $gradeLevel->id,
-            'name' => 'Mathematics',
-            'code' => 'MATH7',
+            'name' => 'Mathematics-'.$suffix,
+            'code' => 'MATH7-'.$suffix,
             'description' => 'Backfill command test subject A',
             'is_active' => true,
         ]);
 
         $subjectB = Subject::create([
             'grade_level_id' => $gradeLevel->id,
-            'name' => 'Science',
-            'code' => 'SCI7',
+            'name' => 'Science-'.$suffix,
+            'code' => 'SCI7-'.$suffix,
             'description' => 'Backfill command test subject B',
             'is_active' => true,
         ]);

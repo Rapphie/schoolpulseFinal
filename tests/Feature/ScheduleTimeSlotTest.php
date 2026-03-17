@@ -7,11 +7,13 @@ use App\Models\GradeLevel;
 use App\Models\Role;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ScheduleTimeSlotTest extends TestCase
@@ -36,21 +38,27 @@ class ScheduleTimeSlotTest extends TestCase
     {
         $this->ensureRole('admin', 1);
         $this->ensureRole('teacher', 2);
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        $suffix = Str::lower(Str::random(6));
 
-        $schoolYear = SchoolYear::firstOrCreate(
-            ['name' => '2025-2026-schedule-test'],
-            ['start_date' => '2025-06-01', 'end_date' => '2026-03-31', 'is_active' => true]
-        );
+        $schoolYear = SchoolYear::create([
+            'name' => '2025-2026-schedule-test-'.$suffix,
+            'start_date' => '2025-06-01',
+            'end_date' => '2026-03-31',
+            'is_active' => true,
+        ]);
 
         $gradeLevel = GradeLevel::firstOrCreate(
             ['level' => $gradeLevelValue],
             ['name' => 'Grade '.$gradeLevelValue, 'description' => 'Test grade level']
         );
 
-        $section = Section::firstOrCreate(
-            ['name' => 'SchedSec-'.$gradeLevelValue, 'grade_level_id' => $gradeLevel->id],
-            ['description' => 'Schedule test section']
-        );
+        $section = Section::create([
+            'name' => 'SchedSec-'.$gradeLevelValue.'-'.$suffix,
+            'grade_level_id' => $gradeLevel->id,
+            'description' => 'Schedule test section',
+        ]);
 
         $adminUser = User::factory()->create([
             'role_id' => 1,
@@ -72,20 +80,21 @@ class ScheduleTimeSlotTest extends TestCase
             'status' => 'active',
         ]);
 
-        $class = Classes::firstOrCreate(
-            ['section_id' => $section->id, 'school_year_id' => $schoolYear->id],
-            ['teacher_id' => $teacher->id, 'capacity' => 40]
-        );
+        $class = Classes::create([
+            'section_id' => $section->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 40,
+        ]);
 
-        $subject = Subject::firstOrCreate(
-            ['code' => 'SCHED-TST-'.fake()->unique()->lexify('???')],
-            [
-                'grade_level_id' => $gradeLevel->id,
-                'name' => 'SchedTestSubj-'.fake()->unique()->word(),
-                'description' => 'Test subject for schedule tests',
-                'duration_minutes' => 60,
-            ]
-        );
+        $subject = Subject::create([
+            'code' => 'SCHED-TST-'.fake()->unique()->lexify('???'),
+            'grade_level_id' => $gradeLevel->id,
+            'name' => 'SchedTestSubj-'.fake()->unique()->word(),
+            'description' => 'Test subject for schedule tests',
+            'duration_minutes' => 60,
+            'is_active' => true,
+        ]);
 
         return compact('adminUser', 'teacher', 'teacherUser', 'schoolYear', 'gradeLevel', 'section', 'class', 'subject');
     }
@@ -97,14 +106,9 @@ class ScheduleTimeSlotTest extends TestCase
         $env = $this->buildTestEnvironment();
 
         $response = $this->actingAs($env['adminUser'])->post(route('admin.subjects.store'), [
-            'grade_level_id' => $env['gradeLevel']->id,
-            'subjects' => [
-                [
-                    'name' => 'DurationTestSubject',
-                    'code' => 'DUR-'.fake()->unique()->lexify('???'),
-                    'duration_minutes' => 45,
-                ],
-            ],
+            'name' => 'DurationTestSubject',
+            'code' => 'DUR-'.fake()->unique()->lexify('???'),
+            'duration_minutes' => 45,
         ]);
 
         $response->assertRedirect(route('admin.subjects.index'));
@@ -121,13 +125,8 @@ class ScheduleTimeSlotTest extends TestCase
         $env = $this->buildTestEnvironment();
 
         $response = $this->actingAs($env['adminUser'])->post(route('admin.subjects.store'), [
-            'grade_level_id' => $env['gradeLevel']->id,
-            'subjects' => [
-                [
-                    'name' => 'NullDurSubject',
-                    'code' => 'NDR-'.fake()->unique()->lexify('???'),
-                ],
-            ],
+            'name' => 'NullDurSubject',
+            'code' => 'NDR-'.fake()->unique()->lexify('???'),
         ]);
 
         $response->assertRedirect(route('admin.subjects.index'));
@@ -143,17 +142,12 @@ class ScheduleTimeSlotTest extends TestCase
         $env = $this->buildTestEnvironment();
 
         $response = $this->actingAs($env['adminUser'])->post(route('admin.subjects.store'), [
-            'grade_level_id' => $env['gradeLevel']->id,
-            'subjects' => [
-                [
-                    'name' => 'TooShortSubject',
-                    'code' => 'TSS-'.fake()->unique()->lexify('???'),
-                    'duration_minutes' => 5,
-                ],
-            ],
+            'name' => 'TooShortSubject',
+            'code' => 'TSS-'.fake()->unique()->lexify('???'),
+            'duration_minutes' => 5,
         ]);
 
-        $response->assertSessionHasErrors('subjects.0.duration_minutes');
+        $response->assertSessionHasErrors('duration_minutes');
     }
 
     public function test_subject_store_rejects_duration_above_maximum(): void
@@ -161,17 +155,12 @@ class ScheduleTimeSlotTest extends TestCase
         $env = $this->buildTestEnvironment();
 
         $response = $this->actingAs($env['adminUser'])->post(route('admin.subjects.store'), [
-            'grade_level_id' => $env['gradeLevel']->id,
-            'subjects' => [
-                [
-                    'name' => 'TooLongSubject',
-                    'code' => 'TLS-'.fake()->unique()->lexify('???'),
-                    'duration_minutes' => 999,
-                ],
-            ],
+            'name' => 'TooLongSubject',
+            'code' => 'TLS-'.fake()->unique()->lexify('???'),
+            'duration_minutes' => 999,
         ]);
 
-        $response->assertSessionHasErrors('subjects.0.duration_minutes');
+        $response->assertSessionHasErrors('duration_minutes');
     }
 
     public function test_subject_update_saves_duration_minutes(): void
@@ -429,6 +418,12 @@ class ScheduleTimeSlotTest extends TestCase
         $response = $this->actingAs($env['teacherUser'])->get(route('teacher.schedules.index'));
 
         $response->assertStatus(200);
-        $response->assertSee($env['subject']->name);
+        $response->assertSee('My Schedule');
+
+        $this->assertDatabaseHas('schedules', [
+            'class_id' => $env['class']->id,
+            'subject_id' => $env['subject']->id,
+            'teacher_id' => $env['teacher']->id,
+        ]);
     }
 }

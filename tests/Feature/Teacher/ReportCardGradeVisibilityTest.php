@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\Teacher;
 
+use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\GradeLevel;
 use App\Models\Role;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearMonthDay;
 use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
@@ -186,6 +188,61 @@ class ReportCardGradeVisibilityTest extends TestCase
             return $scienceRow !== null
                 && $scienceRow['final_grade'] === null
                 && $scienceRow['remarks'] === '';
+        });
+    }
+
+    public function test_preview_uses_admin_configured_month_days_for_attendance_summary(): void
+    {
+        $context = $this->buildTeacherClassEnvironment();
+        $subject = $this->createSubject($context['gradeLevel']->id, 'Attendance Subject');
+
+        SchoolYearMonthDay::query()->updateOrCreate(
+            [
+                'school_year_id' => $context['schoolYear']->id,
+                'month' => 6,
+            ],
+            [
+                'school_days' => 5,
+            ]
+        );
+
+        foreach (range(1, 7) as $day) {
+            Attendance::create([
+                'student_id' => $context['student']->id,
+                'student_profile_id' => $context['profile']->id,
+                'subject_id' => $subject->id,
+                'teacher_id' => $context['teacher']->id,
+                'class_id' => $context['class']->id,
+                'status' => 'present',
+                'date' => sprintf('2025-06-%02d', $day),
+                'quarter' => '1',
+                'school_year_id' => $context['schoolYear']->id,
+            ]);
+        }
+
+        foreach (range(8, 10) as $day) {
+            Attendance::create([
+                'student_id' => $context['student']->id,
+                'student_profile_id' => $context['profile']->id,
+                'subject_id' => $subject->id,
+                'teacher_id' => $context['teacher']->id,
+                'class_id' => $context['class']->id,
+                'status' => 'absent',
+                'date' => sprintf('2025-06-%02d', $day),
+                'quarter' => '1',
+                'school_year_id' => $context['schoolYear']->id,
+            ]);
+        }
+
+        $response = $this->actingAs($context['user'])
+            ->get(route('teacher.grades.student', [$context['class'], $context['student']]));
+
+        $response->assertStatus(200);
+        $response->assertViewHas('attendanceData', function (array $attendanceData): bool {
+            return ($attendanceData['jun']['school_days'] ?? null) === 5
+                && ($attendanceData['jun']['present'] ?? null) === 5
+                && ($attendanceData['jun']['absent'] ?? null) === 0
+                && ($attendanceData['jul']['school_days'] ?? null) === 23;
         });
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\SchoolYearMonthDay;
+use App\Models\SchoolYearQuarter;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
@@ -16,6 +17,8 @@ class SettingsSchoolYearMonthDaysWarningTest extends TestCase
     public function test_warning_is_shown_when_active_school_year_month_days_are_incomplete(): void
     {
         $this->withoutVite();
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
 
         $admin = $this->createAdminUser();
 
@@ -36,6 +39,8 @@ class SettingsSchoolYearMonthDaysWarningTest extends TestCase
     public function test_warning_is_not_shown_when_active_school_year_month_days_are_complete(): void
     {
         $this->withoutVite();
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
 
         $admin = $this->createAdminUser();
 

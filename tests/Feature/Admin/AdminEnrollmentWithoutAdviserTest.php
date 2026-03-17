@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Role;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentProfile;
@@ -21,6 +22,14 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
 {
     use DatabaseTransactions;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+    }
+
     public function test_admin_can_enroll_new_student_even_when_class_has_no_assigned_adviser(): void
     {
         Mail::fake();
@@ -32,7 +41,7 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
             ->from(route('admin.enrollment.index', ['school_year_id' => $schoolYear->id]))
             ->post(route('admin.enrollment.page.store'), [
                 'class_id' => $class->id,
-                'lrn' => '202602130001',
+                'lrn' => fake()->unique()->numerify('############'),
                 'first_name' => 'NoAdviser',
                 'last_name' => 'NewStudent',
                 'gender' => 'male',
@@ -162,7 +171,7 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
             ->post(route('admin.enrollment.page.store'), [
                 'student_type' => 'new',
                 'class_id' => $closedClass->id,
-                'lrn' => '202602130101',
+                'lrn' => fake()->unique()->numerify('############'),
                 'first_name' => 'Wizard',
                 'last_name' => 'Restore',
                 'gender' => 'male',
@@ -195,7 +204,7 @@ class AdminEnrollmentWithoutAdviserTest extends TestCase
             ->post(route('admin.enrollment.page.store'), [
                 'student_type' => 'new',
                 'class_id' => $class->id,
-                'lrn' => '202602130777',
+                'lrn' => fake()->unique()->numerify('############'),
                 'first_name' => '',
                 'last_name' => 'Validation',
                 'gender' => 'male',

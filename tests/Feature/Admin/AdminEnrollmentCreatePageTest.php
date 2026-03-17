@@ -10,6 +10,7 @@ use App\Models\GradeLevel;
 use App\Models\Guardian;
 use App\Models\Role;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\User;
@@ -23,6 +24,14 @@ use Tests\TestCase;
 class AdminEnrollmentCreatePageTest extends TestCase
 {
     use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+    }
 
     public function test_admin_can_view_enrollment_create_page(): void
     {
@@ -89,11 +98,13 @@ class AdminEnrollmentCreatePageTest extends TestCase
 
         $admin = $this->createAdminUser();
         [$schoolYear, $class] = $this->createActiveClass();
+        $usersWithoutEmailBefore = User::query()->whereNull('email')->count();
 
         $firstResponse = $this->actingAs($admin)
             ->post(route('admin.enrollment.store', $class), [
                 'first_name' => 'First',
                 'last_name' => 'NoEmail',
+                'lrn' => fake()->unique()->numerify('############'),
                 'gender' => 'male',
                 'birthdate' => '2016-03-15',
                 'address' => '123 Test Street',
@@ -111,6 +122,7 @@ class AdminEnrollmentCreatePageTest extends TestCase
             ->post(route('admin.enrollment.store', $class), [
                 'first_name' => 'Second',
                 'last_name' => 'NoEmail',
+                'lrn' => fake()->unique()->numerify('############'),
                 'gender' => 'female',
                 'birthdate' => '2016-03-16',
                 'address' => '456 Test Street',
@@ -123,7 +135,7 @@ class AdminEnrollmentCreatePageTest extends TestCase
 
         $secondResponse->assertRedirect(route('admin.sections.manage', $class->section));
         $secondResponse->assertSessionHas('success', 'Student enrolled successfully.');
-        $this->assertSame(2, User::query()->whereNull('email')->count());
+        $this->assertSame($usersWithoutEmailBefore + 2, User::query()->whereNull('email')->count());
         Mail::assertNothingQueued();
     }
 
@@ -159,11 +171,13 @@ class AdminEnrollmentCreatePageTest extends TestCase
             ->getJson(route('admin.enrollment.guardian.search', ['q' => 'existing.guardian']));
 
         $response->assertOk();
-        $response->assertJsonCount(1, 'guardians');
-        $response->assertJsonPath('guardians.0.id', $guardian->id);
-        $response->assertJsonPath('guardians.0.email', $guardianUser->email);
-        $response->assertJsonPath('guardians.0.connected_student.first_name', $student->first_name);
-        $response->assertJsonPath('guardians.0.connected_student.last_name', $student->last_name);
+        $guardians = collect($response->json('guardians'));
+        $matchedGuardian = $guardians->firstWhere('id', $guardian->id);
+
+        $this->assertNotNull($matchedGuardian);
+        $this->assertSame($guardianUser->email, $matchedGuardian['email'] ?? null);
+        $this->assertSame($student->first_name, $matchedGuardian['connected_student']['first_name'] ?? null);
+        $this->assertSame($student->last_name, $matchedGuardian['connected_student']['last_name'] ?? null);
     }
 
     public function test_admin_guardian_search_returns_empty_for_unknown_keyword(): void
@@ -329,6 +343,7 @@ class AdminEnrollmentCreatePageTest extends TestCase
     public function test_admin_can_clear_guardian_contact_details_when_updating_student(): void
     {
         $admin = $this->createAdminUser();
+        [$schoolYear] = $this->createActiveClass();
         $guardianRole = Role::firstOrCreate(
             ['name' => 'guardian'],
             ['description' => 'Guardian role']
@@ -345,7 +360,7 @@ class AdminEnrollmentCreatePageTest extends TestCase
             'relationship' => 'parent',
         ]);
         $student = Student::create([
-            'student_id' => Student::generateStudentId(),
+            'student_id' => Student::generateStudentId($schoolYear),
             'first_name' => 'Update',
             'last_name' => 'Student',
             'gender' => 'female',

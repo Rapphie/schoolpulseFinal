@@ -13,6 +13,7 @@ use App\Models\GradeLevel;
 use App\Models\Guardian;
 use App\Models\Role;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
@@ -203,6 +204,8 @@ class GuardianDashboardTest extends TestCase
     private function seedEnvironment(): void
     {
         $suffix = Str::lower(Str::random(6));
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
 
         $this->ensureRole('admin', 1);
         $this->ensureRole('teacher', 2);

@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\GradeLevel;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentProfile;
@@ -46,13 +47,15 @@ class AttendancePatternSf2ExportTest extends TestCase
     {
         parent::setUp();
 
-        $this->activeSchoolYear = SchoolYear::where('is_active', true)->first()
-            ?? SchoolYear::create([
-                'name' => '2025-2026',
-                'is_active' => true,
-                'start_date' => Carbon::parse('2025-06-01'),
-                'end_date' => Carbon::parse('2026-03-31'),
-            ]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        SchoolYear::query()->update(['is_active' => false]);
+
+        $this->activeSchoolYear = SchoolYear::create([
+            'name' => '2025-2026',
+            'is_active' => true,
+            'start_date' => Carbon::parse('2025-06-01'),
+            'end_date' => Carbon::parse('2026-03-31'),
+        ]);
 
         $suffix = (string) str()->random(6);
 

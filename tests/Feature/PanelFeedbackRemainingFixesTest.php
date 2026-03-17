@@ -9,6 +9,7 @@ use App\Models\GradeLevel;
 use App\Models\Role;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
+use App\Models\SchoolYearQuarter;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentProfile;
@@ -18,6 +19,7 @@ use App\Models\User;
 use App\Services\GradeService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class PanelFeedbackRemainingFixesTest extends TestCase
@@ -217,13 +219,18 @@ class PanelFeedbackRemainingFixesTest extends TestCase
     {
         $this->ensureRole('admin', 1);
         $this->ensureRole('teacher', 2);
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        $suffix = Str::lower(Str::random(6));
 
         $adminUser = User::factory()->create(['role_id' => 1, 'temporary_password' => null]);
 
-        $schoolYear = SchoolYear::firstOrCreate(
-            ['name' => '2025-2026-test-remaining'],
-            ['start_date' => '2025-06-01', 'end_date' => '2026-03-31', 'is_active' => true]
-        );
+        $schoolYear = SchoolYear::create([
+            'name' => '2025-2026-test-remaining-'.$suffix,
+            'start_date' => '2025-06-01',
+            'end_date' => '2026-03-31',
+            'is_active' => true,
+        ]);
 
         $grade1 = GradeLevel::firstOrCreate(['level' => 1], ['name' => 'Grade 1', 'description' => 'G1']);
         $grade4 = GradeLevel::firstOrCreate(['level' => 4], ['name' => 'Grade 4', 'description' => 'G4']);
@@ -241,24 +248,30 @@ class PanelFeedbackRemainingFixesTest extends TestCase
         ]);
 
         // Make this teacher a Grade 1 block adviser
-        $section1 = Section::firstOrCreate(
-            ['name' => 'BlockSec-Test', 'grade_level_id' => $grade1->id],
-            ['description' => 'Block section']
-        );
-        $class1 = Classes::firstOrCreate(
-            ['section_id' => $section1->id, 'school_year_id' => $schoolYear->id],
-            ['teacher_id' => $teacher->id, 'capacity' => 40]
-        );
+        $section1 = Section::create([
+            'name' => 'BlockSec-Test-'.$suffix,
+            'grade_level_id' => $grade1->id,
+            'description' => 'Block section',
+        ]);
+        Classes::create([
+            'section_id' => $section1->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 40,
+        ]);
 
         // Try to assign same teacher as adviser to a Grade 4 class via the route
-        $section4 = Section::firstOrCreate(
-            ['name' => 'DeptSec-Test', 'grade_level_id' => $grade4->id],
-            ['description' => 'Dept section']
-        );
-        $class4 = Classes::firstOrCreate(
-            ['section_id' => $section4->id, 'school_year_id' => $schoolYear->id],
-            ['teacher_id' => null, 'capacity' => 40]
-        );
+        $section4 = Section::create([
+            'name' => 'DeptSec-Test-'.$suffix,
+            'grade_level_id' => $grade4->id,
+            'description' => 'Dept section',
+        ]);
+        $class4 = Classes::create([
+            'section_id' => $section4->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => null,
+            'capacity' => 40,
+        ]);
 
         $response = $this->actingAs($adminUser)
             ->post(route('admin.sections.adviser.assign', $class4), [
@@ -404,13 +417,18 @@ class PanelFeedbackRemainingFixesTest extends TestCase
     {
         $this->ensureRole('admin', 1);
         $this->ensureRole('teacher', 2);
+        SchoolYear::query()->update(['is_active' => false]);
+        SchoolYearQuarter::query()->update(['is_manually_set_active' => false]);
+        $suffix = Str::lower(Str::random(6));
 
         $adminUser = User::factory()->create(['role_id' => 1, 'temporary_password' => null]);
 
-        $schoolYear = SchoolYear::firstOrCreate(
-            ['name' => '2025-2026-test-remaining'],
-            ['start_date' => '2025-06-01', 'end_date' => '2026-03-31', 'is_active' => true]
-        );
+        $schoolYear = SchoolYear::create([
+            'name' => '2025-2026-test-remaining-'.$suffix,
+            'start_date' => '2025-06-01',
+            'end_date' => '2026-03-31',
+            'is_active' => true,
+        ]);
 
         $grade4 = GradeLevel::firstOrCreate(['level' => 4], ['name' => 'Grade 4', 'description' => 'G4']);
         $grade5 = GradeLevel::firstOrCreate(['level' => 5], ['name' => 'Grade 5', 'description' => 'G5']);
@@ -427,24 +445,30 @@ class PanelFeedbackRemainingFixesTest extends TestCase
         ]);
 
         // Teacher is already adviser to a Grade 4 section
-        $sectionA = Section::firstOrCreate(
-            ['name' => 'AdvA-Test', 'grade_level_id' => $grade4->id],
-            ['description' => 'Section A']
-        );
-        Classes::firstOrCreate(
-            ['section_id' => $sectionA->id, 'school_year_id' => $schoolYear->id],
-            ['teacher_id' => $teacher->id, 'capacity' => 40]
-        );
+        $sectionA = Section::create([
+            'name' => 'AdvA-Test-'.$suffix,
+            'grade_level_id' => $grade4->id,
+            'description' => 'Section A',
+        ]);
+        Classes::create([
+            'section_id' => $sectionA->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $teacher->id,
+            'capacity' => 40,
+        ]);
 
         // Try to assign same teacher as adviser to another section
-        $sectionB = Section::firstOrCreate(
-            ['name' => 'AdvB-Test', 'grade_level_id' => $grade5->id],
-            ['description' => 'Section B']
-        );
-        $classB = Classes::firstOrCreate(
-            ['section_id' => $sectionB->id, 'school_year_id' => $schoolYear->id],
-            ['teacher_id' => null, 'capacity' => 40]
-        );
+        $sectionB = Section::create([
+            'name' => 'AdvB-Test-'.$suffix,
+            'grade_level_id' => $grade5->id,
+            'description' => 'Section B',
+        ]);
+        $classB = Classes::create([
+            'section_id' => $sectionB->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => null,
+            'capacity' => 40,
+        ]);
 
         $response = $this->actingAs($adminUser)
             ->post(route('admin.sections.adviser.assign', $classB), [

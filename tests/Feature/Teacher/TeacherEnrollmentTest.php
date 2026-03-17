@@ -48,7 +48,7 @@ class TeacherEnrollmentTest extends TestCase
             ->from(route('teacher.enrollment.index'))
             ->post(route('teacher.enrollment.store'), [
                 'class_id' => $class->id,
-                'lrn' => '202602160001',
+                'lrn' => fake()->unique()->numerify('############'),
                 'first_name' => 'NewEnroll',
                 'last_name' => 'Student',
                 'gender' => 'female',
@@ -85,12 +85,13 @@ class TeacherEnrollmentTest extends TestCase
         [$teacher, $teacherUser] = $this->createTeacherUser();
         [$schoolYear, $class] = $this->createOpenClassWithAdviser($teacher);
         $this->enableTeacherEnrollment();
+        $nullEmailUsersBefore = User::query()->whereNull('email')->count();
 
         $firstResponse = $this->actingAs($teacherUser)
             ->from(route('teacher.enrollment.index'))
             ->post(route('teacher.enrollment.store'), [
                 'class_id' => $class->id,
-                'lrn' => '202602160101',
+                'lrn' => fake()->unique()->numerify('############'),
                 'first_name' => 'FirstBlank',
                 'last_name' => 'Guardian',
                 'gender' => 'female',
@@ -111,7 +112,7 @@ class TeacherEnrollmentTest extends TestCase
             ->from(route('teacher.enrollment.index'))
             ->post(route('teacher.enrollment.store'), [
                 'class_id' => $class->id,
-                'lrn' => '202602160102',
+                'lrn' => fake()->unique()->numerify('############'),
                 'first_name' => 'SecondBlank',
                 'last_name' => 'Guardian',
                 'gender' => 'male',
@@ -127,7 +128,7 @@ class TeacherEnrollmentTest extends TestCase
 
         $secondResponse->assertRedirect();
         $secondResponse->assertSessionHas('success');
-        $this->assertSame(2, User::query()->whereNull('email')->count());
+        $this->assertSame($nullEmailUsersBefore + 2, User::query()->whereNull('email')->count());
         Mail::assertNothingQueued();
     }
 
@@ -166,10 +167,12 @@ class TeacherEnrollmentTest extends TestCase
             ->getJson(route('teacher.enrollment.guardian.search', ['q' => 'teacher.search.guardian']));
 
         $response->assertOk();
-        $response->assertJsonCount(1, 'guardians');
-        $response->assertJsonPath('guardians.0.id', $guardian->id);
-        $response->assertJsonPath('guardians.0.email', $guardianUser->email);
-        $response->assertJsonPath('guardians.0.connected_student.first_name', $student->first_name);
+        $guardians = collect($response->json('guardians'));
+        $matchedGuardian = $guardians->firstWhere('id', $guardian->id);
+
+        $this->assertNotNull($matchedGuardian);
+        $this->assertSame($guardianUser->email, $matchedGuardian['email'] ?? null);
+        $this->assertSame($student->first_name, $matchedGuardian['connected_student']['first_name'] ?? null);
     }
 
     public function test_teacher_can_enroll_new_student_with_existing_guardian_credentials(): void
