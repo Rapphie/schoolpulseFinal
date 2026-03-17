@@ -311,7 +311,6 @@ class OralParticipationSidebarSelectorTest extends TestCase
             'name' => "{$prefix} {$suffix}",
             'code' => Str::upper(Str::random(2)).random_int(100, 999).Str::upper(Str::random(1)),
             'description' => 'Selector subject',
-            'duration_minutes' => 60,
             'is_active' => true,
         ]);
     }

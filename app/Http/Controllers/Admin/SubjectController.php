@@ -44,7 +44,6 @@ class SubjectController extends Controller
             'name' => 'required|string|max:255|unique:subjects,name',
             'code' => 'required|string|max:100|unique:subjects,code',
             'description' => 'nullable|string',
-            'duration_minutes' => 'nullable|integer|min:15|max:480',
         ]);
 
         try {
@@ -52,7 +51,6 @@ class SubjectController extends Controller
                 'name' => $validated['name'],
                 'code' => $validated['code'],
                 'description' => $validated['description'] ?? null,
-                'duration_minutes' => $validated['duration_minutes'] ?? null,
                 'grade_level_id' => null,
                 'is_active' => true,
             ]);
@@ -84,7 +82,6 @@ class SubjectController extends Controller
             'name' => 'required|string|max:255|unique:subjects,name,'.$subject->id,
             'code' => 'required|string|max:50|unique:subjects,code,'.$subject->id,
             'description' => 'nullable|string',
-            'duration_minutes' => 'nullable|integer|min:15|max:480',
         ]);
 
         $subject->update($validated);

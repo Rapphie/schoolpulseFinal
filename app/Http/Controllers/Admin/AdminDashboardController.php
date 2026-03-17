@@ -374,22 +374,16 @@ class AdminDashboardController extends Controller
 
                         if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]) && $class->teacher_id) {
                             $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
-                            $currentStart = strtotime('07:00');
                             $scheduleRows = [];
 
                             foreach ($subjects as $subject) {
-                                $durationMinutes = $subject->duration_minutes ?? 60;
-                                $startTime = date('H:i', $currentStart);
-                                $endTime = date('H:i', $currentStart + ($durationMinutes * 60));
-                                $currentStart += $durationMinutes * 60;
-
                                 $scheduleRows[] = [
                                     'class_id' => $newClass->id,
                                     'subject_id' => $subject->id,
                                     'teacher_id' => $class->teacher_id,
                                     'day_of_week' => json_encode(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']),
-                                    'start_time' => $startTime,
-                                    'end_time' => $endTime,
+                                    'start_time' => '00:00',
+                                    'end_time' => '00:00',
                                     'room' => null,
                                     'created_at' => now(),
                                     'updated_at' => now(),

@@ -476,10 +476,6 @@ class ClassroomSectionController extends Controller
                     ->get();
 
                 foreach ($subjects as $subject) {
-                    if (! is_null($subject->duration_minutes)) {
-                        $subject->update(['duration_minutes' => null]);
-                    }
-
                     // Check if schedule already exists for this subject in this class
                     $existingSchedule = Schedule::where('class_id', $class->id)
                         ->where('subject_id', $subject->id)

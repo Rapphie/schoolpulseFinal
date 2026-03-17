@@ -274,7 +274,6 @@ class GuardianDashboardTest extends TestCase
             'name' => 'Mathematics '.$suffix,
             'code' => 'MTH'.strtoupper(Str::random(5)),
             'description' => 'Guardian test subject',
-            'duration_minutes' => 60,
             'is_active' => true,
         ]);
     }

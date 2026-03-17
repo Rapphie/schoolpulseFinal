@@ -84,7 +84,6 @@
                                     <th>Grade Level</th>
                                     <th>Subject</th>
                                     <th>Code</th>
-                                    <th>Duration</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -95,7 +94,6 @@
                                         <td>{{ $gls->gradeLevel->name }}</td>
                                         <td>{{ $gls->subject->name }}</td>
                                         <td>{{ $gls->subject->code }}</td>
-                                        <td>{{ $gls->subject->duration_minutes ?? 'N/A' }}</td>
                                         <td>
                                             <span
                                                 class="badge rounded-pill bg-{{ $gls->is_active ? 'success' : 'danger' }}">
@@ -137,7 +135,6 @@
                                     <th>Name</th>
                                     <th>Code</th>
                                     <th>Description</th>
-                                    <th>Duration</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -148,15 +145,13 @@
                                         <td>{{ $subject->name }}</td>
                                         <td>{{ $subject->code }}</td>
                                         <td>{{ $subject->description ?? 'N/A' }}</td>
-                                        <td>{{ $subject->duration_minutes ?? 'N/A' }}</td>
                                         <td>
                                             <div class="d-flex justify-content-center align-items-start">
                                                 <button type="button" class="btn btn-primary btn-sm mx-1 edit-catalog-btn"
                                                     data-bs-toggle="modal" data-bs-target="#editSubjectModal" title="Edit"
                                                     data-id="{{ $subject->id }}" data-name="{{ $subject->name }}"
                                                     data-code="{{ $subject->code }}"
-                                                    data-description="{{ $subject->description ?? '' }}"
-                                                    data-duration_minutes="{{ $subject->duration_minutes ?? '' }}">
+                                                    data-description="{{ $subject->description ?? '' }}">
                                                     <i data-feather="edit-2" class="feather-sm"></i>
                                                 </button>
                                                 <form action="{{ route('admin.subjects.destroy', $subject->id) }}"
@@ -205,11 +200,6 @@
                         <div class="mb-3">
                             <label for="subject_description" class="form-label">Description</label>
                             <textarea name="description" class="form-control" id="subject_description" rows="2"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label for="subject_duration" class="form-label">Duration (minutes)</label>
-                            <input type="number" name="duration_minutes" class="form-control" id="subject_duration"
-                                min="15" max="480" step="15" placeholder="e.g. 60, 90, 120">
                         </div>
                     </form>
                 </div>
@@ -306,11 +296,6 @@
                             <label for="edit_description" class="form-label">Description</label>
                             <textarea class="form-control" id="edit_description" name="description" rows="2"></textarea>
                         </div>
-                        <div class="mb-3">
-                            <label for="edit_duration" class="form-label">Duration (minutes)</label>
-                            <input type="number" class="form-control" id="edit_duration" name="duration_minutes"
-                                min="15" max="480" step="15" placeholder="e.g. 60, 90, 120">
-                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
@@ -339,7 +324,7 @@
                 dom: 'lrtip',
                 columnDefs: [{
                     orderable: false,
-                    targets: [5]
+                    targets: [4]
                 }]
             });
 
@@ -351,7 +336,7 @@
                 dom: 'lrtip',
                 columnDefs: [{
                     orderable: false,
-                    targets: [5]
+                    targets: [4]
                 }]
             });
 
@@ -406,14 +391,12 @@
                 const name = button.data('name');
                 const code = button.data('code');
                 const description = button.data('description');
-                const durationMinutes = button.data('duration_minutes');
 
                 $('#editSubjectForm').attr('action', '/admin/subjects/' + id);
                 $('#edit_subject_id').val(id);
                 $('#edit_name').val(name);
                 $('#edit_code').val(code);
                 $('#edit_description').val(description);
-                $('#edit_duration').val(durationMinutes || '');
             });
 
             const urlParams = new URLSearchParams(window.location.search);

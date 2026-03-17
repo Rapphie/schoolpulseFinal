@@ -103,7 +103,6 @@ class GradeLevelController extends Controller
                     'name' => $subjectName,
                     'code' => $this->generateUniqueSubjectCode($subjectName),
                     'description' => null,
-                    'duration_minutes' => null,
                     'is_active' => true,
                 ]);
             }

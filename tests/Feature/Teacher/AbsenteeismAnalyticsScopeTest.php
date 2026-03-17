@@ -731,7 +731,6 @@ class AbsenteeismAnalyticsScopeTest extends TestCase
                 'code' => "SB{$token}",
                 'description' => 'Quarter completeness subject',
                 'is_active' => true,
-                'duration_minutes' => 60,
             ]);
 
             Schedule::create([

@@ -306,7 +306,6 @@ class RoleViewCoverageTest extends TestCase
             'code' => strtoupper('S'.$suffix),
             'description' => 'Subject description',
             'is_active' => true,
-            'duration_minutes' => 60,
         ]);
 
         $this->student = Student::create([
