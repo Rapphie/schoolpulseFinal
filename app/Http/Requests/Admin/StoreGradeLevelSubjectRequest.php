@@ -21,7 +21,11 @@ class StoreGradeLevelSubjectRequest extends FormRequest
                 'integer',
                 'exists:subjects,id',
                 Rule::unique('grade_level_subjects', 'subject_id')
-                    ->where(fn ($query) => $query->where('grade_level_id', $this->integer('grade_level_id'))),
+                    ->where(
+                        fn ($query) => $query
+                            ->where('grade_level_id', $this->integer('grade_level_id'))
+                            ->where('is_active', true)
+                    ),
             ],
         ];
     }
@@ -29,7 +33,7 @@ class StoreGradeLevelSubjectRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'subject_id.unique' => 'This subject is already assigned to the selected grade level.',
+            'subject_id.unique' => 'This subject is already active for the selected grade level.',
         ];
     }
 }

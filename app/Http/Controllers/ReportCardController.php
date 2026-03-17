@@ -64,7 +64,16 @@ class ReportCardController extends Controller
             if (! $subjectName) {
                 throw new \Exception('Subject not found.');
             }
-            $subject = Subject::where('grade_level_id', $gradeLevel->id)->where('name', $subjectName)->firstOrFail();
+            $subject = Subject::query()
+                ->where('name', $subjectName)
+                ->where(function ($query) use ($gradeLevel) {
+                    $query->whereHas('gradeLevelSubjects', function ($gradeLevelSubjectQuery) use ($gradeLevel) {
+                        $gradeLevelSubjectQuery
+                            ->where('grade_level_id', $gradeLevel->id)
+                            ->where('is_active', true);
+                    })->orWhere('grade_level_id', $gradeLevel->id);
+                })
+                ->firstOrFail();
 
             $teacherName = $headers['teacher'] ?? null;
             if (! $teacherName) {

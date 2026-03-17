@@ -116,7 +116,19 @@ class SubjectController extends Controller
 
     public function getSubjectsByGradeLevel($gradeLevel)
     {
-        $subjects = Subject::where('grade_level_id', $gradeLevel)->get();
+        $subjects = Subject::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($gradeLevel) {
+                $query->whereHas('gradeLevelSubjects', function ($gradeLevelSubjectQuery) use ($gradeLevel) {
+                    $gradeLevelSubjectQuery
+                        ->where('grade_level_id', $gradeLevel)
+                        ->where('is_active', true);
+                })->orWhere('grade_level_id', $gradeLevel);
+            })
+            ->select('subjects.*')
+            ->distinct()
+            ->orderBy('name')
+            ->get();
 
         return response()->json($subjects);
     }

@@ -357,7 +357,19 @@ class ClassroomSectionController extends Controller
                 ->with('error', $errorMessage);
         }
 
-        $subjects = Subject::where('grade_level_id', $section->grade_level_id)->orderBy('name')->get();
+        $subjects = Subject::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($section) {
+                $query->whereHas('gradeLevelSubjects', function ($gradeLevelSubjectQuery) use ($section) {
+                    $gradeLevelSubjectQuery
+                        ->where('grade_level_id', $section->grade_level_id)
+                        ->where('is_active', true);
+                })->orWhere('grade_level_id', $section->grade_level_id);
+            })
+            ->select('subjects.*')
+            ->distinct()
+            ->orderBy('name')
+            ->get();
         $teachers = Teacher::with('user')->orderBy('id')->get();
 
         // Section/Class History: get all classes for this section, sorted by school year (desc)
@@ -450,7 +462,18 @@ class ClassroomSectionController extends Controller
 
             // For Grade 1, 2, 3: Auto-create schedules for all subjects assigned to the adviser
             if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
-                $subjects = Subject::where('grade_level_id', $class->section->grade_level_id)->get();
+                $subjects = Subject::query()
+                    ->where('is_active', true)
+                    ->where(function ($query) use ($class) {
+                        $query->whereHas('gradeLevelSubjects', function ($gradeLevelSubjectQuery) use ($class) {
+                            $gradeLevelSubjectQuery
+                                ->where('grade_level_id', $class->section->grade_level_id)
+                                ->where('is_active', true);
+                        })->orWhere('grade_level_id', $class->section->grade_level_id);
+                    })
+                    ->select('subjects.*')
+                    ->distinct()
+                    ->get();
 
                 foreach ($subjects as $subject) {
                     if (! is_null($subject->duration_minutes)) {

@@ -16,15 +16,23 @@ class GradeLevelSubjectController extends Controller
     {
         $validated = $request->validated();
 
-        $gradeLevelSubject = GradeLevelSubject::firstOrCreate([
+        $gradeLevelSubject = GradeLevelSubject::firstOrNew([
             'grade_level_id' => $validated['grade_level_id'],
             'subject_id' => $validated['subject_id'],
-        ], [
-            'is_active' => true,
-            'written_works_weight' => 40,
-            'performance_tasks_weight' => 40,
-            'quarterly_assessments_weight' => 20,
         ]);
+
+        if (! $gradeLevelSubject->exists) {
+            $gradeLevelSubject->fill([
+                'is_active' => true,
+                'written_works_weight' => 40,
+                'performance_tasks_weight' => 40,
+                'quarterly_assessments_weight' => 20,
+            ]);
+        } elseif (! $gradeLevelSubject->is_active) {
+            $gradeLevelSubject->is_active = true;
+        }
+
+        $gradeLevelSubject->save();
 
         return $this->respond(
             $request,
