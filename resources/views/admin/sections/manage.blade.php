@@ -4,6 +4,18 @@
 
 @section('content')
     <div class="container-fluid">
+        @php
+            $gradeLevel = $section->gradeLevel->level ?? null;
+            $isLowerGrade = !is_null($gradeLevel) && in_array($gradeLevel, [1, 2, 3]);
+            $hasScheduleFormInput = old('subject_id') || old('teacher_id') || old('start_time') || old('end_time');
+            $hasScheduleValidationErrors =
+                $errors->has('subject_id') ||
+                $errors->has('teacher_id') ||
+                $errors->has('day_of_week') ||
+                $errors->has('start_time') ||
+                $errors->has('end_time');
+            $showAddScheduleModalWithError = $isEditable && !$isLowerGrade && ($hasScheduleFormInput || $hasScheduleValidationErrors);
+        @endphp
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <nav aria-label="breadcrumb">
@@ -179,10 +191,6 @@
         <div class="card shadow mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="m-0 font-weight-bold text-primary">Class Schedule</h6>
-                @php
-                    $gradeLevel = $section->gradeLevel->level ?? null;
-                    $isLowerGrade = !is_null($gradeLevel) && in_array($gradeLevel, [1, 2, 3]);
-                @endphp
 
             </div>
             <div class="card-body">
@@ -241,8 +249,8 @@
                                                             data-class-id="{{ $class->id }}"
                                                             data-teacher-id="{{ $schedule->teacher_id }}"
                                                             data-days="{{ is_array($schedule->day_of_week) ? implode(',', $schedule->day_of_week) : $schedule->day_of_week }}"
-                                                            data-start-time="{{ $schedule->start_time }}"
-                                                            data-end-time="{{ $schedule->end_time }}"
+                                                            data-start-time="{{ optional($schedule->start_time)->format('H:i') }}"
+                                                            data-end-time="{{ optional($schedule->end_time)->format('H:i') }}"
                                                             data-room="{{ $schedule->room }}"
                                                             data-subject-id="{{ $schedule->subject_id }}"
                                                             data-subject-name="{{ $schedule->subject?->name }}"
@@ -304,7 +312,7 @@
 
 
 
-    @if ($isEditable)
+    @if ($isEditable && !$isLowerGrade)
         <!-- Add Schedule Modal -->
         <div class="modal fade" id="addScheduleModal" tabindex="-1" aria-labelledby="addScheduleModalLabel"
             aria-hidden="true">
@@ -317,26 +325,46 @@
                     <form action="{{ route('admin.sections.schedule.store', $class) }}" method="POST">
                         @csrf
                         <div class="modal-body">
+                            @if (session('error') && $showAddScheduleModalWithError)
+                                <div class="alert alert-danger" role="alert">
+                                    {{ session('error') }}
+                                </div>
+                            @endif
+
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="subject_select" class="form-label">Subject</label>
-                                    <select class="form-select" id="subject_select" aria-describedby="subjectHelp">
+                                    <select class="form-select @error('subject_id') is-invalid @enderror" id="subject_select"
+                                        aria-describedby="subjectHelp">
                                         <option value="">-- Select a subject --</option>
                                         @foreach ($subjects as $subject)
-                                            <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                                            <option value="{{ $subject->id }}"
+                                                {{ (string) old('subject_id') === (string) $subject->id ? 'selected' : '' }}>
+                                                {{ $subject->name }}
+                                            </option>
                                         @endforeach
                                     </select>
-                                    <input type="hidden" name="subject_id" id="subject_id_input">
+                                    <input type="hidden" name="subject_id" id="subject_id_input"
+                                        value="{{ old('subject_id') }}">
+                                    @error('subject_id')
+                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label for="teacher_id" class="form-label">Teacher</label>
-                                    <select class="form-select" name="teacher_id" required>
+                                    <select class="form-select @error('teacher_id') is-invalid @enderror" name="teacher_id"
+                                        required>
                                         <option value="">-- Select a teacher --</option>
                                         @foreach ($teachers as $teacher)
-                                            <option value="{{ $teacher->id }}">{{ $teacher->user?->first_name ?? 'Unknown' }}
+                                            <option value="{{ $teacher->id }}"
+                                                {{ (string) old('teacher_id') === (string) $teacher->id ? 'selected' : '' }}>
+                                                {{ $teacher->user?->first_name ?? 'Unknown' }}
                                                 {{ $teacher->user?->last_name ?? 'Teacher' }}</option>
                                         @endforeach
                                     </select>
+                                    @error('teacher_id')
+                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                             <div class="mb-3">
@@ -354,23 +382,35 @@
                                     @foreach (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as $day)
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input" type="checkbox" name="day_of_week[]"
-                                                value="{{ $day }}" id="day_{{ $day }}" checked>
+                                                value="{{ $day }}" id="day_{{ $day }}"
+                                                {{ is_array(old('day_of_week')) ? (in_array($day, old('day_of_week', [])) ? 'checked' : '') : 'checked' }}>
                                             <label class="form-check-label"
                                                 for="day_{{ $day }}">{{ ucfirst($day) }}</label>
                                         </div>
                                     @endforeach
                                 </div>
+                                @error('day_of_week')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
                             </div>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label for="start_time" class="form-label">Start Time <span
                                             class="text-danger">*</span></label>
-                                    <select class="form-select" name="start_time" id="start_time" required></select>
+                                    <select class="form-select @error('start_time') is-invalid @enderror" name="start_time"
+                                        id="start_time" required></select>
+                                    @error('start_time')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="end_time" class="form-label">End Time <span
                                             class="text-danger">*</span></label>
-                                    <select class="form-select" name="end_time" id="end_time" required></select>
+                                    <select class="form-select @error('end_time') is-invalid @enderror" name="end_time"
+                                        id="end_time" required></select>
+                                    @error('end_time')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                 </div>
                             </div>
                         </div>
@@ -703,17 +743,34 @@
             const modalEl = document.getElementById('addScheduleModal');
             if (!modalEl) return;
 
+            const shouldReopenAddScheduleModal = @json($showAddScheduleModalWithError);
+            const oldSubjectId = @json(old('subject_id'));
+
+            const select = document.getElementById('subject_select');
+            const hidden = document.getElementById('subject_id_input');
+
+            if (select && hidden) {
+                select.addEventListener('change', function() {
+                    hidden.value = this.value || '';
+                });
+
+                if (oldSubjectId) {
+                    select.value = oldSubjectId;
+                    hidden.value = oldSubjectId;
+                }
+            }
+
             modalEl.addEventListener('show.bs.modal', function(event) {
                 const button = event.relatedTarget;
                 const subjectId = button?.getAttribute('data-subject-id');
                 const subjectName = button?.getAttribute('data-subject-name');
 
-                const select = document.getElementById('subject_select');
-                const hidden = document.getElementById('subject_id_input');
                 const title = modalEl.querySelector('.modal-title');
 
                 if (subjectId) {
-                    hidden.value = subjectId;
+                    if (hidden) {
+                        hidden.value = subjectId;
+                    }
                     if (select) {
                         select.value = subjectId;
                         select.setAttribute('disabled', 'disabled');
@@ -724,15 +781,12 @@
                 } else {
                     if (select) {
                         select.removeAttribute('disabled');
-                        select.value = '';
+                        select.value = hidden?.value || '';
                     }
-                    if (hidden) hidden.value = '';
                 }
             });
 
             modalEl.addEventListener('hidden.bs.modal', function() {
-                const select = document.getElementById('subject_select');
-                const hidden = document.getElementById('subject_id_input');
                 const title = modalEl.querySelector('.modal-title');
 
                 if (select) {
@@ -742,11 +796,29 @@
                 if (hidden) hidden.value = '';
                 if (title) title.textContent = 'Add Schedule Entry';
             });
+
+            if (shouldReopenAddScheduleModal && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                const instance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                instance.show();
+            }
         })();
     </script>
     <script>
         (function() {
             const isLowerGradeSection = @json($isLowerGrade);
+            const oldStartTime = @json(old('start_time'));
+            const oldEndTime = @json(old('end_time'));
+
+            function normalizeTimeValue(value) {
+                if (!value || typeof value !== 'string') {
+                    return '';
+                }
+
+                const trimmed = value.trim();
+                const match = trimmed.match(/^(\d{2}:\d{2})/);
+
+                return match ? match[1] : '';
+            }
 
             function populateTimeDropdowns(startId, endId) {
                 const startTimeSelect = document.getElementById(startId);
@@ -779,6 +851,14 @@
                     endTimeSelect.add(new Option(label, value));
 
                     currentTime.setMinutes(minutes + 15);
+                }
+
+                if (startId === 'start_time' && oldStartTime) {
+                    startTimeSelect.value = normalizeTimeValue(oldStartTime);
+                }
+
+                if (endId === 'end_time' && oldEndTime) {
+                    endTimeSelect.value = normalizeTimeValue(oldEndTime);
                 }
             }
 
@@ -857,8 +937,8 @@
                     cb.checked = dayArray.includes(cb.value.toLowerCase());
                 });
 
-                if (startInput) startInput.value = startTime || '';
-                if (endInput) endInput.value = endTime || '';
+                if (startInput) startInput.value = normalizeTimeValue(startTime);
+                if (endInput) endInput.value = normalizeTimeValue(endTime);
             });
 
             editModalEl.addEventListener('hidden.bs.modal', function() {

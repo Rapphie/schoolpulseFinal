@@ -340,6 +340,109 @@ class PanelFeedbackRemainingFixesTest extends TestCase
         $response->assertSessionHas('error');
     }
 
+    public function test_schedule_update_blocks_conflicting_schedule_in_same_class(): void
+    {
+        $this->ensureRole('admin', 1);
+        $this->ensureRole('teacher', 2);
+        $suffix = Str::lower(Str::random(6));
+
+        $adminUser = User::factory()->create(['role_id' => 1, 'temporary_password' => null]);
+
+        $schoolYear = SchoolYear::create([
+            'name' => '2025-2026-test-schedule-conflict-'.$suffix,
+            'start_date' => '2025-06-01',
+            'end_date' => '2026-03-31',
+            'is_active' => true,
+        ]);
+
+        $grade4 = GradeLevel::firstOrCreate(['level' => 4], ['name' => 'Grade 4', 'description' => 'G4']);
+
+        $teacherUserA = User::factory()->create(['role_id' => 2, 'temporary_password' => null]);
+        $teacherA = Teacher::create([
+            'user_id' => $teacherUserA->id,
+            'phone' => '0912'.fake()->numerify('######'),
+            'gender' => 'female',
+            'date_of_birth' => '1990-01-01',
+            'address' => 'Test',
+            'qualification' => 'BSEd',
+            'status' => 'active',
+        ]);
+
+        $teacherUserB = User::factory()->create(['role_id' => 2, 'temporary_password' => null]);
+        $teacherB = Teacher::create([
+            'user_id' => $teacherUserB->id,
+            'phone' => '0913'.fake()->numerify('######'),
+            'gender' => 'male',
+            'date_of_birth' => '1991-01-01',
+            'address' => 'Test',
+            'qualification' => 'BSEd',
+            'status' => 'active',
+        ]);
+
+        $section = Section::create([
+            'name' => 'SchedConflict-'.$suffix,
+            'grade_level_id' => $grade4->id,
+            'description' => 'Schedule conflict test section',
+        ]);
+
+        $class = Classes::create([
+            'section_id' => $section->id,
+            'school_year_id' => $schoolYear->id,
+            'teacher_id' => $teacherA->id,
+            'capacity' => 40,
+        ]);
+
+        $subjectA = Subject::create([
+            'code' => 'SCF-A-'.$suffix,
+            'grade_level_id' => $grade4->id,
+            'name' => 'SCF Subject A '.$suffix,
+            'description' => 'Test',
+        ]);
+
+        $subjectB = Subject::create([
+            'code' => 'SCF-B-'.$suffix,
+            'grade_level_id' => $grade4->id,
+            'name' => 'SCF Subject B '.$suffix,
+            'description' => 'Test',
+        ]);
+
+        Schedule::create([
+            'class_id' => $class->id,
+            'subject_id' => $subjectA->id,
+            'teacher_id' => $teacherA->id,
+            'day_of_week' => ['monday'],
+            'start_time' => '07:00',
+            'end_time' => '07:30',
+        ]);
+
+        $scheduleToEdit = Schedule::create([
+            'class_id' => $class->id,
+            'subject_id' => $subjectB->id,
+            'teacher_id' => $teacherB->id,
+            'day_of_week' => ['monday'],
+            'start_time' => '08:00',
+            'end_time' => '08:30',
+        ]);
+
+        $response = $this->actingAs($adminUser)
+            ->put(route('admin.schedules.update', $scheduleToEdit), [
+                'class_id' => $class->id,
+                'subject_id' => $subjectB->id,
+                'teacher_id' => $teacherB->id,
+                'day_of_week' => ['monday'],
+                'start_time' => '07:15',
+                'end_time' => '07:45',
+                'room' => null,
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error', fn ($message) => str_contains(strtolower((string) $message), 'conflict'));
+
+        $scheduleToEdit->refresh();
+        $this->assertEquals('08:00:00', $scheduleToEdit->start_time?->format('H:i:s'));
+        $this->assertEquals('08:30:00', $scheduleToEdit->end_time?->format('H:i:s'));
+    }
+
     // ========================================================================
     // 4. SlotsPerGrade: Caching and no N+1
     // ========================================================================

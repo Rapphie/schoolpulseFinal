@@ -333,6 +333,78 @@ class ScheduleController extends Controller
                 $validated['teacher_id'] = (int) $teacherData['teacher_id'];
             }
 
+            $days = array_values($validated['day_of_week']);
+            $start = $validated['start_time'];
+            $end = $validated['end_time'];
+            $assignedTeacherId = (int) $validated['teacher_id'];
+
+            $classConflict = Schedule::query()
+                ->where('class_id', (int) $validated['class_id'])
+                ->where('id', '!=', $schedule->id)
+                ->where(function ($query) use ($days) {
+                    foreach ($days as $index => $day) {
+                        if ($index === 0) {
+                            $query->whereJsonContains('day_of_week', $day);
+                        } else {
+                            $query->orWhereJsonContains('day_of_week', $day);
+                        }
+                    }
+                })
+                ->where(function ($query) use ($start, $end) {
+                    $query->whereTime('start_time', '<', $end)
+                        ->whereTime('end_time', '>', $start);
+                })
+                ->with('subject')
+                ->first();
+
+            if ($classConflict) {
+                $conflictDays = $classConflict->day_of_week;
+                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : (string) $conflictDays;
+                $message = sprintf(
+                    'Schedule conflicts with existing class schedule: %s (%s) %s - %s',
+                    optional($classConflict->subject)->name ?? 'Subject',
+                    $conflictLabel,
+                    optional($classConflict->start_time)?->format('g:i A') ?? $classConflict->start_time,
+                    optional($classConflict->end_time)?->format('g:i A') ?? $classConflict->end_time
+                );
+
+                return redirect()->back()->withInput()->with('error', $message);
+            }
+
+            $teacherConflict = Schedule::query()
+                ->where('teacher_id', $assignedTeacherId)
+                ->where('id', '!=', $schedule->id)
+                ->where(function ($query) use ($days) {
+                    foreach ($days as $index => $day) {
+                        if ($index === 0) {
+                            $query->whereJsonContains('day_of_week', $day);
+                        } else {
+                            $query->orWhereJsonContains('day_of_week', $day);
+                        }
+                    }
+                })
+                ->where(function ($query) use ($start, $end) {
+                    $query->whereTime('start_time', '<', $end)
+                        ->whereTime('end_time', '>', $start);
+                })
+                ->with('subject', 'class.section')
+                ->first();
+
+            if ($teacherConflict) {
+                $conflictDays = $teacherConflict->day_of_week;
+                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : (string) $conflictDays;
+                $message = sprintf(
+                    'Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)',
+                    optional($teacherConflict->subject)->name ?? 'Subject',
+                    $conflictLabel,
+                    optional($teacherConflict->start_time)?->format('g:i A') ?? $teacherConflict->start_time,
+                    optional($teacherConflict->end_time)?->format('g:i A') ?? $teacherConflict->end_time,
+                    optional($teacherConflict->class->section)->name ?? 'Class'
+                );
+
+                return redirect()->back()->withInput()->with('error', $message);
+            }
+
             $schedule->update([
                 'class_id' => (int) $validated['class_id'],
                 'subject_id' => (int) $validated['subject_id'],
@@ -343,7 +415,7 @@ class ScheduleController extends Controller
                 'room' => $validated['room'] ?? null,
             ]);
 
-            return redirect()->route('admin.schedules.index')->with('success', 'Schedule updated successfully.');
+            return redirect()->back()->with('success', 'Schedule updated successfully.');
         } catch (ValidationException $e) {
             return redirect()->back()->withErrors($e->validator)->withInput();
         } catch (Throwable $e) {
