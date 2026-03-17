@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Schedule;
+use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
@@ -27,7 +28,7 @@ class AttendanceController extends Controller
 
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
 
-        $activeSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+        $activeSchoolYear = SchoolYear::getRealActive();
         $scheduleQuery = Schedule::with('subject')
             ->where('class_id', $class->id)
             ->where('teacher_id', $teacher->id);
@@ -58,11 +59,15 @@ class AttendanceController extends Controller
     public function attendancePattern(Request $request)
     {
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
-        $activeSchoolYear = \App\Models\SchoolYear::where('is_active', true)->firstOrFail();
+        $activeSchoolYear = SchoolYear::getRealActive();
+
+        if (! $activeSchoolYear) {
+            return redirect()->back()->with('error', 'No active school year found.');
+        }
 
         // --- Data for Dropdowns (More Efficiently) ---
         // Get class IDs assigned to the teacher via schedules for the active school year
-        $classIds = \App\Models\Schedule::where('teacher_id', $teacher->id)
+        $classIds = Schedule::where('teacher_id', $teacher->id)
             ->whereHas('class', function ($query) use ($activeSchoolYear) {
                 $query->where('school_year_id', $activeSchoolYear->id);
             })
@@ -77,7 +82,7 @@ class AttendanceController extends Controller
         $gradeLevels = GradeLevel::whereIn('id', $gradeLevelIds)->orderBy('level')->get();
 
         // Get unique subject IDs from the teacher's schedules for those classes
-        $subjectIds = \App\Models\Schedule::whereIn('class_id', $classIds)->pluck('subject_id')->unique();
+        $subjectIds = Schedule::whereIn('class_id', $classIds)->pluck('subject_id')->unique();
         $subjects = Subject::whereIn('id', $subjectIds)->orderBy('name')->get();
 
         // --- Filtering Logic ---
@@ -136,41 +141,14 @@ class AttendanceController extends Controller
         ));
     }
 
-    public function normalizeAttendanceRecords($attendanceData)
-    {
-        $attendance_month = $attendanceData->format('F');
-        $max_days_per_month = [
-            'June' => 11,
-            'July' => 23,
-            'August' => 20,
-            'September' => 22,
-            'October' => 23,
-            'November' => 21,
-            'January' => 14,
-            'February' => 19,
-            'March' => 23,
-        ];
-
-        // Default value in case the month isn't found
-        $monthly_max_school_days = 0;
-
-        if (array_key_exists($attendance_month, $max_days_per_month)) {
-            // if month key exists, so we can safely get the value
-            $monthly_max_school_days = $max_days_per_month[$attendance_month];
-        } else {
-            return with('error', 'Invalid school month days');
-        }
-
-        $max_present_days = 197;
-        // $normalized_present = $monthly_present_days / $max_present_days;
-        // $normalized_score = row['monthly_avg_score'] / 100.0;
-        // $engagement_score = (normalized_present * ENGAGEMENT_WEIGHT_PRESENT) + (normalized_score * ENGAGEMENT_WEIGHT_SCORE);
-    }
-
     public function exportAttendancePattern(ExportAttendancePatternSf2Request $request): BinaryFileResponse|RedirectResponse
     {
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
-        $activeSchoolYear = \App\Models\SchoolYear::where('is_active', true)->firstOrFail();
+        $activeSchoolYear = SchoolYear::getRealActive();
+
+        if (! $activeSchoolYear) {
+            return redirect()->back()->with('error', 'No active school year found.');
+        }
 
         $sectionId = $request->input('section_id');
         $month = $request->input('month');

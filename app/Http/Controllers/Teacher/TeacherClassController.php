@@ -13,6 +13,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Services\Attendance\ReportCardAttendanceService;
 use App\Services\GradeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -539,6 +540,10 @@ class TeacherClassController extends Controller
             $class->loadMissing('section.gradeLevel');
 
             $activeSchoolYear = SchoolYear::active()->first();
+            if (! $activeSchoolYear) {
+                return redirect()->back()->with('error', 'No active school year found.');
+            }
+
             $gradeLevelId = $class->section?->grade_level_id;
             $requiredSubjectIds = GradeLevelSubject::where('grade_level_id', $gradeLevelId)
                 ->where('is_active', true)
@@ -557,34 +562,6 @@ class TeacherClassController extends Controller
             $gradesData = $processedGrades['gradesData'];
             $generalAverage = $processedGrades['generalAverage'];
 
-            $maxDaysPerMonth = [
-                'jun' => 11,
-                'jul' => 23,
-                'aug' => 20,
-                'sep' => 22,
-                'oct' => 23,
-                'nov' => 21,
-                'dec' => 14,
-                'jan' => 21,
-                'feb' => 19,
-                'mar' => 23,
-                'apr' => 0,
-            ];
-
-            $monthMapping = [
-                6 => 'jun',
-                7 => 'jul',
-                8 => 'aug',
-                9 => 'sep',
-                10 => 'oct',
-                11 => 'nov',
-                12 => 'dec',
-                1 => 'jan',
-                2 => 'feb',
-                3 => 'mar',
-                4 => 'apr',
-            ];
-
             $attendanceByMonth = Attendance::where('student_id', $student->id)
                 ->where('school_year_id', $activeSchoolYear->id)
                 ->get()
@@ -596,28 +573,15 @@ class TeacherClassController extends Controller
                     ];
                 });
 
-            $attendanceData = [];
-            $totalSchoolDays = 0;
-            $totalDaysPresent = 0;
-            $totalDaysAbsent = 0;
+            $attendanceSummary = ReportCardAttendanceService::summarizeAttendanceByReportCardMonth(
+                $attendanceByMonth,
+                $activeSchoolYear
+            );
 
-            foreach ($maxDaysPerMonth as $monthAbbr => $schoolDays) {
-                $monthNum = array_search($monthAbbr, $monthMapping);
-                $monthlyData = $attendanceByMonth->get($monthNum);
-
-                $presentDays = $monthlyData ? min($monthlyData->present_days, $schoolDays) : 0;
-                $absentDays = $monthlyData ? min($monthlyData->absent_days, $schoolDays - $presentDays) : 0;
-
-                $attendanceData[$monthAbbr] = [
-                    'school_days' => $schoolDays,
-                    'present' => $presentDays,
-                    'absent' => $absentDays,
-                ];
-
-                $totalSchoolDays += $schoolDays;
-                $totalDaysPresent += $presentDays;
-                $totalDaysAbsent += $absentDays;
-            }
+            $attendanceData = $attendanceSummary['attendanceData'];
+            $totalSchoolDays = $attendanceSummary['totalSchoolDays'];
+            $totalDaysPresent = $attendanceSummary['totalDaysPresent'];
+            $totalDaysAbsent = $attendanceSummary['totalDaysAbsent'];
 
             $student->load(['profiles.schoolYear', 'profiles.gradeLevel', 'enrollments.class.section']);
             $gradeHistory = $student->profiles

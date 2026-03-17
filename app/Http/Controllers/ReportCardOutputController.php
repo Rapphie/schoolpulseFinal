@@ -8,6 +8,7 @@ use App\Models\Grade;
 use App\Models\GradeLevelSubject;
 use App\Models\SchoolYear;
 use App\Models\Student;
+use App\Services\Attendance\ReportCardAttendanceService;
 use App\Services\GradeService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -61,35 +62,6 @@ class ReportCardOutputController extends Controller
             $gradesData = $processedGrades['gradesData'];
             $generalAverage = $processedGrades['generalAverage'];
 
-            // Attendance data (exactly like preview)
-            $maxDaysPerMonth = [
-                'jun' => 11,
-                'jul' => 23,
-                'aug' => 20,
-                'sep' => 22,
-                'oct' => 23,
-                'nov' => 21,
-                'dec' => 14,
-                'jan' => 21,
-                'feb' => 19,
-                'mar' => 23,
-                'apr' => 0,
-            ];
-
-            $monthMapping = [
-                6 => 'jun',
-                7 => 'jul',
-                8 => 'aug',
-                9 => 'sep',
-                10 => 'oct',
-                11 => 'nov',
-                12 => 'dec',
-                1 => 'jan',
-                2 => 'feb',
-                3 => 'mar',
-                4 => 'apr',
-            ];
-
             $attendanceByMonth = Attendance::where('student_id', $student->id)
                 ->where('school_year_id', $schoolYear->id)
                 ->get()
@@ -101,28 +73,15 @@ class ReportCardOutputController extends Controller
                     ];
                 });
 
-            $attendanceData = [];
-            $totalSchoolDays = 0;
-            $totalDaysPresent = 0;
-            $totalDaysAbsent = 0;
+            $attendanceSummary = ReportCardAttendanceService::summarizeAttendanceByReportCardMonth(
+                $attendanceByMonth,
+                $schoolYear
+            );
 
-            foreach ($maxDaysPerMonth as $monthAbbr => $schoolDays) {
-                $monthNum = array_search($monthAbbr, $monthMapping);
-                $monthlyData = $attendanceByMonth->get($monthNum);
-
-                $presentDays = $monthlyData ? min($monthlyData->present_days, $schoolDays) : 0;
-                $absentDays = $monthlyData ? min($monthlyData->absent_days, $schoolDays - $presentDays) : 0;
-
-                $attendanceData[$monthAbbr] = [
-                    'school_days' => $schoolDays,
-                    'present' => $presentDays,
-                    'absent' => $absentDays,
-                ];
-
-                $totalSchoolDays += $schoolDays;
-                $totalDaysPresent += $presentDays;
-                $totalDaysAbsent += $absentDays;
-            }
+            $attendanceData = $attendanceSummary['attendanceData'];
+            $totalSchoolDays = $attendanceSummary['totalSchoolDays'];
+            $totalDaysPresent = $attendanceSummary['totalDaysPresent'];
+            $totalDaysAbsent = $attendanceSummary['totalDaysAbsent'];
 
             // Pre-computed values for the template
             $studentName = $student->full_name;
@@ -189,7 +148,7 @@ class ReportCardOutputController extends Controller
             $templateProcessor->setValue('final_remarks', $finalRemarks);
 
             // Set attendance placeholders
-            $months = ['jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr'];
+            $months = array_values(ReportCardAttendanceService::reportCardMonthMapping());
             foreach ($months as $month) {
                 $data = $attendanceData[$month] ?? ['school_days' => 0, 'present' => 0, 'absent' => 0];
                 $templateProcessor->setValue("sd_{$month}", $data['school_days']);
