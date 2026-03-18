@@ -196,13 +196,13 @@
             <div class="card-body">
                 @if ($subjects->isNotEmpty())
                     <div class="table-responsive">
-                        <table class="table table-hover" width="100%">
+                        <table class="table table-hover" id="classScheduleTable" width="100%">
                             <thead class="table-light">
                                 <tr>
                                     <th>Subject</th>
                                     <th>Assigned Teacher</th>
                                     <th>Schedule</th>
-                                    <th class="text-center">Actions</th>
+                                    <th class="text-center no-sort">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -210,13 +210,16 @@
                                     @php
                                         // Find the schedule for this specific subject in this class
                                         $schedule = $class->schedules->where('subject_id', $subject->id)->first();
+                                        $sortTime = $schedule && $schedule->start_time && $schedule->start_time->format('H:i') !== '00:00'
+                                            ? $schedule->start_time->format('H:i')
+                                            : '24:00';
                                     @endphp
                                     <tr>
                                         <td class="fw-bold">{{ $subject->name }}</td>
                                         @if ($schedule)
                                             <td>{{ $schedule->teacher?->user?->first_name ?? 'Unassigned' }}
                                                 {{ $schedule->teacher?->user?->last_name ?? '' }}</td>
-                                            <td>
+                                            <td data-order="{{ $sortTime }}">
                                                 @php
                                                     $dayArray = is_array($schedule->day_of_week)
                                                         ? $schedule->day_of_week
@@ -640,6 +643,20 @@
                     responsive: true,
                     destroy: true
                 });
+
+                // Initialize Class Schedule DataTable
+                if ($('#classScheduleTable').length) {
+                    $('#classScheduleTable').DataTable({
+                        columnDefs: [
+                            { orderable: false, targets: 'no-sort' }
+                        ],
+                        order: [[2, 'asc']],
+                        responsive: true,
+                        destroy: true,
+                        paging: false,
+                        searching: false
+                    });
+                }
             }
 
             // Initialize Section History DataTable

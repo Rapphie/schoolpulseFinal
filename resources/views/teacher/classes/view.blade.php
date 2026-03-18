@@ -154,14 +154,14 @@
                 @if ($isAdviser)
                     @if ($subjects->isNotEmpty())
                         <div class="table-responsive">
-                            <table class="table table-bordered" width="100%">
+                            <table class="table table-bordered schedule-table" width="100%">
                                 <thead>
                                     <tr>
                                         <th>Subject</th>
                                         <th>Day(s)</th>
                                         <th>Time</th>
                                         <th>Teacher</th>
-                                        <th class="text-center">Actions</th>
+                                        <th class="text-center no-sort">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -170,11 +170,14 @@
                                             $schedule = $class->schedules->firstWhere('subject_id', $subject->id);
                                             $assignedTeacher = $schedule?->teacher?->user;
                                             $dayNames = $schedule?->day_names ?? [];
+                                            $sortTime = $schedule && $schedule->start_time && $schedule->start_time->format('H:i') !== '00:00'
+                                                ? $schedule->start_time->format('H:i')
+                                                : '24:00';
                                         @endphp
                                         <tr>
                                             <td>{{ $subject->name }}</td>
                                             <td>{{ $schedule?->day_names_label ?? 'Not Set' }}</td>
-                                            <td>
+                                            <td data-order="{{ $sortTime }}">
                                                 @if ($schedule)
                                                     @php
                                                         $startTimeDisplay =
@@ -271,7 +274,7 @@
                 @else
                     @if ($class->schedules->isNotEmpty())
                         <div class="table-responsive">
-                            <table class="table table-bordered" width="100%">
+                            <table class="table table-bordered schedule-table" width="100%">
                                 <thead>
                                     <tr>
                                         <th>Subject</th>
@@ -291,11 +294,14 @@
                                                 $schedule->end_time && $schedule->end_time->format('H:i') !== '00:00'
                                                     ? $schedule->end_time->format('g:i A')
                                                     : null;
+                                            $sortTime = $schedule->start_time && $schedule->start_time->format('H:i') !== '00:00'
+                                                ? $schedule->start_time->format('H:i')
+                                                : '24:00';
                                         @endphp
                                         <tr>
                                             <td>{{ $schedule->subject->name }}</td>
                                             <td>{{ $schedule->day_names_label }}</td>
-                                            <td>
+                                            <td data-order="{{ $sortTime }}">
                                                 @if ($startTimeDisplay && $endTimeDisplay)
                                                     {{ $startTimeDisplay }} - {{ $endTimeDisplay }}
                                                 @else
@@ -974,6 +980,21 @@
                     order: [[1, 'asc']],
                     responsive: true,
                     destroy: true
+                });
+
+                $('.schedule-table').each(function() {
+                    if (!$.fn.DataTable.isDataTable(this)) {
+                        $(this).DataTable({
+                            columnDefs: [
+                                { orderable: false, targets: 'no-sort' }
+                            ],
+                            order: [[2, 'asc']],
+                            responsive: true,
+                            destroy: true,
+                            paging: false,
+                            searching: false
+                        });
+                    }
                 });
             }
         });
