@@ -219,6 +219,36 @@
                     });
                 });
             }
+
+            // Session Storage for Tab Persistence
+            const gradeLevelTabStorageKey = 'admin-sections-active-grade-tab';
+
+            const restoreGradeTab = function() {
+                const savedTarget = sessionStorage.getItem(gradeLevelTabStorageKey);
+                if (!savedTarget) {
+                    return;
+                }
+
+                try {
+                    const savedTabTrigger = document.querySelector(
+                        `#gradeLevelTabs [data-bs-toggle="tab"][data-bs-target="${savedTarget}"]`
+                    );
+
+                    if (savedTabTrigger) {
+                        bootstrap.Tab.getOrCreateInstance(savedTabTrigger).show();
+                    }
+                } catch (error) {
+                    sessionStorage.removeItem(gradeLevelTabStorageKey);
+                }
+            };
+
+            document.querySelectorAll('#gradeLevelTabs [data-bs-toggle="tab"]').forEach(function(tabTrigger) {
+                tabTrigger.addEventListener('shown.bs.tab', function(event) {
+                    sessionStorage.setItem(gradeLevelTabStorageKey, event.target.getAttribute('data-bs-target'));
+                });
+            });
+
+            restoreGradeTab();
         });
     </script>
 @endpush
