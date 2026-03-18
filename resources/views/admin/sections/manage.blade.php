@@ -279,7 +279,7 @@
                                             </td>
                                         @else
                                             <td class="text-muted"><em>Not Assigned</em></td>
-                                            <td class="text-muted"><em>Not Set</em></td>
+                                            <td class="text-muted" data-order="{{ $sortTime }}"><em>Not Set</em></td>
                                             <td class="text-center">
                                                 @if ($isEditable)
                                                     @if (!$isLowerGrade)
@@ -598,37 +598,37 @@
             </div>
         </div>
     @endif
-@endsection
-
-<!-- Section/Class History Modal -->
-<div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="sectionHistoryModalLabel">Section/Class History</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body w-100 col-md-8 col-sm-8 col-lg-8 col-xl-8">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
-                        <thead>
-                            <tr>
-                                <th>School Year</th>
-                                <th>Adviser</th>
-                                <th>Enrolled</th>
-                                <th>Capacity</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                    </table>
+    
+    <!-- Section/Class History Modal -->
+    <div class="modal fade" id="sectionHistoryModal" tabindex="-1" aria-labelledby="sectionHistoryModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sectionHistoryModalLabel">Section/Class History</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body w-100 col-md-8 col-sm-8 col-lg-8 col-xl-8">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped" id="sectionHistoryTable" width="100%">
+                            <thead>
+                                <tr>
+                                    <th>School Year</th>
+                                    <th>Adviser</th>
+                                    <th>Enrolled</th>
+                                    <th>Capacity</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+@endsection
 
 @push('scripts')
     <script>
