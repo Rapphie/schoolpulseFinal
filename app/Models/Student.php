@@ -71,6 +71,12 @@ class Student extends Model
 
     public function profileFor(?int $schoolYearId = null): ?StudentProfile
     {
+        if ($this->relationLoaded('profiles')) {
+            return $schoolYearId
+                ? $this->profiles->firstWhere('school_year_id', $schoolYearId)
+                : $this->profiles->sortByDesc('school_year_id')->first();
+        }
+
         $cacheKey = $schoolYearId
             ? "student.profile.{$this->id}.sy.{$schoolYearId}"
             : "student.profile.{$this->id}.latest";

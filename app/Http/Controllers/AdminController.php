@@ -322,18 +322,6 @@ class AdminController extends Controller
     }
 
     /**
-     * Display least learned competencies report.
-     */
-    // public function leastLearnedReport()
-    // {
-    //     $subjects = Subject::with(['llcItems' => function ($query) {
-    //         $query->orderBy('score', 'asc')->take(5);
-    //     }])->get();
-
-    //     return view('admin.least-learned', compact('subjects'));
-    // }
-
-    /**
      * Display cumulative report.
      */
     public function cumulativeReport()

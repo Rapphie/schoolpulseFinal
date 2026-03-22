@@ -5,10 +5,35 @@ namespace App\Services;
 use App\Models\Assessment;
 use App\Models\Classes;
 use App\Models\Student;
+use App\Models\Subject;
 use Illuminate\Support\Collection;
 
 class AssessmentDataBuilder
 {
+    public function consolidateOralParticipation(Classes $class, Subject $subject, Collection $assessments): Collection
+    {
+        foreach ($assessments as $quarter => $types) {
+            $ops = $types->get('oral_participation', collect());
+            $pts = $types->get('performance_tasks', collect());
+
+            if ($ops->isNotEmpty()) {
+                $consolidatedOP = new Assessment;
+                $consolidatedOP->id = -999;
+                $consolidatedOP->name = 'Oral Participation';
+                $consolidatedOP->type = 'oral_participation';
+                $consolidatedOP->max_score = $ops->sum('max_score');
+                $consolidatedOP->quarter = $quarter;
+                $consolidatedOP->class_id = $class->id;
+                $consolidatedOP->subject_id = $subject->id;
+
+                $pts = collect([$consolidatedOP])->merge($pts);
+                $types->put('performance_tasks', $pts);
+            }
+        }
+
+        return $assessments;
+    }
+
     public function buildStudentGradesData(Collection $students, Collection $assessments, Classes $class): Collection
     {
         return $students->map(function ($student) use ($assessments, $class) {
