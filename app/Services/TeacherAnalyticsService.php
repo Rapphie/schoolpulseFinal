@@ -8,6 +8,14 @@ use App\Models\Teacher;
 
 class TeacherAnalyticsService
 {
+    public const RISK_HIGH_THRESHOLD = 70.0;
+
+    public const RISK_MEDIUM_THRESHOLD = 40.0;
+
+    public const ATTENDANCE_DROP_WARNING = 5.0;
+
+    public const ATTENDANCE_DROP_CRITICAL = 10.0;
+
     public function resolveAccessibleClassScope(SchoolYear $activeSchoolYear, bool $isTeacherRole, ?Teacher $teacher): array
     {
         if ($isTeacherRole) {
