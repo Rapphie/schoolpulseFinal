@@ -17,7 +17,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Services\StudentProfileService;
+use App\Services\GuardianCreationService;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -27,11 +27,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 class ClassroomSectionController extends Controller
 {
+    private const BLOCK_GRADE_LEVELS = [1, 2, 3];
+
+    public function __construct(private GuardianCreationService $guardianCreationService) {}
+
     /**
      * Display a listing of the classes for the active school year.
      */
@@ -118,7 +121,7 @@ class ClassroomSectionController extends Controller
             }
 
             // If assigning to a block section (Grades 1-3), check for existing subject loads
-            if ($gradeLevel && in_array($gradeLevel->level, [1, 2, 3])) {
+            if ($gradeLevel && in_array($gradeLevel->level, self::BLOCK_GRADE_LEVELS)) {
                 $hasSubjects = Schedule::where('teacher_id', $teacherId)
                     ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                     ->exists();
@@ -268,7 +271,7 @@ class ClassroomSectionController extends Controller
                 }
 
                 // If assigning to a block section (Grades 1-3), check for existing subject loads
-                if ($gradeLevel && in_array($gradeLevel->level, [1, 2, 3])) {
+                if ($gradeLevel && in_array($gradeLevel->level, self::BLOCK_GRADE_LEVELS)) {
                     $hasSubjects = Schedule::where('teacher_id', $newTeacherId)
                         ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                         ->where('class_id', '!=', $class->id)
@@ -448,7 +451,7 @@ class ClassroomSectionController extends Controller
             }
 
             // If assigning to a block section, ensure teacher has no other subject loads
-            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, self::BLOCK_GRADE_LEVELS)) {
                 $hasSubjects = Schedule::where('teacher_id', $teacherId)
                     ->whereHas('class', fn ($q) => $q->where('school_year_id', $activeSchoolYear->id))
                     ->where('class_id', '!=', $class->id)
@@ -462,7 +465,7 @@ class ClassroomSectionController extends Controller
             $class->update(['teacher_id' => $validated['teacher_id']]);
 
             // For Grade 1, 2, 3: Auto-create schedules for all subjects assigned to the adviser
-            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, self::BLOCK_GRADE_LEVELS)) {
                 $subjects = Subject::query()
                     ->where('is_active', true)
                     ->where(function ($query) use ($class) {
@@ -495,8 +498,6 @@ class ClassroomSectionController extends Controller
                     } else {
                         $existingSchedule->update([
                             'teacher_id' => $teacherId,
-                            'start_time' => '00:00',
-                            'end_time' => '00:00',
                         ]);
                     }
                 }
@@ -518,7 +519,7 @@ class ClassroomSectionController extends Controller
             $class->load('section.gradeLevel');
             $gradeValue = optional($class->section->gradeLevel)->level;
 
-            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+            if (! is_null($gradeValue) && in_array($gradeValue, self::BLOCK_GRADE_LEVELS)) {
                 // Delete all schedules for this class
                 Schedule::where('class_id', $class->id)->delete();
             }
@@ -567,7 +568,7 @@ class ClassroomSectionController extends Controller
         $class->load('section.gradeLevel');
         $gradeValue = optional($class->section->gradeLevel)->level;
 
-        if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
+        if (! is_null($gradeValue) && in_array($gradeValue, self::BLOCK_GRADE_LEVELS)) {
             return back()->with('error', 'For Grade 1, 2, and 3, schedules are automatically managed. You cannot manually add schedules.');
         }
 
@@ -769,79 +770,36 @@ class ClassroomSectionController extends Controller
                 &$connectedStudentName
             ) {
                 if ($useExistingGuardian) {
-                    $guardian = Guardian::query()
-                        ->with([
-                            'user',
-                            'students:id,guardian_id,first_name,last_name',
-                        ])
-                        ->findOrFail((int) $validated['guardian_id']);
+                    $result = $this->guardianCreationService->useExistingGuardian((int) $validated['guardian_id']);
+                    $guardian = $result['guardian'];
+                    $guardianUser = $result['guardianUser'];
+                    $guardianUserWasCreated = false;
+                    $connectedStudentName = $result['connectedStudentName'];
 
-                    $guardianUser = $guardian->user;
-                    if (! $guardianUser) {
-                        throw new \RuntimeException('Guardian account is incomplete. Missing user profile.');
-                    }
-
-                    $connectedStudent = $guardian->students->first();
-                    if ($connectedStudent) {
-                        $connectedStudentName = trim($connectedStudent->first_name.' '.$connectedStudent->last_name);
-                    }
-
-                    $guardianUser->update([
-                        'first_name' => $validated['guardian_first_name'],
-                        'last_name' => $validated['guardian_last_name'],
-                    ]);
-
-                    $guardian->update([
-                        'phone' => $validated['guardian_phone'] ?? $guardian->phone,
-                        'relationship' => $validated['guardian_relationship'],
-                    ]);
+                    $this->guardianCreationService->updateGuardianFromValidated($validated, $guardian, $guardianUser);
                 } else {
-                    $guardianUser = User::create([
-                        'first_name' => $validated['guardian_first_name'],
-                        'last_name' => $validated['guardian_last_name'],
-                        'email' => $validated['guardian_email'] ?? null,
-                        'password' => Hash::make($plainPassword),
-                        'role_id' => Role::GUARDIAN_ID,
-                    ]);
+                    $result = $this->guardianCreationService->createGuardianWithStudent($validated, $plainPassword);
+                    $guardianUser = $result['guardianUser'];
+                    $guardian = $result['guardian'];
                     $guardianUserWasCreated = true;
-
-                    $guardian = Guardian::create([
-                        'user_id' => $guardianUser->id,
-                        'phone' => $validated['guardian_phone'] ?? null,
-                        'relationship' => $validated['guardian_relationship'],
-                    ]);
                 }
 
-                $student = Student::create([
-                    'student_id' => Student::generateStudentId(),
-                    'lrn' => $validated['lrn'] ?? null,
-                    'first_name' => $validated['first_name'],
-                    'last_name' => $validated['last_name'],
-                    'gender' => $validated['gender'],
-                    'birthdate' => $validated['birthdate'],
-                    'address' => $validated['address'] ?? null,
-                    'distance_km' => $validated['distance_km'] ?? null,
-                    'transportation' => $validated['transportation'] ?? null,
-                    'family_income' => $validated['family_income'] ?? null,
-                    'guardian_id' => $guardian->id,
-                    'enrollment_date' => now(),
-                ]);
+                $validated['guardian_id'] = $guardian->id;
+                $validated['enrollment_date'] = now();
+                $student = $this->guardianCreationService->createStudentForGuardian($validated, $guardian);
 
-                // Create enrollment with linked student profile
-                $profileService = new StudentProfileService;
-                $profileService->createEnrollmentWithProfile([
-                    'student_id' => $student->id,
-                    'class_id' => $class->id,
-                    'school_year_id' => $class->school_year_id,
-                    'teacher_id' => $class->teacher_id,
-                    'enrolled_by_user_id' => Auth::id(),
-                    'status' => $validated['status'] ?? 'enrolled',
-                ]);
+                $this->guardianCreationService->enrollStudentToClass(
+                    $student,
+                    $class,
+                    $class->teacher_id,
+                    Auth::id(),
+                    $validated['status'] ?? 'enrolled'
+                );
             });
 
             // Send email AFTER the DB transaction to avoid sending within a transaction
-            if ($guardianUser && $guardianUserWasCreated && ! empty($guardianUser->email)) {
-                Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+            if ($guardianUser && $guardianUserWasCreated) {
+                $this->guardianCreationService->sendWelcomeEmail($guardianUser, $plainPassword);
             }
         } catch (\Throwable $throwable) {
             return back()->withInput()->with('error', 'Failed to add student: '.$throwable->getMessage());
