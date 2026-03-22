@@ -14,10 +14,7 @@ class Classes extends Model
         'school_year_id',
         'teacher_id',
         'capacity',
-
     ];
-
-    protected $table = 'classes';
 
     public function section(): BelongsTo
     {
@@ -52,10 +49,5 @@ class Classes extends Model
     public function students(): BelongsToMany
     {
         return $this->belongsToMany(Student::class, 'enrollments', 'class_id', 'student_id');
-    }
-
-    public function subject(): BelongsTo
-    {
-        return $this->belongsTo(Subject::class);
     }
 }

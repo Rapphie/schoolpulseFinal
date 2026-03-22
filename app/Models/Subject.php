@@ -19,6 +19,13 @@ class Subject extends Model
         'is_active',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
+
     public function schedules(): HasMany
     {
         return $this->hasMany(Schedule::class);
@@ -44,7 +51,7 @@ class Subject extends Model
         return $this->hasMany(Attendance::class);
     }
 
-    public function scopeActive($query)
+    public function scopeActive($query): mixed
     {
         return $query->where('is_active', true);
     }
