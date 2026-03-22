@@ -8,18 +8,14 @@ class QuarterLockService
 {
     public function contextForSchoolYear(int $schoolYearId): array
     {
-        $activeQuarter = SchoolYearQuarter::query()
-            ->where('school_year_id', $schoolYearId)
-            ->current()
-            ->first();
-
-        $activeQuarterNumber = $activeQuarter ? (int) $activeQuarter->quarter : null;
-
         $quartersByNumber = SchoolYearQuarter::query()
             ->where('school_year_id', $schoolYearId)
             ->whereIn('quarter', [1, 2, 3, 4])
             ->get()
             ->keyBy(fn (SchoolYearQuarter $quarter) => (int) $quarter->quarter);
+
+        $activeQuarter = $quartersByNumber->firstWhere('is_current', true);
+        $activeQuarterNumber = $activeQuarter ? (int) $activeQuarter->quarter : null;
 
         $quarterLocks = [];
 
