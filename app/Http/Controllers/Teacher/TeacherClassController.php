@@ -15,6 +15,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Services\Attendance\ReportCardAttendanceService;
 use App\Services\GradeService;
+use App\Services\ScheduleConflictService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -211,67 +212,32 @@ class TeacherClassController extends Controller
             $assignedTeacherId = $teacherIdToUse;
             $scheduleIdToExclude = $validated['schedule_id'] ?? null;
 
-            $dayQueryCallback = function ($q) use ($days) {
-                if (empty($days)) {
-                    return;
-                }
-                $first = array_shift($days);
-                $q->whereJsonContains('day_of_week', $first);
-                foreach ($days as $day) {
-                    $q->orWhereJsonContains('day_of_week', $day);
-                }
-            };
+            $conflictService = new ScheduleConflictService;
 
-            $classConflicts = $class->schedules()->where(function ($q) use ($dayQueryCallback) {
-                $dayQueryCallback($q);
-            })->where(function ($q) use ($start, $end) {
-                $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
-            });
+            // Check for class schedule conflicts
+            $conflict = $conflictService->findClassScheduleConflict(
+                $class->schedules(),
+                $days,
+                $start,
+                $end,
+                $scheduleIdToExclude
+            );
 
-            if ($scheduleIdToExclude) {
-                $classConflicts->where('id', '!=', $scheduleIdToExclude);
-            }
-
-            $conflict = $classConflicts->with('subject', 'teacher.user')->first();
             if ($conflict) {
-                $conflictDays = $conflict->day_of_week;
-                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
-                $conflictMsg = sprintf(
-                    'Schedule conflicts with existing class schedule: %s (%s) %s - %s',
-                    optional($conflict->subject)->name ?? 'Subject',
-                    $conflictLabel,
-                    optional($conflict->start_time)?->format('g:i A') ?? $conflict->start_time,
-                    optional($conflict->end_time)?->format('g:i A') ?? $conflict->end_time
-                );
-
-                return redirect()->back()->withInput()->with('error', $conflictMsg);
+                return redirect()->back()->withInput()->with('error', $conflictService->buildClassConflictMessage($conflict));
             }
 
-            $teacherConflicts = Schedule::where('teacher_id', $assignedTeacherId)
-                ->where(function ($q) use ($dayQueryCallback) {
-                    $dayQueryCallback($q);
-                })->where(function ($q) use ($start, $end) {
-                    $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
-                });
+            // Check for teacher schedule conflicts
+            $tconflict = $conflictService->findTeacherScheduleConflict(
+                $assignedTeacherId,
+                $days,
+                $start,
+                $end,
+                $scheduleIdToExclude
+            );
 
-            if ($scheduleIdToExclude) {
-                $teacherConflicts->where('id', '!=', $scheduleIdToExclude);
-            }
-
-            $tconflict = $teacherConflicts->with('class.section', 'subject')->first();
             if ($tconflict) {
-                $conflictDays = $tconflict->day_of_week;
-                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : $conflictDays;
-                $conflictMsg = sprintf(
-                    'Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)',
-                    optional($tconflict->subject)->name ?? 'Subject',
-                    $conflictLabel,
-                    optional($tconflict->start_time)?->format('g:i A') ?? $tconflict->start_time,
-                    optional($tconflict->end_time)?->format('g:i A') ?? $tconflict->end_time,
-                    optional($tconflict->class->section)->name ?? 'Class'
-                );
-
-                return redirect()->back()->withInput()->with('error', $conflictMsg);
+                return redirect()->back()->withInput()->with('error', $conflictService->buildTeacherConflictMessage($tconflict));
             }
 
             $message = 'Schedule assigned successfully.';
