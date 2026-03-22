@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Application Defaults
+    |--------------------------------------------------------------------------
+    |
+    | Default values for application-wide settings.
+    |
+    */
+
+    'defaults' => [
+        'password' => env('DEFAULT_PASSWORD', '12345678'),
+    ],
+
 ];

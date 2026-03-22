@@ -731,7 +731,7 @@ class ClassroomSectionController extends Controller
                 return back()->with('error', 'Selected class is not in the active school year.')->with('error_form', 'enroll');
             }
 
-            $plainPassword = '12345678';
+            $plainPassword = config('services.defaults.password', '12345678');
             $guardianUser = null;
             $guardianUserWasCreated = false;
             $connectedStudentName = null;
@@ -949,7 +949,7 @@ class ClassroomSectionController extends Controller
                         'first_name' => $validated['guardian_first_name'],
                         'last_name' => $validated['guardian_last_name'],
                         'email' => $validated['guardian_email'] ?? null,
-                        'password' => Hash::make(12345678),
+                        'password' => Hash::make(config('services.defaults.password', '12345678')),
                         'role_id' => Role::GUARDIAN_ID,
                     ]);
                 }

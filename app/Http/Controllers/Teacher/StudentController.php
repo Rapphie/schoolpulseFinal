@@ -235,7 +235,7 @@ class StudentController extends Controller
         }
 
         try {
-            $plainPassword = '12345678';
+            $plainPassword = config('services.defaults.password', '12345678');
             $teacher = Auth::user()->teacher;
 
             DB::transaction(function () use ($validated, $plainPassword, $currentSchoolYear, $teacher) {
