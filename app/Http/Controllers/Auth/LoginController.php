@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class LoginController extends Controller
 {
@@ -30,7 +31,7 @@ class LoginController extends Controller
         // Check for temporary password
         $user = User::firstWhere('email', $request->input('email'));
         if ($user?->temporary_password && $user->temporary_password_expires_at && now()->lessThanOrEqualTo($user->temporary_password_expires_at)) {
-            if ($request['password'] === $user->temporary_password && $user->role_id == $request['role']) {
+            if (Hash::check($request->password, $user->temporary_password) && $user->role_id == $request->role) {
                 Auth::login($user, $remember);
                 $request->session()->regenerate();
 
