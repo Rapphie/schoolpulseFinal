@@ -6,20 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
-use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\Setting;
 use App\Models\Student;
 use App\Models\StudentProfile;
-use App\Models\User;
+use App\Services\GuardianCreationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 
 class StudentController extends Controller
 {
+    public function __construct(private GuardianCreationService $guardianCreationService) {}
+
     /**
      * Display a listing of all student profiles.
      */
@@ -240,50 +239,17 @@ class StudentController extends Controller
             $teacher = Auth::user()->teacher;
 
             DB::transaction(function () use ($validated, $plainPassword, $currentSchoolYear, $teacher) {
-                // Create guardian user
-                $guardianUser = User::create([
-                    'first_name' => $validated['guardian_first_name'],
-                    'last_name' => $validated['guardian_last_name'],
-                    'email' => $validated['guardian_email'] ?? null,
-                    'password' => Hash::make($plainPassword),
-                    'role_id' => Role::GUARDIAN_ID,
-                ]);
+                $result = $this->guardianCreationService->createGuardianWithStudent($validated, $plainPassword);
 
-                // Create guardian record
-                $guardian = Guardian::create([
-                    'user_id' => $guardianUser->id,
-                    'phone' => $validated['guardian_phone'] ?? null,
-                    'relationship' => $validated['guardian_relationship'],
-                ]);
-
-                // Create student
-                $student = Student::create([
-                    'lrn' => $validated['lrn'],
-                    'student_id' => Student::generateStudentId(),
-                    'first_name' => $validated['first_name'],
-                    'last_name' => $validated['last_name'],
-                    'gender' => $validated['gender'],
-                    'birthdate' => $validated['birthdate'],
-                    'address' => $validated['address'],
-                    'distance_km' => $validated['distance_km'] ?? null,
-                    'transportation' => $validated['transportation'] ?? null,
-                    'family_income' => $validated['family_income'] ?? null,
-                    'guardian_id' => $guardian->id,
-                ]);
-
-                // Create initial student profile for current school year
                 StudentProfile::create([
-                    'student_id' => $student->id,
+                    'student_id' => $result['student']->id,
                     'school_year_id' => $currentSchoolYear->id,
                     'grade_level_id' => $validated['grade_level_id'],
                     'status' => 'pending',
                     'created_by_teacher_id' => $teacher?->id,
                 ]);
 
-                // Send welcome email to guardian only if email is provided
-                if (! empty($guardianUser->email)) {
-                    Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
-                }
+                $this->guardianCreationService->sendWelcomeEmail($result['guardianUser'], $plainPassword);
             });
 
             return redirect()->route('teacher.students.index')

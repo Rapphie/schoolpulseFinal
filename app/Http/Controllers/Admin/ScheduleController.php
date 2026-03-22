@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\ScheduleHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Classes;
 use App\Models\GradeLevel;
@@ -107,22 +108,9 @@ class ScheduleController extends Controller
         }
     }
 
-    private function dayToNumber($day)
+    private function dayToNumber(string $day): int
     {
-        switch (strtolower($day)) {
-            case 'monday':
-                return 1;
-            case 'tuesday':
-                return 2;
-            case 'wednesday':
-                return 3;
-            case 'thursday':
-                return 4;
-            case 'friday':
-                return 5;
-            default:
-                return 0; // Should not happen
-        }
+        return ScheduleHelper::dayToNumber($day);
     }
 
     /**

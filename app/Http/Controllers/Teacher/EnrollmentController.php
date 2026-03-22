@@ -16,6 +16,7 @@ use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\User;
+use App\Services\GuardianCreationService;
 use App\Services\StudentProfileService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,6 +29,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class EnrollmentController extends Controller
 {
+    public function __construct(private GuardianCreationService $guardianCreationService) {}
+
     public function getEnrollmentsByClass(Classes $class)
     {
         $enrollments = Enrollment::where('class_id', $class->id)->with('student')->get();
@@ -374,78 +377,34 @@ class EnrollmentController extends Controller
                 &$connectedStudentName
             ) {
                 if ($useExistingGuardian) {
-                    $guardian = Guardian::query()
-                        ->with([
-                            'user',
-                            'students:id,guardian_id,first_name,last_name',
-                        ])
-                        ->findOrFail((int) $validated['guardian_id']);
+                    $result = $this->guardianCreationService->useExistingGuardian((int) $validated['guardian_id']);
+                    $guardian = $result['guardian'];
+                    $guardianUser = $result['guardianUser'];
+                    $guardianUserWasCreated = false;
+                    $connectedStudentName = $result['connectedStudentName'];
 
-                    $guardianUser = $guardian->user;
-                    if (! $guardianUser) {
-                        throw new \RuntimeException('Guardian account is incomplete. Missing user profile.');
-                    }
-
-                    $connectedStudent = $guardian->students->first();
-                    if ($connectedStudent) {
-                        $connectedStudentName = trim($connectedStudent->first_name.' '.$connectedStudent->last_name);
-                    }
-
-                    $guardianUser->update([
-                        'first_name' => $validated['guardian_first_name'],
-                        'last_name' => $validated['guardian_last_name'],
-                    ]);
-
-                    $guardian->update([
-                        'phone' => $validated['guardian_phone'] ?? $guardian->phone,
-                        'relationship' => $validated['guardian_relationship'],
-                    ]);
+                    $this->guardianCreationService->updateGuardianFromValidated($validated, $guardian, $guardianUser);
                 } else {
-                    $guardianUser = User::create([
-                        'first_name' => $validated['guardian_first_name'],
-                        'last_name' => $validated['guardian_last_name'],
-                        'email' => $validated['guardian_email'] ?? null,
-                        'password' => Hash::make($plainPassword),
-                        'role_id' => Role::GUARDIAN_ID,
-                    ]);
+                    $result = $this->guardianCreationService->createGuardianWithStudent($validated, $plainPassword);
+                    $guardianUser = $result['guardianUser'];
+                    $guardian = $result['guardian'];
                     $guardianUserWasCreated = true;
-
-                    $guardian = Guardian::create([
-                        'user_id' => $guardianUser->id,
-                        'phone' => $validated['guardian_phone'] ?? null,
-                        'relationship' => $validated['guardian_relationship'],
-                    ]);
                 }
 
-                // 5. Create the Student Record, linked to the Guardian
-                $student = Student::create([
-                    'lrn' => $validated['lrn'] ?? null,
-                    'student_id' => Student::generateStudentId(),
-                    'first_name' => $validated['first_name'],
-                    'last_name' => $validated['last_name'],
-                    'gender' => $validated['gender'],
-                    'birthdate' => $validated['birthdate'],
-                    'address' => $validated['address'],
-                    'distance_km' => $validated['distance_km'] ?? null,
-                    'transportation' => $validated['transportation'] ?? null,
-                    'family_income' => $validated['family_income'] ?? null,
-                    'guardian_id' => $guardian->id,
-                ]);
+                $validated['guardian_id'] = $guardian->id;
+                $student = $this->guardianCreationService->createStudentForGuardian($validated, $guardian);
 
-                // 6. Create the final Enrollment Record, linking the Student to the Class
-                $profileService = new StudentProfileService;
-                $profileService->createEnrollmentWithProfile([
-                    'student_id' => $student->id,
-                    'class_id' => $resolvedClass->id,
-                    'school_year_id' => $resolvedClass->school_year_id,
-                    'teacher_id' => $enrollmentTeacherId,
-                    'enrolled_by_user_id' => Auth::id(),
-                    'status' => $enrollmentStatus,
-                ]);
+                $this->guardianCreationService->enrollStudentToClass(
+                    $student,
+                    $resolvedClass,
+                    $enrollmentTeacherId,
+                    Auth::id(),
+                    $enrollmentStatus
+                );
             });
 
-            if ($guardianUser && $guardianUserWasCreated && ! empty($guardianUser->email)) {
-                Mail::to($guardianUser->email)->queue(new \App\Mail\WelcomeEmail($guardianUser, $plainPassword));
+            if ($guardianUser && $guardianUserWasCreated) {
+                $this->guardianCreationService->sendWelcomeEmail($guardianUser, $plainPassword);
             }
 
             $statusLabel = $enrollmentStatus === 'transferred' ? ' (Transferee)' : '';

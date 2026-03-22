@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Helpers\ScheduleHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
@@ -85,16 +86,8 @@ class TeacherScheduleController extends Controller
     /**
      * Convert day name to number for FullCalendar.
      */
-    private function dayToNumber($day): int
+    private function dayToNumber(string $day): int
     {
-        return match (strtolower($day)) {
-            'monday' => 1,
-            'tuesday' => 2,
-            'wednesday' => 3,
-            'thursday' => 4,
-            'friday' => 5,
-            'saturday' => 6,
-            default => 0,
-        };
+        return ScheduleHelper::dayToNumber($day);
     }
 }
