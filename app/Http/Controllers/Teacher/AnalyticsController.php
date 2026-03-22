@@ -13,6 +13,7 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Services\PredictionClient;
+use App\Services\TeacherAnalyticsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,8 @@ class AnalyticsController extends Controller
 
     private const ATTENDANCE_DROP_CRITICAL = 10.0;
 
+    public function __construct(private TeacherAnalyticsService $analyticsService) {}
+
     /**
      * Display absenteeism analytics for the teacher.
      *
@@ -46,7 +49,7 @@ class AnalyticsController extends Controller
         $authUser = Auth::user();
         $isTeacherRole = (bool) ($authUser && $authUser->hasRole('teacher'));
         $teacher = Teacher::where('user_id', Auth::id())->first();
-        $scopeContext = $this->resolveAccessibleClassScope($activeSchoolYear, $isTeacherRole, $teacher);
+        $scopeContext = $this->analyticsService->resolveAccessibleClassScope($activeSchoolYear, $isTeacherRole, $teacher);
         $availableClassIds = $scopeContext['class_ids'];
         $analyticsScopeMode = $scopeContext['mode'];
         $canViewHonors = $scopeContext['can_view_honors'];
@@ -862,69 +865,6 @@ class AnalyticsController extends Controller
         }
 
         return $numeric;
-    }
-
-    private function resolveAccessibleClassScope(SchoolYear $activeSchoolYear, bool $isTeacherRole, ?Teacher $teacher): array
-    {
-        if ($isTeacherRole) {
-            if (! $teacher) {
-                return [
-                    'class_ids' => collect(),
-                    'mode' => 'none',
-                    'can_view_honors' => false,
-                    'access_notice' => 'No advisory class handled and no scheduled subjects handled for the current school year.',
-                ];
-            }
-
-            $advisoryClassIds = Classes::where('teacher_id', $teacher->id)
-                ->where('school_year_id', $activeSchoolYear->id)
-                ->pluck('id')
-                ->unique()
-                ->values();
-
-            if ($advisoryClassIds->isNotEmpty()) {
-                return [
-                    'class_ids' => $advisoryClassIds,
-                    'mode' => 'advisory',
-                    'can_view_honors' => true,
-                    'access_notice' => null,
-                ];
-            }
-
-            $scheduledClassIds = $teacher->schedules()
-                ->whereHas('class', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })
-                ->pluck('class_id')
-                ->unique()
-                ->values();
-
-            if ($scheduledClassIds->isNotEmpty()) {
-                return [
-                    'class_ids' => $scheduledClassIds,
-                    'mode' => 'scheduled',
-                    'can_view_honors' => false,
-                    'access_notice' => 'No advisory class handled for the current school year. Showing predictions, risk, and top-performing students for scheduled subjects only.',
-                ];
-            }
-
-            return [
-                'class_ids' => collect(),
-                'mode' => 'none',
-                'can_view_honors' => false,
-                'access_notice' => 'No advisory class handled and no scheduled subjects handled for the current school year.',
-            ];
-        }
-
-        return [
-            'class_ids' => Classes::where('school_year_id', $activeSchoolYear->id)
-                ->pluck('id')
-                ->unique()
-                ->values(),
-            'mode' => 'all',
-            'can_view_honors' => true,
-            'access_notice' => null,
-        ];
     }
 
     private function formatClassLabel(Classes $class): string
