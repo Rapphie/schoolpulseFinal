@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Guardian;
 
+use App\Helpers\QuarterHelper;
 use App\Livewire\Guardian\Traits\WithStudentSelector;
 use App\Services\GuardianService;
 use Illuminate\Contracts\View\View;
@@ -27,7 +28,7 @@ class StudentGrades extends Component
 
     public function setQuarter(int $quarter): void
     {
-        if (array_key_exists($quarter, $this->guardianService->quarterLabels())) {
+        if (array_key_exists($quarter, QuarterHelper::labels())) {
             $this->selectedQuarter = $quarter;
         }
     }
@@ -35,7 +36,7 @@ class StudentGrades extends Component
     public function render(): View
     {
         $activeSchoolYear = $this->guardianService->activeSchoolYear();
-        $quarterLabels = $this->guardianService->quarterLabels();
+        $quarterLabels = QuarterHelper::labels();
         $selectedStudent = $this->selectedStudent;
 
         if (! $selectedStudent) {

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Guardian;
 
+use App\Helpers\QuarterHelper;
 use App\Livewire\Guardian\Traits\WithStudentSelector;
 use App\Models\Attendance;
 use App\Models\Student;
@@ -78,7 +79,7 @@ class StudentAttendance extends Component
     public function render(): View
     {
         $activeSchoolYear = $this->guardianService->activeSchoolYear();
-        $quarterLabels = $this->guardianService->quarterLabels();
+        $quarterLabels = QuarterHelper::labels();
         $selectedStudent = $this->selectedStudent;
 
         if (! $selectedStudent) {
@@ -124,7 +125,7 @@ class StudentAttendance extends Component
         if ($this->quarterFilter !== 'all') {
             $quarterNumber = (int) $this->quarterFilter;
             if ($quarterNumber > 0) {
-                $quarterValues = $this->guardianService->quarterSearchValues($quarterNumber);
+                $quarterValues = QuarterHelper::searchValues($quarterNumber);
 
                 $query->where(function (Builder $quarterQuery) use ($quarterNumber, $quarterValues): void {
                     $quarterQuery->where('quarter_int', $quarterNumber)

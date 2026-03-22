@@ -20,32 +20,6 @@ class GuardianService
         return SchoolYear::active()->first();
     }
 
-    /**
-     * @return array<int, string>
-     */
-    public function quarterLabels(): array
-    {
-        return QuarterHelper::labels();
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public function quarterSearchValues(int $quarterNumber): array
-    {
-        return QuarterHelper::searchValues($quarterNumber);
-    }
-
-    public function quarterNumberFromValue(?string $value): int
-    {
-        return QuarterHelper::numberFromValue($value);
-    }
-
-    public function normalizeQuarterLabel(?string $value): string
-    {
-        return QuarterHelper::normalizeLabel($value);
-    }
-
     public function gradeRemark(?float $grade): string
     {
         if ($grade === null) {
@@ -133,13 +107,13 @@ class GuardianService
 
     public function gradesByQuarter(Student $student, ?SchoolYear $activeSchoolYear): Collection
     {
-        $quarterBuckets = collect($this->quarterLabels())->mapWithKeys(function (string $label): array {
+        $quarterBuckets = collect(QuarterHelper::labels())->mapWithKeys(function (string $label): array {
             return [$label => collect()];
         });
 
         $this->gradesForStudent($student, $activeSchoolYear)
             ->each(function (Grade $grade) use ($quarterBuckets): void {
-                $quarterLabel = $this->normalizeQuarterLabel($grade->quarter);
+                $quarterLabel = QuarterHelper::normalizeLabel($grade->quarter);
                 if (! $quarterBuckets->has($quarterLabel)) {
                     $quarterBuckets->put($quarterLabel, collect());
                 }
@@ -150,7 +124,7 @@ class GuardianService
                     'grade' => $grade->grade,
                     'remarks' => $this->gradeRemark($grade->grade),
                     'quarter_label' => $quarterLabel,
-                    'quarter_number' => $this->quarterNumberFromValue($grade->quarter),
+                    'quarter_number' => QuarterHelper::numberFromValue($grade->quarter),
                 ]);
             });
 
@@ -198,7 +172,7 @@ class GuardianService
 
     public function latestQuarterLabel(Collection $gradesByQuarter): ?string
     {
-        foreach (array_reverse($this->quarterLabels(), true) as $quarterLabel) {
+        foreach (array_reverse(QuarterHelper::labels(), true) as $quarterLabel) {
             $entries = $gradesByQuarter->get($quarterLabel, collect());
             if ($entries instanceof Collection && $entries->isNotEmpty()) {
                 return $quarterLabel;
@@ -293,7 +267,7 @@ class GuardianService
             'formatted_date' => optional($attendance->date)->format('M d, Y') ?? '—',
             'subject' => $attendance->subject?->name ?? 'Homeroom',
             'status' => strtolower($attendance->status ?? 'present'),
-            'quarter' => $this->normalizeQuarterLabel($attendance->quarter),
+            'quarter' => QuarterHelper::normalizeLabel($attendance->quarter),
             'time_in' => optional($attendance->time_in)->format('h:i A') ?? '—',
         ];
     }
@@ -324,7 +298,7 @@ class GuardianService
                 return [
                     'type' => 'grade',
                     'title' => 'Grade updated',
-                    'description' => ($grade->subject?->name ?? 'Subject').': '.($grade->grade ?? '—').' ('.$this->normalizeQuarterLabel($grade->quarter).')',
+                    'description' => ($grade->subject?->name ?? 'Subject').': '.($grade->grade ?? '—').' ('.QuarterHelper::normalizeLabel($grade->quarter).')',
                     'occurred_at' => $occurredAt?->timestamp ?? 0,
                     'occurred_at_label' => $occurredAt?->format('M d, Y h:i A') ?? '—',
                 ];
