@@ -15,9 +15,11 @@ use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Services\AssessmentDataBuilder;
 use App\Services\QuarterLockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
@@ -25,7 +27,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AssessmentController extends Controller
 {
-    public function __construct(private QuarterLockService $quarterLockService) {}
+    public function __construct(
+        private QuarterLockService $quarterLockService,
+        private AssessmentDataBuilder $assessmentDataBuilder
+    ) {}
 
     private const DEFAULT_ASSESSMENT_COUNTS = [
         'written_works' => 10,
@@ -44,6 +49,30 @@ class AssessmentController extends Controller
         'performance_tasks' => 'PERFORMANCE TASKS',
         'quarterly_assessments' => 'QUARTERLY ASSESSMENT',
     ];
+
+    private function consolidateOralParticipation(Classes $class, Subject $subject, Collection $assessments): Collection
+    {
+        foreach ($assessments as $quarter => $types) {
+            $ops = $types->get('oral_participation', collect());
+            $pts = $types->get('performance_tasks', collect());
+
+            if ($ops->isNotEmpty()) {
+                $consolidatedOP = new Assessment;
+                $consolidatedOP->id = -999;
+                $consolidatedOP->name = 'Oral Participation';
+                $consolidatedOP->type = 'oral_participation';
+                $consolidatedOP->max_score = $ops->sum('max_score');
+                $consolidatedOP->quarter = $quarter;
+                $consolidatedOP->class_id = $class->id;
+                $consolidatedOP->subject_id = $subject->id;
+
+                $pts = collect([$consolidatedOP])->merge($pts);
+                $types->put('performance_tasks', $pts);
+            }
+        }
+
+        return $assessments;
+    }
 
     /**
      * Show grade management interface for a specific class.
@@ -100,8 +129,12 @@ class AssessmentController extends Controller
 
         $this->ensureDefaultAssessments($class, $selectedSubject, $teacher);
 
-        // Get all students enrolled in this class
-        $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get();
+        // Get all students enrolled in this class with profiles eager loaded
+        $students = $class->students()
+            ->with('profiles')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
 
         // Get all assessments for the selected subject grouped by quarter and type
         // Include oral_participation from any teacher so OP is consistent across all quarters/subjects
@@ -119,105 +152,10 @@ class AssessmentController extends Controller
             ->groupBy(['quarter', 'type']);
 
         // Merge and Consolidate 'oral_participation' type into 'performance_tasks'
-        foreach ($assessments as $quarter => $types) {
-            $ops = $types->get('oral_participation', collect());
-            $pts = $types->get('performance_tasks', collect());
-
-            if ($ops->isNotEmpty()) {
-                // Consolidate multiple OP sessions into one virtual assessment for the grade sheet
-                $consolidatedOP = new Assessment;
-                $consolidatedOP->id = -999; // Unique virtual ID to identify consolidated OP
-                $consolidatedOP->name = 'Oral Participation';
-                $consolidatedOP->type = 'oral_participation';
-                $consolidatedOP->max_score = $ops->sum('max_score');
-                $consolidatedOP->quarter = $quarter;
-                $consolidatedOP->class_id = $class->id;
-                $consolidatedOP->subject_id = $selectedSubject->id;
-
-                // Prepend the consolidated OP to PTs
-                $pts = collect([$consolidatedOP])->merge($pts);
-                $types->put('performance_tasks', $pts);
-            }
-        }
+        $assessments = $this->consolidateOralParticipation($class, $selectedSubject, $assessments);
 
         // Organize data by student
-        $studentsData = $students->map(function ($student) use ($assessments, $class) {
-            $studentData = [
-                'student' => $student,
-                'quarters' => [],
-            ];
-
-            // Process each quarter (1-4)
-            for ($quarter = 1; $quarter <= 4; $quarter++) {
-                $quarterAssessments = $assessments->get($quarter, collect());
-
-                $quarterData = [
-                    'written_works' => [],
-                    'performance_tasks' => [],
-                    'quarterly_assessments' => [],
-                ];
-
-                // Get scores for each assessment type
-                foreach (['written_works', 'performance_tasks', 'quarterly_assessments'] as $type) {
-                    $typeAssessments = $quarterAssessments->get($type, collect());
-
-                    foreach ($typeAssessments as $assessment) {
-                        $scoreValue = null;
-                        $maxScoreValue = $assessment->max_score;
-
-                        if ($assessment->id === -999) {
-                            // Consolidated Oral Participation logic: sum up scores from all OP sessions
-                            $quarterOps = $assessments->get($quarter, collect())->get('oral_participation', collect());
-                            $totalScore = 0;
-                            $hasAnyScore = false;
-
-                            foreach ($quarterOps as $op) {
-                                $profile = $student->profileFor($class->school_year_id);
-                                $s = null;
-                                if ($profile) {
-                                    $s = $op->scores->firstWhere('student_profile_id', $profile->id);
-                                }
-                                if (! $s) {
-                                    $s = $op->scores->firstWhere('student_id', $student->id);
-                                }
-
-                                if ($s) {
-                                    $totalScore += $s->score;
-                                    $hasAnyScore = true;
-                                }
-                            }
-                            if ($hasAnyScore) {
-                                $scoreValue = $totalScore;
-                            }
-                        } else {
-                            // Normal assessment logic
-                            $profile = $student->profileFor($class->school_year_id);
-                            $score = null;
-                            if ($profile) {
-                                $score = $assessment->scores->firstWhere('student_profile_id', $profile->id);
-                            }
-                            if (! $score) {
-                                $score = $assessment->scores->firstWhere('student_id', $student->id);
-                            }
-                            $scoreValue = $score ? $score->score : null;
-                        }
-
-                        $quarterData[$type][] = [
-                            'assessment' => $assessment,
-                            'score' => $scoreValue,
-                            'max_score' => $maxScoreValue,
-                            'percentage' => $scoreValue !== null && $maxScoreValue > 0
-                                ? ($scoreValue / $maxScoreValue) * 100
-                                : null,
-                        ];
-                    }
-                }
-
-                $studentData['quarters'][$quarter] = $quarterData;
-            }
-
-            return $studentData;
-        });
+        $studentsData = $this->assessmentDataBuilder->buildStudentGradesData($students, $assessments, $class);
 
         $highlightStudentId = $request->filled('highlight_student')
             ? (int) $request->input('highlight_student')
