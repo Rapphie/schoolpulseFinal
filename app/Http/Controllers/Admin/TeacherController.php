@@ -36,14 +36,11 @@ class TeacherController extends Controller
 
     public function index()
     {
-        // Fetch all teachers and eagerly load the relationships needed by the view.
-        // This is the most efficient way to get the data.
         $teachers = Teacher::with([
             'user',
             'subjects',
             'classes.section.gradeLevel',
         ])->get();
-        // dd($teachers);
 
         $sections = Section::all();
         $subjects = Subject::all();
@@ -218,12 +215,12 @@ class TeacherController extends Controller
 
             return redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher created successfully.');
-        } catch (\Throwable $th) {
+        } catch (\Throwable $e) {
             DB::rollBack();
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'An error has occurred. Failed to save Teacher: '.$th->getMessage());
+                ->with('error', 'An error has occurred. Failed to save Teacher: '.$e->getMessage());
         }
     }
 
@@ -325,12 +322,12 @@ class TeacherController extends Controller
 
             return redirect()->route('admin.teachers.index')
                 ->with('success', 'Teacher updated successfully.');
-        } catch (\Throwable $th) {
+        } catch (\Throwable $e) {
             DB::rollBack();
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to update teacher: '.$th->getMessage());
+                ->with('error', 'Failed to update teacher: '.$e->getMessage());
         }
     }
 
@@ -359,76 +356,6 @@ class TeacherController extends Controller
 
         return redirect()->route('admin.teachers.index')
             ->with('success', 'Teacher deleted successfully.');
-    }
-
-    /**
-     * Upload a document for the teacher.
-     */
-    public function uploadDocument(Request $request, User $teacher)
-    {
-        // $this->authorize('update', $teacher);
-
-        // $validated = $request->validate([
-        //     'document' => 'required|file|mimes:pdf,doc,docx|max:5120',
-        //     'title' => 'required|string|max:255',
-        //     'description' => 'nullable|string',
-        // ]);
-
-        // $path = $request->file('document')->store('teachers/documents', 'public');
-
-        // $document = $teacher->documents()->create([
-        //     'title' => $validated['title'],
-        //     'description' => $validated['description'],
-        //     'file_path' => $path,
-        //     'file_type' => $request->file('document')->getClientOriginalExtension(),
-        //     'file_size' => $request->file('document')->getSize(),
-        // ]);
-
-        // return response()->json([
-        //     'success' => true,
-        //     'document' => $document,
-        //     'message' => 'Document uploaded successfully.'
-        // ]);
-    }
-
-    /**
-     * Delete a teacher's document.
-     */
-    public function deleteDocument($documentId)
-    {
-        // Implementation depends on your Document model and relationships
-        // This is a placeholder implementation
-        // $document = \App\Models\Document::findOrFail($documentId);
-        // $this->authorize('delete', $document);
-
-        // Storage::disk('public')->delete($document->file_path);
-        // $document->delete();
-
-        // return response()->json([
-        //     'success' => true,
-        //     'message' => 'Document deleted successfully.'
-        // ]);
-    }
-
-    /**
-     * Update teacher status (active/inactive).
-     */
-    public function updateStatus(Request $request, User $teacher)
-    {
-        // $this->authorize('update', $teacher);
-
-        // $validated = $request->validate([
-        //     'is_active' => 'required|boolean',
-        // ]);
-
-        // $teacher->update(['is_active' => $validated['is_active']]);
-
-        // $status = $validated['is_active'] ? 'activated' : 'deactivated';
-
-        // return response()->json([
-        //     'success' => true,
-        //     'message' => "Teacher account has been {$status} successfully."
-        // ]);
     }
 
     public function getSubjectsBySection(Request $request, Section $section)

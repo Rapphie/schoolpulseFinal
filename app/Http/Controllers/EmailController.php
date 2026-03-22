@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\WelcomeEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Mail;
 
 class EmailController extends Controller
 {
@@ -31,13 +29,5 @@ class EmailController extends Controller
         }
 
         return back()->with('error', 'Failed to send email: '.($response->json('message') ?? 'Unknown error'));
-    }
-
-    public function sendTeacherWelcomeEmail()
-    {
-        // $toEmail = "ixynrs@gmail.com";
-        // $subject = 'Welcome to Tagurot Elementary School.';
-        // $message = 'Your account has been created. You can now log in to the system. ';
-        // $response = Mail::to($toEmail)->send(new WelcomeEmail($message, $subject));
     }
 }
