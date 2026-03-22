@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
+use App\Models\Role;
 use App\Models\Schedule;
 use App\Models\SchoolYear;
 use App\Models\Section;
@@ -800,7 +801,7 @@ class ClassroomSectionController extends Controller
                         'last_name' => $validated['guardian_last_name'],
                         'email' => $validated['guardian_email'] ?? null,
                         'password' => Hash::make($plainPassword),
-                        'role_id' => 3,
+                        'role_id' => Role::GUARDIAN_ID,
                     ]);
                     $guardianUserWasCreated = true;
 
@@ -991,7 +992,7 @@ class ClassroomSectionController extends Controller
                         'last_name' => $validated['guardian_last_name'],
                         'email' => $validated['guardian_email'] ?? null,
                         'password' => Hash::make(12345678),
-                        'role_id' => 3,
+                        'role_id' => Role::GUARDIAN_ID,
                     ]);
                 }
 

@@ -10,6 +10,8 @@ class Role extends Model
     /** @use HasFactory<\Database\Factories\RoleFactory> */
     use HasFactory;
 
+    public const GUARDIAN_ID = 3;
+
     protected $fillable = [
         'name',
         'description',

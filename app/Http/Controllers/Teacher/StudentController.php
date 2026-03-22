@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Classes;
 use App\Models\GradeLevel;
 use App\Models\Guardian;
+use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\Setting;
 use App\Models\Student;
@@ -245,7 +246,7 @@ class StudentController extends Controller
                     'last_name' => $validated['guardian_last_name'],
                     'email' => $validated['guardian_email'] ?? null,
                     'password' => Hash::make($plainPassword),
-                    'role_id' => 3, // Guardian role
+                    'role_id' => Role::GUARDIAN_ID,
                 ]);
 
                 // Create guardian record
