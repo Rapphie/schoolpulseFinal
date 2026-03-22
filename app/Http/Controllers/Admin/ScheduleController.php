@@ -11,6 +11,7 @@ use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Services\ScheduleConflictService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -18,94 +19,90 @@ use Throwable;
 
 class ScheduleController extends Controller
 {
+    public function __construct(
+        private ScheduleConflictService $scheduleConflictService,
+    ) {}
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        try {
-            $activeSchoolYear = SchoolYear::active()->first();
-            $events = [];
-            $teachers = collect();
-            $gradeLevels = GradeLevel::orderBy('level')->get();
-            $sections = collect();
+        $activeSchoolYear = SchoolYear::active()->first();
+        $events = [];
+        $teachers = collect();
+        $gradeLevels = GradeLevel::orderBy('level')->get();
+        $sections = collect();
 
-            if ($activeSchoolYear) {
-                $schedulesQuery = Schedule::whereHas('class', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })->with(['class.section.gradeLevel', 'subject', 'teacher.user']);
+        if ($activeSchoolYear) {
+            $schedulesQuery = Schedule::whereHas('class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })->with(['class.section.gradeLevel', 'subject', 'teacher.user']);
 
-                if ($request->filled('teacher_id')) {
-                    $schedulesQuery->where('teacher_id', $request->teacher_id);
-                }
-
-                if ($request->filled('grade_level_id')) {
-                    $schedulesQuery->whereHas('class.section.gradeLevel', function ($query) use ($request) {
-                        $query->where('id', $request->grade_level_id);
-                    });
-                }
-
-                if ($request->filled('section_id')) {
-                    $schedulesQuery->whereHas('class', function ($query) use ($request) {
-                        $query->where('section_id', $request->section_id);
-                    });
-                }
-
-                $schedules = $schedulesQuery->get();
-
-                foreach ($schedules as $schedule) {
-                    $daysOfWeek = $schedule->day_of_week;
-                    if (! is_array($daysOfWeek)) {
-                        continue;
-                    }
-
-                    $dayNumbers = array_map(fn ($day) => $this->dayToNumber($day), $daysOfWeek);
-
-                    $subjectName = $schedule->subject?->name ?? 'No Subject';
-                    $teacherName = $schedule->teacher?->user ? $schedule->teacher->user->first_name.' '.$schedule->teacher->user->last_name : 'No Teacher';
-                    $sectionName = $schedule->class?->section?->name ?? 'No Section';
-                    $gradeLevelName = $schedule->class?->section?->gradeLevel?->name ?? '';
-                    $displaySection = $gradeLevelName ? $gradeLevelName.' - '.$sectionName : $sectionName;
-
-                    $events[] = [
-                        'title' => $subjectName,
-                        'startTime' => $schedule->start_time ? $schedule->start_time->format('H:i:s') : null,
-                        'endTime' => $schedule->end_time ? $schedule->end_time->format('H:i:s') : null,
-                        'daysOfWeek' => $dayNumbers,
-                        'allDay' => false,
-                        'extendedProps' => [
-                            'section' => $displaySection,
-                            'subject' => $subjectName,
-                            'teacher' => $teacherName,
-                            'room' => $schedule->room,
-                        ],
-                    ];
-                }
-
-                $teachers = Teacher::whereHas('schedules.class', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })->with('user')->get();
-
-                $sections = Section::whereHas('classes', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })->with('gradeLevel')->orderBy('grade_level_id')->get();
+            if ($request->filled('teacher_id')) {
+                $schedulesQuery->where('teacher_id', $request->teacher_id);
             }
 
-            return view('admin.schedules.index', [
-                'events' => json_encode($events),
-                'activeSchoolYear' => $activeSchoolYear,
-                'teachers' => $teachers,
-                'gradeLevels' => $gradeLevels,
-                'sections' => $sections,
-                'filters' => $request->only(['teacher_id', 'grade_level_id', 'section_id']),
-            ]);
-        } catch (ValidationException $e) {
-            return redirect()->back()->withErrors($e->validator)->withInput();
-        } catch (Throwable $e) {
-            Log::error('ScheduleController@index error: '.$e->getMessage(), ['exception' => $e]);
+            if ($request->filled('grade_level_id')) {
+                $schedulesQuery->whereHas('class.section.gradeLevel', function ($query) use ($request) {
+                    $query->where('id', $request->grade_level_id);
+                });
+            }
 
-            return redirect()->back()->with('error', 'Unable to load schedules: '.$e->getMessage());
+            if ($request->filled('section_id')) {
+                $schedulesQuery->whereHas('class', function ($query) use ($request) {
+                    $query->where('section_id', $request->section_id);
+                });
+            }
+
+            $schedules = $schedulesQuery->get();
+
+            foreach ($schedules as $schedule) {
+                $daysOfWeek = $schedule->day_of_week;
+                if (! is_array($daysOfWeek)) {
+                    continue;
+                }
+
+                $dayNumbers = array_map(fn ($day) => $this->dayToNumber($day), $daysOfWeek);
+
+                $subjectName = $schedule->subject?->name ?? 'No Subject';
+                $teacherName = $schedule->teacher?->user ? $schedule->teacher->user->first_name.' '.$schedule->teacher->user->last_name : 'No Teacher';
+                $sectionName = $schedule->class?->section?->name ?? 'No Section';
+                $gradeLevelName = $schedule->class?->section?->gradeLevel?->name ?? '';
+                $displaySection = $gradeLevelName ? $gradeLevelName.' - '.$sectionName : $sectionName;
+
+                $events[] = [
+                    'title' => $subjectName,
+                    'startTime' => $schedule->start_time ? $schedule->start_time->format('H:i:s') : null,
+                    'endTime' => $schedule->end_time ? $schedule->end_time->format('H:i:s') : null,
+                    'daysOfWeek' => $dayNumbers,
+                    'allDay' => false,
+                    'extendedProps' => [
+                        'section' => $displaySection,
+                        'subject' => $subjectName,
+                        'teacher' => $teacherName,
+                        'room' => $schedule->room,
+                    ],
+                ];
+            }
+
+            $teachers = Teacher::whereHas('schedules.class', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })->with('user')->get();
+
+            $sections = Section::whereHas('classes', function ($query) use ($activeSchoolYear) {
+                $query->where('school_year_id', $activeSchoolYear->id);
+            })->with('gradeLevel')->orderBy('grade_level_id')->get();
         }
+
+        return view('admin.schedules.index', [
+            'events' => json_encode($events),
+            'activeSchoolYear' => $activeSchoolYear,
+            'teachers' => $teachers,
+            'gradeLevels' => $gradeLevels,
+            'sections' => $sections,
+            'filters' => $request->only(['teacher_id', 'grade_level_id', 'section_id']),
+        ]);
     }
 
     private function dayToNumber(string $day): int
@@ -176,66 +173,30 @@ class ScheduleController extends Controller
             $start = $validated['start_time'];
             $end = $validated['end_time'];
 
-            $teacherConflict = Schedule::where('teacher_id', $validated['teacher_id'])
-                ->where(function ($q) use ($days) {
-                    foreach ($days as $i => $day) {
-                        if ($i === 0) {
-                            $q->whereJsonContains('day_of_week', $day);
-                        } else {
-                            $q->orWhereJsonContains('day_of_week', $day);
-                        }
-                    }
-                })
-                ->where(function ($q) use ($start, $end) {
-                    $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
-                })
-                ->with('class.section', 'subject')
-                ->first();
+            $teacherConflict = $this->scheduleConflictService->findTeacherScheduleConflict(
+                (int) $validated['teacher_id'],
+                $days,
+                $start,
+                $end
+            );
 
             if ($teacherConflict) {
-                $conflictDays = $teacherConflict->day_of_week;
-                $conflictLabel = is_array($conflictDays) ? implode(', ', $conflictDays) : $conflictDays;
-
                 return redirect()->back()->withInput()
-                    ->with('error', sprintf(
-                        'Teacher has a conflicting schedule: %s (%s) %s - %s (Section: %s)',
-                        optional($teacherConflict->subject)->name ?? 'Subject',
-                        $conflictLabel,
-                        optional($teacherConflict->start_time)?->format('g:i A') ?? $teacherConflict->start_time,
-                        optional($teacherConflict->end_time)?->format('g:i A') ?? $teacherConflict->end_time,
-                        optional($teacherConflict->class->section)->name ?? 'Section'
-                    ));
+                    ->with('error', $this->scheduleConflictService->buildTeacherConflictMessage($teacherConflict));
             }
 
             // Check for conflicts within the same class
-            $classConflict = Schedule::where('class_id', $validated['class_id'])
-                ->where(function ($q) use ($days) {
-                    foreach ($days as $i => $day) {
-                        if ($i === 0) {
-                            $q->whereJsonContains('day_of_week', $day);
-                        } else {
-                            $q->orWhereJsonContains('day_of_week', $day);
-                        }
-                    }
-                })
-                ->where(function ($q) use ($start, $end) {
-                    $q->whereTime('start_time', '<', $end)->whereTime('end_time', '>', $start);
-                })
-                ->with('subject')
-                ->first();
+            $classSchedules = Schedule::where('class_id', $validated['class_id'])->get();
+            $classConflict = $this->scheduleConflictService->findClassScheduleConflict(
+                $classSchedules,
+                $days,
+                $start,
+                $end
+            );
 
             if ($classConflict) {
-                $conflictDays = $classConflict->day_of_week;
-                $conflictLabel = is_array($conflictDays) ? implode(', ', $conflictDays) : $conflictDays;
-
                 return redirect()->back()->withInput()
-                    ->with('error', sprintf(
-                        'Class has a conflicting schedule: %s (%s) %s - %s',
-                        optional($classConflict->subject)->name ?? 'Subject',
-                        $conflictLabel,
-                        optional($classConflict->start_time)?->format('g:i A') ?? $classConflict->start_time,
-                        optional($classConflict->end_time)?->format('g:i A') ?? $classConflict->end_time
-                    ));
+                    ->with('error', $this->scheduleConflictService->buildClassConflictMessage($classConflict));
             }
 
             Schedule::create($validated);
@@ -310,9 +271,8 @@ class ScheduleController extends Controller
 
             $targetClass = Classes::with('section.gradeLevel')->findOrFail((int) $validated['class_id']);
             $gradeValue = optional($targetClass->section->gradeLevel)->level;
-            $isLowerGrade = ! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3]);
 
-            if ($isLowerGrade) {
+            if (! is_null($gradeValue) && in_array($gradeValue, [1, 2, 3])) {
                 $validated['teacher_id'] = $targetClass->teacher_id ?? $schedule->teacher_id;
             } else {
                 $teacherData = $request->validate([
@@ -326,71 +286,31 @@ class ScheduleController extends Controller
             $end = $validated['end_time'];
             $assignedTeacherId = (int) $validated['teacher_id'];
 
-            $classConflict = Schedule::query()
-                ->where('class_id', (int) $validated['class_id'])
-                ->where('id', '!=', $schedule->id)
-                ->where(function ($query) use ($days) {
-                    foreach ($days as $index => $day) {
-                        if ($index === 0) {
-                            $query->whereJsonContains('day_of_week', $day);
-                        } else {
-                            $query->orWhereJsonContains('day_of_week', $day);
-                        }
-                    }
-                })
-                ->where(function ($query) use ($start, $end) {
-                    $query->whereTime('start_time', '<', $end)
-                        ->whereTime('end_time', '>', $start);
-                })
-                ->with('subject')
-                ->first();
+            $classSchedules = Schedule::where('class_id', (int) $validated['class_id'])->get();
+            $classConflict = $this->scheduleConflictService->findClassScheduleConflict(
+                $classSchedules,
+                $days,
+                $start,
+                $end,
+                $schedule->id
+            );
 
             if ($classConflict) {
-                $conflictDays = $classConflict->day_of_week;
-                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : (string) $conflictDays;
-                $message = sprintf(
-                    'Schedule conflicts with existing class schedule: %s (%s) %s - %s',
-                    optional($classConflict->subject)->name ?? 'Subject',
-                    $conflictLabel,
-                    optional($classConflict->start_time)?->format('g:i A') ?? $classConflict->start_time,
-                    optional($classConflict->end_time)?->format('g:i A') ?? $classConflict->end_time
-                );
-
-                return redirect()->back()->withInput()->with('error', $message);
+                return redirect()->back()->withInput()
+                    ->with('error', $this->scheduleConflictService->buildClassConflictMessage($classConflict));
             }
 
-            $teacherConflict = Schedule::query()
-                ->where('teacher_id', $assignedTeacherId)
-                ->where('id', '!=', $schedule->id)
-                ->where(function ($query) use ($days) {
-                    foreach ($days as $index => $day) {
-                        if ($index === 0) {
-                            $query->whereJsonContains('day_of_week', $day);
-                        } else {
-                            $query->orWhereJsonContains('day_of_week', $day);
-                        }
-                    }
-                })
-                ->where(function ($query) use ($start, $end) {
-                    $query->whereTime('start_time', '<', $end)
-                        ->whereTime('end_time', '>', $start);
-                })
-                ->with('subject', 'class.section')
-                ->first();
+            $teacherConflict = $this->scheduleConflictService->findTeacherScheduleConflict(
+                $assignedTeacherId,
+                $days,
+                $start,
+                $end,
+                $schedule->id
+            );
 
             if ($teacherConflict) {
-                $conflictDays = $teacherConflict->day_of_week;
-                $conflictLabel = is_array($conflictDays) ? implode(',', $conflictDays) : (string) $conflictDays;
-                $message = sprintf(
-                    'Assigned teacher has a conflicting schedule: %s (%s) %s - %s (Class: %s)',
-                    optional($teacherConflict->subject)->name ?? 'Subject',
-                    $conflictLabel,
-                    optional($teacherConflict->start_time)?->format('g:i A') ?? $teacherConflict->start_time,
-                    optional($teacherConflict->end_time)?->format('g:i A') ?? $teacherConflict->end_time,
-                    optional($teacherConflict->class->section)->name ?? 'Class'
-                );
-
-                return redirect()->back()->withInput()->with('error', $message);
+                return redirect()->back()->withInput()
+                    ->with('error', $this->scheduleConflictService->buildTeacherConflictMessage($teacherConflict));
             }
 
             $schedule->update([
