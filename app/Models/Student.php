@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 
 class Student extends Model
 {
@@ -68,22 +69,17 @@ class Student extends Model
             ->first();
     }
 
-    /**
-     * Memoization cache for profileFor() to avoid repeated queries in loops.
-     */
-    protected array $profileCache = [];
-
-    public function profileFor(?int $schoolYearId = null)
+    public function profileFor(?int $schoolYearId = null): ?StudentProfile
     {
-        $key = $schoolYearId ?? 'latest';
+        $cacheKey = $schoolYearId
+            ? "student.profile.{$this->id}.sy.{$schoolYearId}"
+            : "student.profile.{$this->id}.latest";
 
-        if (! array_key_exists($key, $this->profileCache)) {
-            $this->profileCache[$key] = $schoolYearId
+        return Cache::remember($cacheKey, 3600, function () use ($schoolYearId) {
+            return $schoolYearId
                 ? $this->profiles()->where('school_year_id', $schoolYearId)->first()
                 : $this->profiles()->orderByDesc('school_year_id')->first();
-        }
-
-        return $this->profileCache[$key];
+        });
     }
 
     public function assessmentScores(): HasMany
