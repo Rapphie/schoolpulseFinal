@@ -109,27 +109,40 @@ class AdminDashboardController extends Controller
 
         // Cache recent activities for 1 minute
         $recentActivities = Cache::remember('admin_recent_activities', 60, function () {
-            $recentEnrollments = Enrollment::latest()->take(5)->get()->map(function ($e) {
-                return [
-                    'type' => 'Enrollment',
-                    'created_at' => $e->created_at,
-                    'description' => 'New student '.$e->status,
-                ];
-            });
-            $recentAssessments = \App\Models\Assessment::latest()->take(5)->get()->map(function ($a) {
-                return [
-                    'type' => 'Assessment',
-                    'created_at' => $a->created_at,
-                    'description' => $a->name.' (Q'.$a->quarter.')',
-                ];
-            });
-            $recentAbsences = Attendance::where('status', 'absent')->latest()->take(5)->get()->map(function ($at) {
-                return [
-                    'type' => 'Absence',
-                    'created_at' => $at->created_at,
-                    'description' => 'Student marked absent',
-                ];
-            });
+            $recentEnrollments = Enrollment::with(['student', 'class.section'])
+                ->latest()
+                ->take(5)
+                ->get()
+                ->map(function ($e) {
+                    return [
+                        'type' => 'Enrollment',
+                        'created_at' => $e->created_at,
+                        'description' => 'New student '.$e->status,
+                    ];
+                });
+            $recentAssessments = \App\Models\Assessment::with(['subject', 'class.section'])
+                ->latest()
+                ->take(5)
+                ->get()
+                ->map(function ($a) {
+                    return [
+                        'type' => 'Assessment',
+                        'created_at' => $a->created_at,
+                        'description' => $a->name.' (Q'.$a->quarter.')',
+                    ];
+                });
+            $recentAbsences = Attendance::with(['student', 'class.section'])
+                ->where('status', 'absent')
+                ->latest()
+                ->take(5)
+                ->get()
+                ->map(function ($at) {
+                    return [
+                        'type' => 'Absence',
+                        'created_at' => $at->created_at,
+                        'description' => 'Student marked absent',
+                    ];
+                });
 
             return collect($recentEnrollments)->merge($recentAssessments)->merge($recentAbsences)->sortByDesc('created_at')->take(10)->values();
         });
