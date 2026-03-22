@@ -41,34 +41,20 @@ class Schedule extends Model
         return $this->belongsTo(Teacher::class);
     }
 
+    /**
+     * Get day names with proper capitalization.
+     *
+     * @return array<int, string>
+     */
     public function getDayNamesAttribute(): array
     {
         $days = $this->day_of_week;
 
-        if (is_string($days) && $days !== '') {
-            $decoded = json_decode($days, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $days = $decoded;
-            } else {
-                $days = explode(',', $days);
-            }
-        }
-
-        if ($days instanceof \Illuminate\Support\Collection) {
-            $days = $days->all();
-        }
-
         if (! is_array($days)) {
-            $days = [];
+            return [];
         }
 
-        $days = array_map(static function ($day) {
-            $normalized = ucfirst(trim((string) $day));
-
-            return $normalized !== '' ? $normalized : null;
-        }, $days);
-
-        return array_values(array_filter($days));
+        return array_values(array_filter(array_map(static fn ($day) => ucfirst(trim((string) $day)), $days)));
     }
 
     public function getDayNamesLabelAttribute(): string
