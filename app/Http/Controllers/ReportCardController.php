@@ -167,7 +167,6 @@ class ReportCardController extends Controller
     public function getStudentsBySection(Section $section)
     {
         $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
-        dd($activeSchoolYear);
         // Find the specific class instance associated with the section for the active school year
         $class = Classes::where('id', $section->id)
             ->where('school_year_id', $activeSchoolYear->id)
