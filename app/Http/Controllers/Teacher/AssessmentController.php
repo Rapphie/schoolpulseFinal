@@ -2,10 +2,7 @@
 
 namespace App\Http\Controllers\Teacher;
 
-use App\Exports\AssessmentClassRecordExport;
-use App\Exports\AssessmentClassRecordWorkbookExport;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Teacher\ExportClassRecordRequest;
 use App\Http\Requests\Teacher\SaveGradesRequest;
 use App\Models\Assessment;
 use App\Models\AssessmentScore;
@@ -16,20 +13,19 @@ use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Services\AssessmentDataBuilder;
+use App\Services\GradeSubmissionService;
 use App\Services\QuarterLockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
-use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AssessmentController extends Controller
 {
     public function __construct(
         private QuarterLockService $quarterLockService,
-        private AssessmentDataBuilder $assessmentDataBuilder
+        private AssessmentDataBuilder $assessmentDataBuilder,
+        private GradeSubmissionService $gradeSubmissionService
     ) {}
 
     private const DEFAULT_ASSESSMENT_COUNTS = [
@@ -50,28 +46,17 @@ class AssessmentController extends Controller
         'quarterly_assessments' => 'QUARTERLY ASSESSMENT',
     ];
 
-    private function consolidateOralParticipation(Classes $class, Subject $subject, Collection $assessments): Collection
+    private function authorizeTeacherForAssessment(Assessment $assessment): Teacher
     {
-        foreach ($assessments as $quarter => $types) {
-            $ops = $types->get('oral_participation', collect());
-            $pts = $types->get('performance_tasks', collect());
-
-            if ($ops->isNotEmpty()) {
-                $consolidatedOP = new Assessment;
-                $consolidatedOP->id = -999;
-                $consolidatedOP->name = 'Oral Participation';
-                $consolidatedOP->type = 'oral_participation';
-                $consolidatedOP->max_score = $ops->sum('max_score');
-                $consolidatedOP->quarter = $quarter;
-                $consolidatedOP->class_id = $class->id;
-                $consolidatedOP->subject_id = $subject->id;
-
-                $pts = collect([$consolidatedOP])->merge($pts);
-                $types->put('performance_tasks', $pts);
-            }
+        $teacher = Auth::user()->teacher;
+        if (! $teacher) {
+            abort(403, 'You must be a registered teacher.');
+        }
+        if ($assessment->teacher_id !== $teacher->id) {
+            abort(403, 'You do not have permission to modify this assessment.');
         }
 
-        return $assessments;
+        return $teacher;
     }
 
     /**
@@ -152,7 +137,7 @@ class AssessmentController extends Controller
             ->groupBy(['quarter', 'type']);
 
         // Merge and Consolidate 'oral_participation' type into 'performance_tasks'
-        $assessments = $this->consolidateOralParticipation($class, $selectedSubject, $assessments);
+        $assessments = $this->assessmentDataBuilder->consolidateOralParticipation($class, $selectedSubject, $assessments);
 
         // Organize data by student
         $studentsData = $this->assessmentDataBuilder->buildStudentGradesData($students, $assessments, $class);
@@ -239,6 +224,15 @@ class AssessmentController extends Controller
             'assessment_date' => 'required|date',
         ]);
 
+        $isScheduled = $teacher->schedules()
+            ->where('class_id', $class->id)
+            ->where('subject_id', $request->subject_id)
+            ->exists();
+
+        if (! $isScheduled) {
+            return redirect()->back()->with('error', 'You are not authorized to add assessments for this subject in this class.');
+        }
+
         $class->assessments()->create([
             'subject_id' => $request->subject_id,
             'teacher_id' => $teacher->id,
@@ -258,26 +252,35 @@ class AssessmentController extends Controller
      */
     public function editScores(Classes $class, Assessment $assessment)
     {
+        $this->authorizeTeacherForAssessment($assessment);
+
         // Build lookup of scores for this assessment (both by student_profile_id and student_id)
         $scores = AssessmentScore::where('assessment_id', $assessment->id)->get();
         $scoresByProfile = $scores->whereNotNull('student_profile_id')->keyBy('student_profile_id');
         $scoresByStudent = $scores->whereNotNull('student_id')->keyBy('student_id');
 
-        $students = $class->students()->orderBy('last_name')->orderBy('first_name')->get()->map(function ($student) use ($scoresByProfile, $scoresByStudent, $class) {
-            $profile = $student->profileFor($class->school_year_id);
-            $score = null;
-            if ($profile) {
-                $score = $scoresByProfile->get($profile->id);
-            }
-            if (! $score) {
-                $score = $scoresByStudent->get($student->id);
-            }
+        $students = $class->students()
+            ->with(['profiles' => function ($q) use ($class) {
+                $q->where('school_year_id', $class->school_year_id);
+            }])
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->map(function ($student) use ($scoresByProfile, $scoresByStudent, $class) {
+                $profile = $student->profileFor($class->school_year_id);
+                $score = null;
+                if ($profile) {
+                    $score = $scoresByProfile->get($profile->id);
+                }
+                if (! $score) {
+                    $score = $scoresByStudent->get($student->id);
+                }
 
-            // Provide a collection compatible with previous view expectations
-            $student->setRelation('assessmentScores', $score ? collect([$score]) : collect());
+                // Provide a collection compatible with previous view expectations
+                $student->setRelation('assessmentScores', $score ? collect([$score]) : collect());
 
-            return $student;
-        });
+                return $student;
+            });
 
         return view('teacher.assessments.edit', compact('class', 'assessment', 'students', 'scores'));
     }
@@ -287,6 +290,8 @@ class AssessmentController extends Controller
      */
     public function updateScores(Request $request, Classes $class, Assessment $assessment)
     {
+        $this->authorizeTeacherForAssessment($assessment);
+
         if ($assessment->max_score === null) {
             return redirect()->back()->with('error', 'Please set the maximum score (total items) for this assessment before entering scores.');
         }
@@ -305,12 +310,17 @@ class AssessmentController extends Controller
 
         $request->validate($rules, $messages);
 
+        $studentIds = array_keys($request->scores);
+        $students = Student::with(['profiles' => function ($q) use ($assessment) {
+            $q->where('school_year_id', $assessment->school_year_id);
+        }])->whereIn('id', $studentIds)->get()->keyBy('id');
+
         foreach ($request->scores as $studentId => $data) {
             $score = $data['score'] ?? null;
             $remarks = $data['remarks'] ?? null;
 
-            $student = Student::find($studentId);
-            $profile = $student ? $student->profileFor($assessment->school_year_id) : null;
+            $student = $students->get($studentId);
+            $profile = $student?->profiles->first();
 
             // If both score and remarks are empty, delete any existing record (by student_id or student_profile_id)
             if (is_null($score) && is_null($remarks)) {
@@ -325,26 +335,18 @@ class AssessmentController extends Controller
                 continue; // Move to the next student
             }
 
-            // Build match keys: prefer matching by student_profile_id when available
-            if ($profile) {
-                $match = [
-                    'assessment_id' => $assessment->id,
-                    'student_profile_id' => $profile->id,
-                ];
-            } else {
-                $match = [
-                    'assessment_id' => $assessment->id,
-                    'student_id' => $studentId,
-                ];
-            }
+            // Build match keys: always use student_id as the unique constraint match point
+            $match = [
+                'assessment_id' => $assessment->id,
+                'student_id' => $studentId,
+            ];
 
-            // Update or create the assessment score record and store both identifiers for compatibility
+            // Update or create the assessment score record
             AssessmentScore::updateOrCreate(
                 $match,
                 [
                     'score' => $score,
                     'remarks' => $remarks,
-                    'student_id' => $studentId,
                     'student_profile_id' => $profile ? $profile->id : null,
                 ]
             );
@@ -367,6 +369,8 @@ class AssessmentController extends Controller
      */
     public function destroy(Classes $class, Assessment $assessment)
     {
+        $this->authorizeTeacherForAssessment($assessment);
+
         $assessment->delete(); // The onDelete('cascade') on the assessment_scores table will handle the rest.
 
         // If AJAX / expects JSON, return JSON response
@@ -386,181 +390,17 @@ class AssessmentController extends Controller
     public function saveGrades(SaveGradesRequest $request, Classes $class): JsonResponse
     {
         try {
-            $quarterLockContext = $this->quarterLockService->contextForSchoolYear((int) $class->school_year_id);
-            $quarterLocks = $quarterLockContext['quarterLocks'];
+            $result = $this->gradeSubmissionService->submitBatch(
+                $class,
+                Auth::user()->teacher,
+                $request->validated('grades', [])
+            );
 
-            $teacher = Auth::user()->teacher;
-            if (! $teacher) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Authenticated user is not a teacher.',
-                ], 403);
+            if (! $result->success) {
+                return response()->json($result->toArray(), $result->statusCode);
             }
 
-            $validatedGrades = $request->validated('grades', []);
-
-            // Preload assessments and students
-            $assessmentIds = collect($validatedGrades)->pluck('assessment_id')->unique();
-            $studentIds = collect($validatedGrades)->pluck('student_id')->unique();
-
-            $assessments = Assessment::whereIn('id', $assessmentIds)
-                ->where('class_id', $class->id)
-                ->where('teacher_id', $teacher->id)
-                ->get()
-                ->keyBy('id');
-
-            $students = $class->students()->with(['profiles' => function ($q) use ($class) {
-                $q->where('school_year_id', $class->school_year_id);
-            }])
-                ->whereIn('students.id', $studentIds)
-                ->get()
-                ->keyBy('id');
-
-            $successCount = 0;
-            $clearedCount = 0;
-            $rejectedCells = [];
-            $affectedCombos = [];
-
-            $scoresToUpsert = [];
-            $scoresToDelete = [];
-
-            foreach ($validatedGrades as $gradeData) {
-                $assessment = $assessments->get($gradeData['assessment_id']);
-
-                if (! $assessment) {
-                    $rejectedCells[] = [
-                        'student_id' => (int) $gradeData['student_id'],
-                        'assessment_id' => (int) $gradeData['assessment_id'],
-                        'reason' => 'Assessment is not accessible for this class/teacher.',
-                    ];
-
-                    continue;
-                }
-
-                $assessmentQuarter = (int) $assessment->quarter;
-                if (($quarterLocks[$assessmentQuarter]['is_locked'] ?? false) === true) {
-                    $rejectedCells[] = [
-                        'student_id' => (int) $gradeData['student_id'],
-                        'assessment_id' => (int) $gradeData['assessment_id'],
-                        'reason' => "Quarter {$assessmentQuarter} is locked. Grade changes are disabled.",
-                    ];
-
-                    continue;
-                }
-
-                $student = $students->get($gradeData['student_id']);
-                if (! $student) {
-                    $rejectedCells[] = [
-                        'student_id' => (int) $gradeData['student_id'],
-                        'assessment_id' => (int) $gradeData['assessment_id'],
-                        'reason' => 'Student record was not found.',
-                    ];
-
-                    continue;
-                }
-
-                $profile = $student->profiles->first();
-                $scoreValue = $gradeData['score'];
-
-                if ($scoreValue === null || $scoreValue === '') {
-                    $scoresToDelete[] = [
-                        'assessment_id' => $assessment->id,
-                        'student_id' => $student->id,
-                    ];
-                } else {
-                    if ($assessment->max_score === null) {
-                        $rejectedCells[] = [
-                            'student_id' => (int) $gradeData['student_id'],
-                            'assessment_id' => (int) $gradeData['assessment_id'],
-                            'reason' => 'Set a maximum score before entering student scores.',
-                        ];
-
-                        continue;
-                    }
-
-                    if ((float) $scoreValue > (float) $assessment->max_score) {
-                        $rejectedCells[] = [
-                            'student_id' => (int) $gradeData['student_id'],
-                            'assessment_id' => (int) $gradeData['assessment_id'],
-                            'reason' => 'Score exceeds the maximum allowed score of '.$assessment->max_score.'.',
-                        ];
-
-                        continue;
-                    }
-
-                    $scoresToUpsert[] = [
-                        'assessment_id' => $assessment->id,
-                        'student_id' => $student->id,
-                        'score' => $scoreValue,
-                        'remarks' => null,
-                        'student_profile_id' => $profile ? $profile->id : null,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                }
-
-                $key = $assessment->subject_id.'-'.$assessment->quarter;
-                if (! isset($affectedCombos[$key])) {
-                    $affectedCombos[$key] = [
-                        'subject_id' => $assessment->subject_id,
-                        'quarter' => (int) $assessment->quarter,
-                        'teacher_id' => $assessment->teacher_id,
-                    ];
-                }
-            }
-
-            // Perform DB operations within a transaction
-            \Illuminate\Support\Facades\DB::transaction(function () use (&$scoresToUpsert, &$scoresToDelete, $class, $affectedCombos, $studentIds, &$successCount, &$clearedCount) {
-                if (! empty($scoresToDelete)) {
-                    foreach (collect($scoresToDelete)->groupBy('assessment_id') as $assessmentId => $deletes) {
-                        $deleted = AssessmentScore::where('assessment_id', $assessmentId)
-                            ->whereIn('student_id', $deletes->pluck('student_id'))
-                            ->delete();
-                        $clearedCount += $deleted;
-                    }
-                }
-
-                if (! empty($scoresToUpsert)) {
-                    AssessmentScore::upsert(
-                        $scoresToUpsert,
-                        ['assessment_id', 'student_id'], // Unique key constraint
-                        ['score', 'remarks', 'student_profile_id', 'updated_at']
-                    );
-                    $successCount += count($scoresToUpsert);
-                }
-
-                // Dispatch jobs for affected subject/quarter
-                foreach ($affectedCombos as $combo) {
-                    \App\Jobs\RecalculateQuarterGradesJob::dispatch(
-                        $class->id,
-                        $combo['subject_id'],
-                        $combo['quarter'],
-                        $combo['teacher_id'],
-                        $class->school_year_id,
-                        $studentIds->toArray()
-                    )->afterCommit();
-                }
-            }, 5);
-
-            $summaryParts = [];
-            if ($successCount > 0) {
-                $summaryParts[] = "{$successCount} grades saved";
-            }
-            if ($clearedCount > 0) {
-                $summaryParts[] = "{$clearedCount} grades cleared";
-            }
-            if (! empty($rejectedCells)) {
-                $summaryParts[] = count($rejectedCells).' grade entries rejected';
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => empty($summaryParts) ? 'No grade changes were saved.' : implode(', ', $summaryParts).'.',
-                'saved_count' => $successCount,
-                'cleared_count' => $clearedCount,
-                'rejected_count' => count($rejectedCells),
-                'rejected_cells' => $rejectedCells,
-            ]);
+            return response()->json($result->toArray());
         } catch (\Throwable $e) {
             report($e);
 
@@ -569,70 +409,6 @@ class AssessmentController extends Controller
                 'message' => 'Unexpected error saving grades.',
             ], 500);
         }
-    }
-
-    // public function exportClassRecord(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
-    // {
-    //     $teacher = Auth::user()->teacher;
-    //     if (! $teacher) {
-    //         abort(403, 'You must be a registered teacher to export class records.');
-    //     }
-
-    //     $validated = $request->validated();
-    //     $quarter = (int) ($validated['quarter'] ?? 0);
-    //     if ($quarter < 1 || $quarter > 4) {
-    //         abort(422, 'A valid quarter is required to export a class record.');
-    //     }
-
-    //     $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
-
-    //     return Excel::download(
-    //         new AssessmentClassRecordExport($class, $subject, $teacher->id, $quarter),
-    //         $this->buildClassRecordFilename($class, $subject, "q{$quarter}")
-    //     );
-    // }
-
-    // public function exportClassRecordAll(ExportClassRecordRequest $request, Classes $class): BinaryFileResponse
-    // {
-    //     $teacher = Auth::user()->teacher;
-    //     if (! $teacher) {
-    //         abort(403, 'You must be a registered teacher to export class records.');
-    //     }
-
-    //     $validated = $request->validated();
-    //     $subject = $this->resolveExportSubject($class, (int) $validated['subject_id'], $teacher->id);
-
-    //     return Excel::download(
-    //         new AssessmentClassRecordWorkbookExport($class, $subject, $teacher->id),
-    //         $this->buildClassRecordFilename($class, $subject, 'all-quarters')
-    //     );
-    // }
-
-    private function resolveExportSubject(Classes $class, int $subjectId, int $teacherId): Subject
-    {
-        $subject = Subject::findOrFail($subjectId);
-        $isClassAdviser = (int) $class->teacher_id === $teacherId;
-        $hasScheduleAccess = $class->schedules()
-            ->where('subject_id', $subjectId)
-            ->where('teacher_id', $teacherId)
-            ->exists();
-
-        if (! $isClassAdviser && ! $hasScheduleAccess) {
-            abort(403, 'You do not have permission to export records for this subject.');
-        }
-
-        return $subject;
-    }
-
-    private function buildClassRecordFilename(Classes $class, Subject $subject, string $scope): string
-    {
-        $class->loadMissing('section');
-
-        $sectionSlug = Str::slug((string) ($class->section?->name ?? "class-{$class->id}"));
-        $subjectSlug = Str::slug((string) ($subject->name ?: "subject-{$subject->id}"));
-        $timestamp = now()->format('Ymd_His');
-
-        return "class-record_{$sectionSlug}_{$subjectSlug}_{$scope}_{$timestamp}.xlsx";
     }
 
     /**
@@ -684,6 +460,18 @@ class AssessmentController extends Controller
         }
 
         $teacher = Auth::user()->teacher;
+
+        $isScheduled = $teacher->schedules()
+            ->where('class_id', $class->id)
+            ->where('subject_id', $request->subject_id)
+            ->exists();
+
+        if (! $isScheduled) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not authorized to add assessments for this subject in this class.',
+            ], 403);
+        }
 
         $assessment = $class->assessments()->create([
             'subject_id' => $request->subject_id,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Helpers\QuarterHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Classes;
 use App\Models\Enrollment;
@@ -23,14 +24,6 @@ use Illuminate\Support\Facades\Log;
 class AnalyticsController extends Controller
 {
     private const ANALYTICS_CACHE_TTL_SECONDS = 300;
-
-    private const RISK_HIGH_THRESHOLD = 70.0;
-
-    private const RISK_MEDIUM_THRESHOLD = 40.0;
-
-    private const ATTENDANCE_DROP_WARNING = 5.0;
-
-    private const ATTENDANCE_DROP_CRITICAL = 10.0;
 
     public function __construct(private TeacherAnalyticsService $analyticsService) {}
 
@@ -207,7 +200,7 @@ class AnalyticsController extends Controller
         $isTeacherRole = (bool) ($authUser && $authUser->hasRole('teacher'));
         $teacher = Teacher::where('user_id', Auth::id())->first();
 
-        $scopeContext = $this->resolveAccessibleClassScope($activeSchoolYear, $isTeacherRole, $teacher);
+        $scopeContext = $this->analyticsService->resolveAccessibleClassScope($activeSchoolYear, $isTeacherRole, $teacher);
         $availableClassIds = $scopeContext['class_ids'];
 
         if ($availableClassIds->isEmpty()) {
@@ -253,8 +246,8 @@ class AnalyticsController extends Controller
             'method' => 'python_label_raw_probability',
             'display_range' => ['min' => 0.0, 'max' => 100.0],
             'thresholds' => [
-                'high' => self::RISK_HIGH_THRESHOLD,
-                'medium' => self::RISK_MEDIUM_THRESHOLD,
+                'high' => TeacherAnalyticsService::RISK_HIGH_THRESHOLD,
+                'medium' => TeacherAnalyticsService::RISK_MEDIUM_THRESHOLD,
             ],
             'note' => 'Risk labels and percentages follow Python model output.',
         ];
@@ -466,11 +459,11 @@ class AnalyticsController extends Controller
         }
 
         // Fallback if Python response does not provide a label.
-        if ($rawRisk >= self::RISK_HIGH_THRESHOLD) {
+        if ($rawRisk >= TeacherAnalyticsService::RISK_HIGH_THRESHOLD) {
             return 'High';
         }
 
-        if ($rawRisk >= self::RISK_MEDIUM_THRESHOLD) {
+        if ($rawRisk >= TeacherAnalyticsService::RISK_MEDIUM_THRESHOLD) {
             return 'Medium';
         }
 
@@ -669,16 +662,7 @@ class AnalyticsController extends Controller
 
     private function quarterSearchValues(int $quarterNumber): array
     {
-        $quarterNumber = max(1, min(4, $quarterNumber));
-
-        $labelMap = [
-            1 => ['1', 'Q1', '1ST QUARTER', 'FIRST QUARTER'],
-            2 => ['2', 'Q2', '2ND QUARTER', 'SECOND QUARTER'],
-            3 => ['3', 'Q3', '3RD QUARTER', 'THIRD QUARTER'],
-            4 => ['4', 'Q4', '4TH QUARTER', 'FOURTH QUARTER'],
-        ];
-
-        return $labelMap[$quarterNumber];
+        return QuarterHelper::searchValues($quarterNumber);
     }
 
     private function buildStudentClassMap(array $studentIds, Collection $classIds, int $schoolYearId): array
@@ -726,13 +710,13 @@ class AnalyticsController extends Controller
             }
 
             $drop = round($attPast1 - $attCurrent, 1);
-            if ($drop < self::ATTENDANCE_DROP_WARNING) {
+            if ($drop < TeacherAnalyticsService::ATTENDANCE_DROP_WARNING) {
                 continue;
             }
 
             $studentId = isset($row['Student_ID']) ? (int) $row['Student_ID'] : 0;
             $displayRisk = $this->toFloat($row['display_prob_highrisk_pct'] ?? null, 1);
-            $severity = $drop >= self::ATTENDANCE_DROP_CRITICAL ? 'critical' : 'warning';
+            $severity = $drop >= TeacherAnalyticsService::ATTENDANCE_DROP_CRITICAL ? 'critical' : 'warning';
             $classData = $studentClassMap[$studentId] ?? ['class_id' => null, 'class_label' => 'N/A'];
 
             $rows[] = [
@@ -787,7 +771,7 @@ class AnalyticsController extends Controller
             $drop = ($attCurrent !== null && $attPast1 !== null) ? round($attPast1 - $attCurrent, 1) : null;
 
             $reasonTags = [];
-            if ($drop !== null && $drop >= self::ATTENDANCE_DROP_WARNING) {
+            if ($drop !== null && $drop >= TeacherAnalyticsService::ATTENDANCE_DROP_WARNING) {
                 $reasonTags[] = "Attendance dropped by {$drop} points vs previous month";
             }
             if ($displayRiskLabel === 'High') {
@@ -799,7 +783,7 @@ class AnalyticsController extends Controller
             }
 
             $severity = 'warning';
-            if (($drop !== null && $drop >= self::ATTENDANCE_DROP_CRITICAL) || $displayRiskLabel === 'High') {
+            if (($drop !== null && $drop >= TeacherAnalyticsService::ATTENDANCE_DROP_CRITICAL) || $displayRiskLabel === 'High') {
                 $severity = 'critical';
             }
 

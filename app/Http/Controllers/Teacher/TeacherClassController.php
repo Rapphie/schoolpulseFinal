@@ -379,6 +379,21 @@ class TeacherClassController extends Controller
     public function getStudentsForSection(Section $section)
     {
         try {
+            $teacher = Auth::user()->teacher;
+            if (! $teacher) {
+                abort(403, 'Unauthorized');
+            }
+
+            $hasAccess = Classes::where('section_id', $section->id)
+                ->where(function ($query) use ($teacher) {
+                    $query->where('teacher_id', $teacher->id)
+                        ->orWhereHas('schedules', fn ($q) => $q->where('teacher_id', $teacher->id));
+                })->exists();
+
+            if (! $hasAccess) {
+                abort(403, 'Unauthorized access to this section.');
+            }
+
             $students = Student::where('section_id', $section->id)->get();
 
             return response()->json($students);
@@ -419,6 +434,21 @@ class TeacherClassController extends Controller
     public function getGradesForSection(Section $section)
     {
         try {
+            $teacher = Auth::user()->teacher;
+            if (! $teacher) {
+                abort(403, 'Unauthorized');
+            }
+
+            $hasAccess = Classes::where('section_id', $section->id)
+                ->where(function ($query) use ($teacher) {
+                    $query->where('teacher_id', $teacher->id)
+                        ->orWhereHas('schedules', fn ($q) => $q->where('teacher_id', $teacher->id));
+                })->exists();
+
+            if (! $hasAccess) {
+                abort(403, 'Unauthorized access to this section.');
+            }
+
             $grades = Grade::whereHas('student', function ($query) use ($section) {
                 $query->where('section_id', $section->id);
             })
@@ -439,6 +469,11 @@ class TeacherClassController extends Controller
     public function getStudentsBySection(Section $section)
     {
         try {
+            $teacher = Auth::user()->teacher;
+            if (! $teacher) {
+                abort(403, 'Unauthorized');
+            }
+
             $activeSchoolYear = SchoolYear::where('is_active', true)->firstOrFail();
 
             $class = Classes::where('section_id', $section->id)
@@ -447,6 +482,11 @@ class TeacherClassController extends Controller
 
             if (! $class) {
                 return response()->json([]);
+            }
+
+            if ((int) $class->teacher_id !== (int) $teacher->id &&
+                ! $class->schedules()->where('teacher_id', $teacher->id)->exists()) {
+                abort(403, 'Unauthorized access to this section.');
             }
 
             $students = Student::whereHas('enrollments', function ($query) use ($class) {
