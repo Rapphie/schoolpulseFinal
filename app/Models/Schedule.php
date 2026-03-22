@@ -20,11 +20,14 @@ class Schedule extends Model
         'room',
     ];
 
-    protected $casts = [
-        'start_time' => 'datetime:H:i:s',
-        'end_time' => 'datetime:H:i:s',
-        'day_of_week' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'start_time' => 'datetime:H:i:s',
+            'end_time' => 'datetime:H:i:s',
+            'day_of_week' => 'array',
+        ];
+    }
 
     public function class(): BelongsTo
     {

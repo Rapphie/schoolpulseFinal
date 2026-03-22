@@ -27,10 +27,13 @@ class Student extends Model
         'family_income',
     ];
 
-    protected $casts = [
-        'birthdate' => 'date',
-        'enrollment_date' => 'date',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'birthdate' => 'date',
+            'enrollment_date' => 'date',
+        ];
+    }
 
     public function guardian(): BelongsTo
     {

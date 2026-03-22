@@ -26,9 +26,12 @@ class StudentProfile extends Model
         return $this->belongsTo(Teacher::class, 'created_by_teacher_id');
     }
 
-    protected $casts = [
-        'final_average' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'final_average' => 'decimal:2',
+        ];
+    }
 
     /**
      * The student this profile belongs to.

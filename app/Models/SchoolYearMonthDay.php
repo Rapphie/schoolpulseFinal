@@ -30,10 +30,13 @@ class SchoolYearMonthDay extends Model
         'school_days',
     ];
 
-    protected $casts = [
-        'month' => 'integer',
-        'school_days' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'month' => 'integer',
+            'school_days' => 'integer',
+        ];
+    }
 
     public function schoolYear(): BelongsTo
     {

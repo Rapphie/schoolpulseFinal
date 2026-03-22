@@ -16,9 +16,12 @@ class GradeLevel extends Model
         'description',
     ];
 
-    protected $casts = [
-        'level' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'level' => 'integer',
+        ];
+    }
 
     public function sections(): HasMany
     {

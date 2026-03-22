@@ -20,14 +20,17 @@ class SchoolYearQuarter extends Model
         'is_manually_set_active',
     ];
 
-    protected $casts = [
-        'quarter' => 'integer',
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'grade_submission_deadline' => 'date',
-        'is_locked' => 'boolean',
-        'is_manually_set_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'quarter' => 'integer',
+            'start_date' => 'date',
+            'end_date' => 'date',
+            'grade_submission_deadline' => 'date',
+            'is_locked' => 'boolean',
+            'is_manually_set_active' => 'boolean',
+        ];
+    }
 
     /**
      * Quarter name labels.

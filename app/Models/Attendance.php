@@ -29,10 +29,13 @@ class Attendance extends Model
         'school_year_id',
     ];
 
-    protected $casts = [
-        'date' => 'date',
-        'time_in' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'date' => 'date',
+            'time_in' => 'datetime',
+        ];
+    }
 
     public function subject(): BelongsTo
     {

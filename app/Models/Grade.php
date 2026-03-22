@@ -33,9 +33,12 @@ class Grade extends Model
 
     protected $keyType = 'int';
 
-    protected $casts = [
-        'grade' => 'float',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'grade' => 'float',
+        ];
+    }
 
     public function student(): BelongsTo
     {

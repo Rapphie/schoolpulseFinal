@@ -20,12 +20,15 @@ class SchoolYear extends Model
         'is_promotion_open',
     ];
 
-    protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'is_active' => 'boolean',
-        'is_promotion_open' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'start_date' => 'date',
+            'end_date' => 'date',
+            'is_active' => 'boolean',
+            'is_promotion_open' => 'boolean',
+        ];
+    }
 
     protected static function booted(): void
     {

@@ -18,9 +18,12 @@ class Section extends Model
         'description',
     ];
 
-    protected $casts = [
-        'grade_level_id' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'grade_level_id' => 'integer',
+        ];
+    }
 
     public function gradeLevel(): BelongsTo
     {

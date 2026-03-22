@@ -18,9 +18,12 @@ class Enrollment extends Model
         'status',
     ];
 
-    protected $casts = [
-        'enrollment_date' => 'date',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'enrollment_date' => 'date',
+        ];
+    }
 
     public function student(): BelongsTo
     {

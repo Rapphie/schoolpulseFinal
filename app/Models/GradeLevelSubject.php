@@ -25,12 +25,15 @@ class GradeLevelSubject extends Model
         'quarterly_assessments_weight',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-        'written_works_weight' => 'integer',
-        'performance_tasks_weight' => 'integer',
-        'quarterly_assessments_weight' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+            'written_works_weight' => 'integer',
+            'performance_tasks_weight' => 'integer',
+            'quarterly_assessments_weight' => 'integer',
+        ];
+    }
 
     public function gradeLevel(): BelongsTo
     {
