@@ -24,11 +24,6 @@ class Classes extends Model
         return $this->belongsTo(Section::class);
     }
 
-    public function sections(): BelongsTo
-    {
-        return $this->belongsTo(Section::class);
-    }
-
     public function schoolYear(): BelongsTo
     {
         return $this->belongsTo(SchoolYear::class, 'school_year_id');
