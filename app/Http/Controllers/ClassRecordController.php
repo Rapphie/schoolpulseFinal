@@ -115,14 +115,5 @@ class ClassRecordController extends Controller
         } catch (\Throwable $th) {
             return response()->json(['error' => true, 'message' => 'Failed to save class record: '.$th->getMessage()]);
         }
-
-        // foreach ($allStudents as $studentData) {
-        //     $student = Student::firstOrNew(['lrn' => $studentData['lrn']]);
-        //     $student->first_name = $studentData['first_name'];
-        //     $student->last_name = $studentData['last_name'];
-        //     $student->gender = $studentData['gender'];
-        //     $student->teacher_id = $teacherId;
-        //     $student->save();
-        // }
     }
 }
