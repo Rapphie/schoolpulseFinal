@@ -935,10 +935,13 @@
             function collectDirtyGradePayload() {
                 const payload = [];
                 dirtyGrades.forEach((gradePayload, key) => {
-                    const $input = getGradeInputByCoordinates(gradePayload.student_id, gradePayload.assessment_id);
-                    const quarter = parseInt($input.data('quarter'), 10);
+                    const quarter = gradePayload.quarter;
                     if (!invalidCells.has(key) && !isQuarterLocked(quarter)) {
-                        payload.push(gradePayload);
+                        payload.push({
+                            student_id: gradePayload.student_id,
+                            assessment_id: gradePayload.assessment_id,
+                            score: gradePayload.score
+                        });
                     }
                 });
 
@@ -974,6 +977,7 @@
                     student_id: validation.studentId,
                     assessment_id: validation.assessmentId,
                     score: validation.normalizedScore,
+                    quarter: validation.quarter
                 };
 
                 dirtyGrades.set(key, payload);
@@ -1380,8 +1384,6 @@
 
                 // Mark dirty regardless of event origin to catch pasted values/JS changes
                 markInputDirty($input);
-                refreshInputValidationState($input);
-                syncSaveStateBadge();
 
                 const $row = $(this).closest('tr');
                 const quarter = $(this).closest('.tab-pane').attr('id').replace('quarter', '');
@@ -2240,9 +2242,6 @@
 
                         input.value = colText.trim();
                         input.dispatchEvent(new Event('input', {
-                            bubbles: true,
-                        }));
-                        input.dispatchEvent(new Event('change', {
                             bubbles: true,
                         }));
                     });
