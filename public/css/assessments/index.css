@@ -1,0 +1,280 @@
+        .grade-table {
+            font-size: 12px;
+        }
+
+        .grade-table th,
+        .grade-table td {
+            padding: 2px;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid #dee2e6;
+            min-width: 26px;
+        }
+
+        .grade-input {
+            width: 36px;
+            height: 22px;
+            text-align: center;
+            border: none;
+            background: transparent;
+            font-size: 9px;
+            border-radius: 0;
+            font-weight: 600;
+        }
+
+        .grade-input:focus {
+            outline: 2px solid #007bff;
+            border-radius: 2px;
+        }
+
+        .grade-input::-webkit-outer-spin-button,
+        .grade-input::-webkit-inner-spin-button,
+        .max-score-input::-webkit-outer-spin-button,
+        .max-score-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .grade-input[type='number'],
+        .max-score-input[type='number'] {
+            -moz-appearance: textfield;
+        }
+
+        .calculated-field {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .grade-table,
+        .grade-table td.student-name {
+            text-align: left;
+            font-weight: bold;
+            min-width: 220px;
+            background-color: #f8f9fa;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+
+        .grade-table thead .student-name {
+            z-index: 12;
+        }
+
+        .gender-group-row td {
+            background-color: #e9ecef !important;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            cursor: not-allowed;
+        }
+
+        .gender-group-label {
+            text-align: left !important;
+            position: sticky;
+            left: 0;
+            z-index: 11;
+        }
+
+        .student-search-toolbar {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .grade-save-status {
+            min-width: 170px;
+            text-align: center;
+            cursor: default;
+        }
+
+        .grade-save-status.retry {
+            cursor: pointer;
+        }
+
+        .grade-input-dirty {
+            background-color: #fff3cd;
+            box-shadow: inset 0 0 0 1px #ffc107;
+        }
+
+        .grade-input.is-invalid {
+            background-color: #f8d7da;
+            box-shadow: inset 0 0 0 1px #dc3545;
+        }
+
+        .grade-input.grade-input-selected {
+            background-color: #cfe2ff;
+            box-shadow: inset 0 0 0 1px #0d6efd;
+        }
+
+        .grade-cell-selected {
+            background-color: #cfe2ff !important;
+            box-shadow: inset 0 0 0 1px #0d6efd;
+        }
+
+        /* Disable card hover transform to keep fixed save button position stable */
+        .grade-management-card {
+            transform: none !important;
+            cursor: default !important;
+        }
+
+        .grade-management-card:hover {
+            transform: none !important;
+        }
+
+        .assessment-header {
+            background-color: #e9ecef;
+            font-weight: bold;
+            font-size: 9px;
+            min-width: 26px;
+        }
+
+        .quarter-header {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+
+        .type-header {
+            background-color: #6c757d;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .percentage-col {
+            background-color: #fff3cd;
+        }
+
+        .grade-col {
+            background-color: #d1ecf1;
+        }
+
+        .save-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .grade-management-card:fullscreen,
+        .grade-management-card:-webkit-full-screen,
+        .grade-management-card.grade-card-fullscreen {
+            height: 100vh;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .grade-management-card.grade-card-fullscreen {
+            position: fixed;
+            inset: 0;
+            z-index: 1055;
+            border-radius: 0;
+        }
+
+        .grade-management-card:fullscreen .table-responsive,
+        .grade-management-card:-webkit-full-screen .table-responsive,
+        .grade-management-card.grade-card-fullscreen .table-responsive {
+            max-height: calc(100vh - 170px);
+        }
+
+        .grade-management-card:fullscreen .save-btn,
+        .grade-management-card:-webkit-full-screen .save-btn,
+        .grade-management-card.grade-card-fullscreen .save-btn {
+            z-index: 1060;
+        }
+
+        .highest-score-row {
+            background-color: #e9ecef;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .nav-tabs-lg .nav-link {
+            padding: 12px 20px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .nav-tabs-lg .nav-link.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .tab-content {
+            min-height: 400px;
+        }
+
+        .table-responsive {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .max-score-input {
+            font-size: 10px;
+            color: #495057;
+        }
+
+        .max-score-input:focus {
+            outline: 2px solid #007bff;
+            background-color: white;
+        }
+
+        .oral-participation-cell {
+            background-color: #d4edda !important;
+            cursor: not-allowed;
+        }
+
+        .oral-participation-cell input {
+            background-color: #d4edda !important;
+            cursor: not-allowed;
+            color: #155724;
+        }
+
+        .oral-participation-header {
+            background-color: #28a745 !important;
+            color: white !important;
+        }
+
+        .oral-participation-link {
+            font-size: 8px;
+            display: block;
+            color: #155724;
+        }
+
+        .student-highlight {
+            animation: studentHighlightFade 0.8s ease-in-out alternate;
+            animation-iteration-count: 6;
+            background-color: #fff3cd !important;
+        }
+
+        @keyframes studentHighlightFade {
+            from {
+                background-color: #fff3cd;
+            }
+
+            to {
+                background-color: #ffe8a1;
+            }
+        }
+
+        body.selecting-range {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .locked-cell {
+            background-color: #f8f9fa;
+        }
+
+        .grade-input.readonly,
+        .max-score-input.readonly {
+            cursor: not-allowed;
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+
+        .grade-input.readonly:focus,
+        .max-score-input.readonly:focus {
+            outline: 1px dashed #6c757d;
+        }
