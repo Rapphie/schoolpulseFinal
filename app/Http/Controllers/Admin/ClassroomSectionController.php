@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\WelcomeEmail;
 use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Enrollment;
@@ -994,12 +995,14 @@ class ClassroomSectionController extends Controller
                         'role_id' => 3,
                     ]);
                 }
-
+                $plainPassword = '12345678';
                 if ($guardian) {
                     $guardian->update([
                         'phone' => array_key_exists('guardian_phone', $validated) ? $validated['guardian_phone'] : $guardian->phone,
                         'relationship' => $validated['guardian_relationship'],
                     ]);
+                    Mail::to($guardianUser->email)->queue(new WelcomeEmail($guardianUser, $plainPassword));
+
                 } else {
                     $guardian = Guardian::create([
                         'user_id' => $guardianUser->id,
