@@ -15,6 +15,7 @@ use App\Models\SchoolYear;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Services\AssessmentWeightService;
 use App\Services\QuarterLockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,18 +26,15 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AssessmentController extends Controller
 {
-    public function __construct(private QuarterLockService $quarterLockService) {}
+    public function __construct(
+        private QuarterLockService $quarterLockService,
+        private AssessmentWeightService $assessmentWeightService
+    ) {}
 
     private const DEFAULT_ASSESSMENT_COUNTS = [
         'written_works' => 10,
         'performance_tasks' => 10,
         'quarterly_assessments' => 1,
-    ];
-
-    private const ASSESSMENT_TYPE_WEIGHTS = [
-        'written_works' => 0.20,
-        'performance_tasks' => 0.60,
-        'quarterly_assessments' => 0.20,
     ];
 
     private const ASSESSMENT_TYPE_LABELS = [
@@ -231,7 +229,8 @@ class AssessmentController extends Controller
             'assessments' => $assessments,
             'highlightStudentId' => $highlightStudentId,
             'fixedAssessmentCounts' => self::DEFAULT_ASSESSMENT_COUNTS,
-            'assessmentTypeWeights' => self::ASSESSMENT_TYPE_WEIGHTS,
+            'assessmentTypeWeights' => $this->assessmentWeightService->getDecimalWeights($class, $selectedSubject->id),
+            'assessmentTypePercentages' => $this->assessmentWeightService->getPercentageWeights($class, $selectedSubject->id),
             'assessmentTypeLabels' => self::ASSESSMENT_TYPE_LABELS,
             'activeQuarter' => $activeQuarter,
             'quarterLocks' => $quarterLocks,
@@ -882,4 +881,83 @@ class AssessmentController extends Controller
     /**
      * Recalculate and persist quarter grades for all students in a class for a given subject & quarter.
      */
+
+    /**
+     * Update the assessment weights for a specific class and subject.
+     */
+    public function updateWeights(Request $request, Classes $class)
+    {
+        $teacher = Auth::user()->teacher;
+        if (! $teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You must be a registered teacher to update weights.',
+            ], 403);
+        }
+
+        $request->validate([
+            'subject_id' => 'required|exists:subjects,id',
+            'written_works' => 'required|integer|min:0|max:100',
+            'performance_tasks' => 'required|integer|min:0|max:100',
+            'quarterly_assessments' => 'required|integer|min:0|max:100',
+            'is_default' => 'boolean',
+        ]);
+
+        $isDefault = filter_var($request->is_default, FILTER_VALIDATE_BOOLEAN);
+        $totalWeight = $request->written_works + $request->performance_tasks + $request->quarterly_assessments;
+
+        if (! $isDefault && $totalWeight !== 100) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The total weight must equal exactly 100%. Currently it is '.$totalWeight.'%.',
+            ], 422);
+        }
+
+        $subjectId = $request->subject_id;
+
+        // If 'is_default' is true, the teacher wants to revert to the admin defaults
+        if ($isDefault) {
+            \App\Models\ClassSubjectWeight::where('class_id', $class->id)
+                ->where('subject_id', $subjectId)
+                ->delete();
+        } else {
+            \App\Models\ClassSubjectWeight::updateOrCreate(
+                [
+                    'class_id' => $class->id,
+                    'subject_id' => $subjectId,
+                ],
+                [
+                    'written_works_weight' => $request->written_works,
+                    'performance_tasks_weight' => $request->performance_tasks,
+                    'quarterly_assessments_weight' => $request->quarterly_assessments,
+                ]
+            );
+        }
+
+        // Recalculate all 4 quarters since weights changed
+        $studentIds = $class->students()->pluck('students.id')->toArray();
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            if (! $this->quarterLockService->isLocked((int) $class->school_year_id, $quarter)) {
+                \App\Jobs\RecalculateQuarterGradesJob::dispatch(
+                    $class->id,
+                    $subjectId,
+                    $quarter,
+                    $teacher->id,
+                    $class->school_year_id,
+                    $studentIds
+                )->afterResponse();
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Assessment weights updated successfully. Grades are being recalculated.',
+            'weights' => [
+                'written_works' => $request->written_works,
+                'performance_tasks' => $request->performance_tasks,
+                'quarterly_assessments' => $request->quarterly_assessments,
+            ],
+            'is_custom' => ! $isDefault,
+        ]);
+    }
 }

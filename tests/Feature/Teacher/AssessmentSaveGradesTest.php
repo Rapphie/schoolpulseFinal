@@ -207,7 +207,7 @@ class AssessmentSaveGradesTest extends TestCase
             'teacher_id' => $this->teacher->id,
             'school_year_id' => $this->activeSchoolYear->id,
             'quarter' => '1',
-            'grade' => 62,
+            'grade' => 64,
         ]);
 
         $this->assertDatabaseHas('grades', [

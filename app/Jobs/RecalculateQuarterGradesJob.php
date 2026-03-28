@@ -40,7 +40,7 @@ class RecalculateQuarterGradesJob implements ShouldQueue
         ];
     }
 
-    public function handle(): void
+    public function handle(\App\Services\AssessmentWeightService $assessmentWeightService): void
     {
         // Eager load students and their profiles for this specific school year
         $class = Classes::with(['students' => function ($query) {
@@ -107,11 +107,7 @@ class RecalculateQuarterGradesJob implements ShouldQueue
 
         $gradesToUpsert = [];
 
-        $weights = [
-            'written_works' => 0.20,
-            'performance_tasks' => 0.60,
-            'quarterly_assessments' => 0.20,
-        ];
+        $weights = $assessmentWeightService->getDecimalWeights($class, $this->subjectId);
 
         foreach ($students as $student) {
             $profile = $student->profiles->first();

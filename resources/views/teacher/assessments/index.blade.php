@@ -62,12 +62,18 @@
             </div>
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-primary btn-sm" id="openRecitationMode" data-bs-toggle="modal"
-                    data-bs-target="#recitationModeModal" @disabled($initialQuarterLocked)>
+                    data-bs-target="#recitationModeModal">
                     <i class="fas fa-chalkboard-teacher me-1"></i> Recitation Mode
                 </button>
+                <button type="button" id="configureWeightsBtn"
+                    class="btn btn-secondary btn-sm text-white {{ $areAllQuartersLocked ? 'disabled' : '' }}"
+                    data-bs-toggle="modal"
+                    data-bs-target="#configureWeightsModal">
+                    <i class="fas fa-balance-scale me-1"></i> Configure Weights
+                </button>
                 <a href="{{ route('teacher.oral-participation.index', $class) }}@if ($selectedSubject) ?subject_id={{ $selectedSubject->id }} @endif"
-                    id="manageOralParticipationLink" class="btn btn-outline-primary btn-sm {{ $initialQuarterLocked ? 'disabled' : '' }}"
-                    title="Manage Oral Participation" @if ($initialQuarterLocked) aria-disabled="true" tabindex="-1" @endif>
+                    id="manageOralParticipationLink" class="btn btn-outline-primary btn-sm {{ $areAllQuartersLocked ? 'disabled' : '' }}"
+                    title="Manage Oral Participation" @if ($areAllQuartersLocked) aria-disabled="true" tabindex="-1" @endif>
                     <i class="fas fa-external-link-alt"></i>
                 </a>
             </div>
@@ -153,11 +159,66 @@
                         </div>
                         <div>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="button" class="btn btn-primary" id="applyRecitationScores" @disabled($initialQuarterLocked)>
+                            <button type="button" class="btn btn-primary" id="applyRecitationScores">
                                 <i class="fas fa-check-circle me-2"></i> Apply & Save
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configure Weights Modal -->
+        <div class="modal fade" id="configureWeightsModal" tabindex="-1" aria-labelledby="configureWeightsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form id="configureWeightsForm">
+                        @csrf
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title" id="configureWeightsModalLabel">
+                                <i class="fas fa-balance-scale me-2"></i> Configure Assessment Weights
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info py-2 px-3 small">
+                                <strong>Note:</strong> Modifying these weights will apply ONLY to this specific class and subject for the current school year. All grades will be recalculated upon save.
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="useDefaultWeights" {{ !$assessmentTypePercentages['is_custom'] ? 'checked' : '' }}>
+                                <label class="form-check-label fw-bold" for="useDefaultWeights">Use Grade Level Default Weights</label>
+                            </div>
+
+                            <div id="customWeightsContainer" class="{{ !$assessmentTypePercentages['is_custom'] ? 'opacity-50' : '' }}" style="transition: opacity 0.3s;">
+                                <div class="mb-3">
+                                    <label for="wwWeight" class="form-label">Written Works (%)</label>
+                                    <input type="number" class="form-control weight-input" id="wwWeight" name="written_works"
+                                        value="{{ $assessmentTypePercentages['written_works'] }}" min="0" max="100" {{ !$assessmentTypePercentages['is_custom'] ? 'readonly' : '' }} required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="ptWeight" class="form-label">Performance Tasks (%)</label>
+                                    <input type="number" class="form-control weight-input" id="ptWeight" name="performance_tasks"
+                                        value="{{ $assessmentTypePercentages['performance_tasks'] }}" min="0" max="100" {{ !$assessmentTypePercentages['is_custom'] ? 'readonly' : '' }} required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="qaWeight" class="form-label">Quarterly Assessment (%)</label>
+                                    <input type="number" class="form-control weight-input" id="qaWeight" name="quarterly_assessments"
+                                        value="{{ $assessmentTypePercentages['quarterly_assessments'] }}" min="0" max="100" {{ !$assessmentTypePercentages['is_custom'] ? 'readonly' : '' }} required>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center mt-4">
+                                    <span class="fw-bold fs-5">Total:</span>
+                                    <span class="fw-bold fs-5" id="totalWeightDisplay">{{ collect($assessmentTypePercentages)->except('is_custom')->sum() }}%</span>
+                                </div>
+                                <div class="text-danger small mt-1 d-none" id="weightErrorText">Total weight must be exactly 100%.</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="saveWeightsBtn">Save & Recalculate</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -590,7 +651,6 @@
             let autoSaveTimeout = null;
             let isSaving = false;
             let pendingManualSave = false;
-            // Convert PHP weights (with underscores) to JS format (with dashes)
             const typeWeights = {
                 @foreach ($assessmentTypeWeights as $type => $weight)
                     '{{ str_replace('_', '-', $type) }}': {{ $weight }},
@@ -2247,6 +2307,106 @@
                     });
                 });
             });
+
+            // Configure Weights Logic
+            const useDefaultWeightsCheckbox = document.getElementById('useDefaultWeights');
+            const customWeightsContainer = document.getElementById('customWeightsContainer');
+            const weightInputs = document.querySelectorAll('.weight-input');
+            const totalWeightDisplay = document.getElementById('totalWeightDisplay');
+            const weightErrorText = document.getElementById('weightErrorText');
+            const saveWeightsBtn = document.getElementById('saveWeightsBtn');
+
+            if (useDefaultWeightsCheckbox) {
+                useDefaultWeightsCheckbox.addEventListener('change', function() {
+                    const isDefault = this.checked;
+                    if (isDefault) {
+                        customWeightsContainer.classList.add('opacity-50');
+                        weightInputs.forEach(input => {
+                            input.readOnly = true;
+                        });
+                        weightErrorText.classList.add('d-none');
+                        saveWeightsBtn.disabled = false;
+                    } else {
+                        customWeightsContainer.classList.remove('opacity-50');
+                        weightInputs.forEach(input => input.readOnly = false);
+                        validateTotalWeight();
+                    }
+                });
+            }
+
+            function validateTotalWeight() {
+                if (useDefaultWeightsCheckbox && useDefaultWeightsCheckbox.checked) return;
+
+                let total = 0;
+                weightInputs.forEach(input => {
+                    total += parseInt(input.value) || 0;
+                });
+
+                totalWeightDisplay.textContent = total + '%';
+
+                if (total !== 100) {
+                    weightErrorText.classList.remove('d-none');
+                    totalWeightDisplay.classList.add('text-danger');
+                    saveWeightsBtn.disabled = true;
+                } else {
+                    weightErrorText.classList.add('d-none');
+                    totalWeightDisplay.classList.remove('text-danger');
+                    saveWeightsBtn.disabled = false;
+                }
+            }
+
+            if (weightInputs.length) {
+                weightInputs.forEach(input => {
+                    input.addEventListener('input', validateTotalWeight);
+                });
+            }
+
+            const configureWeightsForm = document.getElementById('configureWeightsForm');
+            if (configureWeightsForm) {
+                configureWeightsForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const btn = document.getElementById('saveWeightsBtn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+                    btn.disabled = true;
+
+                    const formData = new FormData(this);
+
+                    @if($selectedSubject)
+                    formData.append('subject_id', '{{ $selectedSubject->id }}');
+                    @endif
+                    formData.append('is_default', useDefaultWeightsCheckbox.checked ? 1 : 0);
+
+                    fetch('{{ route('teacher.assessments.updateWeights', $class) }}', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json',
+                            },
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                window.showToast(data.message, 'success');
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1500);
+                            } else {
+                                window.showToast(data.message || 'An error occurred.', 'danger');
+                                btn.innerHTML = originalText;
+                                btn.disabled = false;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            window.showToast('A network or server error occurred.', 'danger');
+                            btn.innerHTML = originalText;
+                            btn.disabled = false;
+                        });
+                });
+            }
         });
     </script>
 @endpush

@@ -1,0 +1,43 @@
+
+   FAIL  Tests\Feature\Teacher\AssessmentSaveGradesTest
+  ⨯ teacher can sav… 0.34s  
+  ✓ save grades rep… 0.06s  
+  ✓ save grades han… 0.05s  
+  ✓ clearing score…  0.09s  
+  ────────────────────────  
+   FAILED  Tests\Feature…   
+  Failed asserting that a row in the table [grades] matches the attributes {
+    "student_id": 4151,
+    "subject_id": 3459,
+    "teacher_id": 3390,
+    "school_year_id": 5265,
+    "quarter": "1",
+    "grade": 62
+}.
+
+Found similar results: [
+    {
+        "student_id": 4151,
+        "subject_id": 3459,
+        "teacher_id": 3390,
+        "school_year_id": 5265,
+        "quarter": "1",
+        "grade": 64
+    }
+].
+
+  at tests\Feature\Teacher\AssessmentSaveGradesTest.php:204
+    200▕             'assessment_id' => $this->assessment->id,
+    201▕             'student_id' => $this->studentB->id,
+    202▕         ]);
+    203▕ 
+  ➜ 204▕         $this->assertDatabaseHas('grades', [
+    205▕             'student_id' => $this->studentA->id,
+    206▕             'subject_id' => $this->subject->id,
+    207▕             'teacher_id' => $this->teacher->id,
+    208▕             'school_year_id' => $this->activeSchoolYear->id,
+
+
+  Tests:    1 failed, 3 passed (29 assertions)
+  Duration: 0.65s
+

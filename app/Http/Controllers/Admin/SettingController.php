@@ -133,15 +133,48 @@ class SettingController extends Controller
      */
     private function updateAssessmentWeights(array $weights): void
     {
+        $updatedSubjectIds = [];
+
         foreach ($weights as $id => $data) {
             $gradeLevelSubject = GradeLevelSubject::query()->find($id);
 
             if ($gradeLevelSubject) {
-                $gradeLevelSubject->update([
-                    'written_works_weight' => (int) $data['written_works_weight'],
-                    'performance_tasks_weight' => (int) $data['performance_tasks_weight'],
-                    'quarterly_assessments_weight' => (int) $data['quarterly_assessments_weight'],
-                ]);
+                $changed = $gradeLevelSubject->written_works_weight !== (int) $data['written_works_weight'] ||
+                           $gradeLevelSubject->performance_tasks_weight !== (int) $data['performance_tasks_weight'] ||
+                           $gradeLevelSubject->quarterly_assessments_weight !== (int) $data['quarterly_assessments_weight'];
+
+                if ($changed) {
+                    $gradeLevelSubject->update([
+                        'written_works_weight' => (int) $data['written_works_weight'],
+                        'performance_tasks_weight' => (int) $data['performance_tasks_weight'],
+                        'quarterly_assessments_weight' => (int) $data['quarterly_assessments_weight'],
+                    ]);
+                    $updatedSubjectIds[] = $gradeLevelSubject->subject_id;
+                }
+            }
+        }
+
+        if (count($updatedSubjectIds) > 0) {
+            $activeSchoolYear = SchoolYear::where('is_active', true)->first();
+            if ($activeSchoolYear) {
+                $quarterLockService = app(\App\Services\QuarterLockService::class);
+
+                $assessmentsGrouped = \App\Models\Assessment::whereIn('subject_id', $updatedSubjectIds)
+                    ->where('school_year_id', $activeSchoolYear->id)
+                    ->select('class_id', 'subject_id', 'quarter', 'teacher_id')
+                    ->distinct()
+                    ->get();
+
+                foreach ($assessmentsGrouped as $agg) {
+                    // We bypass the lock check for admin weight changes to ensure consistency across the whole school year
+                    \App\Jobs\RecalculateQuarterGradesJob::dispatch(
+                        $agg->class_id,
+                        $agg->subject_id,
+                        $agg->quarter,
+                        $agg->teacher_id,
+                        $activeSchoolYear->id
+                    );
+                }
             }
         }
     }

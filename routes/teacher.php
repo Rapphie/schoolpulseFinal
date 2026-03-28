@@ -63,6 +63,7 @@ Route::group(['middleware' => ['auth', 'password.force-change', 'role:teacher']]
             Route::post('/{class}/quick-add', [AssessmentController::class, 'quickAddAssessment'])->name('quickAdd');
             Route::post('/{class}/update-max-score', [AssessmentController::class, 'updateMaxScore'])->name('updateMaxScore');
             Route::post('/{class}/save-grades', [AssessmentController::class, 'saveGrades'])->name('saveGrades');
+            Route::post('/{class}/update-weights', [AssessmentController::class, 'updateWeights'])->name('updateWeights');
 
             Route::get('/{class}/{assessment}/scores', [AssessmentController::class, 'editScores'])->name('scores.edit');
             Route::put('/{class}/{assessment}/scores', [AssessmentController::class, 'updateScores'])->name('scores.update');
