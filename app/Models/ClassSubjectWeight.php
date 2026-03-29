@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClassSubjectWeight extends Model
 {
+    protected $table = 'class_subject_weights';
+
     protected $fillable = [
         'class_id',
         'subject_id',
