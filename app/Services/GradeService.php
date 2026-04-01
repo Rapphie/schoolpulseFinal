@@ -20,55 +20,52 @@ class GradeService
     ];
 
     /**
-     * DepEd Transmutation Table
-     * Maps raw/initial grade ranges to transmuted grades
+     * DepEd Transmutation table as threshold-grade pairs.
      *
-     * This follows the official DepEd transmutation table where:
-     * - Raw grades from 0-100% are converted to transmuted grades 60-100
-     * - The lowest transmuted grade is 60
+     * Numeric array keys are required here because PHP casts float array keys to integers.
      */
     private const TRANSMUTATION_TABLE = [
-        100.00 => 100,
-        98.40 => 99,
-        96.80 => 98,
-        95.20 => 97,
-        93.60 => 96,
-        92.00 => 95,
-        90.40 => 94,
-        88.80 => 93,
-        87.20 => 92,
-        85.60 => 91,
-        84.00 => 90,
-        82.40 => 89,
-        80.80 => 88,
-        79.20 => 87,
-        77.60 => 86,
-        76.00 => 85,
-        74.40 => 84,
-        72.80 => 83,
-        71.20 => 82,
-        69.60 => 81,
-        68.00 => 80,
-        66.40 => 79,
-        64.80 => 78,
-        63.20 => 77,
-        61.60 => 76,
-        60.00 => 75,
-        56.00 => 74,
-        52.00 => 73,
-        48.00 => 72,
-        44.00 => 71,
-        40.00 => 70,
-        36.00 => 69,
-        32.00 => 68,
-        28.00 => 67,
-        24.00 => 66,
-        20.00 => 65,
-        16.00 => 64,
-        12.00 => 63,
-        8.00 => 62,
-        4.00 => 61,
-        0.00 => 60,
+        ['threshold' => 100.00, 'grade' => 100],
+        ['threshold' => 98.40, 'grade' => 99],
+        ['threshold' => 96.80, 'grade' => 98],
+        ['threshold' => 95.20, 'grade' => 97],
+        ['threshold' => 93.60, 'grade' => 96],
+        ['threshold' => 92.00, 'grade' => 95],
+        ['threshold' => 90.40, 'grade' => 94],
+        ['threshold' => 88.80, 'grade' => 93],
+        ['threshold' => 87.20, 'grade' => 92],
+        ['threshold' => 85.60, 'grade' => 91],
+        ['threshold' => 84.00, 'grade' => 90],
+        ['threshold' => 82.40, 'grade' => 89],
+        ['threshold' => 80.80, 'grade' => 88],
+        ['threshold' => 79.20, 'grade' => 87],
+        ['threshold' => 77.60, 'grade' => 86],
+        ['threshold' => 76.00, 'grade' => 85],
+        ['threshold' => 74.40, 'grade' => 84],
+        ['threshold' => 72.80, 'grade' => 83],
+        ['threshold' => 71.20, 'grade' => 82],
+        ['threshold' => 69.60, 'grade' => 81],
+        ['threshold' => 68.00, 'grade' => 80],
+        ['threshold' => 66.40, 'grade' => 79],
+        ['threshold' => 64.80, 'grade' => 78],
+        ['threshold' => 63.20, 'grade' => 77],
+        ['threshold' => 61.60, 'grade' => 76],
+        ['threshold' => 60.00, 'grade' => 75],
+        ['threshold' => 56.00, 'grade' => 74],
+        ['threshold' => 52.00, 'grade' => 73],
+        ['threshold' => 48.00, 'grade' => 72],
+        ['threshold' => 44.00, 'grade' => 71],
+        ['threshold' => 40.00, 'grade' => 70],
+        ['threshold' => 36.00, 'grade' => 69],
+        ['threshold' => 32.00, 'grade' => 68],
+        ['threshold' => 28.00, 'grade' => 67],
+        ['threshold' => 24.00, 'grade' => 66],
+        ['threshold' => 20.00, 'grade' => 65],
+        ['threshold' => 16.00, 'grade' => 64],
+        ['threshold' => 12.00, 'grade' => 63],
+        ['threshold' => 8.00, 'grade' => 62],
+        ['threshold' => 4.00, 'grade' => 61],
+        ['threshold' => 0.00, 'grade' => 60],
     ];
 
     /**
@@ -87,9 +84,9 @@ class GradeService
         $rawGrade = max(0, min(100, $rawGrade));
 
         // Find the appropriate transmuted grade
-        foreach (self::TRANSMUTATION_TABLE as $threshold => $transmutedGrade) {
-            if ($rawGrade >= $threshold) {
-                return $transmutedGrade;
+        foreach (self::TRANSMUTATION_TABLE as $row) {
+            if ($rawGrade >= $row['threshold']) {
+                return $row['grade'];
             }
         }
 

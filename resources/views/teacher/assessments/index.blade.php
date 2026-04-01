@@ -1703,8 +1703,9 @@
                     $row.find(`.${type}-total[data-quarter="${quarter}"]`).text(total.toFixed(0));
                     $row.find(`.${type}-ps[data-quarter="${quarter}"]`).text(ps.toFixed(2));
                     const weighted = ps * (typeWeights[type] || 0);
-                    $row.find(`.${type}-weighted[data-quarter="${quarter}"]`).text(weighted.toFixed(2));
-                    quarterGrade += weighted;
+                    const roundedWeighted = parseFloat(weighted.toFixed(2));
+                    $row.find(`.${type}-weighted[data-quarter="${quarter}"]`).text(roundedWeighted.toFixed(2));
+                    quarterGrade += roundedWeighted;
 
                     if (maxTotal > 0) {
                         quarterHasScores = true;

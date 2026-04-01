@@ -112,6 +112,7 @@ class RecalculateQuarterGradesJob implements ShouldQueue
         foreach ($students as $student) {
             $profile = $student->profiles->first();
             $typePercentages = array_fill_keys(array_keys($weights), 0.0);
+            $typeWeightedScores = array_fill_keys(array_keys($weights), 0.0);
 
             foreach ($weights as $type => $weight) {
                 $typeAssessments = $grouped->get($type, collect());
@@ -133,13 +134,14 @@ class RecalculateQuarterGradesJob implements ShouldQueue
                         $totalMax += $maxScore;
                     }
                 }
-                $typePercentages[$type] = $totalMax > 0 ? ($totalScore / $totalMax) * 100.0 : 0.0;
+                $typePercentages[$type] = $totalMax > 0
+                    ? round(($totalScore / $totalMax) * 100.0, 2)
+                    : 0.0;
+
+                $typeWeightedScores[$type] = round($typePercentages[$type] * $weight, 2);
             }
 
-            $initialGrade = 0.0;
-            foreach ($weights as $type => $weight) {
-                $initialGrade += $typePercentages[$type] * $weight;
-            }
+            $initialGrade = round(array_sum($typeWeightedScores), 2);
 
             // Apply DepEd transmutation to convert initial grade to transmuted grade
             $transmutedGrade = GradeService::transmute($initialGrade);
