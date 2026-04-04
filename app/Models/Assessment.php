@@ -23,6 +23,18 @@ class Assessment extends Model
         'assessment_date',
     ];
 
+    protected function casts(): array
+    {
+        return [
+            'class_id' => 'integer',
+            'subject_id' => 'integer',
+            'teacher_id' => 'integer',
+            'school_year_id' => 'integer',
+            'quarter' => 'integer',
+            'max_score' => 'float',
+        ];
+    }
+
     public function class(): BelongsTo
     {
         return $this->belongsTo(Classes::class, 'class_id');

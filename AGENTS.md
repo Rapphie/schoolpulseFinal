@@ -8,7 +8,7 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 ## Foundational Context
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
-- php - 8.2.12
+- php - 8.4.19
 - laravel/framework (LARAVEL) - v12
 - laravel/prompts (PROMPTS) - v0
 - laravel/sanctum (SANCTUM) - v4
@@ -18,7 +18,6 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/sail (SAIL) - v1
 - laravel/telescope (TELESCOPE) - v5
 - phpunit/phpunit (PHPUNIT) - v11
-- bootstrap (BOOTSTRAP) - v5
 
 ## Conventions
 - You must follow all existing code conventions used in this application. When creating or editing a file, check sibling files for the correct structure, approach, and naming.
@@ -62,7 +61,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 ## Searching Documentation (Critically Important)
 - Boost comes with a powerful `search-docs` tool you should use before any other approaches when dealing with Laravel or Laravel ecosystem packages. This tool automatically passes a list of installed packages and their versions to the remote Boost API, so it returns only version-specific documentation for the user's circumstance. You should pass an array of packages to filter on if you know you need docs for particular packages.
-- The `search-docs` tool is perfect for all Laravel-related packages, including Laravel, Inertia, Livewire, Filament, Bootstrap, Pest, Nova, Nightwatch, etc.
+- The `search-docs` tool is perfect for all Laravel-related packages, including Laravel, Inertia, Livewire, Filament, Tailwind, Pest, Nova, Nightwatch, etc.
 - You must use this tool to search for Laravel ecosystem documentation before falling back to other approaches.
 - Search the documentation before making code changes to ensure we are taking the correct approach.
 - Use multiple, broad, simple, topic-based queries to start. For example: `['rate limiting', 'routing rate limiting', 'routing']`.
@@ -107,6 +106,13 @@ protected function isAccessible(User $user, ?string $path = null): bool
 
 ## Enums
 - Typically, keys in an Enum should be TitleCase. For example: `FavoritePerson`, `BestLake`, `Monthly`.
+
+=== herd rules ===
+
+## Laravel Herd
+
+- The application is served by Laravel Herd and will be available at: `https?://[kebab-case-project-dir].test`. Use the `get-absolute-url` tool to generate URLs for the user to ensure valid URLs.
+- You must not run any commands to make the site available via HTTP(S). It is always available through Laravel Herd.
 
 === tests rules ===
 
@@ -286,35 +292,4 @@ document.addEventListener('livewire:init', function () {
 - To run all tests: `php artisan test --compact`.
 - To run all tests in a file: `php artisan test --compact tests/Feature/ExampleTest.php`.
 - To filter on a particular test name: `php artisan test --compact --filter=testName` (recommended after making a change to a related file).
-
-=== bootstrap/core rules ===
-
-## Bootstrap
-
-- Use Bootstrap 5 classes and components to style HTML; check and follow existing Bootstrap conventions in sibling files.
-- Prefer built-in Bootstrap components and utility classes before adding custom CSS.
-- Avoid introducing Tailwind classes (e.g. `bg-gray-*`, `text-sm`, `rounded-lg`, `@tailwind`, `@theme`) in active views.
-- Offer to extract repeated UI patterns into reusable Blade components that match current project conventions.
-- You can use the `search-docs` tool for Laravel-side behavior and official Bootstrap docs for component usage.
-
-### Layout & Spacing
-- Use Bootstrap layout utilities (`d-flex`, `align-items-*`, `justify-content-*`) for structure.
-- Use Bootstrap spacing/gap utilities (`p-*`, `m-*`, `gap-*`) consistently and avoid ad-hoc inline styles when utilities are sufficient.
-
-<code-snippet name="Valid Bootstrap Flex Gap Example" lang="html">
-    <div class="d-flex gap-3">
-        <div>Superior</div>
-        <div>Michigan</div>
-        <div>Erie</div>
-    </div>
-</code-snippet>
-
-=== bootstrap/v5 rules ===
-
-## Bootstrap 5
-
-- Use Bootstrap 5 APIs and class names only; do not add Tailwind-specific configuration or directives.
-- Do not use `@tailwind` directives, `tailwind.config.js`, or Tailwind CDN in this project.
-- Keep Bootstrap JS loaded through the Vite entrypoint (`resources/js/app.js`) and avoid duplicate direct script loading.
-- For theme adjustments, use project CSS files and CSS variables consistent with existing conventions.
 </laravel-boost-guidelines>

@@ -19,6 +19,16 @@ class Classes extends Model
 
     protected $table = 'classes';
 
+    protected function casts(): array
+    {
+        return [
+            'section_id' => 'integer',
+            'school_year_id' => 'integer',
+            'teacher_id' => 'integer',
+            'capacity' => 'integer',
+        ];
+    }
+
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);

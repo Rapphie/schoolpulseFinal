@@ -414,10 +414,10 @@ class AssessmentController extends Controller
         // Recalculate and persist quarter grades for the affected subject/quarter
         \App\Jobs\RecalculateQuarterGradesJob::dispatch(
             $class->id,
-            $assessment->subject_id,
+            (int) $assessment->subject_id,
             (int) $assessment->quarter,
-            $assessment->teacher_id,
-            $class->school_year_id
+            (int) $assessment->teacher_id,
+            (int) $class->school_year_id
         );
 
         return redirect()->route('teacher.assessments.index', $class)->with('success', 'Scores updated successfully.');
@@ -594,10 +594,10 @@ class AssessmentController extends Controller
                 foreach ($affectedCombos as $combo) {
                     \App\Jobs\RecalculateQuarterGradesJob::dispatch(
                         $class->id,
-                        $combo['subject_id'],
-                        $combo['quarter'],
-                        $combo['teacher_id'],
-                        $class->school_year_id,
+                        (int) $combo['subject_id'],
+                        (int) $combo['quarter'],
+                        (int) $combo['teacher_id'],
+                        (int) $class->school_year_id,
                         $studentIds->toArray()
                     )->afterCommit();
                 }
@@ -806,10 +806,10 @@ class AssessmentController extends Controller
         // After changing max score, quarter grade may shift; recompute
         \App\Jobs\RecalculateQuarterGradesJob::dispatch(
             $class->id,
-            $assessment->subject_id,
+            (int) $assessment->subject_id,
             (int) $assessment->quarter,
-            $assessment->teacher_id,
-            $class->school_year_id
+            (int) $assessment->teacher_id,
+            (int) $class->school_year_id
         );
 
         return response()->json([
@@ -913,7 +913,7 @@ class AssessmentController extends Controller
             ], 422);
         }
 
-        $subjectId = $request->subject_id;
+        $subjectId = (int) $request->subject_id;
 
         // If 'is_default' is true, the teacher wants to revert to the admin defaults
         if ($isDefault) {
@@ -927,23 +927,24 @@ class AssessmentController extends Controller
                     'subject_id' => $subjectId,
                 ],
                 [
-                    'written_works_weight' => $request->written_works,
-                    'performance_tasks_weight' => $request->performance_tasks,
-                    'quarterly_assessments_weight' => $request->quarterly_assessments,
+                    'written_works_weight' => (int) $request->written_works,
+                    'performance_tasks_weight' => (int) $request->performance_tasks,
+                    'quarterly_assessments_weight' => (int) $request->quarterly_assessments,
                 ]
             );
         }
 
         // Recalculate all 4 quarters since weights changed
         $studentIds = $class->students()->pluck('students.id')->toArray();
+        $schoolYearId = (int) $class->school_year_id;
         for ($quarter = 1; $quarter <= 4; $quarter++) {
-            if (! $this->quarterLockService->isLocked((int) $class->school_year_id, $quarter)) {
+            if (! $this->quarterLockService->isLocked($schoolYearId, $quarter)) {
                 \App\Jobs\RecalculateQuarterGradesJob::dispatch(
                     $class->id,
                     $subjectId,
                     $quarter,
                     $teacher->id,
-                    $class->school_year_id,
+                    $schoolYearId,
                     $studentIds
                 )->afterResponse();
             }
