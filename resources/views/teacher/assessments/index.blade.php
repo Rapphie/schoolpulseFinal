@@ -1699,11 +1699,17 @@
                         $(this).val(displayValue);
                     });
 
-                    const ps = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+                    let ps = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+
+                    // Round PS to 2 decimal places to align with PHP backend calculation
+                    ps = Math.round((ps + Number.EPSILON) * 100) / 100;
+
                     $row.find(`.${type}-total[data-quarter="${quarter}"]`).text(total.toFixed(0));
                     $row.find(`.${type}-ps[data-quarter="${quarter}"]`).text(ps.toFixed(2));
+
                     const weighted = ps * (typeWeights[type] || 0);
-                    const roundedWeighted = parseFloat(weighted.toFixed(2));
+                    const roundedWeighted = Math.round((weighted + Number.EPSILON) * 100) / 100;
+
                     $row.find(`.${type}-weighted[data-quarter="${quarter}"]`).text(roundedWeighted.toFixed(2));
                     quarterGrade += roundedWeighted;
 
