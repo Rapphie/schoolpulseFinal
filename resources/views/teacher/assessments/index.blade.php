@@ -1321,6 +1321,21 @@
                     event.preventDefault();
                     exitFallbackFullscreen();
                 }
+
+                // Handle multi-cell deletion with Delete or Backspace
+                if ((event.key === 'Delete' || event.key === 'Backspace') && selectedGradeCells.length > 1) {
+                    // Prevent Backspace from navigating back in browser history
+                    event.preventDefault();
+
+                    selectedGradeCells.forEach(cell => {
+                        const input = getEditableInputFromCell(cell);
+                        if (input && !input.readOnly && !input.disabled) {
+                            input.value = '';
+                            // Trigger input event to recalculate grades and mark as dirty
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    });
+                }
             });
 
             updateFullscreenToggleIcon();
@@ -2195,6 +2210,10 @@
                     event.preventDefault();
                     // Focus the input for editing
                     input.focus();
+                    // Position cursor at the rightmost end of the input
+                    const val = input.value;
+                    input.value = '';
+                    input.value = val;
                 }
 
                 activeSelectionTable = table;
@@ -2273,11 +2292,13 @@
                     return;
                 }
 
-                const rows = pastedData.split(/\r?\n/).filter((rowText, index, arr) => {
+                // Support Windows (CRLF), Unix (LF), and old Mac (CR) line endings
+                const rows = pastedData.split(/\r\n|\n|\r/).filter((rowText, index, arr) => {
                     return !(index === arr.length - 1 && rowText.trim() === '');
                 });
 
-                const startCell = selectedGradeCells.length > 1 && selectedGradeCells.includes(targetCell) ?
+                const isMultiSelection = selectedGradeCells.length > 1;
+                const startCell = isMultiSelection && selectedGradeCells.includes(targetCell) ?
                     (getTopLeftSelectedCell() || targetCell) :
                     targetCell;
 
@@ -2286,29 +2307,92 @@
                     return;
                 }
 
+                let maxSelectedRow = Number.MAX_SAFE_INTEGER;
+                let maxSelectedCol = Number.MAX_SAFE_INTEGER;
+
+                if (isMultiSelection && selectedGradeCells.includes(targetCell)) {
+                    let maxRow = -1;
+                    let maxCol = -1;
+                    selectedGradeCells.forEach((cell) => {
+                        const pos = getCellPosition(cell);
+                        if (pos) {
+                            if (pos.rowIndex > maxRow) maxRow = pos.rowIndex;
+                            if (pos.colIndex > maxCol) maxCol = pos.colIndex;
+                        }
+                    });
+                    if (maxRow >= 0) maxSelectedRow = maxRow;
+                    if (maxCol >= 0) maxSelectedCol = maxCol;
+                }
+
                 const tableRows = getSelectableRows(startPos.table);
 
+                // Calculate the starting input index ONCE based on the start cell's position in its row
+                // All rows should have the same structure, so this index works for all rows
+                const startRow = tableRows[startPos.rowIndex];
+                if (!startRow) {
+                    return;
+                }
+
+                const startRowInputs = Array.from(startRow.querySelectorAll(
+                    '.grade-input:not([readonly]):not([disabled]), .max-score-input:not([readonly]):not([disabled])'
+                ));
+
+                let startInputIndex = 0;
+                // Find the first editable input at or after the start cell's visual column
+                for (let i = startPos.colIndex; i < startRow.children.length; i++) {
+                    const cell = startRow.children[i];
+                    const input = getEditableInputFromCell(cell);
+                    if (input) {
+                        const index = startRowInputs.indexOf(input);
+                        if (index >= 0) {
+                            startInputIndex = index;
+                            break;
+                        }
+                    }
+                }
+
                 rows.forEach((rowText, rowIndex) => {
-                    const columns = rowText.split('\t');
-                    const targetRow = tableRows[startPos.rowIndex + rowIndex];
+                    // First try splitting by tabs (standard Excel/Sheets format)
+                    let columns = rowText.split('\t');
+                    
+                    // Fallback: if no tabs found, try splitting by whitespace
+                    if (columns.length === 1 && columns[0].includes(' ')) {
+                        columns = columns[0].trim().split(/\s+/);
+                    }
+
+                    const currentRowIndex = startPos.rowIndex + rowIndex;
+                    if (currentRowIndex > maxSelectedRow) {
+                        return; // Omit rows beyond the selection bounding box
+                    }
+
+                    const targetRow = tableRows[currentRowIndex];
                     if (!targetRow) {
                         return;
                     }
 
+                    // Get all editable inputs for this row (same structure as startRow)
+                    const rowInputs = Array.from(targetRow.querySelectorAll(
+                        '.grade-input:not([readonly]):not([disabled]), .max-score-input:not([readonly]):not([disabled])'
+                    ));
+
                     columns.forEach((colText, colIndex) => {
-                        const targetCellForPaste = targetRow.children[startPos.colIndex +
-                            colIndex];
-                        if (!targetCellForPaste) {
+                        const targetInput = rowInputs[startInputIndex + colIndex];
+                        if (!targetInput) {
                             return;
                         }
 
-                        const input = getEditableInputFromCell(targetCellForPaste);
-                        if (!input) {
-                            return;
+                        if (isMultiSelection && selectedGradeCells.includes(targetCell)) {
+                            const inputCell = targetInput.closest('td, th');
+                            const visualColIndex = Array.from(targetRow.children).indexOf(inputCell);
+                            if (visualColIndex > maxSelectedCol) {
+                                return; // Omit columns beyond the selection bounding box
+                            }
                         }
 
-                        input.value = colText.trim();
-                        input.dispatchEvent(new Event('input', {
+                        // Strip thousands separators (commas) and trim whitespace
+                        const cleanValue = colText.trim().replace(/,/g, '');
+                        targetInput.value = cleanValue;
+                        targetInput.dispatchEvent(new Event('input', {
                             bubbles: true,
                         }));
                     });
