@@ -13,8 +13,8 @@ class LoginController extends Controller
     public function authenticate(Request $request)
     {
         $credentials = [
-            'email' => $request['email'],
-            'password' => $request['password'],
+            'email' => trim($request['email']),
+            'password' => trim($request['password']),
             'role_id' => $request['role'],
         ];
 
