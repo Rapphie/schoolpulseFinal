@@ -16,7 +16,7 @@
             <ul class="nav nav-tabs" id="subjectTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="matrix-tab" data-bs-toggle="tab" data-bs-target="#matrix"
-                        type="button" role="tab" aria-controls="matrix" aria-selected="true">Grade Level Matrix</button>
+                        type="button" role="tab" aria-controls="matrix" aria-selected="true">Subject Assignment</button>
                 </li>
             </ul>
 

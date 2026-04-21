@@ -24,8 +24,11 @@ class AbsentAlertMail extends Mailable implements ShouldQueue
      *
      * @return void
      */
-    public function __construct(Student $student, Teacher $teacher, $consecutiveAbsences)
-    {
+    public function __construct(
+        Student $student,
+        Teacher $teacher,
+        $consecutiveAbsences,
+    ) {
         $this->student = $student;
         $this->teacher = $teacher;
         $this->consecutiveAbsences = $consecutiveAbsences;
@@ -38,7 +41,8 @@ class AbsentAlertMail extends Mailable implements ShouldQueue
      */
     public function build()
     {
-        return $this->subject('Student Absent Alert')
-            ->markdown('emails.absent_alert');
+        return $this->subject("Student Absent Alert")->markdown(
+            "emails.absent_alert",
+        );
     }
 }

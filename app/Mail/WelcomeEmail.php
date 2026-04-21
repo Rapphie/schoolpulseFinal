@@ -33,7 +33,7 @@ class WelcomeEmail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to SchoolPulse - Your Account Details',
+            subject: "Welcome to SchoolPulse - Your Account Details",
         );
     }
 
@@ -42,9 +42,7 @@ class WelcomeEmail extends Mailable implements ShouldQueue
      */
     public function content(): Content
     {
-        return new Content(
-            view: 'emails.welcome-email',
-        );
+        return new Content(view: "emails.welcome-email");
     }
 
     /**
