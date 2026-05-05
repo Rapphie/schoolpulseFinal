@@ -105,6 +105,11 @@
                 editable: false,
                 selectable: true,
                 dayMaxEvents: true, // allow "more" link when too many events
+                eventClick: function(info) {
+                    if (info.event.url) {
+                        window.location.href = info.event.url;
+                    }
+                },
                 allDaySlot: false, // Don't show the all-day slot
                 slotMinTime: '07:00:00', // Start the calendar at 7am
                 slotMaxTime: '19:00:00', // End the calendar at 7pm

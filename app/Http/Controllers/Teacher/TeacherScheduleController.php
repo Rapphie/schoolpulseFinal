@@ -62,7 +62,7 @@ class TeacherScheduleController extends Controller
                     'startTime' => $schedule->start_time->format('H:i:s'),
                     'endTime' => $schedule->end_time->format('H:i:s'),
                     'daysOfWeek' => $days,
-                    'url' => null,
+                    'url' => route('teacher.classes.view', ['class' => $schedule->class_id]),
                     'allDay' => false,
                     'extendedProps' => [
                         'section' => $schedule->class->section->name,
