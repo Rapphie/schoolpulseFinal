@@ -107,31 +107,31 @@
                             </thead>
                             <tbody>
                                 @if (isset($upcomingSchedules) && $upcomingSchedules->count() > 0)
-                                    @foreach ($upcomingSchedules as $class)
-                                        <tr>
-                                            <td>{{ $class->section->grade_level_id ?? 'N/A' }}</td>
-                                            <td>{{ $class->section->name ?? 'N/A' }}</td>
-                                            <td>{{ $class->subject->name ?? 'N/A' }}</td>
-                                            <td>{{ $class->start_time->format('H:i') ?? 'N/A' }} -
-                                                {{ $class->end_time->format('H:i') ?? 'N/A' }}</td>
-                                            <td>{{ $class->room ?? 'N/A' }}</td>
+                                @foreach ($upcomingSchedules as $schedule)
+                                    <tr>
+                                        <td>{{ $schedule->class->section->gradeLevel->level ?? 'N/A' }}</td>
+                                        <td>{{ $schedule->class->section->name ?? 'N/A' }}</td>
+                                        <td>{{ $schedule->subject->name ?? 'N/A' }}</td>
+                                        <td>{{ $schedule->start_time?->format('H:i') ?? 'N/A' }} -
+                                            {{ $schedule->end_time?->format('H:i') ?? 'N/A' }}</td>
+                                        <td>{{ $schedule->room ?? 'N/A' }}</td>
 
-                                            <td>
-                                                <div class="btn-group btn-group-sm">
-                                                    <a href="{{ route('teacher.attendance.take', ['class_id' => $class->id ?? 0]) }}"
-                                                        class="btn btn-primary" data-bs-toggle="tooltip"
-                                                        title="Take Attendance">
-                                                        <i data-feather="check-circle" class="feather-sm"></i>
-                                                    </a>
-                                                    <a href="{{ route('teacher.classes') }}" class="btn btn-info"
-                                                        data-bs-toggle="tooltip" title="View Class">
-                                                        <i data-feather="eye" class="feather-sm"></i>
-                                                    </a>
-                                                </div>
-                                            </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ route('teacher.attendance.take', ['class_id' => $schedule->class_id ?? 0]) }}"
+                                                    class="btn btn-primary" data-bs-toggle="tooltip"
+                                                    title="Take Attendance">
+                                                    <i data-feather="check-circle" class="feather-sm"></i>
+                                                </a>
+                                                <a href="{{ route('teacher.classes') }}" class="btn btn-info"
+                                                    data-bs-toggle="tooltip" title="View Class">
+                                                    <i data-feather="eye" class="feather-sm"></i>
+                                                </a>
+                                            </div>
+                                        </td>
 
-                                        </tr>
-                                    @endforeach
+                                    </tr>
+                                @endforeach
                                 @else
                                     <tr>
                                         <td colspan="6" class="text-center">No upcoming classes today.</td>
