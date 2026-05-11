@@ -740,11 +740,19 @@ class TeacherAttendanceController extends Controller
 
     private function checkAbsences($studentId, $teacherId)
     {
-        $twoDaysAgo = now()->subDays(2)->toDateString();
-        $today = now()->toDateString();
+        $recentDates = Attendance::where('student_id', $studentId)
+            ->where('date', '<=', now()->toDateString())
+            ->orderBy('date', 'desc')
+            ->distinct()
+            ->limit(3)
+            ->pluck('date');
+
+        if ($recentDates->count() < 3) {
+            return;
+        }
 
         $consecutiveAbsences = Attendance::where('student_id', $studentId)
-            ->whereBetween('date', [$twoDaysAgo, $today])
+            ->whereIn('date', $recentDates)
             ->where('status', 'absent')
             ->distinct('date')
             ->count('date');
