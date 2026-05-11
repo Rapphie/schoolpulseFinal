@@ -20,8 +20,8 @@
             class="btn btn-warning text-white">
             <i data-feather="edit-2" class="feather-sm text-white"></i> Edit Grades
         </a>
-        <a href="{{ route('teacher.grades.student.download', ['class' => $class->id, 'student' => $student->id]) }}" class="btn btn-primary"
-            target="_blank">
+        <a href="{{ route('teacher.grades.student.download', ['class' => $class->id, 'student' => $student->id]) }}"
+            class="btn btn-primary" target="_blank">
             <i data-feather="download" class="feather-sm"></i> Download Report Card(.docx)
         </a>
     </div>
@@ -93,7 +93,7 @@
                             <p class="font-bold text-sm mb-0">Department of Education</p>
                             <p class="text-sm mb-0">REGION XI</p>
                             <p class="text-sm mb-0">PANABO CITY</p>
-                            <p class="font-bold text-sm mb-0">STA. CRUZ ELEM. SCHOOL</p>
+                            <p class="font-bold text-sm mb-0">TAGUROT ELEMENTARY SCHOOL</p>
                         </div>
 
                         {{-- Student Info --}}
