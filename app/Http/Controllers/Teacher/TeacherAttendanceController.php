@@ -18,6 +18,7 @@ use App\Services\QuarterLockService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -50,37 +51,20 @@ class TeacherAttendanceController extends Controller
                 ->current()
                 ->first();
 
-            $schedules = Schedule::with('class.section.gradeLevel', 'subject')
-                ->where('teacher_id', $teacherId)
-                ->whereHas('class', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })
+            $quarterLockContext = $this->quarterLockService->contextForSchoolYear((int) $activeSchoolYear->id);
+            $activeQuarterLockInfo = null;
+            if ($activeQuarter) {
+                $activeQuarterLockInfo = $quarterLockContext['quarterLocks'][(int) $activeQuarter->quarter] ?? null;
+            }
+            $isActiveQuarterLocked = (bool) ($activeQuarterLockInfo['is_locked'] ?? false);
+            $activeQuarterLockReason = $activeQuarterLockInfo['lock_reason_label'] ?? null;
+
+            $sections = Classes::where('teacher_id', $teacherId)
+                ->where('school_year_id', $activeSchoolYear->id)
+                ->with(['section.gradeLevel'])
                 ->get();
 
-            $sections = $schedules->pluck('class')
-                ->filter()
-                ->unique('id')
-                ->sortBy(function ($class) {
-                    return [
-                        (int) ($class->section?->gradeLevel?->level ?? 0),
-                        (string) ($class->section?->name ?? ''),
-                    ];
-                })
-                ->values();
-
-            $sectionOptions = $sections->map(function ($class) use ($teacher) {
-                $gradeLevel = (int) ($class->section?->gradeLevel?->level ?? 0);
-
-                return [
-                    'class_id' => (int) $class->id,
-                    'section_id' => (int) ($class->section?->id ?? 0),
-                    'section_name' => (string) ($class->section?->name ?? 'Unknown Section'),
-                    'grade_level' => $gradeLevel,
-                    'is_adviser' => (int) $class->teacher_id === (int) $teacher->id,
-                ];
-            })->values();
-
-            return view('teacher.attendance.take', compact('sections', 'sectionOptions', 'teacherId', 'activeQuarter'));
+            return view('teacher.attendance.take', compact('sections', 'teacherId', 'activeQuarter', 'isActiveQuarterLocked', 'activeQuarterLockReason'));
         } catch (Throwable $e) {
             Log::error('TeacherAttendanceController@takeAttendance error: '.$e->getMessage(), ['exception' => $e]);
 
@@ -756,43 +740,75 @@ class TeacherAttendanceController extends Controller
 
     private function checkAbsences($studentId, $teacherId)
     {
-        $threeDaysAgo = now()->subDays(2)->toDateString();
+        $twoDaysAgo = now()->subDays(2)->toDateString();
         $today = now()->toDateString();
 
-        $absentDays = Attendance::where('student_id', $studentId)
-            ->whereBetween('date', [$threeDaysAgo, $today])
+        $consecutiveAbsences = Attendance::where('student_id', $studentId)
+            ->whereBetween('date', [$twoDaysAgo, $today])
             ->where('status', 'absent')
             ->distinct('date')
             ->count('date');
 
-        $consecutiveAbsences = $absentDays;
+        if ($consecutiveAbsences < 3) {
+            return;
+        }
 
-        if ($consecutiveAbsences >= 3) {
-            $cacheKey = 'absent_alert_sent_'.$studentId;
+        $cacheKey = 'absent_alert_sent_'.$studentId;
+        $lastSent = cache($cacheKey);
+        if ($lastSent && now()->diffInHours($lastSent) < 24) {
+            return;
+        }
+
+        $lock = null;
+
+        try {
+            $lock = Cache::lock('absent_alert_lock_'.$studentId, 10);
+        } catch (Throwable) {
+            // Cache driver doesn't support locks (e.g., array/file in testing)
+        }
+
+        if ($lock !== null && ! $lock->get()) {
+            return;
+        }
+
+        try {
             $lastSent = cache($cacheKey);
-            if (! $lastSent || now()->diffInHours($lastSent) >= 24) {
-                try {
-                    $student = Student::find($studentId);
-                    $teacher = Teacher::with('user')->find($teacherId);
+            if ($lastSent && now()->diffInHours($lastSent) < 24) {
+                return;
+            }
 
-                    if ($teacher && $teacher->user && ! empty($teacher->user->email)) {
-                        Mail::to($teacher->user->email)->queue(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
-                    }
+            $student = Student::find($studentId);
+            if (! $student) {
+                return;
+            }
 
-                    $guardian = $student->guardian ?? null;
-                    $guardianUser = $guardian?->user;
-                    if ($guardianUser && ! empty($guardianUser->email)) {
-                        $guardianEmail = $guardianUser->email;
-                        $teacherEmail = $teacher->user->email ?? null;
-                        if ($guardianEmail !== $teacherEmail) {
-                            Mail::to($guardianEmail)->queue(new AbsentAlertMail($student, $teacher, $consecutiveAbsences));
-                        }
-                    }
-                } catch (Throwable $e) {
-                    Log::error('Error sending absent alert: '.$e->getMessage(), ['student_id' => $studentId, 'exception' => $e]);
+            $teacher = Teacher::with('user')->find($teacherId);
+            $mailSent = false;
+
+            if ($teacher?->user && ! empty($teacher->user->email)) {
+                Mail::to($teacher->user->email)->queue(new AbsentAlertMail($student, $consecutiveAbsences, $teacher->user->first_name));
+                $mailSent = true;
+            }
+
+            $guardian = $student->guardian ?? null;
+            $guardianUser = $guardian?->user;
+            if ($guardianUser && ! empty($guardianUser->email)) {
+                $guardianEmail = $guardianUser->email;
+                $teacherEmail = $teacher->user->email ?? null;
+                if ($guardianEmail !== $teacherEmail) {
+                    Mail::to($guardianEmail)->queue(new AbsentAlertMail($student, $consecutiveAbsences, $guardianUser->first_name));
+                    $mailSent = true;
                 }
+            }
 
+            if ($mailSent) {
                 cache([$cacheKey => now()], now()->addHours(24));
+            }
+        } catch (Throwable $e) {
+            Log::error('Error sending absent alert: '.$e->getMessage(), ['student_id' => $studentId, 'exception' => $e]);
+        } finally {
+            if ($lock !== null) {
+                $lock->release();
             }
         }
     }

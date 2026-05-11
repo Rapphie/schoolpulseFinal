@@ -28,59 +28,10 @@ class ScheduleController extends Controller
             $teachers = collect();
             $gradeLevels = GradeLevel::orderBy('level')->get();
             $sections = collect();
+            $teacherCards = collect();
+            $selectedTeacher = null;
 
             if ($activeSchoolYear) {
-                $schedulesQuery = Schedule::whereHas('class', function ($query) use ($activeSchoolYear) {
-                    $query->where('school_year_id', $activeSchoolYear->id);
-                })->with(['class.section.gradeLevel', 'subject', 'teacher.user']);
-
-                if ($request->filled('teacher_id')) {
-                    $schedulesQuery->where('teacher_id', $request->teacher_id);
-                }
-
-                if ($request->filled('grade_level_id')) {
-                    $schedulesQuery->whereHas('class.section.gradeLevel', function ($query) use ($request) {
-                        $query->where('id', $request->grade_level_id);
-                    });
-                }
-
-                if ($request->filled('section_id')) {
-                    $schedulesQuery->whereHas('class', function ($query) use ($request) {
-                        $query->where('section_id', $request->section_id);
-                    });
-                }
-
-                $schedules = $schedulesQuery->get();
-
-                foreach ($schedules as $schedule) {
-                    $daysOfWeek = $schedule->day_of_week;
-                    if (! is_array($daysOfWeek)) {
-                        continue;
-                    }
-
-                    $dayNumbers = array_map(fn ($day) => $this->dayToNumber($day), $daysOfWeek);
-
-                    $subjectName = $schedule->subject?->name ?? 'No Subject';
-                    $teacherName = $schedule->teacher?->user ? $schedule->teacher->user->first_name.' '.$schedule->teacher->user->last_name : 'No Teacher';
-                    $sectionName = $schedule->class?->section?->name ?? 'No Section';
-                    $gradeLevelName = $schedule->class?->section?->gradeLevel?->name ?? '';
-                    $displaySection = $gradeLevelName ? $gradeLevelName.' - '.$sectionName : $sectionName;
-
-                    $events[] = [
-                        'title' => $subjectName,
-                        'startTime' => $schedule->start_time ? $schedule->start_time->format('H:i:s') : null,
-                        'endTime' => $schedule->end_time ? $schedule->end_time->format('H:i:s') : null,
-                        'daysOfWeek' => $dayNumbers,
-                        'allDay' => false,
-                        'extendedProps' => [
-                            'section' => $displaySection,
-                            'subject' => $subjectName,
-                            'teacher' => $teacherName,
-                            'room' => $schedule->room,
-                        ],
-                    ];
-                }
-
                 $teachers = Teacher::whereHas('schedules.class', function ($query) use ($activeSchoolYear) {
                     $query->where('school_year_id', $activeSchoolYear->id);
                 })->with('user')->get();
@@ -88,6 +39,97 @@ class ScheduleController extends Controller
                 $sections = Section::whereHas('classes', function ($query) use ($activeSchoolYear) {
                     $query->where('school_year_id', $activeSchoolYear->id);
                 })->with('gradeLevel')->orderBy('grade_level_id')->get();
+
+                if ($request->filled('teacher_id')) {
+                    $selectedTeacher = $teachers->firstWhere('id', (int) $request->teacher_id);
+
+                    if ($selectedTeacher) {
+                        $schedulesQuery = Schedule::where('teacher_id', (int) $request->teacher_id)
+                            ->whereHas('class', function ($query) use ($activeSchoolYear) {
+                                $query->where('school_year_id', $activeSchoolYear->id);
+                            })
+                            ->with(['class.section.gradeLevel', 'subject', 'teacher.user']);
+
+                        if ($request->filled('grade_level_id')) {
+                            $schedulesQuery->whereHas('class.section.gradeLevel', function ($query) use ($request) {
+                                $query->where('id', $request->grade_level_id);
+                            });
+                        }
+
+                        if ($request->filled('section_id')) {
+                            $schedulesQuery->whereHas('class', function ($query) use ($request) {
+                                $query->where('section_id', $request->section_id);
+                            });
+                        }
+
+                        $schedules = $schedulesQuery->get();
+
+                        $subjectColors = [];
+                        $colorPalette = ['#4C51BF', '#6B46C1', '#9F7AEA', '#ED64A6', '#F56565', '#ED8936', '#ECC94B', '#48BB78', '#38B2AC', '#4299E1', '#F6AD55', '#FC8181'];
+                        $colorIndex = 0;
+
+                        foreach ($schedules as $schedule) {
+                            $daysOfWeek = $schedule->day_of_week;
+                            if (! is_array($daysOfWeek)) {
+                                continue;
+                            }
+
+                            if (! isset($subjectColors[$schedule->subject_id])) {
+                                $subjectColors[$schedule->subject_id] = $colorPalette[$colorIndex % count($colorPalette)];
+                                $colorIndex++;
+                            }
+
+                            $dayNumbers = array_map(fn ($day) => $this->dayToNumber($day), $daysOfWeek);
+
+                            $subjectName = $schedule->subject?->name ?? 'No Subject';
+                            $sectionName = $schedule->class?->section?->name ?? 'No Section';
+                            $gradeLevelName = $schedule->class?->section?->gradeLevel?->name ?? '';
+                            $displaySection = $gradeLevelName ? $gradeLevelName.' - '.$sectionName : $sectionName;
+
+                            $events[] = [
+                                'title' => $subjectName,
+                                'startTime' => $schedule->start_time ? $schedule->start_time->format('H:i:s') : null,
+                                'endTime' => $schedule->end_time ? $schedule->end_time->format('H:i:s') : null,
+                                'daysOfWeek' => $dayNumbers,
+                                'allDay' => false,
+                                'extendedProps' => [
+                                    'section' => $displaySection,
+                                    'subject' => $subjectName,
+                                    'room' => $schedule->room,
+                                ],
+                                'backgroundColor' => $subjectColors[$schedule->subject_id],
+                                'borderColor' => $subjectColors[$schedule->subject_id],
+                            ];
+                        }
+                    }
+                }
+
+                if (! $request->filled('teacher_id') || ! $selectedTeacher) {
+                    $allSchedules = Schedule::whereHas('class', function ($query) use ($activeSchoolYear) {
+                        $query->where('school_year_id', $activeSchoolYear->id);
+                    })->with('subject')->get()->groupBy('teacher_id');
+
+                    $teacherCards = $teachers->map(function ($teacher) use ($allSchedules) {
+                        $teacherSchedules = $allSchedules->get($teacher->id, collect());
+                        $scheduleCount = $teacherSchedules->count();
+                        $subjects = $teacherSchedules
+                            ->pluck('subject.name')
+                            ->filter()
+                            ->unique()
+                            ->take(3)
+                            ->values();
+
+                        return [
+                            'id' => $teacher->id,
+                            'first_name' => $teacher->user->first_name,
+                            'last_name' => $teacher->user->last_name,
+                            'name' => $teacher->user->first_name.' '.$teacher->user->last_name,
+                            'initials' => strtoupper(substr($teacher->user->first_name, 0, 1).substr($teacher->user->last_name, 0, 1)),
+                            'schedule_count' => $scheduleCount,
+                            'subjects' => $subjects,
+                        ];
+                    });
+                }
             }
 
             return view('admin.schedules.index', [
@@ -97,6 +139,8 @@ class ScheduleController extends Controller
                 'gradeLevels' => $gradeLevels,
                 'sections' => $sections,
                 'filters' => $request->only(['teacher_id', 'grade_level_id', 'section_id']),
+                'teacherCards' => $teacherCards,
+                'selectedTeacher' => $selectedTeacher,
             ]);
         } catch (ValidationException $e) {
             return redirect()->back()->withErrors($e->validator)->withInput();

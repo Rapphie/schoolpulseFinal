@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Teacher;
 
-use App\Http\Controllers\Teacher\TeacherDashboardController;
+use App\Http\Controllers\Teacher\TeacherAttendanceController;
 use App\Mail\AbsentAlertMail;
 use App\Models\Attendance;
 use App\Models\Enrollment;
@@ -74,6 +74,10 @@ class CheckAbsencesTest extends TestCase
             $this->markTestSkipped('Teacher for student id 2 has no email address.');
         }
 
+        if ($guardianEmail === $teacherEmail) {
+            $this->markTestSkipped('Guardian and teacher share the same email — cannot test dual delivery.');
+        }
+
         $schedule = Schedule::where('class_id', $class->id)->orderBy('id')->first();
         if (! $schedule) {
             $this->markTestSkipped('No subject schedule found for student id 2.');
@@ -109,8 +113,8 @@ class CheckAbsencesTest extends TestCase
         $cacheKey = 'absent_alert_sent_'.$student->id;
         $this->assertNull(cache($cacheKey));
 
-        $controller = app(TeacherDashboardController::class);
-        $method = new \ReflectionMethod(TeacherDashboardController::class, 'checkAbsences');
+        $controller = app(TeacherAttendanceController::class);
+        $method = new \ReflectionMethod(TeacherAttendanceController::class, 'checkAbsences');
         $method->setAccessible(true);
         $method->invoke($controller, $student->id, $teacher->id);
 

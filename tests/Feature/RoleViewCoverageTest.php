@@ -170,7 +170,7 @@ class RoleViewCoverageTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('d-flex justify-content-between align-items-center mb-4', false);
         $response->assertSee('btn btn-primary d-inline-flex align-items-center', false);
-        $response->assertSee('bg-white p-4 rounded shadow-sm', false);
+        $response->assertSee('teacher-avatar mx-auto mb-3', false);
         $response->assertDontSee('inline-flex items-center bg-blue-500 hover:bg-blue-700', false);
         $response->assertDontSee('bg-white p-6 rounded-lg shadow-md', false);
         $response->assertDontSee('font-semibold truncate', false);
