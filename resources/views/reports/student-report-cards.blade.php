@@ -90,7 +90,7 @@
         @foreach ($students as $student)
             <div class="report-card">
                 <div class="header">
-                    <h4>STA. CRUZ ELEM. SCHOOL</h4>
+                    <h4>TAGUROT ELEMENTARY SCHOOL</h4>
                     <h5>Panabo City, Davao Region</h5>
                     <h5>Report on Learning Progress and Achievement</h5>
                     <h6>SY: 2025-2026</h6>
