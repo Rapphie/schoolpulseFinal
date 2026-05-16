@@ -3,16 +3,15 @@
 @section('title', 'Take Attendance')
 
 @section('content')
-    @php
-        $isActiveQuarterLocked = (bool) ($activeQuarter?->is_locked ?? false);
-    @endphp
-
     @if ($isActiveQuarterLocked)
         <div class="alert alert-warning d-flex align-items-start mb-3" role="alert">
             <i class="fas fa-lock mt-1 me-2"></i>
             <div>
                 <strong>{{ $activeQuarter?->name ?? 'Active quarter' }} is locked.</strong>
                 Attendance saving is disabled until an administrator unlocks this quarter.
+                @if ($activeQuarterLockReason)
+                    <span class="badge bg-warning text-dark ms-1">{{ $activeQuarterLockReason }}</span>
+                @endif
             </div>
         </div>
     @endif

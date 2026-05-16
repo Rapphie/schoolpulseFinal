@@ -23,6 +23,12 @@ class AdminDashboardController extends Controller
     {
         $schoolYears = SchoolYear::all();
 
+        $quarterLockService = new QuarterLockService;
+        $quarterLockContexts = [];
+        foreach ($schoolYears as $schoolYear) {
+            $quarterLockContexts[$schoolYear->id] = $quarterLockService->contextForSchoolYear($schoolYear->id);
+        }
+
         // Effective active school year for current admin session.
         $activeSchoolYear = SchoolYear::getActive();
         $realActiveSchoolYear = SchoolYear::getRealActive();
@@ -187,12 +193,6 @@ class AdminDashboardController extends Controller
                         });
                 }
             );
-        }
-
-        $quarterLockService = new QuarterLockService;
-        $quarterLockContexts = [];
-        foreach ($schoolYears as $year) {
-            $quarterLockContexts[$year->id] = $quarterLockService->contextForSchoolYear($year->id);
         }
 
         return view('admin.dashboard', [

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\SchoolYear;
 use App\Models\SchoolYearQuarter;
+use App\Services\QuarterLockService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,11 +19,13 @@ class SchoolYearQuarterController extends Controller
     public function index(SchoolYear $schoolYear)
     {
         $quarters = $schoolYear->quarters()->get();
+        $quarterLockContext = (new QuarterLockService)->contextForSchoolYear($schoolYear->id);
 
         return view('admin.school-years.quarters.index', [
             'schoolYear' => $schoolYear,
             'quarters' => $quarters,
             'quarterNames' => SchoolYearQuarter::QUARTER_NAMES,
+            'quarterLockContext' => $quarterLockContext,
         ]);
     }
 
@@ -71,8 +74,10 @@ class SchoolYearQuarterController extends Controller
             'start_date' => $validated['start_date'],
             'end_date' => $validated['end_date'],
             'grade_submission_deadline' => $validated['grade_submission_deadline'] ?? null,
-            'is_locked' => false,
+            'is_locked' => null,
         ]);
+
+        QuarterLockService::clearCache($schoolYear->id);
 
         return redirect()->back()->with('success', "{$quarter->name} added successfully.");
     }
@@ -126,6 +131,8 @@ class SchoolYearQuarterController extends Controller
             'is_locked' => $targetLockState,
         ]);
 
+        QuarterLockService::clearCache($schoolYear->id);
+
         return redirect()->back()->with('success', "{$quarter->name} updated successfully.");
     }
 
@@ -140,6 +147,8 @@ class SchoolYearQuarterController extends Controller
 
         $quarterName = $quarter->name;
         $quarter->delete();
+
+        QuarterLockService::clearCache($schoolYear->id);
 
         return redirect()->back()->with('success', "{$quarterName} deleted successfully.");
     }
@@ -157,11 +166,35 @@ class SchoolYearQuarterController extends Controller
             return redirect()->back()->with('error', 'Only the active school year can be locked or unlocked.');
         }
 
-        $quarter->update(['is_locked' => ! $quarter->is_locked]);
+        $isEffectivelyLocked = (new QuarterLockService)->isLocked($schoolYear->id, $quarter->quarter);
 
-        $status = $quarter->is_locked ? 'locked' : 'unlocked';
+        $quarter->update(['is_locked' => ! $isEffectivelyLocked]);
+
+        QuarterLockService::clearCache($schoolYear->id);
+
+        $status = $quarter->fresh()->is_locked ? 'locked' : 'unlocked';
 
         return redirect()->back()->with('success', "{$quarter->name} has been {$status}.");
+    }
+
+    /**
+     * Reset a quarter's lock state back to auto mode (null).
+     */
+    public function resetLock(SchoolYear $schoolYear, SchoolYearQuarter $quarter)
+    {
+        if ($quarter->school_year_id !== $schoolYear->id) {
+            abort(404);
+        }
+
+        if (! $schoolYear->is_active) {
+            return redirect()->back()->with('error', 'Only the active school year can be locked or unlocked.');
+        }
+
+        $quarter->update(['is_locked' => null]);
+
+        QuarterLockService::clearCache($schoolYear->id);
+
+        return redirect()->back()->with('success', "{$quarter->name} lock has been reset to auto mode.");
     }
 
     /**
@@ -193,10 +226,13 @@ class SchoolYearQuarterController extends Controller
                     'start_date' => $qStart,
                     'end_date' => $qEnd,
                     'grade_submission_deadline' => $qEnd->copy()->addDays(7), // 7 days after quarter ends
-                    'is_locked' => false,
+                    'is_locked' => null,
                 ]);
+
             }
             DB::commit();
+
+            QuarterLockService::clearCache($schoolYear->id);
 
             return redirect()->back()->with('success', 'All 4 quarters have been auto-generated. You can adjust the dates as needed.');
         } catch (\Throwable $e) {
@@ -229,6 +265,7 @@ class SchoolYearQuarterController extends Controller
             $quarter->update(['is_manually_set_active' => true]);
         });
 
+        QuarterLockService::clearCache($schoolYear->id);
         SchoolYear::clearAdminViewSchoolYear();
 
         return redirect()->back()->with('success', "{$quarter->name} of {$schoolYear->name} is now the active period.");
@@ -248,6 +285,8 @@ class SchoolYearQuarterController extends Controller
         }
 
         $quarter->update(['is_manually_set_active' => false]);
+
+        QuarterLockService::clearCache($schoolYear->id);
 
         return redirect()->back()->with('success', "{$quarter->name} manual override removed. The system will now use date-based quarter detection.");
     }

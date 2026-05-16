@@ -116,17 +116,52 @@
                                         data-bs-target="#editQuarterModal{{ $quarter->id }}">
                                         <i data-feather="edit-2" class="feather-sm"></i> Edit
                                     </button>
-                                    <form
-                                        action="{{ route('admin.school-year.quarters.toggle-lock', [$schoolYear, $quarter]) }}"
-                                        method="POST" class="d-inline">
-                                        @csrf
-                                        <button type="submit"
-                                            class="btn btn-sm {{ $quarter->is_locked ? 'btn-warning' : 'btn-outline-secondary' }}"
-                                            title="{{ $quarter->is_locked ? 'Unlock' : 'Lock' }}">
-                                            <i data-feather="{{ $quarter->is_locked ? 'unlock' : 'lock' }}"
-                                                class="feather-sm"></i>
+                                    @php
+                                        $quarterLockInfo = $quarterLockContext['quarterLocks'][(int) $quarter->quarter] ?? null;
+                                        $isExplicitlyLocked = $quarterLockInfo['is_explicitly_locked'] ?? $quarter->is_locked === true;
+                                        $isExplicitlyUnlocked = $quarterLockInfo['is_explicitly_unlocked'] ?? $quarter->is_locked === false;
+                                        $isEffectivelyLocked = $quarterLockInfo['is_locked'] ?? false;
+                                        $lockReasonLabel = $quarterLockInfo['lock_reason_label'] ?? null;
+
+                                        if ($isExplicitlyLocked) {
+                                            $toggleTooltip = 'Click to unlock' . ($lockReasonLabel ? ' (' . $lockReasonLabel . ')' : '');
+                                        } elseif ($isExplicitlyUnlocked) {
+                                            $toggleTooltip = 'Click to lock (Explicitly unlocked, overrides auto-lock)';
+                                        } elseif ($isEffectivelyLocked && $lockReasonLabel) {
+                                            $toggleTooltip = 'Click to unlock (Effective: ' . $lockReasonLabel . ')';
+                                        } else {
+                                            $toggleTooltip = 'Click to lock';
+                                        }
+                                    @endphp
+                                    @if ($schoolYear->is_active)
+                                        <form
+                                            action="{{ route('admin.school-year.quarters.toggle-lock', [$schoolYear, $quarter]) }}"
+                                            method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit"
+                                                class="btn btn-sm {{ $isExplicitlyLocked ? 'btn-warning' : ($isExplicitlyUnlocked ? 'btn-outline-success' : ($isEffectivelyLocked ? 'btn-secondary' : 'btn-outline-secondary')) }}"
+                                                title="{{ $toggleTooltip }}">
+                                                <i data-feather="{{ $isEffectivelyLocked ? 'lock' : 'unlock' }}"
+                                                    class="feather-sm"></i>
                                         </button>
                                     </form>
+                                        @if ($quarter->is_locked !== null)
+                                            <form
+                                                action="{{ route('admin.school-year.quarters.reset-lock', [$schoolYear, $quarter]) }}"
+                                                method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-info"
+                                                    title="Reset to auto mode">
+                                                    <i data-feather="rotate-ccw" class="feather-sm"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                @else
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                        title="Locking is only available for the active school year.">
+                                        <i data-feather="{{ $isEffectivelyLocked ? 'lock' : 'unlock' }}" class="feather-sm"></i>
+                                    </button>
+                                @endif
                                     <form
                                         action="{{ route('admin.school-year.quarters.destroy', [$schoolYear, $quarter]) }}"
                                         method="POST" class="d-inline" onsubmit="return confirm('Delete this quarter?')">

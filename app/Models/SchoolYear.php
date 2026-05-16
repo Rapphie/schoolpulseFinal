@@ -280,11 +280,12 @@ class SchoolYear extends Model
         return $activeSchoolYear->quarters()->current()->first();
     }
 
+    /**
+     * @deprecated Use QuarterLockService::isLocked() instead for accurate effective lock state.
+     */
     public function isQuarterLocked(int $quarterNumber): bool
     {
-        $quarter = $this->quarters()->where('quarter', $quarterNumber)->first();
-
-        return $quarter ? $quarter->is_locked : false;
+        return (new \App\Services\QuarterLockService)->isLocked($this->id, $quarterNumber);
     }
 
     public function hasEnded(): bool

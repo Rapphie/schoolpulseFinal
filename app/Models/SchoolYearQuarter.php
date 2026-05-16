@@ -61,17 +61,15 @@ class SchoolYearQuarter extends Model
      */
     public function scopeCurrent(Builder $query): Builder
     {
-        // Prioritize the manually set active quarter
-        $manualActive = $query->clone()->where('is_manually_set_active', true)->first();
-
-        if ($manualActive) {
-            return $query->where('id', $manualActive->id);
-        }
-
         $today = Carbon::today();
 
-        return $query->where('start_date', '<=', $today)
-            ->where('end_date', '>=', $today);
+        return $query->where(function (Builder $query) use ($today) {
+            $query->where('is_manually_set_active', true)
+                ->orWhere(function (Builder $q) use ($today) {
+                    $q->where('start_date', '<=', $today)
+                        ->where('end_date', '>=', $today);
+                });
+        })->orderByDesc('is_manually_set_active');
     }
 
     /**
@@ -165,6 +163,22 @@ class SchoolYearQuarter extends Model
     }
 
     /**
+     * Check if this quarter is explicitly locked by an admin (is_locked = true).
+     */
+    public function isExplicitlyLocked(): bool
+    {
+        return $this->is_locked === true;
+    }
+
+    /**
+     * Check if this quarter is explicitly unlocked by an admin (is_locked = false).
+     */
+    public function isExplicitlyUnlocked(): bool
+    {
+        return $this->is_locked === false;
+    }
+
+    /**
      * Get status label for display.
      */
     public function getStatusAttribute(): string
@@ -172,7 +186,7 @@ class SchoolYearQuarter extends Model
         if ($this->is_manually_set_active) {
             return 'Active (Manual)';
         }
-        if ($this->is_locked) {
+        if ($this->is_locked === true) {
             return 'Locked';
         }
         if ($this->isPending()) {
@@ -192,10 +206,10 @@ class SchoolYearQuarter extends Model
     {
         return match ($this->status) {
             'Active (Manual)' => 'bg-primary',
-            'Locked' => 'bg-secondary',
+            'Locked' => 'bg-warning',
             'Upcoming' => 'bg-info',
             'Active' => 'bg-success',
-            'Ended' => 'bg-warning',
+            'Ended' => 'bg-secondary',
             default => 'bg-secondary',
         };
     }
@@ -231,9 +245,9 @@ class SchoolYearQuarter extends Model
     /**
      * Validate that quarter dates are within the school year range.
      */
-    public function isWithinSchoolYear(): bool
+    public function isWithinSchoolYear(?SchoolYear $schoolYear = null): bool
     {
-        $schoolYear = $this->schoolYear;
+        $schoolYear = $schoolYear ?? $this->schoolYear;
         if (! $schoolYear) {
             return false;
         }

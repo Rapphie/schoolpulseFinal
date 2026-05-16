@@ -16,8 +16,11 @@ class AbsentAlertMail extends Mailable implements ShouldQueue
 
     public $consecutiveAbsences;
 
-    public $recipientName;
-
+    /**
+     * Create a new message instance.
+     *
+     * @return void
+     */
     public function __construct(
         Student $student,
         $consecutiveAbsences,

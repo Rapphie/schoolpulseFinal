@@ -1176,12 +1176,22 @@
                                                     <i data-feather="edit-2" class="feather-sm"></i>
                                                 </button>
                                                 @php
-                                                    $lockInfo = $quarterLockContexts[$year->id]['quarterLocks'][(int) $quarter->quarter] ?? null;
-                                                    $isEffectivelyLocked = $lockInfo['is_locked'] ?? $quarter->is_locked;
-                                                    $lockReason = $lockInfo['lock_reason_label'] ?? null;
-                                                    $tooltipText = $isEffectivelyLocked
-                                                        ? 'Locked' . ($lockReason ? ' (' . $lockReason . ')' : '')
-                                                        : 'Unlocked';
+                                                    $quarterLockContext = $quarterLockContexts[$year->id] ?? null;
+                                                    $quarterLockInfo = $quarterLockContext['quarterLocks'][(int) $quarter->quarter] ?? null;
+                                                    $isExplicitlyLocked = $quarterLockInfo['is_explicitly_locked'] ?? ($quarter->is_locked === true);
+                                                    $isExplicitlyUnlocked = $quarterLockInfo['is_explicitly_unlocked'] ?? ($quarter->is_locked === false);
+                                                    $isEffectivelyLocked = $quarterLockInfo['is_locked'] ?? ($quarter->is_locked === true || ($quarter->hasEnded() && $quarter->is_locked !== false));
+                                                    $lockReasonLabel = $quarterLockInfo['lock_reason_label'] ?? null;
+
+                                                    if ($isExplicitlyLocked) {
+                                                        $toggleTooltip = 'Click to unlock (Locked by Admin)';
+                                                    } elseif ($isExplicitlyUnlocked) {
+                                                        $toggleTooltip = 'Click to lock (Explicitly unlocked, overrides auto-lock)';
+                                                    } elseif ($isEffectivelyLocked) {
+                                                        $toggleTooltip = 'Click to unlock (' . ($lockReasonLabel ?? 'Quarter Ended') . ')';
+                                                    } else {
+                                                        $toggleTooltip = 'Click to lock';
+                                                    }
                                                 @endphp
                                                 @if ($year->is_active)
                                                     <form
@@ -1189,15 +1199,15 @@
                                                         method="POST" class="d-inline">
                                                         @csrf
                                                         <button type="submit"
-                                                            class="btn btn-sm {{ $isEffectivelyLocked ? 'btn-warning' : 'btn-outline-secondary' }}"
-                                                            title="{{ $tooltipText }}">
+                                                            class="btn btn-sm {{ $isExplicitlyLocked ? 'btn-warning' : ($isExplicitlyUnlocked ? 'btn-outline-success' : ($isEffectivelyLocked ? 'btn-secondary' : 'btn-outline-secondary')) }}"
+                                                            title="{{ $toggleTooltip }}">
                                                             <i data-feather="{{ $isEffectivelyLocked ? 'lock' : 'unlock' }}"
                                                                 class="feather-sm"></i>
                                                         </button>
                                                     </form>
                                                 @else
                                                     <button type="button" class="btn btn-sm btn-outline-secondary" disabled
-                                                        title="Locking is only available for the active school year. Current status: {{ $tooltipText }}">
+                                                        title="Locking is only available for the active school year.">
                                                         <i data-feather="{{ $isEffectivelyLocked ? 'lock' : 'unlock' }}" class="feather-sm"></i>
                                                     </button>
                                                 @endif
@@ -1630,7 +1640,7 @@
                                         'name' => $q->name,
                                         'startDate' => \Carbon\Carbon::parse($q->start_date)->format('Y-m-d'),
                                         'endDate' => \Carbon\Carbon::parse($q->end_date)->format('Y-m-d'),
-                                        'isLocked' => (bool) $q->is_locked,
+                                        'isLocked' => $q->is_locked === true || ($q->hasEnded() && $q->is_locked !== false),
                                     ];
                                 })
                                 ->toArray(),

@@ -1,6 +1,7 @@
-<?php
+    e<?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Teacher\AnalyticsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,11 +22,11 @@ Route::middleware(['auth', 'password.force-change'])->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     // Analytics accessible to admin and teacher
-    Route::get('/analytics/absenteeism', [\App\Http\Controllers\Teacher\AnalyticsController::class, 'absenteeismAnalytics'])
+    Route::get('/analytics/absenteeism', [AnalyticsController::class, 'absenteeismAnalytics'])
         ->middleware('role:teacher|admin')
         ->name('analytics.absenteeism');
 
-    Route::get('/analytics/classes-by-grade', [\App\Http\Controllers\Teacher\AnalyticsController::class, 'classesByGrade'])
+    Route::get('/analytics/classes-by-grade', [AnalyticsController::class, 'classesByGrade'])
         ->middleware('role:teacher|admin')
         ->name('analytics.classes-by-grade');
 });

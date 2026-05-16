@@ -101,7 +101,7 @@ class SchoolYearQuarterManagementTest extends TestCase
         $response->assertSessionHas('success');
 
         $data['quarter']->refresh();
-        $this->assertFalse($data['quarter']->is_locked);
+        $this->assertSame(false, $data['quarter']->is_locked);
     }
 
     public function test_toggle_lock_fails_when_school_year_is_not_active(): void
